@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run House Inventory Manager</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 32px;
+        }
+
+        /* Password Screen */
+        #password-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .password-box {
+            background: white;
+            padding: 60px 50px;
+            border-radius: 24px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 480px;
+            width: 90%;
+        }
+
+        .password-box h2 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 16px;
+        }
+
+        .password-box p {
+            color: #6c757d;
+            margin-bottom: 36px;
+            font-size: 16px;
+        }
+
+        .password-input {
+            width: 100%;
+            padding: 18px 24px;
+            border: 2px solid #e1e8ed;
+            border-radius: 12px;
+            font-size: 17px;
+            margin-bottom: 20px;
+            transition: all 0.2s ease;
+        }
+
+        .password-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+        }
+
+        .password-submit {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 18px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .password-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .password-error {
+            color: #dc3545;
+            font-size: 15px;
+            margin-top: 16px;
+            display: none;
+            font-weight: 500;
+        }
+
+        #app-content {
+            display: none;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
+        /* Chrome Warning Banner */
+        .chrome-warning {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: #1a1a1a;
+            padding: 18px 32px;
+            border-radius: 16px;
+            margin-bottom: 32px;
+            font-size: 15px;
+            font-weight: 600;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(255, 193, 7, 0.3);
+        }
+
+        .header {
+            background: white;
+            padding: 56px 48px;
+            border-radius: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+        }
+
+        .header p {
+            font-size: 18px;
+            color: #6c757d;
+        }
+
+        /* ========== NEW: TRACKING SECTION STYLES ========== */
+        .tracking-section {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 32px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+            border: 2px solid #e3f2fd;
+        }
+
+        .tracking-header h2 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .tracking-header p {
+            color: #6c757d;
+            font-size: 15px;
+            margin-bottom: 24px;
+        }
+
+        .localstorage-badge {
+            background: linear-gradient(135deg, #28a745 0%, #34ce57 100%);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            font-size: 15px;
+            text-align: center;
+        }
+
+        .drop-zone-small {
+            border: 2px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 32px 24px;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .drop-zone-small:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .drop-zone-small h3 {
+            font-size: 17px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .drop-zone-small p {
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .snapshot-uploaded {
+            background: #667eea;
+            border-radius: 12px;
+            padding: 16px 24px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+        }
+
+        .comparison-report {
+            display: none;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 24px;
+            border-radius: 8px;
+            margin: 24px 0;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .tracking-actions {
+            text-align: center;
+            padding-top: 24px;
+            border-top: 2px dashed #e9ecef;
+        }
+
+        .snapshot-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .snapshot-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .clear-history-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .clear-history-btn:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+
+        .tracking-note {
+            margin-top: 12px;
+            color: #6c757d;
+            font-size: 14px;
+        }
+        /* ========== END TRACKING SECTION STYLES ========== */
+
+        /* Brand Cards Grid - BIGGER TILES */
+        .brand-sections {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 32px;
+            margin-bottom: 32px;
+        }
+
+        .brand-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+            border: 1px solid #e8e8e8;
+        }
+
+        .brand-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+        }
+
+        /* Brand Headers */
+        .brand-header {
+            padding: 32px;
+            text-align: center;
+            color: white;
+            font-weight: 700;
+            font-size: 26px;
+            letter-spacing: 1.5px;
+        }
+
+        .brand-card[data-brand="saucony"] .brand-header {
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%);
+        }
+
+        .brand-card[data-brand="hoka"] .brand-header {
+            background: linear-gradient(135deg, #00BFFF 0%, #1E90FF 100%);
+        }
+
+        .brand-card[data-brand="puma"] .brand-header {
+            background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+        }
+
+        .brand-card[data-brand="newbalance"] .brand-header {
+            background: linear-gradient(135deg, #e60012 0%, #b8000e 100%);
+        }
+
+        .brand-card[data-brand="asics"] .brand-header {
+            background: linear-gradient(135deg, #0066b2 0%, #004d87 100%);
+        }
+
+        .brand-card[data-brand="brooks"] .brand-header {
+            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+        }
+
+        .brand-card[data-brand="on"] .brand-header {
+            background: linear-gradient(135deg, #333333 0%, #1a1a1a 100%);
+        }
+
+        /* Brand Links Section */
+        .brand-links {
+            padding: 20px 32px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .brand-link, .instructions-link {
+            padding: 12px 24px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: inline-block;
+        }
+
+        .brand-link {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .brand-link:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .instructions-link {
+            background: #667eea;
+            color: white;
+            border: 2px solid #667eea;
+            cursor: pointer;
+        }
+
+        .instructions-link:hover {
+            background: #764ba2;
+            border-color: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        /* Instructions Panel */
+        .instructions-panel {
+            padding: 28px 32px;
+            background: #fffbf0;
+            border-left: 5px solid #ffc107;
+            display: none;
+            margin: 0;
+        }
+
+        .instructions-panel h4 {
+            font-size: 17px;
+            font-weight: 700;
+            color: #856404;
+            margin-bottom: 16px;
+        }
+
+        .instructions-panel ol {
+            margin: 0;
+            padding-left: 24px;
+        }
+
+        .instructions-panel li {
+            color: #856404;
+            font-size: 15px;
+            line-height: 2;
+            margin-bottom: 10px;
+        }
+
+        .instructions-panel a {
+            color: #667eea;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .instructions-panel a:hover {
+            text-decoration: underline;
+        }
+
+        .instructions-panel strong {
+            color: #1a1a1a;
+        }
+
+        /* Copy Links Section */
+        .copy-links-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            border: 2px dashed #667eea;
+        }
+
+        .copy-links-section h5 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 12px;
+        }
+
+        .link-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #495057;
+            margin-bottom: 12px;
+            line-height: 1.8;
+        }
+
+        .copy-btn {
+            width: 100%;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: #764ba2;
+        }
+
+        .copy-btn.copied {
+            background: #28a745;
+        }
+
+        /* Drop Zone - BIGGER */
+        .drop-zone {
+            border: 3px dashed #cbd5e0;
+            border-radius: 16px;
+            padding: 60px 40px;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 32px;
+        }
+
+        .drop-zone:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .drop-zone.dragover {
+            border-color: #28a745;
+            background: #e8f5e9;
+        }
+
+        .drop-zone h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 10px;
+        }
+
+        .drop-zone p {
+            color: #6c757d;
+            font-size: 15px;
+        }
+
+        .drop-zone .csv-note {
+            margin-top: 16px;
+            padding: 12px;
+            background: #fff3cd;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #856404;
+            font-weight: 600;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* Uploaded File */
+        .uploaded-file {
+            background: #28a745;
+            border-radius: 14px;
+            padding: 20px 28px;
+            margin: 0 32px 28px 32px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .uploaded-file-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            color: white;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .uploaded-file-info strong {
+            font-size: 15px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .clear-btn {
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 10px;
+            padding: 10px 22px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .clear-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        /* Convert Button - BIGGER */
+        .convert-section {
+            display: none;
+            margin: 0 32px 32px 32px;
+        }
+
+        .convert-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            padding: 20px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .convert-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.35);
+        }
+
+        /* Status Messages */
+        .status {
+            padding: 18px 28px;
+            margin: 0 32px 32px 32px;
+            border-radius: 12px;
+            display: none;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+
+        /* Download Section */
+        .download-section {
+            background: white;
+            border-radius: 24px;
+            padding: 48px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+            display: none;
+        }
+
+        .download-section h2 {
+            font-size: 32px;
+            font-weight: 800;
+            color: #1a1a1a;
+            margin-bottom: 32px;
+        }
+
+        .download-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 48px;
+        }
+
+        .download-btn {
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 14px;
+            padding: 22px 28px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 700;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        /* Brand-specific download button colors */
+        .download-btn.saucony { color: #FF6B35; border-color: #FF6B35; }
+        .download-btn.saucony:hover { background: #fff5f2; }
+        .download-btn.hoka { color: #00BFFF; border-color: #00BFFF; }
+        .download-btn.hoka:hover { background: #f0f9ff; }
+        .download-btn.puma { color: #ff0000; border-color: #ff0000; }
+        .download-btn.puma:hover { background: #fff0f0; }
+        .download-btn.newbalance { color: #e60012; border-color: #e60012; }
+        .download-btn.newbalance:hover { background: #fff0f0; }
+        .download-btn.asics { color: #0066b2; border-color: #0066b2; }
+        .download-btn.asics:hover { background: #f0f7ff; }
+        .download-btn.brooks { color: #1e40af; border-color: #1e40af; }
+        .download-btn.brooks:hover { background: #eff6ff; }
+        .download-btn.on { color: #333333; border-color: #333333; }
+        .download-btn.on:hover { background: #f5f5f5; }
+
+        /* Unified Section */
+        .unified-section {
+            border-top: 2px solid #e9ecef;
+            padding-top: 40px;
+            margin-top: 32px;
+        }
+
+        .unified-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #28a745 0%, #34ce57 100%);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            padding: 24px;
+            font-size: 19px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .unified-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.35);
+        }
+
+        .unified-info {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            font-size: 15px;
+            color: #495057;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        /* Responsive */
+        @media (max-width: 1400px) {
+            .brand-sections {
+                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 16px;
+            }
+
+            .brand-sections {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 36px;
+            }
+
+            .drop-zone {
+                padding: 40px 24px;
+            }
+        }
+
+        /* Animations */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status, .instructions-panel {
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- Password Screen -->
+    <div id="password-screen">
+        <div class="password-box">
+            <h2>Secure Access</h2>
+            <p>Enter your password to access the inventory manager</p>
+            <input 
+                type="password" 
+                id="password-input" 
+                class="password-input" 
+                placeholder="Enter password"
+                autocomplete="off"
+            >
+            <button onclick="checkPassword()" class="password-submit">
+                Unlock
+            </button>
+            <div id="password-error" class="password-error">
+                Incorrect password. Please try again.
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Content -->
+    <div id="app-content">
+        <div class="container">
+            <!-- Chrome Warning -->
+            <div class="chrome-warning">
+                ⚠️ IMPORTANT: You must use Google Chrome browser to run the ASICS, Brooks, and ON Running scrapers
+            </div>
+
+            <div class="header">
+                <h1>Run House Inventory Manager</h1>
+                <p>Professional inventory conversion for Shopify</p>
+            </div>
+
+            <!-- ========== INVENTORY TRACKING SECTION ========== -->
+            <div class="tracking-section">
+                <div class="tracking-header">
+                    <h2>Compare Yesterday vs Today</h2>
+                    <p>Upload yesterday's combined CSV and today's combined CSV to see discontinued and new colorways</p>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+                    <!-- Yesterday's CSV -->
+                    <div>
+                        <div class="drop-zone-small" id="yesterday-dropzone">
+                            <h3>Yesterday's CSV</h3>
+                            <p>Drop your old inventory file here</p>
+                            <input type="file" style="display: none;" id="yesterday-file" accept=".csv">
+                        </div>
+                        <div class="snapshot-uploaded" id="yesterday-uploaded">
+                            <div class="uploaded-file-info">
+                                <strong id="yesterday-filename"></strong>
+                            </div>
+                            <button class="clear-btn" onclick="clearYesterday()">Clear</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Today's CSV -->
+                    <div>
+                        <div class="drop-zone-small" id="today-dropzone">
+                            <h3>Today's CSV</h3>
+                            <p>Drop your new inventory file here</p>
+                            <input type="file" style="display: none;" id="today-file" accept=".csv">
+                        </div>
+                        <div class="snapshot-uploaded" id="today-uploaded">
+                            <div class="uploaded-file-info">
+                                <strong id="today-filename"></strong>
+                            </div>
+                            <button class="clear-btn" onclick="clearToday()">Clear</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Comparison Report -->
+                <div class="comparison-report" id="comparison-report"></div>
+                
+                <!-- Download Section -->
+                <div id="tracking-download-section" style="display: none; margin-top: 30px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="font-size: 24px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px;">Download CSV Files</h3>
+                        <p style="color: #6c757d; font-size: 14px;">Two separate files for easy Shopify uploading</p>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px;">
+                        <div style="background: #f8f9fa; border-radius: 16px; padding: 24px; text-align: center;">
+                            <h3 style="font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px;">Discontinued Colorways</h3>
+                            <p style="color: #6c757d; font-size: 13px; margin-bottom: 20px; line-height: 1.5;">All colorways from yesterday that are NOT in today's inventory. Quantities set to 0.</p>
+                            <button class="unified-btn" id="download-discontinued-btn" onclick="downloadDiscontinued()" disabled style="max-width: 100%;">
+                                Download Discontinued
+                            </button>
+                        </div>
+
+                        <div style="background: #f8f9fa; border-radius: 16px; padding: 24px; text-align: center;">
+                            <h3 style="font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px;">New Colorways</h3>
+                            <p style="color: #6c757d; font-size: 13px; margin-bottom: 20px; line-height: 1.5;">All colorways in today's inventory that were NOT in yesterday's inventory.</p>
+                            <button class="unified-btn" id="download-new-btn" onclick="downloadNew()" disabled style="max-width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                Download New Colorways
+                            </button>
+                        </div>
+
+                        <div style="background: #f8f9fa; border-radius: 16px; padding: 24px; text-align: center;">
+                            <h3 style="font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px;">Complete Update</h3>
+                            <p style="color: #6c757d; font-size: 13px; margin-bottom: 20px; line-height: 1.5;">Today's inventory + discontinued products at 0. One file with everything.</p>
+                            <button class="unified-btn" id="download-complete-btn" onclick="downloadComplete()" disabled style="max-width: 100%; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                                Download Complete Update
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 16px 20px; border-radius: 8px; margin-top: 20px;">
+                        <h4 style="font-size: 14px; font-weight: 700; color: #1565C0; margin-bottom: 8px;">How to use these files:</h4>
+                        <ul style="list-style: none; padding-left: 0;">
+                            <li style="color: #1976D2; font-size: 13px; margin-bottom: 4px; padding-left: 20px; position: relative;">
+                                <span style="position: absolute; left: 8px;">•</span>
+                                <strong>Discontinued CSV:</strong> Upload to Shopify to set discontinued products to 0 quantity
+                            </li>
+                            <li style="color: #1976D2; font-size: 13px; margin-bottom: 4px; padding-left: 20px; position: relative;">
+                                <span style="position: absolute; left: 8px;">•</span>
+                                <strong>New Colorways CSV:</strong> Upload to Shopify to add new products with current quantities
+                            </li>
+                            <li style="color: #1976D2; font-size: 13px; margin-bottom: 4px; padding-left: 20px; position: relative;">
+                                <span style="position: absolute; left: 8px;">•</span>
+                                <strong>Complete Update CSV:</strong> Upload to Shopify to update all inventory (today's products + discontinued at 0)
+                            </li>
+                            <li style="color: #1976D2; font-size: 13px; padding-left: 20px; position: relative;">
+                                <span style="position: absolute; left: 8px;">•</span>
+                                All files are ready to import directly into Shopify
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <!-- ========== END TRACKING SECTION ========== -->
+
+            <div class="brand-sections">
+                <!-- Saucony Section -->
+                <div class="brand-card" data-brand="saucony">
+                    <div class="brand-header">
+                        <h2>SAUCONY</h2>
+                    </div>
+                    <div class="brand-links">
+                        <a href="https://login.orderwwwbrands.com/auth/login" target="_blank" class="brand-link">Visit B2B Portal</a>
+                        <button class="instructions-link" onclick="toggleInstructions('saucony')">Instructions</button>
+                    </div>
+                    <div class="instructions-panel" id="saucony-instructions">
+                        <h4>How to Download Saucony Inventory:</h4>
+                        <ol>
+                            <li>Go to <a href="https://login.orderwwwbrands.com/auth/login" target="_blank">Saucony B2B Portal</a></li>
+                            <li>Click on the <strong>menu</strong> in the top left corner, then click on <strong>Lists</strong></li>
+                            <li>On the lists page, click on <strong>Needham Demo Inventory</strong></li>
+                            <li>Click on the <strong>three dots</strong> next to Create Order</li>
+                            <li>Click <strong>Export ATS</strong></li>
+                            <li>Wait for file to download, then drag and drop it to this converter</li>
+                        </ol>
+                    </div>
+                    <div class="drop-zone" id="saucony-dropzone">
+                        <h3>Drop Saucony file here</h3>
+                        <p>or click to browse</p>
+                        <input type="file" class="file-input" id="saucony-file" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="uploaded-file" id="saucony-uploaded">
+                        <div class="uploaded-file-info">
+                            <strong id="saucony-filename"></strong>
+                        </div>
+                        <button class="clear-btn" onclick="clearFile('saucony')">Clear</button>
+                    </div>
+                    <div class="convert-section" id="saucony-convert">
+                        <button class="convert-btn" onclick="convertBrand('saucony')">
+                            Generate Inventory
+                        </button>
+                    </div>
+                    <div class="status" id="saucony-status"></div>
+                </div>
+
+                <!-- HOKA Section -->
+                <div class="brand-card" data-brand="hoka">
+                    <div class="brand-header">
+                        <h2>HOKA</h2>
+                    </div>
+                    <div class="brand-links">
+                        <a href="https://hokaus.deckersb2b.deckers.com/#/" target="_blank" class="brand-link">Visit B2B Portal</a>
+                        <button class="instructions-link" onclick="toggleInstructions('hoka')">Instructions</button>
+                    </div>
+                    <div class="instructions-panel" id="hoka-instructions">
+                        <h4>How to Download HOKA Inventory:</h4>
+                        <ol>
+                            <li>Go to <a href="https://hokaus.deckersb2b.deckers.com/#/" target="_blank">HOKA B2B Portal</a></li>
+                            <li>Click on <strong>Reports</strong> in the header</li>
+                            <li>Download <strong>ATS Report</strong></li>
+                            <li>This should go to the Needham email - use this file</li>
+                        </ol>
+                    </div>
+                    <div class="drop-zone" id="hoka-dropzone">
+                        <h3>Drop HOKA file here</h3>
+                        <p>or click to browse</p>
+                        <input type="file" class="file-input" id="hoka-file" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="uploaded-file" id="hoka-uploaded">
+                        <div class="uploaded-file-info">
+                            <strong id="hoka-filename"></strong>
+                        </div>
+                        <button class="clear-btn" onclick="clearFile('hoka')">Clear</button>
+                    </div>
+                    <div class="convert-section" id="hoka-convert">
+                        <button class="convert-btn" onclick="convertBrand('hoka')">
+                            Generate Inventory
+                        </button>
+                    </div>
+                    <div class="status" id="hoka-status"></div>
+                </div>
+
+                <!-- Puma Section -->
+                <div class="brand-card" data-brand="puma">
+                    <div class="brand-header">
+                        <h2>PUMA</h2>
+                    </div>
+                    <div class="brand-links">
+                        <a href="https://pumab2b.com/#explore" target="_blank" class="brand-link">Visit B2B Portal</a>
+                        <button class="instructions-link" onclick="toggleInstructions('puma')">Instructions</button>
+                    </div>
+                    <div class="instructions-panel" id="puma-instructions">
+                        <h4>How to Download Puma Inventory:</h4>
+                        <ol>
+                            <li>Go to <a href="https://pumab2b.com/#explore" target="_blank">Puma B2B Portal</a></li>
+                            <li>Hover over <strong>Manage</strong> on the header and click on <strong>Inventory Report</strong></li>
+                            <li><strong>Uncheck</strong> "Include Future Availability"</li>
+                            <li>Click <strong>Submit</strong> - this will take a minute to load</li>
+                            <li>Retrieve the file and place it here</li>
+                        </ol>
+                    </div>
+                    <div class="drop-zone" id="puma-dropzone">
+                        <h3>Drop Puma file here</h3>
+                        <p>or click to browse</p>
+                        <input type="file" class="file-input" id="puma-file" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="uploaded-file" id="puma-uploaded">
+                        <div class="uploaded-file-info">
+                            <strong id="puma-filename"></strong>
+                        </div>
+                        <button class="clear-btn" onclick="clearFile('puma')">Clear</button>
+                    </div>
+                    <div class="convert-section" id="puma-convert">
+                        <button class="convert-btn" onclick="convertBrand('puma')">
+                            Generate Inventory
+                        </button>
+                    </div>
+                    <div class="status" id="puma-status"></div>
+                </div>
+
+                <!-- New Balance Section -->
+                <div class="brand-card" data-brand="newbalance">
+                    <div class="brand-header">
+                        <h2>NEW BALANCE</h2>
+                    </div>
+                    <div class="brand-links">
+                        <a href="https://newbalanceus.elasticsuite.com/#explore" target="_blank" class="brand-link">Visit B2B Portal</a>
+                        <button class="instructions-link" onclick="toggleInstructions('newbalance')">Instructions</button>
+                    </div>
+                    <div class="instructions-panel" id="newbalance-instructions">
+                        <h4>How to Download New Balance Inventory:</h4>
+                        <ol>
+                            <li>Go to <a href="https://newbalanceus.elasticsuite.com/#explore" target="_blank">New Balance B2B Portal</a></li>
+                            <li>Hover over <strong>Manage</strong> on the header and click on <strong>Inventory Report</strong></li>
+                            <li><strong>Uncheck</strong> "Include Future Availability"</li>
+                            <li>Click <strong>Submit</strong> - this will take a minute to load</li>
+                            <li>Retrieve the file and place it here</li>
+                        </ol>
+                    </div>
+                    <div class="drop-zone" id="newbalance-dropzone">
+                        <h3>Drop New Balance file here</h3>
+                        <p>or click to browse</p>
+                        <input type="file" class="file-input" id="newbalance-file" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="uploaded-file" id="newbalance-uploaded">
+                        <div class="uploaded-file-info">
+                            <strong id="newbalance-filename"></strong>
+                        </div>
+                        <button class="clear-btn" onclick="clearFile('newbalance')">Clear</button>
+                    </div>
+                    <div class="convert-section" id="newbalance-convert">
+                        <button class="convert-btn" onclick="convertBrand('newbalance')">
+                            Generate Inventory
+                        </button>
+                    </div>
+                    <div class="status" id="newbalance-status"></div>
+                </div>
+
+                <!-- ASICS Section -->
+                <div class="brand-card" data-brand="asics">
+                    <div class="brand-header">
+                        <h2>ASICS</h2>
+                    </div>
+                    <div class="brand-links">
+                        <a href="https://b2b.asics.com" target="_blank" class="brand-link">Visit B2B Portal</a>
+                        <button class="instructions-link" onclick="toggleInstructions('asics')">Instructions</button>
+                    </div>
+                    <div class="instructions-panel" id="asics-instructions">
+                        <h4>How to Scrape ASICS Inventory (LONGEST PROCESS):</h4>
+                        <ol>
+                            <li><strong>FIRST:</strong> Copy all the product links below by clicking "Copy All Links"</li>
+                            <li>Go to <a href="https://b2b.asics.com" target="_blank">ASICS B2B Portal</a> (must use Chrome)</li>
+                            <li>Click the <strong>Auto Scrape button</strong> in the top corner</li>
+                            <li>Paste the copied links into the scraper</li>
+                            <li>Select <strong>Inventory Scraper</strong> and leave all settings the same</li>
+                            <li><strong>Note:</strong> This takes the longest - be patient!</li>
+                            <li>When complete, you can either:
+                                <ul>
+                                    <li>Upload the output file directly to Shopify, OR</li>
+                                    <li>Drop it here to combine with other brands for one unified upload</li>
+                                </ul>
+                            </li>
+                        </ol>
+                        <div class="copy-links-section">
+                            <h5>📋 Current ASICS Product Links (will be updated as we add products):</h5>
+                            <div class="link-list" id="asics-links">
+https://b2b.asics.com/orders/100522727/products/1013A142?colorCode=401&deliveryDate=2025-11-18
+https://b2b.asics.com/orders/100530815/products/1011C083?colorCode=100
+https://b2b.asics.com/orders/100530815/products/1013A162?colorCode=600
+https://b2b.asics.com/orders/100530815/products/1013A170?colorCode=100&deliveryDate=2025-11-28
+https://b2b.asics.com/orders/100505730/products/1012B765?colorCode=002&deliveryDate=2025-10-07
+https://b2b.asics.com/orders/100505730/products/1011B958?colorCode=001&deliveryDate=2025-10-06
+https://b2b.asics.com/orders/100505730/products/1011C052?colorCode=001&deliveryDate=2025-10-06
+https://b2b.asics.com/orders/100505730/products/1011B960?colorCode=002&deliveryDate=2025-10-06
+https://b2b.asics.com/orders/100505775/products/1011C056?colorCode=001&deliveryDate=2025-10-07
+https://b2b.asics.com/orders/100505775/products/1012B843?colorCode=001&deliveryDate=2025-10-06
+https://b2b.asics.com/orders/100505775/products/1011B974?colorCode=002&deliveryDate=2025-10-06
+https://b2b.asics.com/orders/100505775/products/1012B765?colorCode=002&deliveryDate=2025-10-07
+https://b2b.asics.com/orders/100505775/products/1012B753?colorCode=001&deliveryDate=2025-10-07
+https://b2b.asics.com/orders/100505775/products/1012B772?colorCode=002&deliveryDate=2025-10-06
+https://b2b.asics.com/orders/100505775/products/1012B838?colorCode=001&deliveryDate=2025-10-06
+https://b2b.asics.com/orders/100505875/products/1011C138?colorCode=300&deliveryDate=2025-10-08
+https://b2b.asics.com/orders/100505875/products/1012B911?colorCode=600&deliveryDate=2025-10-08
+https://b2b.asics.com/orders/100505875/products/1011C025?colorCode=300&deliveryDate=2025-10-08
+https://b2b.asics.com/orders/100555134/products/1011C127?colorCode=001&deliveryDate=2026-01-19
+                                https://b2b.asics.com/orders/100565029/products/1013A213?colorCode=800&deliveryDate=2026-02-04
+                            </div>
+                            <button class="copy-btn" onclick="copyLinks('asics')">Copy All Links</button>
+                        </div>
+                    </div>
+                    <div class="drop-zone" id="asics-dropzone">
+                        <h3>Drop ASICS CSV here</h3>
+                        <p>Drop the scraper output file</p>
+                        <div class="csv-note">Pre-formatted CSV from scraper</div>
+                        <input type="file" class="file-input" id="asics-file" accept=".csv">
+                    </div>
+                    <div class="uploaded-file" id="asics-uploaded">
+                        <div class="uploaded-file-info">
+                            <strong id="asics-filename"></strong>
+                        </div>
+                        <button class="clear-btn" onclick="clearFile('asics')">Clear</button>
+                    </div>
+                    <div class="convert-section" id="asics-convert">
+                        <button class="convert-btn" onclick="convertBrand('asics')">
+                            Add to Unified
+                        </button>
+                    </div>
+                    <div class="status" id="asics-status"></div>
+                </div>
+
+                <!-- Brooks Section -->
+                <div class="brand-card" data-brand="brooks">
+                    <div class="brand-header">
+                        <h2>BROOKS</h2>
+                    </div>
+                    <div class="brand-links">
+                        <a href="https://fasttrack.brooksrunning.com" target="_blank" class="brand-link">Visit B2B Portal</a>
+                        <button class="instructions-link" onclick="toggleInstructions('brooks')">Instructions</button>
+                    </div>
+                    <div class="instructions-panel" id="brooks-instructions">
+                        <h4>How to Scrape Brooks Inventory (Slightly Quicker than ASICS):</h4>
+                        <ol>
+                            <li><strong>FIRST:</strong> Copy all the product links below by clicking "Copy All Links"</li>
+                            <li>Go to <a href="https://fasttrack.brooksrunning.com" target="_blank">Brooks B2B Portal</a> (must use Chrome)</li>
+                            <li>Click the <strong>Auto Scrape button</strong> in the top corner</li>
+                            <li>Paste the copied links into the scraper</li>
+                            <li>Select <strong>Inventory Scraper</strong> and leave all settings the same</li>
+                            <li>When complete, you can either:
+                                <ul>
+                                    <li>Upload the output file directly to Shopify, OR</li>
+                                    <li>Drop it here to combine with other brands for one unified upload</li>
+                                </ul>
+                            </li>
+                        </ol>
+                        <div class="copy-links-section">
+                            <h5>📋 Current Brooks Product Links (will be updated as we add products):</h5>
+                            <div class="link-list" id="brooks-links">
+                                https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120468/120468048/9284_41941)?preset=now&sortField=Default&sortDirection=Desc&withRelatedVariants=true&collapse=false
+                                https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110479/110479091/9284_41941)?preset=now&sortField=Default&sortDirection=Desc&withRelatedVariants=true&collapse=false 
+                                https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120443/120443032/9284_41941)?preset=now&sortField=Default&sortDirection=Desc&withRelatedVariants=true&collapse=false                               https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110454/110454410/9284_41941)?q=&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false                               
+                                https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110454/110454044/9284_41941)?preset=now&sortField=Default&sortDirection=Desc&withRelatedVariants=true&collapse=false                                https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120443/120443032/9284_41941)?preset=now&sortField=Default&sortDirection=Desc&withRelatedVariants=true&collapse=false
+https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120431/120431070/9284_41941)
+https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110442/110442297/9284_41941)?q=ghost%2017&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
+https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110464/110464417/9284_41941)
+https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120457/120457043/9284_41941)
+https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110445/110445002/9284_41941)
+https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120434/120434110/9284_41941)
+https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110446/110446078/9284_41941)
+https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120435/120435090/9284_41941)
+https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120426/120426137/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
+https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110437/110437346/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
+https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110438/110438033/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
+https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/120427044/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
+                            </div>
+                            <button class="copy-btn" onclick="copyLinks('brooks')">Copy All Links</button>
+                        </div>
+                    </div>
+                    <div class="drop-zone" id="brooks-dropzone">
+                        <h3>Drop Brooks CSV here</h3>
+                        <p>Drop the scraper output file</p>
+                        <div class="csv-note">Pre-formatted CSV from scraper</div>
+                        <input type="file" class="file-input" id="brooks-file" accept=".csv">
+                    </div>
+                    <div class="uploaded-file" id="brooks-uploaded">
+                        <div class="uploaded-file-info">
+                            <strong id="brooks-filename"></strong>
+                        </div>
+                        <button class="clear-btn" onclick="clearFile('brooks')">Clear</button>
+                    </div>
+                    <div class="convert-section" id="brooks-convert">
+                        <button class="convert-btn" onclick="convertBrand('brooks')">
+                            Add to Unified
+                        </button>
+                    </div>
+                    <div class="status" id="brooks-status"></div>
+                </div>
+
+                <!-- ON Running Section -->
+                <div class="brand-card" data-brand="on">
+                    <div class="brand-header">
+                        <h2>ON RUNNING</h2>
+                    </div>
+                    <div class="brand-links">
+                        <a href="https://backstage.on-running.com/" target="_blank" class="brand-link">Visit B2B</a>
+                        <button class="instructions-link" onclick="toggleInstructions('on')">Instructions</button>
+                    </div>
+                    <div class="instructions-panel" id="on-instructions">
+                        <h4>ON Running Instructions:</h4>
+                        <ol>
+                            <li>Use Chrome browser to run the ON scraper</li>
+                            <li>Download your pre-formatted ON inventory CSVs from the scraper (Men's and Women's separate files)</li>
+                            <li>Upload both files below, then click "Combine & Add to Unified"</li>
+                            <li>You can either:
+                                <ul>
+                                    <li>Download the combined file and upload directly to Shopify, OR</li>
+                                    <li>Combine it with other brands for one unified upload</li>
+                                </ul>
+                            </li>
+                        </ol>
+                    </div>
+                    
+                    <!-- Men's Drop Zone -->
+                    <div class="drop-zone" id="on-men-dropzone">
+                        <h3>Drop ON First CSV here</h3>
+                        <p>inventory file</p>
+                        <div class="csv-note">Pre-formatted CSV from scraper</div>
+                        <input type="file" class="file-input" id="on-men-file" accept=".csv">
+                    </div>
+                    <div class="uploaded-file" id="on-men-uploaded" style="display: none;">
+                        <div class="uploaded-file-info">
+                            <strong id="on-men-filename"></strong>
+                        </div>
+                        <button class="clear-btn" onclick="clearOnFile('men')">Clear</button>
+                    </div>
+                    
+                    <!-- Women's Drop Zone -->
+                    <div class="drop-zone" id="on-women-dropzone" style="margin-top: 16px;">
+                        <h3>Drop ON Second CSV here</h3>
+                        <p> inventory file</p>
+                        <div class="csv-note">Pre-formatted CSV from scraper</div>
+                        <input type="file" class="file-input" id="on-women-file" accept=".csv">
+                    </div>
+                    <div class="uploaded-file" id="on-women-uploaded" style="display: none;">
+                        <div class="uploaded-file-info">
+                            <strong id="on-women-filename"></strong>
+                        </div>
+                        <button class="clear-btn" onclick="clearOnFile('women')">Clear</button>
+                    </div>
+                    
+                    <div class="convert-section" id="on-convert" style="display: none;">
+                        <button class="convert-btn" onclick="convertBrand('on')">
+                            Combine & Add to Unified
+                        </button>
+                    </div>
+                    <div class="status" id="on-status"></div>
+                </div>
+            </div>
+
+            <!-- Download Section -->
+            <div class="download-section" id="download-section">
+                <h2>Download Inventories</h2>
+                <div class="download-grid" id="individual-downloads"></div>
+
+                <div class="unified-section">
+                    <h2>Combined Inventory</h2>
+                    <button class="unified-btn" onclick="downloadUnified()">
+                        Download Selected Brands
+                    </button>
+                    <div class="unified-info" id="unified-info"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CORRECT_PASSWORD = "runhouse15west";
+
+        function checkPassword() {
+            const input = document.getElementById('password-input');
+            const error = document.getElementById('password-error');
+            
+            if (input.value === CORRECT_PASSWORD) {
+                document.getElementById('password-screen').style.display = 'none';
+                document.getElementById('app-content').style.display = 'block';
+                sessionStorage.setItem('authenticated', 'true');
+            } else {
+                error.style.display = 'block';
+                input.value = '';
+                input.focus();
+                document.querySelector('.password-box').style.animation = 'shake 0.5s';
+                setTimeout(() => document.querySelector('.password-box').style.animation = '', 500);
+            }
+        }
+
+        function toggleInstructions(brand) {
+            const panel = document.getElementById(`${brand}-instructions`);
+            const isVisible = panel.style.display === 'block';
+            
+            document.querySelectorAll('.instructions-panel').forEach(p => p.style.display = 'none');
+            
+            if (!isVisible) {
+                panel.style.display = 'block';
+            }
+        }
+
+        function copyLinks(brand) {
+            const linksDiv = document.getElementById(`${brand}-links`);
+            const text = linksDiv.textContent.trim();
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                btn.classList.add('copied');
+                
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        function clearOnFile(gender) {
+            if (gender === 'men') {
+                BrandConverter.brands.on.menFile = null;
+                document.getElementById('on-men-file').value = '';
+                document.getElementById('on-men-uploaded').style.display = 'none';
+                document.getElementById('on-men-dropzone').style.display = 'flex';
+            } else {
+                BrandConverter.brands.on.womenFile = null;
+                document.getElementById('on-women-file').value = '';
+                document.getElementById('on-women-uploaded').style.display = 'none';
+                document.getElementById('on-women-dropzone').style.display = 'flex';
+            }
+            
+            // Hide convert button if either file is missing
+            if (!BrandConverter.brands.on.menFile || !BrandConverter.brands.on.womenFile) {
+                document.getElementById('on-convert').style.display = 'none';
+            }
+            
+            BrandConverter.hideStatus('on');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const input = document.getElementById('password-input');
+            if (input) {
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') checkPassword();
+                });
+                input.focus();
+            }
+
+            if (sessionStorage.getItem('authenticated') === 'true') {
+                document.getElementById('password-screen').style.display = 'none';
+                document.getElementById('app-content').style.display = 'block';
+            }
+        });
+    </script>
+
+    <script src="saucony-converter.js"></script>
+    <script src="hoka-converter.js"></script>
+    <script src="puma-converter.js"></script>
+    <script src="newbalance-converter.js"></script>
+    <!-- INVENTORY COMPARISON SCRIPTS -->
+    <script>
+        // Global variables
+        let yesterdayData = null;
+        let todayData = null;
+        let comparisonResult = null;
+
+        // Setup event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            setupDropZone('yesterday');
+            setupDropZone('today');
+        });
+
+        function setupDropZone(type) {
+            const dropzone = document.getElementById(`${type}-dropzone`);
+            const fileInput = document.getElementById(`${type}-file`);
+
+            dropzone.addEventListener('click', () => fileInput.click());
+            
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('dragover');
+            });
+            
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('dragover');
+            });
+            
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.name.endsWith('.csv')) {
+                    handleFile(file, type);
+                }
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    handleFile(file, type);
+                }
+            });
+        }
+
+        function handleFile(file, type) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const csvText = e.target.result;
+                
+                if (type === 'yesterday') {
+                    yesterdayData = csvText;
+                    document.getElementById('yesterday-dropzone').style.display = 'none';
+                    document.getElementById('yesterday-uploaded').style.display = 'flex';
+                    document.getElementById('yesterday-filename').textContent = file.name;
+                } else {
+                    todayData = csvText;
+                    document.getElementById('today-dropzone').style.display = 'none';
+                    document.getElementById('today-uploaded').style.display = 'flex';
+                    document.getElementById('today-filename').textContent = file.name;
+                }
+                
+                // If both files are loaded, run comparison
+                if (yesterdayData && todayData) {
+                    runComparison();
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function clearYesterday() {
+            yesterdayData = null;
+            document.getElementById('yesterday-dropzone').style.display = 'block';
+            document.getElementById('yesterday-uploaded').style.display = 'none';
+            document.getElementById('yesterday-file').value = '';
+            hideResults();
+        }
+
+        function clearToday() {
+            todayData = null;
+            document.getElementById('today-dropzone').style.display = 'block';
+            document.getElementById('today-uploaded').style.display = 'none';
+            document.getElementById('today-file').value = '';
+            hideResults();
+        }
+
+        function hideResults() {
+            document.getElementById('comparison-report').style.display = 'none';
+            document.getElementById('tracking-download-section').style.display = 'none';
+            comparisonResult = null;
+        }
+
+        function runComparison() {
+            try {
+                comparisonResult = compareInventories(yesterdayData, todayData);
+                const report = generateReport(comparisonResult);
+                
+                // Show report
+                const reportEl = document.getElementById('comparison-report');
+                reportEl.textContent = report;
+                reportEl.style.display = 'block';
+                
+                // Show download section
+                document.getElementById('tracking-download-section').style.display = 'block';
+                
+                // Enable/disable download buttons
+                const hasDiscontinued = comparisonResult.discontinuedColorways.length > 0;
+                const hasNew = comparisonResult.newColorways.length > 0;
+                
+                document.getElementById('download-discontinued-btn').disabled = !hasDiscontinued;
+                document.getElementById('download-new-btn').disabled = !hasNew;
+                document.getElementById('download-complete-btn').disabled = false; // Always enabled if comparison ran
+                
+            } catch (error) {
+                alert('Error comparing files: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        function downloadDiscontinued() {
+            if (!comparisonResult || comparisonResult.discontinuedColorways.length === 0) {
+                alert('No discontinued colorways to download');
+                return;
+            }
+            
+            const csv = generateDiscontinuedCSV(comparisonResult.discontinuedColorways);
+            downloadCSV(csv, 'discontinued-colorways.csv');
+        }
+
+        function downloadNew() {
+            if (!comparisonResult || comparisonResult.newColorways.length === 0) {
+                alert('No new colorways to download');
+                return;
+            }
+            
+            const csv = generateNewColorwaysCSV(comparisonResult.newColorways);
+            downloadCSV(csv, 'new-colorways.csv');
+        }
+
+        function downloadComplete() {
+            if (!comparisonResult) {
+                alert('No comparison data available');
+                return;
+            }
+            
+            const csv = generateCompleteUpdateCSV(comparisonResult);
+            downloadCSV(csv, 'complete-inventory-update.csv');
+        }
+
+        function downloadCSV(csvContent, filename) {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Comparison engine
+        function compareInventories(yesterdayCSV, todayCSV) {
+            console.log('Starting comparison...');
+            
+            const yesterday = parseShopifyCSV(yesterdayCSV);
+            const today = parseShopifyCSV(todayCSV);
+            
+            console.log(`Yesterday variants: ${yesterday.length}`);
+            console.log(`Today variants: ${today.length}`);
+            
+            const yesterdayColorways = new Map();
+            const todayColorways = new Map();
+            
+            yesterday.forEach(variant => {
+                if (!yesterdayColorways.has(variant.Handle)) {
+                    yesterdayColorways.set(variant.Handle, []);
+                }
+                yesterdayColorways.get(variant.Handle).push(variant);
+            });
+            
+            today.forEach(variant => {
+                if (!todayColorways.has(variant.Handle)) {
+                    todayColorways.set(variant.Handle, []);
+                }
+                todayColorways.get(variant.Handle).push(variant);
+            });
+            
+            const discontinuedColorways = [];
+            yesterdayColorways.forEach((variants, handle) => {
+                if (!todayColorways.has(handle)) {
+                    discontinuedColorways.push({
+                        handle: handle,
+                        title: variants[0].Title,
+                        variants: variants
+                    });
+                }
+            });
+            
+            const newColorways = [];
+            todayColorways.forEach((variants, handle) => {
+                if (!yesterdayColorways.has(handle)) {
+                    newColorways.push({
+                        handle: handle,
+                        title: variants[0].Title,
+                        variants: variants
+                    });
+                }
+            });
+            
+            discontinuedColorways.sort((a, b) => a.title.localeCompare(b.title));
+            newColorways.sort((a, b) => a.title.localeCompare(b.title));
+            
+            return { discontinuedColorways, newColorways, yesterdayColorways, todayColorways };
+        }
+
+        function parseShopifyCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+            
+            const handleIndex = headers.indexOf('Handle');
+            const titleIndex = headers.indexOf('Title');
+            const skuIndex = headers.indexOf('SKU');
+            const option1Index = headers.indexOf('Option1 Value');
+            const barcodeIndex = headers.indexOf('Barcode');
+            const hsCodeIndex = headers.indexOf('HS Code');
+            const cooIndex = headers.indexOf('COO');
+            const locationIndex = headers.indexOf('Location');
+            const binNameIndex = headers.indexOf('Bin name');
+            
+            // Try to find the quantity column - could be "On hand (new)" or "Variant Inventory Qty"
+            let qtyIndex = headers.indexOf('On hand (new)');
+            if (qtyIndex === -1) {
+                qtyIndex = headers.indexOf('Variant Inventory Qty');
+            }
+            
+            const variants = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line.trim()) continue;
+                
+                const values = parseCSVLine(line);
+                
+                const handle = values[handleIndex]?.trim().replace(/^"|"$/g, '') || '';
+                const title = values[titleIndex]?.trim().replace(/^"|"$/g, '') || '';
+                const sku = values[skuIndex]?.trim().replace(/^"|"$/g, '') || '';
+                const size = values[option1Index]?.trim().replace(/^"|"$/g, '') || '';
+                const qty = values[qtyIndex]?.trim().replace(/^"|"$/g, '') || '0';
+                const barcode = values[barcodeIndex]?.trim().replace(/^"|"$/g, '') || '';
+                const hsCode = values[hsCodeIndex]?.trim().replace(/^"|"$/g, '') || '';
+                const coo = values[cooIndex]?.trim().replace(/^"|"$/g, '') || '';
+                const location = values[locationIndex]?.trim().replace(/^"|"$/g, '') || '';
+                const binName = values[binNameIndex]?.trim().replace(/^"|"$/g, '') || '';
+                
+                if (handle && size) {
+                    variants.push({
+                        Handle: handle,
+                        Title: title,
+                        SKU: sku,
+                        Size: size,
+                        Quantity: parseInt(qty) || 0,
+                        Barcode: barcode,
+                        HSCode: hsCode,
+                        COO: coo,
+                        Location: location,
+                        BinName: binName
+                    });
+                }
+            }
+            
+            return variants;
+        }
+
+        function parseCSVLine(line) {
+            const values = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                
+                if (char === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    values.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            values.push(current);
+            
+            return values;
+        }
+
+        function generateReport(comparison) {
+            const { discontinuedColorways, newColorways } = comparison;
+            
+            let report = '';
+            report += '======================================================================\n';
+            report += '              RUN HOUSE INVENTORY COMPARISON REPORT\n';
+            report += '======================================================================\n\n';
+            
+            report += `DISCONTINUED COLORWAYS\n`;
+            report += `======================================================================\n`;
+            report += `${discontinuedColorways.length} colorways discontinued\n`;
+            report += `${discontinuedColorways.reduce((sum, cw) => sum + cw.variants.length, 0)} total variants\n\n`;
+            
+            if (discontinuedColorways.length > 0) {
+                discontinuedColorways.forEach(colorway => {
+                    report += `${colorway.title}\n`;
+                    report += `  Sizes: `;
+                    const sizeList = colorway.variants
+                        .sort((a, b) => parseFloat(a.Size) - parseFloat(b.Size))
+                        .map(v => `${v.Size} (${v.Quantity})`)
+                        .join(', ');
+                    report += sizeList + '\n';
+                    report += `  Total variants: ${colorway.variants.length}\n\n`;
+                });
+            } else {
+                report += 'No discontinued colorways found.\n\n';
+            }
+            
+            report += '\n';
+            
+            report += `NEW COLORWAYS\n`;
+            report += `======================================================================\n`;
+            report += `${newColorways.length} new colorways detected\n`;
+            report += `${newColorways.reduce((sum, cw) => sum + cw.variants.length, 0)} total variants\n\n`;
+            
+            if (newColorways.length > 0) {
+                newColorways.forEach(colorway => {
+                    report += `${colorway.title}\n`;
+                    report += `  Sizes: `;
+                    const sizeList = colorway.variants
+                        .sort((a, b) => parseFloat(a.Size) - parseFloat(b.Size))
+                        .map(v => `${v.Size} (${v.Quantity})`)
+                        .join(', ');
+                    report += sizeList + '\n';
+                    report += `  Total variants: ${colorway.variants.length}\n\n`;
+                });
+            } else {
+                report += 'No new colorways found.\n\n';
+            }
+            
+            report += '======================================================================\n';
+            
+            return report;
+        }
+
+        function generateDiscontinuedCSV(discontinuedColorways) {
+            if (discontinuedColorways.length === 0) return null;
+            
+            let csv = 'Handle,Title,Body (HTML),Vendor,Product Category,Type,Tags,Published,Option1 Name,Option1 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item,Included / United States,Price / United States,Compare At Price / United States,Included / International,Price / International,Compare At Price / International,Status\n';
+            
+            discontinuedColorways.forEach(colorway => {
+                colorway.variants.forEach((variant, index) => {
+                    const isFirstVariant = index === 0;
+                    csv += `"${variant.Handle}","${isFirstVariant ? variant.Title : ''}","","","","","","TRUE","${isFirstVariant ? 'Size' : ''}","${variant.Size}","${variant.SKU}","0","shopify","0","deny","manual","","","TRUE","TRUE","","","","","FALSE","","","","","","","","","","","","","","lb","","","TRUE","","","FALSE","","","active"\n`;
+                });
+            });
+            
+            return csv;
+        }
+
+        function generateNewColorwaysCSV(newColorways) {
+            if (newColorways.length === 0) return null;
+            
+            let csv = 'Handle,Title,Body (HTML),Vendor,Product Category,Type,Tags,Published,Option1 Name,Option1 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item,Included / United States,Price / United States,Compare At Price / United States,Included / International,Price / International,Compare At Price / International,Status\n';
+            
+            newColorways.forEach(colorway => {
+                colorway.variants.forEach((variant, index) => {
+                    const isFirstVariant = index === 0;
+                    csv += `"${variant.Handle}","${isFirstVariant ? variant.Title : ''}","","","","","","TRUE","${isFirstVariant ? 'Size' : ''}","${variant.Size}","${variant.SKU}","0","shopify","${variant.Quantity}","deny","manual","","","TRUE","TRUE","","","","","FALSE","","","","","","","","","","","","","","lb","","","TRUE","","","FALSE","","","active"\n`;
+                });
+            });
+            
+            return csv;
+        }
+
+        function generateCompleteUpdateCSV(comparison) {
+            const { discontinuedColorways, todayColorways } = comparison;
+            
+            // Use the same format as combined-inventory CSV
+            let csv = 'Handle,Title,"Option1 Name","Option1 Value","Option2 Name","Option2 Value","Option3 Name","Option3 Value",SKU,Barcode,"HS Code",COO,Location,"Bin name","Incoming (not editable)","Unavailable (not editable)","Committed (not editable)","Available (not editable)","On hand (current)","On hand (new)"\n';
+            
+            // Add all of today's inventory with actual quantities
+            const todayColorwaysArray = Array.from(todayColorways.entries()).sort((a, b) => {
+                const titleA = a[1][0].Title;
+                const titleB = b[1][0].Title;
+                return titleA.localeCompare(titleB);
+            });
+            
+            todayColorwaysArray.forEach(([handle, variants]) => {
+                variants.forEach((variant, index) => {
+                    const isFirstVariant = index === 0;
+                    csv += `${variant.Handle},"${isFirstVariant ? variant.Title : ''}",`;
+                    csv += `${isFirstVariant ? 'Size' : ''},${variant.Size},,,,,`;
+                    csv += `${variant.SKU},${variant.Barcode || ''},${variant.HSCode || ''},${variant.COO || ''},`;
+                    csv += `${variant.Location || ''},${variant.BinName || ''},,,,,`;
+                    csv += `,${variant.Quantity}\n`;
+                });
+            });
+            
+            // Add discontinued products with quantity 0
+            discontinuedColorways.forEach(colorway => {
+                colorway.variants.forEach((variant, index) => {
+                    const isFirstVariant = index === 0;
+                    csv += `${variant.Handle},"${isFirstVariant ? variant.Title : ''}",`;
+                    csv += `${isFirstVariant ? 'Size' : ''},${variant.Size},,,,,`;
+                    csv += `${variant.SKU},${variant.Barcode || ''},${variant.HSCode || ''},${variant.COO || ''},`;
+                    csv += `${variant.Location || ''},${variant.BinName || ''},,,,,`;
+                    csv += `,0\n`;
+                });
+            });
+            
+            return csv;
+        }
+    </script>
+    <!-- END INVENTORY COMPARISON SCRIPTS -->
+    <script src="main.js"></script>
+</body>
+</html>
+</body>
+</html>
