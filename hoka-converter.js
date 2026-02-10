@@ -1024,11 +1024,15 @@ const HokaConverter = {
                             var matchingProduct = self.getMatchingProduct(productName);
                             if (!matchingProduct) continue;
 
-                            // Detect gender: prefer product name prefix for unisex items
+                            // Detect gender: use product name prefix, fall back to Division
                             var formattedGender;
                             var namePrefix = productName.toString().trim().charAt(0).toUpperCase();
                             if (namePrefix === 'U') {
                                 formattedGender = 'Unisex';
+                            } else if (namePrefix === 'M') {
+                                formattedGender = "Men's";
+                            } else if (namePrefix === 'W') {
+                                formattedGender = "Women's";
                             } else {
                                 formattedGender = self.formatGender(division);
                             }
