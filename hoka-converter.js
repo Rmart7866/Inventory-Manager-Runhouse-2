@@ -3,7 +3,7 @@ const HokaConverter = {
     inventoryData: [],
     brandName: 'hoka',
 // ========== HOKA EXISTING HANDLES ==========
-    existingHandles = {
+    existingHandles: {
     '1123074-ADW': 'men-s-solimar-asteroid-white',
     '1123074-BWHT': 'solimar-black-white',
     '1123074-FTW': 'men-s-solimar-foggy-night-white',
