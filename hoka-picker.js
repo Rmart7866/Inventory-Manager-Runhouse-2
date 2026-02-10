@@ -173,3 +173,39 @@ function toggleHokaCategory(catId) {
     updateHokaPickerSummary();
 }
 // ========== END HOKA PRODUCT PICKER LOGIC ==========
+
+// ========== HOKA PRODUCT CSV DOWNLOAD ==========
+function downloadHokaProductCSV() {
+    var csv = HokaConverter.generateProductCSV();
+    if (!csv) {
+        alert('No product data available. Please generate inventory first.');
+        return;
+    }
+
+    var date = new Date();
+    var dateStr = date.getFullYear() + '-' + 
+        String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(date.getDate()).padStart(2, '0');
+    var filename = 'hoka-products-' + dateStr + '.csv';
+
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    var url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function showHokaProductCSVButton() {
+    var btn = document.getElementById('hoka-product-csv-btn');
+    if (btn) btn.style.display = 'block';
+}
+
+function hideHokaProductCSVButton() {
+    var btn = document.getElementById('hoka-product-csv-btn');
+    if (btn) btn.style.display = 'none';
+}
+// ========== END HOKA PRODUCT CSV DOWNLOAD ==========

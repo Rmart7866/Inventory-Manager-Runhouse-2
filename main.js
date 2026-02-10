@@ -447,10 +447,11 @@ function clearFile(brand) {
         document.getElementById(`${brand}-dropzone`).style.display = 'flex';
         BrandConverter.hideStatus(brand);
 
-        // HOKA: also hide the product picker
+        // HOKA: also hide the product picker and product CSV button
         if (brand === 'hoka') {
             document.getElementById('hoka-product-picker').style.display = 'none';
             BrandConverter.brands.hoka.scanned = false;
+            if (typeof hideHokaProductCSVButton === 'function') hideHokaProductCSVButton();
         }
     }
     
@@ -622,6 +623,8 @@ async function convertBrand(brand) {
                     inventory = await HokaConverter.convert(file);
                     BrandConverter.brands[brand].inventory = inventory;
                     BrandConverter.brands[brand].csv = HokaConverter.generateInventoryCSV();
+                    // Show the product CSV download button
+                    if (typeof showHokaProductCSVButton === 'function') showHokaProductCSVButton();
                     break;
                 case 'puma':
                     inventory = await PumaConverter.convert(file);
