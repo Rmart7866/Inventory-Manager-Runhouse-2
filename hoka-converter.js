@@ -1018,9 +1018,8 @@ const HokaConverter = {
                             var quantity = product[12];
                             var retail = product[14];
 
-                            if (!self.isAvailableNow(availableDate)) {
-                                continue;
-                            }
+                            // Future-dated products get 0 quantity but are still included
+                            var isFutureDate = !self.isAvailableNow(availableDate);
 
                             var matchingProduct = self.getMatchingProduct(productName);
                             if (!matchingProduct) continue;
@@ -1081,7 +1080,9 @@ const HokaConverter = {
                             var variantKey = formattedGender + '-' + matchingProduct + '-' + colorway + '-' + size + '-' + width;
 
                             var actualQuantity = 0;
-                            if (typeof quantity === 'string') {
+                            if (isFutureDate) {
+                                actualQuantity = 0; // Future-dated: include in CSV but with 0 inventory
+                            } else if (typeof quantity === 'string') {
                                 if (quantity.includes('+')) {
                                     actualQuantity = parseInt(quantity.replace('+', '')) || 100;
                                 } else {
