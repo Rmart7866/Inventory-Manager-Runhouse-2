@@ -2,738 +2,678 @@
 const HokaConverter = {
     inventoryData: [],
     brandName: 'hoka',
-// ========== HOKA EXISTING HANDLES ==========
-    existingHandles: {
-    '1123074-ADW': 'men-s-solimar-asteroid-white',
-    '1123074-BWHT': 'solimar-black-white',
-    '1123074-FTW': 'men-s-solimar-foggy-night-white',
-    '1123074-WWH': 'solimar-white-white',
-    '1123075-BBLC': 'solimar-black-black',
-    '1123075-BWHT': 'solimar-black-white',
-    '1123075-CYTN': 'women-s-solimar-cosmic-grey-tangerine-glow',
-    '1123075-GRTC': 'women-s-solimar-grout-cerise',
-    '1123075-WWH': 'solimar-white-white',
-    '1123153-ARV': 'men-s-transport-alabaster-varsity-navy',
-    '1123153-DEGG': 'men-s-transport-dune-eggnog',
-    '1123153-MPLG': 'men-s-transport-maple-grassland',
-    '1123153-SSSC': 'men-s-transport-sea-moss-eucalyptus',
-    '1123153-TSLT': 'men-s-transport-truffle-salt-truffle-salt',
-    '1123153-VYN': 'men-s-transport-varsity-navy-white',
-    '1123153-WWH': 'men-s-transport-white-white',
-    '1123154-CMCP': 'women-s-transport-cosmic-pearl-oat-milk',
-    '1123154-CRYS': 'women-s-transport-cosmic-grey-silver',
-    '1123154-DTD': 'women-s-transport-droplet-droplet',
-    '1123154-EEGG': 'women-s-transport-eggnog-eggnog-extra',
-    '1123154-JDY': 'women-s-transport-jade-oyster-mushroom',
-    '1123154-RLTT': 'women-s-transport-rose-latte-rose-cream',
-    '1123154-SQD': 'women-s-transport-squid-ink-sea-glass',
-    '1123154-STZ': 'women-s-transport-smoky-quartz-oat-milk',
-    '1127929-BBLC': 'men-s-gaviota-5-black-black',
-    '1127929-BHFG': 'men-s-gaviota-5-birch-foggy-night',
-    '1127929-BTRC': 'men-s-gaviota-5-black-electric-cobalt',
-    '1127929-BWHT': 'gaviota-5-black-white',
-    '1127929-BYT': 'men-s-gaviota-5-barley-oat-milk',
-    '1127929-DHN': 'gaviota-5-downpour-thunder-cloud',
-    '1127929-DLSH': 'men-s-gaviota-5-deep-lagoon-sherbet',
-    '1127929-FTG': 'men-s-gaviota-5-frost-gold',
-    '1127929-LDVB': 'gaviota-5-limestone-diva-blue',
-    '1127929-ORF': 'men-s-gaviota-5-oyster-mushroom-truffle-salt',
-    '1127929-SSK': 'men-s-gaviota-5-shadow-dusk',
-    '1127929-VYN': 'men-s-gaviota-5-varsity-navy-white',
-    '1133957F-BLCKB': 'men-s-transport-gtx-black-black',
-    '1133957F-DZYB': 'men-s-transport-gtx-druzy-birch',
-    '1133957F-EGH': 'men-s-transport-gtx-eggshell-light-roast',
-    '1133957F-GLCT': 'men-s-transport-gtx-galactic-grey-stardust',
-    '1133957F-MFF': 'transport-gtx-midnight-blue-truffle-salt',
-    '1133957F-STTM': 'men-s-transport-gtx-slate-oat-milk',
-    '1133957F-WLK': 'men-s-transport-gtx-wheat-oat-milk',
-    '1133958F-ASHG': 'women-s-transport-gtx-ash-grey-ash-grey',
-    '1133958F-BLSHR': 'women-s-transport-gtx-blush-rose-cream',
-    '1133958F-CCPR': 'women-s-transport-gtx-cosmic-pearl-cosmic-pearl',
-    '1133958F-DEGG': 'women-s-transport-gtx-dune-eggnog',
-    '1133958F-DZYB': 'women-s-transport-gtx-druzy-birch',
-    '1133958F-FCC': 'women-s-transport-gtx-fragrant-lilac-lilac-cream',
-    '1133958F-ORS': 'women-s-transport-gtx-opal-vaporous',
-    '1134234-BWHT': 'gaviota-5-black-white',
-    '1134234-DHN': 'gaviota-5-downpour-thunder-cloud',
-    '1134234-LDVB': 'gaviota-5-limestone-diva-blue',
-    '1134234-VYN': 'men-s-gaviota-5-varsity-navy-white',
-    '1134235-ALJ': 'women-s-gaviota-5-alpine-blue-jadeite',
-    '1134235-ARP': 'gaviota-5-anchor-grapefruit',
-    '1134235-BWHT': 'gaviota-5-black-white',
-    '1134235-SWML': 'women-s-gaviota-5-snow-melt-cielo-blue',
-    '1134270-BWHT': 'gaviota-5-black-white',
-    '1134270-HMRG': 'gaviota-5-harbor-mist-rose-gold',
-    '1147790-AFF': 'men-s-mach-6-antique-olive-truffle-salt',
-    '1147790-BNGH': 'men-s-mach-6-black-night-sky',
-    '1147790-BWHT': 'mach-6-black-white',
-    '1147790-CLRSS': 'men-s-mach-6-clear-sea-sea-water',
-    '1147790-DDW': 'men-s-mach-6-dusk-shadow',
-    '1147790-FTST': 'men-s-mach-6-frost-starlight-glow',
-    '1147790-GPH': 'men-s-mach-6-gravel-asphalt-grey',
-    '1147790-SNTF': 'men-s-mach-6-succulent-fern',
-    '1147790-VLD': 'men-s-mach-6-varsity-navy-nautical-dusk',
-    '1147790-WKY': 'men-s-mach-6-white-skyward-blue',
-    '1147790-WNL': 'men-s-mach-6-white-neon-lime',
-    '1147791-CDN': 'speedgoat-6-charcoal-grey-midnight-blue',
-    '1147791-DRPL': 'men-s-speedgoat-6-droplet-nautical-dusk',
-    '1147791-MPLC': 'men-s-speedgoat-6-maple-cardamom',
-    '1147791-OSH': 'men-s-speedgoat-6-oyster-mushroom-wild-mushroom',
-    '1147791-PTYB': 'speedgoat-6-putty-blue-twilight',
-    '1147791-WNG': 'men-s-speedgoat-6-white-neon-tangerine',
-    '1147810-BWHT': 'women-s-mach-6-black-white',
-    '1147810-CSSW': 'women-s-mach-6-cloudless-waterpark',
-    '1147810-GHR': 'women-s-mach-6-grey-skies-charcoal-grey',
-    '1147810-JTL': 'women-s-mach-6-jadeite-alpine-blue',
-    '1147810-ORF': 'women-s-mach-6-oyster-mushroom-truffle-salt',
-    '1147810-RSLT': 'mach-6-rose-latte-blush',
-    '1147810-TNDR': 'mach-6-tundra-blue-raindrop',
-    '1147810-VLD': 'women-s-mach-6-varsity-navy-nautical-dusk',
-    '1147810-WNH': 'women-s-mach-6-white-neon-hoka-citrus',
-    '1147810-WTCL': 'women-s-mach-6-white-cielo-blue',
-    '1147811-BNNH': 'women-s-speedgoat-6-black-neon-hoka-citrus',
-    '1147811-CYLB': 'women-s-speedgoat-6-cosmic-grey-alabaster',
-    '1147811-FDS': 'women-s-speedgoat-6-feldspar-blue-twilight',
-    '1147811-GKS': 'women-s-speedgoat-6-gull-stormy-skies',
-    '1147811-GMC': 'speedgoat-6-grey-skies-cosmic-grey',
-    '1147811-MNLG': 'women-s-speedgoat-6-moonlight-thunder-cloud',
-    '1147811-NDS': 'speedgoat-6-nautical-dusk-sea-ice',
-    '1147811-RLCK': 'women-s-speedgoat-6-rouge-black-cherry',
-    '1147811-RSLT': 'women-s-speedgoat-6-rose-latte-blush',
-    '1147811-SLWS': 'women-s-speedgoat-6-starlight-glow-aster-flower',
-    '1147811-SYST': 'speedgoat-6-stellar-grey-asteroid',
-    '1147811-WNG': 'women-s-speedgoat-6-white-neon-tangerine',
-    '1147830-CDN': 'speedgoat-6-charcoal-grey-midnight-blue',
-    '1147830-GCG': 'speedgoat-6-galactic-grey-hoka-blue',
-    '1147830-PTYB': 'speedgoat-6-putty-blue-twilight',
-    '1147832-GMC': 'speedgoat-6-grey-skies-cosmic-grey',
-    '1147832-MNLG': 'women-s-speedgoat-6-moonlight-thunder-cloud',
-    '1147832-SYST': 'speedgoat-6-stellar-grey-asteroid',
-    '1147833-AFF': 'men-s-mach-6-antique-olive-truffle-salt',
-    '1147833-BNGH': 'men-s-mach-6-black-night-sky',
-    '1147833-BWHT': 'mach-6-black-white',
-    '1147834-BWHT': 'women-s-mach-6-black-white',
-    '1147834-FTRS': 'women-s-mach-6-frost-rose-gold',
-    '1147834-JTL': 'women-s-mach-6-jadeite-alpine-blue',
-    '1147834-PLDS': 'women-s-mach-6-pale-dusk-gull',
-    '1147834-RSLT': 'mach-6-rose-latte-blush',
-    '1147834-TNDR': 'mach-6-tundra-blue-raindrop',
-    '1147911-BVR': 'men-s-skyward-x-blanc-de-blanc-virtual-blue',
-    '1147911-CRYS': 'men-s-skyward-x-cosmic-grey-silver',
-    '1147911-CSLP': 'men-s-skyward-x-clear-sea-alpine-blue',
-    '1147911-FLP': 'men-s-skyward-x-frost-lupine',
-    '1147911-LCC': 'men-s-skyward-x-lettuce-cloudless',
-    '1147911-LMTH': 'men-s-skyward-x-luna-moth-black',
-    '1147912-BSW': 'women-s-skyward-x-blanc-de-blanc-swim-day',
-    '1147912-CYRS': 'women-s-skyward-x-cosmic-grey-rose-gold',
-    '1147912-JTD': 'skyward-x-jadeite-dried-rose',
-    '1147912-MSP': 'women-s-skyward-x-mint-fluorite-blue-spark',
-    '1152450-BBLC': 'men-s-transport-black-black',
-    '1152450-WWH': 'men-s-transport-white-white',
-    '1155111-BHLB': 'men-s-skyflow-birch-alabaster',
-    '1155111-BWHT': 'men-s-skyflow-black-white',
-    '1155111-DHN': 'men-s-skyflow-downpour-thunder-cloud',
-    '1155111-DRZY': 'men-s-skyflow-druzy-droplet',
-    '1155111-FCG': 'men-s-skyflow-frost-cosmic-grey',
-    '1155111-FSTS': 'men-s-skyflow-frost-solar-flare',
-    '1155111-FTG': 'men-s-skyflow-frost-gold',
-    '1155111-HLF': 'men-s-skyflow-hoka-blue-frost',
-    '1155111-LHW': 'men-s-skyflow-luna-moth-white',
-    '1155111-MLNG': 'men-s-skyflow-midnight-blue-night-sky',
-    '1155111-MVR': 'men-s-skyflow-midnight-blue-varsity-navy',
-    '1155111-NRS': 'men-s-skyflow-neon-hoka-citrus-neon-white',
-    '1155111-SRYS': 'men-s-skyflow-stellar-grey-shoreline',
-    '1155111-STLLR': 'men-s-skyflow-stellar-grey-stardust',
-    '1155111-SYZ': 'men-s-skyflow-sunlight-neon-yuzu',
-    '1155111-VVY': 'men-s-skyflow-varsity-navy-electric-cobalt',
-    '1155111-WSHR': 'men-s-skyflow-wild-mushroom-grassland',
-    '1155113-ARVN': 'women-s-skyflow-alabaster-vintage-green',
-    '1155113-ATRM': 'women-s-skyflow-alabaster-mineral-blue',
-    '1155113-BWHT': 'women-s-skyflow-black-white',
-    '1155113-CMCG': 'women-s-skyflow-cosmic-grey-seafoam',
-    '1155113-FCG': 'women-s-skyflow-frost-cosmic-grey',
-    '1155113-FTRS': 'women-s-skyflow-frost-rose-gold',
-    '1155113-LHW': 'women-s-skyflow-luna-moth-white',
-    '1155113-MTW': 'women-s-skyflow-midnight-pink-twilight',
-    '1155113-NKN': 'women-s-skyflow-nautical-dusk-anchor',
-    '1155113-RCRM': 'women-s-skyflow-rose-cream-alabaster',
-    '1155113-RRMR': 'women-s-skyflow-rose-cream-rose-latte',
-    '1155113-SLWC': 'women-s-skyflow-starlight-glow-carnation',
-    '1155113-SYZ': 'women-s-skyflow-sunlight-neon-yuzu',
-    '1155113-UNN': 'women-s-skyflow-ultramarine-night-sky',
-    '1155117-BWHT': 'men-s-skyflow-black-white',
-    '1155117-DHN': 'men-s-skyflow-downpour-thunder-cloud',
-    '1155117-DRZY': 'men-s-skyflow-druzy-droplet',
-    '1155117-MVR': 'men-s-skyflow-midnight-blue-varsity-navy',
-    '1155117-VVY': 'men-s-skyflow-varsity-navy-electric-cobalt',
-    '1155117-WSHR': 'men-s-skyflow-wild-mushroom-grassland',
-    '1155118-ARVN': 'women-s-skyflow-alabaster-vintage-green',
-    '1155118-ATRM': 'women-s-skyflow-alabaster-mineral-blue',
-    '1155118-BWHT': 'women-s-skyflow-black-white',
-    '1155118-NKN': 'women-s-skyflow-nautical-dusk-anchor',
-    '1155118-RRMR': 'women-s-skyflow-rose-cream-rose-latte',
-    '1155118-SLWC': 'women-s-skyflow-starlight-glow-carnation',
-    '1155119-BCQ': 'men-s-mach-x-3-black-electric-aqua',
-    '1155119-FCT': 'men-s-mach-x-3-frost-citrus',
-    '1155120-FCQ': 'women-s-mach-x-3-frost-electric-aqua',
-    '1155150-BCKT': 'men-s-speedgoat-6-black-outer-orbit',
-    '1155150-BZY': 'men-s-speedgoat-6-blue-twilight-druzy',
-    '1155150-FYNG': 'men-s-speedgoat-6-foggy-night-charcoal-grey',
-    '1155150-SFRN': 'men-s-speedgoat-6-sea-glass-fern',
-    '1155150-STLV': 'men-s-speedgoat-6-slate-aloe-vera',
-    '1155150-WLSP': 'men-s-speedgoat-6-washed-blue-asphalt-grey',
-    '1155151-BCKT': 'women-s-speedgoat-6-black-outer-orbit',
-    '1155151-FMB': 'women-s-speedgoat-6-fragrant-lilac-ambient-blue',
-    '1155151-JSH': 'women-s-speedgoat-6-jade-ash-grey',
-    '1155151-MLLP': 'speedgoat-6-midnight-blue-alpine-blue',
-    '1155151-SZQ': 'women-s-speedgoat-6-smoky-quartz-quartzite',
-    '1155151-TFL': 'women-s-speedgoat-6-thunder-cloud-mint-fluorite',
-    '1155152-OTC': 'men-s-speedgoat-6-outer-orbit-lettuce',
-    '1155152-SLTG': 'men-s-speedgoat-6-satellite-grey-stardust',
-    '1155152-SMLK': 'men-s-speedgoat-6-sea-moss-oat-milk',
-    '1155152-TRFF': 'men-s-speedgoat-6-truffle-salt-cement',
-    '1155153-ADC': 'women-s-speedgoat-6-asteroid-cosmic-grey',
-    '1155153-AYC': 'women-s-speedgoat-6-ash-grey-charcoal-grey',
-    '1155153-GGV': 'women-s-speedgoat-6-galaxy-guava',
-    '1155153-MFGD': 'women-s-speedgoat-6-mountain-fog-droplet',
-    '1155190-BKLB': 'men-s-transport-chukka-black-alabaster',
-    '1155191-CMCP': 'women-s-transport-chukka-cosmic-pearl-oat-milk',
-    '1155191-OST': 'women-s-transport-chukka-oat-milk-alabaster',
-    '1155770-BCKT': 'men-s-speedgoat-6-black-outer-orbit',
-    '1155771-BCKT': 'women-s-speedgoat-6-black-outer-orbit',
-    '1162011-ADSL': 'men-s-bondi-9-asteroid-silver',
-    '1162011-ALTG': 'men-s-bondi-9-asphalt-grey-gravel',
-    '1162011-BBLC': 'men-s-bondi-9-black-black',
-    '1162011-BKVR': 'men-s-bondi-9-black-vermillion',
-    '1162011-BWHT': 'men-s-bondi-9-black-white',
-    '1162011-CYLT': 'men-s-bondi-9-cosmic-grey-ultramarine',
-    '1162011-DNP': 'men-s-bondi-9-drizzle-downpour',
-    '1162011-GCTC': 'men-s-bondi-9-galactic-grey-stellar-grey',
-    '1162011-GSSL': 'men-s-bondi-9-grassland-oyster-mushroom',
-    '1162011-LNMT': 'men-s-bondi-9-luna-moth-blue-spark',
-    '1162011-MVR': 'men-s-bondi-9-midnight-blue-varsity-navy',
-    '1162011-NYZS': 'men-s-bondi-9-neon-yuzu-sunlight',
-    '1162011-OLTM': 'men-s-bondi-9-oatmeal-oat-milk',
-    '1162011-SCCG': 'men-s-bondi-9-stucco-grout',
-    '1162011-SNTF': 'men-s-bondi-9-succulent-fern',
-    '1162011-SSTC': 'men-s-bondi-9-stardust-cosmic-grey',
-    '1162011-TDRC': 'men-s-bondi-9-thunder-cloud-vermillion',
-    '1162011-VYN': 'men-s-bondi-9-varsity-navy-white',
-    '1162011-WKB': 'men-s-bondi-9-white-hoka-blue',
-    '1162011-WWH': 'men-s-bondi-9-white-white',
-    '1162012-AGH': 'women-s-bondi-9-aster-flower-starlight-glow',
-    '1162012-ALBST': 'women-s-bondi-9-alabaster-birch',
-    '1162012-BBLC': 'women-s-bondi-9-black-black',
-    '1162012-BRGL': 'women-s-bondi-9-black-rose-gold',
-    '1162012-BTF': 'women-s-bondi-9-blue-spark-mint-fluorite',
-    '1162012-BWHT': 'women-s-bondi-9-black-white',
-    '1162012-CRDS': 'women-s-bondi-9-cosmic-grey-stardust',
-    '1162012-CYWH': 'women-s-bondi-9-cosmic-grey-white',
-    '1162012-FTCL': 'women-s-bondi-9-frost-cielo-blue',
-    '1162012-LYC': 'women-s-bondi-9-lingonberry-cranberry',
-    '1162012-MBLW': 'women-s-bondi-9-mineral-blue-washed-blue',
-    '1162012-NYZS': 'women-s-bondi-9-neon-yuzu-sunlight',
-    '1162012-OSG': 'women-s-bondi-9-oat-milk-rose-gold',
-    '1162012-RLTT': 'women-s-bondi-9-rose-latte-rose-cream',
-    '1162012-RSTP': 'women-s-bondi-9-rose-tea-petal',
-    '1162012-SDSTS': 'women-s-bondi-9-stardust-silver',
-    '1162012-SNNF': 'women-s-bondi-9-skyward-blue-neon-fuchsia',
-    '1162012-TLSL': 'women-s-bondi-9-truffle-salt-sea-glass',
-    '1162012-VCH': 'women-s-bondi-9-vanilla-birch',
-    '1162012-WWH': 'women-s-bondi-9-white-white',
-    '1162013-BBLC': 'men-s-bondi-9-black-black',
-    '1162013-BWHT': 'men-s-bondi-9-black-white',
-    '1162013-CYLT': 'men-s-bondi-9-cosmic-grey-ultramarine',
-    '1162013-GCTC': 'men-s-bondi-9-galactic-grey-stellar-grey',
-    '1162013-GSSL': 'men-s-bondi-9-grassland-oyster-mushroom',
-    '1162013-MVR': 'men-s-bondi-9-midnight-blue-varsity-navy',
-    '1162013-SCCG': 'men-s-bondi-9-stucco-grout',
-    '1162013-SLHK': 'men-s-bondi-9-skyward-blue-hoka-blue',
-    '1162013-TDRC': 'men-s-bondi-9-thunder-cloud-vermillion',
-    '1162013-VYN': 'men-s-bondi-9-varsity-navy-white',
-    '1162014-ALBST': 'women-s-bondi-9-alabaster-birch',
-    '1162014-BBLC': 'women-s-bondi-9-black-black',
-    '1162014-BTF': 'women-s-bondi-9-blue-spark-mint-fluorite',
-    '1162014-BWHT': 'women-s-bondi-9-black-white',
-    '1162014-CYWH': 'women-s-bondi-9-cosmic-grey-white',
-    '1162014-MBLW': 'women-s-bondi-9-mineral-blue-washed-blue',
-    '1162014-RLTT': 'women-s-bondi-9-rose-latte-rose-cream',
-    '1162014-RSTP': 'women-s-bondi-9-rose-tea-petal',
-    '1162014-SDSTS': 'women-s-bondi-9-stardust-silver',
-    '1162014-TLSL': 'women-s-bondi-9-truffle-salt-sea-glass',
-    '1162014-VCH': 'women-s-bondi-9-vanilla-birch',
-    '1162014-WWH': 'women-s-bondi-9-white-white',
-    '1162015-BBLC': 'men-s-bondi-9-black-black-extra',
-    '1162015-BWHT': 'men-s-bondi-9-black-white-extra',
-    '1162015-GCTC': 'men-s-bondi-9-galactic-grey-stellar-grey-extra',
-    '1162015-VYN': 'men-s-bondi-9-varsity-navy-white-extra',
-    '1162016-BBLC': 'women-s-bondi-9-black-black-extra',
-    '1162016-BWHT': 'women-s-bondi-9-black-white-extra',
-    '1162016-MBLW': 'women-s-bondi-9-mineral-blue-washed-blue-extra',
-    '1162016-RLTT': 'women-s-bondi-9-rose-latte-rose-cream-extra',
-    '1162016-SDSTS': 'women-s-bondi-9-stardust-silver-extra',
-    '1162016-WWH': 'women-s-bondi-9-white-white-extra',
-    '1162030-ADSL': 'men-s-clifton-10-asteroid-silver',
-    '1162030-ALF': 'men-s-clifton-10-alpine-blue-foggy-night',
-    '1162030-BBLC': 'men-s-clifton-10-black-black',
-    '1162030-BKSV': 'men-s-clifton-10-black-silver',
-    '1162030-BWHT': 'men-s-clifton-10-black-white',
-    '1162030-FFF': 'men-s-clifton-10-fern-truffle-salt',
-    '1162030-GYST': 'men-s-clifton-10-galactic-grey-asteroid',
-    '1162030-HSK': 'men-s-clifton-10-hoka-blue-skyward-blue',
-    '1162030-NMD': 'men-s-clifton-10-night-sky-midnight-blue',
-    '1162030-NSS': 'men-s-clifton-10-neon-hoka-citrus-sunlight',
-    '1162030-NWT': 'men-s-clifton-10-navy-white',
-    '1162030-OLTM': 'men-s-clifton-10-oatmeal-oat-milk',
-    '1162030-PTYG': 'men-s-clifton-10-putty-grout',
-    '1162030-RNN': 'men-s-clifton-10-raw-linen-stone',
-    '1162030-SGNN': 'men-s-clifton-10-sage-neon-flame',
-    '1162030-STLLR': 'men-s-clifton-10-stellar-grey-stardust',
-    '1162030-VLLN': 'men-s-clifton-10-vermillion-varsity-navy',
-    '1162030-WKY': 'men-s-clifton-10-white-skyward-blue',
-    '1162030-WWH': 'men-s-clifton-10-white-white',
-    '1162031-ARRS': 'women-s-clifton-10-alabaster-rose-gold',
-    '1162031-BBLC': 'women-s-clifton-10-black-black',
-    '1162031-BHLB': 'women-s-clifton-10-birch-alabaster',
-    '1162031-BHRS': 'women-s-clifton-10-blush-rose-latte',
-    '1162031-BKGD': 'women-s-clifton-10-black-gold',
-    '1162031-BRGL': 'women-s-clifton-10-black-rose-gold',
-    '1162031-BWHT': 'women-s-clifton-10-black-white',
-    '1162031-CRDS': 'women-s-clifton-10-cosmic-grey-stardust',
-    '1162031-CTNS': 'women-s-clifton-10-carnation-starlight-glow',
-    '1162031-DTDR': 'women-s-clifton-10-droplet-druzy',
-    '1162031-GRTM': 'women-s-clifton-10-grout-mineral-blue',
-    '1162031-NYL': 'women-s-clifton-10-night-sky-ultramarine',
-    '1162031-OTP': 'women-s-clifton-10-overcast-petal',
-    '1162031-RMD': 'women-s-clifton-10-rose-cream-dried-rose',
-    '1162031-SBLF': 'women-s-clifton-10-soaring-blue-frost',
-    '1162031-SJD': 'women-s-clifton-10-sea-glass-jadeite',
-    '1162031-SKYW': 'women-s-clifton-10-skyward-blue-cielo-blue',
-    '1162031-SLSSN': 'women-s-clifton-10-sea-glass-neon-flame',
-    '1162031-SRYG': 'women-s-clifton-10-stellar-grey-galactic-grey',
-    '1162031-VCH': 'women-s-clifton-10-vanilla-birch',
-    '1162031-WTLC': 'women-s-clifton-10-white-electric-rose',
-    '1162031-WWH': 'women-s-clifton-10-white-white',
-    '1162032-ALF': 'men-s-clifton-10-alpine-blue-foggy-night',
-    '1162032-BBLC': 'men-s-clifton-10-black-black',
-    '1162032-BKSV': 'men-s-clifton-10-black-silver',
-    '1162032-BWHT': 'men-s-clifton-10-black-white',
-    '1162032-GYST': 'men-s-clifton-10-galactic-grey-asteroid',
-    '1162032-HSK': 'men-s-clifton-10-hoka-blue-skyward-blue',
-    '1162032-NMD': 'men-s-clifton-10-night-sky-midnight-blue',
-    '1162032-NWT': 'men-s-clifton-10-navy-white',
-    '1162032-PTYG': 'men-s-clifton-10-putty-grout',
-    '1162032-RNN': 'men-s-clifton-10-raw-linen-stone',
-    '1162032-STLLR': 'men-s-clifton-10-stellar-grey-stardust',
-    '1162032-VLLN': 'men-s-clifton-10-vermillion-varsity-navy',
-    '1162032-WKY': 'men-s-clifton-10-white-skyward-blue',
-    '1162032-WWH': 'men-s-clifton-10-white-white',
-    '1162050-BBLC': 'women-s-clifton-10-black-black',
-    '1162050-BHLB': 'women-s-clifton-10-birch-alabaster',
-    '1162050-BHRS': 'women-s-clifton-10-blush-rose-latte',
-    '1162050-BWHT': 'women-s-clifton-10-black-white',
-    '1162050-CRDS': 'women-s-clifton-10-cosmic-grey-stardust',
-    '1162050-CTNS': 'women-s-clifton-10-carnation-starlight-glow',
-    '1162050-GRTM': 'women-s-clifton-10-grout-mineral-blue',
-    '1162050-NYL': 'women-s-clifton-10-night-sky-ultramarine',
-    '1162050-OTP': 'women-s-clifton-10-overcast-petal',
-    '1162050-RMD': 'women-s-clifton-10-rose-cream-dried-rose',
-    '1162050-SLSSN': 'women-s-clifton-10-sea-glass-neon-flame',
-    '1162050-SRYG': 'women-s-clifton-10-stellar-grey-galactic-grey',
-    '1162050-VCH': 'women-s-clifton-10-vanilla-birch',
-    '1162050-WTCL': 'women-s-clifton-10-white-cielo-blue',
-    '1162050-WWH': 'women-s-clifton-10-white-white',
-    '1162051-BBLC': 'men-s-clifton-10-black-black-extra',
-    '1162051-BWHT': 'men-s-clifton-10-black-white-extra',
-    '1162051-NWT': 'men-s-clifton-10-navy-white-extra',
-    '1162051-PTYG': 'men-s-clifton-10-putty-grout-extra',
-    '1162051-STLLR': 'men-s-clifton-10-stellar-grey-stardust-extra',
-    '1162052-BBLC': 'women-s-clifton-10-black-black-extra',
-    '1162052-BWHT': 'women-s-clifton-10-black-white-extra',
-    '1162052-GRTM': 'women-s-clifton-10-grout-mineral-blue-extra',
-    '1162052-WWH': 'women-s-clifton-10-white-white-extra',
-    '1164371-EEGG': 'women-s-transport-eggnog-eggnog',
-    '1168690-ADSL': 'men-s-arahi-8-asteroid-silver',
-    '1168690-ALBST': 'men-s-arahi-8-alabaster-birch',
-    '1168690-BBLC': 'men-s-arahi-8-black-black',
-    '1168690-BKSK': 'men-s-arahi-8-black-skyward-blue',
-    '1168690-BWHT': 'men-s-arahi-8-black-white',
-    '1168690-GTP': 'men-s-arahi-8-grout-putty',
-    '1168690-NZN': 'men-s-arahi-8-neon-yuzu-neon-flame',
-    '1168690-SSTC': 'men-s-arahi-8-stardust-cosmic-grey',
-    '1168690-TDRC': 'men-s-arahi-8-thunder-cloud-vermillion',
-    '1168690-TYS': 'men-s-arahi-8-truffle-salt-oyster-mushroom',
-    '1168690-VYN': 'men-s-arahi-8-varsity-navy-white',
-    '1168690-WWH': 'men-s-arahi-8-white-white',
-    '1168691-ARLN': 'women-s-arahi-8-alabaster-lingonberry',
-    '1168691-ARRS': 'women-s-arahi-8-alabaster-rose-gold',
-    '1168691-BBLC': 'women-s-arahi-8-black-black',
-    '1168691-BHLB': 'women-s-arahi-8-birch-alabaster',
-    '1168691-BHRS': 'women-s-arahi-8-blush-rose-latte',
-    '1168691-BRGL': 'women-s-arahi-8-black-rose-gold',
-    '1168691-BWHT': 'women-s-arahi-8-black-white',
-    '1168691-CYG': 'women-s-arahi-8-charcoal-grey-grey-skies',
-    '1168691-DZLP': 'women-s-arahi-8-drizzle-petal',
-    '1168691-MLLT': 'women-s-arahi-8-midnight-blue-ultramarine',
-    '1168691-ORF': 'arahi-8-oyster-mushroom-truffle-salt',
-    '1168691-RCRM': 'women-s-arahi-8-rose-cream-alabaster',
-    '1168691-SYZ': 'women-s-arahi-8-sunlight-neon-yuzu',
-    '1168691-WWH': 'women-s-arahi-8-white-white',
-    '1168710-BBLC': 'men-s-arahi-8-black-black',
-    '1168710-BKSK': 'men-s-arahi-8-black-skyward-blue',
-    '1168710-BWHT': 'men-s-arahi-8-black-white',
-    '1168710-GTP': 'men-s-arahi-8-grout-putty',
-    '1168710-SSTC': 'men-s-arahi-8-stardust-cosmic-grey',
-    '1168710-VYN': 'men-s-arahi-8-varsity-navy-white',
-    '1168711-BBLC': 'women-s-arahi-8-black-black',
-    '1168711-BHLB': 'women-s-arahi-8-birch-alabaster',
-    '1168711-BRGL': 'women-s-arahi-8-black-rose-gold',
-    '1168711-BWHT': 'women-s-arahi-8-black-white',
-    '1168711-RCRM': 'women-s-arahi-8-rose-cream-alabaster',
-    '1168711-WWH': 'women-s-arahi-8-white-white',
-    '1168720-NNHK': 'mach-x-3-neon-hoka-citrus-neon-lime',
-    '1168720-NZS': 'men-s-mach-x-3-neon-yuzu-squid-ink',
-    '1168720-WBS': 'men-s-mach-x-3-white-alabaster',
-    '1168720-WNG': 'men-s-mach-x-3-white-neon-tangerine',
-    '1168721-NNRS': 'women-s-mach-x-3-neon-rose-neon-tangerine',
-    '1168721-NZS': 'women-s-mach-x-3-neon-yuzu-squid-ink',
-    '1168721-WBS': 'women-s-mach-x-3-white-alabaster',
-    '1168721-WNL': 'women-s-mach-x-3-white-neon-lime',
-    '1169450-BBLC': 'men-s-transport-gtx-black-black',
-    '1169451-DEGG': 'women-s-transport-gtx-dune-eggnog',
-    '1171850-ABST': 'women-s-transport-alabaster-alabaster',
-    '1171850-BBLC': 'women-s-transport-black-black',
-    '1171850-BKLB': 'women-s-transport-black-alabaster',
-    '1171850-SSTSG': 'women-s-transport-stardust-sea-glass',
-    '1171850-TNQ': 'women-s-transport-tranquil-blue-ambient-blue',
-    '1171850-WWH': 'women-s-transport-white-white',
-    '1171851-ABST': 'men-s-transport-alabaster-alabaster',
-    '1171851-BBLC': 'men-s-transport-black-black',
-    '1171851-BKLB': 'men-s-transport-black-alabaster',
-    '1171851-CMVN': 'men-s-transport-cream-vintage-yellow',
-    '1171851-FYM': 'men-s-transport-faded-navy-mineral-blue',
-    '1171851-GLST': 'men-s-transport-gravel-stucco',
-    '1171852-ABST': 'men-s-solimar-alabaster-alabaster',
-    '1171852-BBLC': 'men-s-solimar-black-black',
-    '1171852-BWHT': 'men-s-solimar-black-white',
-    '1171852-MGRT': 'men-s-solimar-midnight-blue-grout',
-    '1171852-STBY': 'men-s-solimar-stardust-bay-leaf',
-    '1171853-ABST': 'women-s-solimar-alabaster-alabaster',
-    '1171853-BBLC': 'women-s-solimar-black-black',
-    '1171853-BWHT': 'women-s-solimar-black-white',
-    '1171853-CBRR': 'women-s-solimar-cosmic-grey-berry-patch',
-    '1171853-FTMN': 'women-s-solimar-frost-mineral-blue',
-    '1171928-BWHT': 'men-s-speedgoat-7-black-white',
-    '1171928-KWN': 'men-s-speedgoat-7-kiwi-neon-yuzu',
-    '1171928-VMR': 'men-s-speedgoat-7-vintage-yellow-turmeric',
-    '1171929-BWHT': 'women-s-speedgoat-7-black-white',
-    '1171929-PYZ': 'women-s-speedgoat-7-persimmon-neon-yuzu',
-    '1171929-VWN': 'women-s-speedgoat-7-vintage-yellow-neon-flame',
-    '1171930-BWHT': 'men-s-speedgoat-7-black-white',
-    '1171931-BWHT': 'women-s-speedgoat-7-black-white',
-    '1171931-VWN': 'women-s-speedgoat-7-vintage-yellow-neon-flame',
-    '1171932-BBLC': 'men-s-gaviota-6-black-black',
-    '1171932-BWHT': 'men-s-gaviota-6-black-white',
-    '1171932-MLFD': 'men-s-gaviota-6-midnight-blue-faded-navy',
-    '1171932-STLLR': 'men-s-gaviota-6-stellar-grey-stardust',
-    '1171933-BBLC': 'women-s-gaviota-6-black-black',
-    '1171933-BHY': 'women-s-gaviota-6-birch-yellow-gold',
-    '1171933-BWHT': 'women-s-gaviota-6-black-white',
-    '1171933-CRDS': 'women-s-gaviota-6-cosmic-grey-stardust',
-    '1171933-SSSG': 'women-s-gaviota-6-sea-glass-sage',
-    '1171934-BBLC': 'men-s-gaviota-6-black-black',
-    '1171934-BWHT': 'men-s-gaviota-6-black-white',
-    '1171934-MLFD': 'men-s-gaviota-6-midnight-blue-faded-navy',
-    '1171934-STLLR': 'men-s-gaviota-6-stellar-grey-stardust',
-    '1171935-BBLC': 'women-s-gaviota-6-black-black',
-    '1171935-BHY': 'women-s-gaviota-6-birch-yellow-gold',
-    '1171935-BWHT': 'women-s-gaviota-6-black-white',
-    '1171935-CRDS': 'women-s-gaviota-6-cosmic-grey-stardust',
-    '1171936-BBLC': 'men-s-gaviota-6-black-black-extra',
-    '1171936-BWHT': 'men-s-gaviota-6-black-white-extra',
-    '1171936-MLFD': 'men-s-gaviota-6-midnight-blue-faded-navy-extra',
-    '1171936-STLLR': 'men-s-gaviota-6-stellar-grey-stardust-extra',
-    '1171937-BBLC': 'women-s-gaviota-6-black-black-extra',
-    '1171937-BWHT': 'women-s-gaviota-6-black-white-extra',
-    '1172912-BBLC': 'men-s-transport-gtx-black-black',
-    '1172912-GLF': 'men-s-transport-gtx-gravel-fern',
-    '1172912-LSH': 'men-s-transport-gtx-light-roast-eggshell',
-    '1172912-SRCG': 'men-s-transport-gtx-spruce-green-oyster-mushroom',
-    '1172912-STBLS': 'men-s-transport-gtx-slate-blue-stucco',
-    '1172912-VYT': 'men-s-transport-gtx-varsity-navy-truffle-salt',
-    '1172912-WNTM': 'men-s-transport-gtx-walnut-maple',
-    '1172913-BBLC': 'women-s-transport-gtx-black-black',
-    '1172913-CSTC': 'women-s-transport-gtx-cement-stucco',
-    '1172913-GSKS': 'women-s-transport-gtx-grey-skies-sea-glass',
-    '1172913-OVN': 'women-s-transport-gtx-oyster-mushroom-vintage-yellow',
-    '1172913-RSLT': 'women-s-transport-gtx-rose-latte-blush',
-    '1174777-ABST': 'women-s-transport-alabaster-alabaster',
-    '1174777-BBLC': 'women-s-transport-black-black',
-    '1174777-BKLB': 'women-s-transport-black-alabaster',
-    '1174777-SSTSG': 'women-s-transport-stardust-sea-glass',
-    '1174777-WWH': 'women-s-transport-white-white',
-    '1174778-ABST': 'men-s-transport-alabaster-alabaster',
-    '1174778-BBLC': 'men-s-transport-black-black',
-    '1174778-BKLB': 'men-s-transport-black-alabaster',
-    '1174778-CMVN': 'men-s-transport-cream-vintage-yellow',
-    '1174778-GLST': 'men-s-transport-gravel-stucco',
-    '1175530-BBLC': 'men-s-arahi-8-black-black-extra',
-    '1175530-BWHT': 'men-s-arahi-8-black-white-extra',
-    '1175530-GTP': 'men-s-arahi-8-grout-putty-extra',
-    '1175530-VYN': 'men-s-arahi-8-varsity-navy-white-extra',
-    '1175531-BRGL': 'women-s-arahi-8-black-rose-gold-extra',
-    '1175531-BWHT': 'women-s-arahi-8-black-white-extra',
-    '1175531-RCRM': 'women-s-arahi-8-rose-cream-alabaster-extra',
-    '1175531-WWH': 'women-s-arahi-8-white-white-extra',
-    '1177330-ABST': 'men-s-solimar-alabaster-alabaster',
-    '1177330-BBLC': 'men-s-solimar-black-black',
-    '1177330-BWHT': 'men-s-solimar-black-white',
-    '1177330-STBY': 'men-s-solimar-stardust-bay-leaf',
-    '1177331-ABST': 'women-s-solimar-alabaster-alabaster',
-    '1177331-BBLC': 'women-s-solimar-black-black',
-    '1177331-BWHT': 'women-s-solimar-black-white',
-};
 
-    
-    isAvailableNow(availableDateStr) {
+    // ========== HOKA EXISTING HANDLES ==========
+    // Key format: "styleNumber-colorCode" (e.g., "1162030-BBLC")
+    // Value: existing Shopify handle to preserve SEO
+    existingHandles: {
+        '1123074-ADW': 'men-s-solimar-asteroid-white',
+        '1123074-BWHT': 'solimar-black-white',
+        '1123074-FTW': 'men-s-solimar-foggy-night-white',
+        '1123074-WWH': 'solimar-white-white',
+        '1123075-BBLC': 'solimar-black-black',
+        '1123075-BWHT': 'solimar-black-white',
+        '1123075-CYTN': 'women-s-solimar-cosmic-grey-tangerine-glow',
+        '1123075-GRTC': 'women-s-solimar-grout-cerise',
+        '1123075-WWH': 'solimar-white-white',
+        '1123153-ARV': 'men-s-transport-alabaster-varsity-navy',
+        '1123153-DEGG': 'men-s-transport-dune-eggnog',
+        '1123153-MPLG': 'men-s-transport-maple-grassland',
+        '1123153-SSSC': 'men-s-transport-sea-moss-eucalyptus',
+        '1123153-TSLT': 'men-s-transport-truffle-salt-truffle-salt',
+        '1123153-VYN': 'men-s-transport-varsity-navy-white',
+        '1123153-WWH': 'men-s-transport-white-white',
+        '1123154-CMCP': 'women-s-transport-cosmic-pearl-oat-milk',
+        '1123154-CRYS': 'women-s-transport-cosmic-grey-silver',
+        '1123154-DTD': 'women-s-transport-droplet-droplet',
+        '1123154-EEGG': 'women-s-transport-eggnog-eggnog-extra',
+        '1123154-JDY': 'women-s-transport-jade-oyster-mushroom',
+        '1123154-RLTT': 'women-s-transport-rose-latte-rose-cream',
+        '1123154-SQD': 'women-s-transport-squid-ink-sea-glass',
+        '1123154-STZ': 'women-s-transport-smoky-quartz-oat-milk',
+        '1127929-BBLC': 'men-s-gaviota-5-black-black',
+        '1127929-BHFG': 'men-s-gaviota-5-birch-foggy-night',
+        '1127929-BTRC': 'men-s-gaviota-5-black-electric-cobalt',
+        '1127929-BWHT': 'gaviota-5-black-white',
+        '1127929-BYT': 'men-s-gaviota-5-barley-oat-milk',
+        '1127929-DHN': 'gaviota-5-downpour-thunder-cloud',
+        '1127929-DLSH': 'men-s-gaviota-5-deep-lagoon-sherbet',
+        '1127929-FTG': 'men-s-gaviota-5-frost-gold',
+        '1127929-LDVB': 'gaviota-5-limestone-diva-blue',
+        '1127929-ORF': 'men-s-gaviota-5-oyster-mushroom-truffle-salt',
+        '1127929-SSK': 'men-s-gaviota-5-shadow-dusk',
+        '1127929-VYN': 'men-s-gaviota-5-varsity-navy-white',
+        '1133957F-BLCKB': 'men-s-transport-gtx-black-black',
+        '1133957F-DZYB': 'men-s-transport-gtx-druzy-birch',
+        '1133957F-EGH': 'men-s-transport-gtx-eggshell-light-roast',
+        '1133957F-GLCT': 'men-s-transport-gtx-galactic-grey-stardust',
+        '1133957F-MFF': 'transport-gtx-midnight-blue-truffle-salt',
+        '1133957F-STTM': 'men-s-transport-gtx-slate-oat-milk',
+        '1133957F-WLK': 'men-s-transport-gtx-wheat-oat-milk',
+        '1133958F-ASHG': 'women-s-transport-gtx-ash-grey-ash-grey',
+        '1133958F-BLSHR': 'women-s-transport-gtx-blush-rose-cream',
+        '1133958F-CCPR': 'women-s-transport-gtx-cosmic-pearl-cosmic-pearl',
+        '1133958F-DEGG': 'women-s-transport-gtx-dune-eggnog',
+        '1133958F-DZYB': 'women-s-transport-gtx-druzy-birch',
+        '1133958F-FCC': 'women-s-transport-gtx-fragrant-lilac-lilac-cream',
+        '1133958F-ORS': 'women-s-transport-gtx-opal-vaporous',
+        '1134234-BWHT': 'gaviota-5-black-white',
+        '1134234-DHN': 'gaviota-5-downpour-thunder-cloud',
+        '1134234-LDVB': 'gaviota-5-limestone-diva-blue',
+        '1134234-VYN': 'men-s-gaviota-5-varsity-navy-white',
+        '1134235-ALJ': 'women-s-gaviota-5-alpine-blue-jadeite',
+        '1134235-ARP': 'gaviota-5-anchor-grapefruit',
+        '1134235-BWHT': 'gaviota-5-black-white',
+        '1134235-SWML': 'women-s-gaviota-5-snow-melt-cielo-blue',
+        '1134270-BWHT': 'gaviota-5-black-white',
+        '1134270-HMRG': 'gaviota-5-harbor-mist-rose-gold',
+        '1147790-AFF': 'men-s-mach-6-antique-olive-truffle-salt',
+        '1147790-BNGH': 'men-s-mach-6-black-night-sky',
+        '1147790-BWHT': 'mach-6-black-white',
+        '1147790-CLRSS': 'men-s-mach-6-clear-sea-sea-water',
+        '1147790-DDW': 'men-s-mach-6-dusk-shadow',
+        '1147790-FTST': 'men-s-mach-6-frost-starlight-glow',
+        '1147790-GPH': 'men-s-mach-6-gravel-asphalt-grey',
+        '1147790-SNTF': 'men-s-mach-6-succulent-fern',
+        '1147790-VLD': 'men-s-mach-6-varsity-navy-nautical-dusk',
+        '1147790-WKY': 'men-s-mach-6-white-skyward-blue',
+        '1147790-WNL': 'men-s-mach-6-white-neon-lime',
+        '1147791-CDN': 'speedgoat-6-charcoal-grey-midnight-blue',
+        '1147791-DRPL': 'men-s-speedgoat-6-droplet-nautical-dusk',
+        '1147791-MPLC': 'men-s-speedgoat-6-maple-cardamom',
+        '1147791-OSH': 'men-s-speedgoat-6-oyster-mushroom-wild-mushroom',
+        '1147791-PTYB': 'speedgoat-6-putty-blue-twilight',
+        '1147791-WNG': 'men-s-speedgoat-6-white-neon-tangerine',
+        '1147810-BWHT': 'women-s-mach-6-black-white',
+        '1147810-CSSW': 'women-s-mach-6-cloudless-waterpark',
+        '1147810-GHR': 'women-s-mach-6-grey-skies-charcoal-grey',
+        '1147810-JTL': 'women-s-mach-6-jadeite-alpine-blue',
+        '1147810-ORF': 'women-s-mach-6-oyster-mushroom-truffle-salt',
+        '1147810-RSLT': 'mach-6-rose-latte-blush',
+        '1147810-TNDR': 'mach-6-tundra-blue-raindrop',
+        '1147810-VLD': 'women-s-mach-6-varsity-navy-nautical-dusk',
+        '1147810-WNH': 'women-s-mach-6-white-neon-hoka-citrus',
+        '1147810-WTCL': 'women-s-mach-6-white-cielo-blue',
+        '1147811-BNNH': 'women-s-speedgoat-6-black-neon-hoka-citrus',
+        '1147811-CYLB': 'women-s-speedgoat-6-cosmic-grey-alabaster',
+        '1147811-FDS': 'women-s-speedgoat-6-feldspar-blue-twilight',
+        '1147811-GKS': 'women-s-speedgoat-6-gull-stormy-skies',
+        '1147811-GMC': 'speedgoat-6-grey-skies-cosmic-grey',
+        '1147811-MNLG': 'women-s-speedgoat-6-moonlight-thunder-cloud',
+        '1147811-NDS': 'speedgoat-6-nautical-dusk-sea-ice',
+        '1147811-RLCK': 'women-s-speedgoat-6-rouge-black-cherry',
+        '1147811-RSLT': 'women-s-speedgoat-6-rose-latte-blush',
+        '1147811-SLWS': 'women-s-speedgoat-6-starlight-glow-aster-flower',
+        '1147811-SYST': 'speedgoat-6-stellar-grey-asteroid',
+        '1147811-WNG': 'women-s-speedgoat-6-white-neon-tangerine',
+        '1147830-CDN': 'speedgoat-6-charcoal-grey-midnight-blue',
+        '1147830-GCG': 'speedgoat-6-galactic-grey-hoka-blue',
+        '1147830-PTYB': 'speedgoat-6-putty-blue-twilight',
+        '1147832-GMC': 'speedgoat-6-grey-skies-cosmic-grey',
+        '1147832-MNLG': 'women-s-speedgoat-6-moonlight-thunder-cloud',
+        '1147832-SYST': 'speedgoat-6-stellar-grey-asteroid',
+        '1147833-AFF': 'men-s-mach-6-antique-olive-truffle-salt',
+        '1147833-BNGH': 'men-s-mach-6-black-night-sky',
+        '1147833-BWHT': 'mach-6-black-white',
+        '1147834-BWHT': 'women-s-mach-6-black-white',
+        '1147834-FTRS': 'women-s-mach-6-frost-rose-gold',
+        '1147834-JTL': 'women-s-mach-6-jadeite-alpine-blue',
+        '1147834-PLDS': 'women-s-mach-6-pale-dusk-gull',
+        '1147834-RSLT': 'mach-6-rose-latte-blush',
+        '1147834-TNDR': 'mach-6-tundra-blue-raindrop',
+        '1147911-BVR': 'men-s-skyward-x-blanc-de-blanc-virtual-blue',
+        '1147911-CRYS': 'men-s-skyward-x-cosmic-grey-silver',
+        '1147911-CSLP': 'men-s-skyward-x-clear-sea-alpine-blue',
+        '1147911-FLP': 'men-s-skyward-x-frost-lupine',
+        '1147911-LCC': 'men-s-skyward-x-lettuce-cloudless',
+        '1147911-LMTH': 'men-s-skyward-x-luna-moth-black',
+        '1147912-BSW': 'women-s-skyward-x-blanc-de-blanc-swim-day',
+        '1147912-CYRS': 'women-s-skyward-x-cosmic-grey-rose-gold',
+        '1147912-JTD': 'skyward-x-jadeite-dried-rose',
+        '1147912-MSP': 'women-s-skyward-x-mint-fluorite-blue-spark',
+        '1152450-BBLC': 'men-s-transport-black-black',
+        '1152450-WWH': 'men-s-transport-white-white',
+        '1155111-BHLB': 'men-s-skyflow-birch-alabaster',
+        '1155111-BWHT': 'men-s-skyflow-black-white',
+        '1155111-DHN': 'men-s-skyflow-downpour-thunder-cloud',
+        '1155111-DRZY': 'men-s-skyflow-druzy-droplet',
+        '1155111-FCG': 'men-s-skyflow-frost-cosmic-grey',
+        '1155111-FSTS': 'men-s-skyflow-frost-solar-flare',
+        '1155111-FTG': 'men-s-skyflow-frost-gold',
+        '1155111-HLF': 'men-s-skyflow-hoka-blue-frost',
+        '1155111-LHW': 'men-s-skyflow-luna-moth-white',
+        '1155111-MLNG': 'men-s-skyflow-midnight-blue-night-sky',
+        '1155111-MVR': 'men-s-skyflow-midnight-blue-varsity-navy',
+        '1155111-NRS': 'men-s-skyflow-neon-hoka-citrus-neon-white',
+        '1155111-SRYS': 'men-s-skyflow-stellar-grey-shoreline',
+        '1155111-STLLR': 'men-s-skyflow-stellar-grey-stardust',
+        '1155111-SYZ': 'men-s-skyflow-sunlight-neon-yuzu',
+        '1155111-VVY': 'men-s-skyflow-varsity-navy-electric-cobalt',
+        '1155111-WSHR': 'men-s-skyflow-wild-mushroom-grassland',
+        '1155113-ARVN': 'women-s-skyflow-alabaster-vintage-green',
+        '1155113-ATRM': 'women-s-skyflow-alabaster-mineral-blue',
+        '1155113-BWHT': 'women-s-skyflow-black-white',
+        '1155113-CMCG': 'women-s-skyflow-cosmic-grey-seafoam',
+        '1155113-FCG': 'women-s-skyflow-frost-cosmic-grey',
+        '1155113-FTRS': 'women-s-skyflow-frost-rose-gold',
+        '1155113-LHW': 'women-s-skyflow-luna-moth-white',
+        '1155113-MTW': 'women-s-skyflow-midnight-pink-twilight',
+        '1155113-NKN': 'women-s-skyflow-nautical-dusk-anchor',
+        '1155113-RCRM': 'women-s-skyflow-rose-cream-alabaster',
+        '1155113-RRMR': 'women-s-skyflow-rose-cream-rose-latte',
+        '1155113-SLWC': 'women-s-skyflow-starlight-glow-carnation',
+        '1155113-SYZ': 'women-s-skyflow-sunlight-neon-yuzu',
+        '1155113-UNN': 'women-s-skyflow-ultramarine-night-sky',
+        '1155117-BWHT': 'men-s-skyflow-black-white',
+        '1155117-DHN': 'men-s-skyflow-downpour-thunder-cloud',
+        '1155117-DRZY': 'men-s-skyflow-druzy-droplet',
+        '1155117-MVR': 'men-s-skyflow-midnight-blue-varsity-navy',
+        '1155117-VVY': 'men-s-skyflow-varsity-navy-electric-cobalt',
+        '1155117-WSHR': 'men-s-skyflow-wild-mushroom-grassland',
+        '1155118-ARVN': 'women-s-skyflow-alabaster-vintage-green',
+        '1155118-ATRM': 'women-s-skyflow-alabaster-mineral-blue',
+        '1155118-BWHT': 'women-s-skyflow-black-white',
+        '1155118-NKN': 'women-s-skyflow-nautical-dusk-anchor',
+        '1155118-RRMR': 'women-s-skyflow-rose-cream-rose-latte',
+        '1155118-SLWC': 'women-s-skyflow-starlight-glow-carnation',
+        '1155119-BCQ': 'men-s-mach-x-3-black-electric-aqua',
+        '1155119-FCT': 'men-s-mach-x-3-frost-citrus',
+        '1155120-FCQ': 'women-s-mach-x-3-frost-electric-aqua',
+        '1155150-BCKT': 'men-s-speedgoat-6-black-outer-orbit',
+        '1155150-BZY': 'men-s-speedgoat-6-blue-twilight-druzy',
+        '1155150-FYNG': 'men-s-speedgoat-6-foggy-night-charcoal-grey',
+        '1155150-SFRN': 'men-s-speedgoat-6-sea-glass-fern',
+        '1155150-STLV': 'men-s-speedgoat-6-slate-aloe-vera',
+        '1155150-WLSP': 'men-s-speedgoat-6-washed-blue-asphalt-grey',
+        '1155151-BCKT': 'women-s-speedgoat-6-black-outer-orbit',
+        '1155151-FMB': 'women-s-speedgoat-6-fragrant-lilac-ambient-blue',
+        '1155151-JSH': 'women-s-speedgoat-6-jade-ash-grey',
+        '1155151-MLLP': 'speedgoat-6-midnight-blue-alpine-blue',
+        '1155151-SZQ': 'women-s-speedgoat-6-smoky-quartz-quartzite',
+        '1155151-TFL': 'women-s-speedgoat-6-thunder-cloud-mint-fluorite',
+        '1155152-OTC': 'men-s-speedgoat-6-outer-orbit-lettuce',
+        '1155152-SLTG': 'men-s-speedgoat-6-satellite-grey-stardust',
+        '1155152-SMLK': 'men-s-speedgoat-6-sea-moss-oat-milk',
+        '1155152-TRFF': 'men-s-speedgoat-6-truffle-salt-cement',
+        '1155153-ADC': 'women-s-speedgoat-6-asteroid-cosmic-grey',
+        '1155153-AYC': 'women-s-speedgoat-6-ash-grey-charcoal-grey',
+        '1155153-GGV': 'women-s-speedgoat-6-galaxy-guava',
+        '1155153-MFGD': 'women-s-speedgoat-6-mountain-fog-droplet',
+        '1155190-BKLB': 'men-s-transport-chukka-black-alabaster',
+        '1155191-CMCP': 'women-s-transport-chukka-cosmic-pearl-oat-milk',
+        '1155191-OST': 'women-s-transport-chukka-oat-milk-alabaster',
+        '1155770-BCKT': 'men-s-speedgoat-6-black-outer-orbit',
+        '1155771-BCKT': 'women-s-speedgoat-6-black-outer-orbit',
+        '1162011-ADSL': 'men-s-bondi-9-asteroid-silver',
+        '1162011-ALTG': 'men-s-bondi-9-asphalt-grey-gravel',
+        '1162011-BBLC': 'men-s-bondi-9-black-black',
+        '1162011-BKVR': 'men-s-bondi-9-black-vermillion',
+        '1162011-BWHT': 'men-s-bondi-9-black-white',
+        '1162011-CYLT': 'men-s-bondi-9-cosmic-grey-ultramarine',
+        '1162011-DNP': 'men-s-bondi-9-drizzle-downpour',
+        '1162011-GCTC': 'men-s-bondi-9-galactic-grey-stellar-grey',
+        '1162011-GSSL': 'men-s-bondi-9-grassland-oyster-mushroom',
+        '1162011-LNMT': 'men-s-bondi-9-luna-moth-blue-spark',
+        '1162011-MVR': 'men-s-bondi-9-midnight-blue-varsity-navy',
+        '1162011-NYZS': 'men-s-bondi-9-neon-yuzu-sunlight',
+        '1162011-OLTM': 'men-s-bondi-9-oatmeal-oat-milk',
+        '1162011-SCCG': 'men-s-bondi-9-stucco-grout',
+        '1162011-SNTF': 'men-s-bondi-9-succulent-fern',
+        '1162011-SSTC': 'men-s-bondi-9-stardust-cosmic-grey',
+        '1162011-TDRC': 'men-s-bondi-9-thunder-cloud-vermillion',
+        '1162011-VYN': 'men-s-bondi-9-varsity-navy-white',
+        '1162011-WKB': 'men-s-bondi-9-white-hoka-blue',
+        '1162011-WWH': 'men-s-bondi-9-white-white',
+        '1162012-AGH': 'women-s-bondi-9-aster-flower-starlight-glow',
+        '1162012-ALBST': 'women-s-bondi-9-alabaster-birch',
+        '1162012-BBLC': 'women-s-bondi-9-black-black',
+        '1162012-BRGL': 'women-s-bondi-9-black-rose-gold',
+        '1162012-BTF': 'women-s-bondi-9-blue-spark-mint-fluorite',
+        '1162012-BWHT': 'women-s-bondi-9-black-white',
+        '1162012-CRDS': 'women-s-bondi-9-cosmic-grey-stardust',
+        '1162012-CYWH': 'women-s-bondi-9-cosmic-grey-white',
+        '1162012-FTCL': 'women-s-bondi-9-frost-cielo-blue',
+        '1162012-LYC': 'women-s-bondi-9-lingonberry-cranberry',
+        '1162012-MBLW': 'women-s-bondi-9-mineral-blue-washed-blue',
+        '1162012-NYZS': 'women-s-bondi-9-neon-yuzu-sunlight',
+        '1162012-OSG': 'women-s-bondi-9-oat-milk-rose-gold',
+        '1162012-RLTT': 'women-s-bondi-9-rose-latte-rose-cream',
+        '1162012-RSTP': 'women-s-bondi-9-rose-tea-petal',
+        '1162012-SDSTS': 'women-s-bondi-9-stardust-silver',
+        '1162012-SNNF': 'women-s-bondi-9-skyward-blue-neon-fuchsia',
+        '1162012-TLSL': 'women-s-bondi-9-truffle-salt-sea-glass',
+        '1162012-VCH': 'women-s-bondi-9-vanilla-birch',
+        '1162012-WWH': 'women-s-bondi-9-white-white',
+        '1162013-BBLC': 'men-s-bondi-9-black-black',
+        '1162013-BWHT': 'men-s-bondi-9-black-white',
+        '1162013-CYLT': 'men-s-bondi-9-cosmic-grey-ultramarine',
+        '1162013-GCTC': 'men-s-bondi-9-galactic-grey-stellar-grey',
+        '1162013-GSSL': 'men-s-bondi-9-grassland-oyster-mushroom',
+        '1162013-MVR': 'men-s-bondi-9-midnight-blue-varsity-navy',
+        '1162013-SCCG': 'men-s-bondi-9-stucco-grout',
+        '1162013-SLHK': 'men-s-bondi-9-skyward-blue-hoka-blue',
+        '1162013-TDRC': 'men-s-bondi-9-thunder-cloud-vermillion',
+        '1162013-VYN': 'men-s-bondi-9-varsity-navy-white',
+        '1162014-ALBST': 'women-s-bondi-9-alabaster-birch',
+        '1162014-BBLC': 'women-s-bondi-9-black-black',
+        '1162014-BTF': 'women-s-bondi-9-blue-spark-mint-fluorite',
+        '1162014-BWHT': 'women-s-bondi-9-black-white',
+        '1162014-CYWH': 'women-s-bondi-9-cosmic-grey-white',
+        '1162014-MBLW': 'women-s-bondi-9-mineral-blue-washed-blue',
+        '1162014-RLTT': 'women-s-bondi-9-rose-latte-rose-cream',
+        '1162014-RSTP': 'women-s-bondi-9-rose-tea-petal',
+        '1162014-SDSTS': 'women-s-bondi-9-stardust-silver',
+        '1162014-TLSL': 'women-s-bondi-9-truffle-salt-sea-glass',
+        '1162014-VCH': 'women-s-bondi-9-vanilla-birch',
+        '1162014-WWH': 'women-s-bondi-9-white-white',
+        '1162015-BBLC': 'men-s-bondi-9-black-black-extra',
+        '1162015-BWHT': 'men-s-bondi-9-black-white-extra',
+        '1162015-GCTC': 'men-s-bondi-9-galactic-grey-stellar-grey-extra',
+        '1162015-VYN': 'men-s-bondi-9-varsity-navy-white-extra',
+        '1162016-BBLC': 'women-s-bondi-9-black-black-extra',
+        '1162016-BWHT': 'women-s-bondi-9-black-white-extra',
+        '1162016-MBLW': 'women-s-bondi-9-mineral-blue-washed-blue-extra',
+        '1162016-RLTT': 'women-s-bondi-9-rose-latte-rose-cream-extra',
+        '1162016-SDSTS': 'women-s-bondi-9-stardust-silver-extra',
+        '1162016-WWH': 'women-s-bondi-9-white-white-extra',
+        '1162030-ADSL': 'men-s-clifton-10-asteroid-silver',
+        '1162030-ALF': 'men-s-clifton-10-alpine-blue-foggy-night',
+        '1162030-BBLC': 'men-s-clifton-10-black-black',
+        '1162030-BKSV': 'men-s-clifton-10-black-silver',
+        '1162030-BWHT': 'men-s-clifton-10-black-white',
+        '1162030-FFF': 'men-s-clifton-10-fern-truffle-salt',
+        '1162030-GYST': 'men-s-clifton-10-galactic-grey-asteroid',
+        '1162030-HSK': 'men-s-clifton-10-hoka-blue-skyward-blue',
+        '1162030-NMD': 'men-s-clifton-10-night-sky-midnight-blue',
+        '1162030-NSS': 'men-s-clifton-10-neon-hoka-citrus-sunlight',
+        '1162030-NWT': 'men-s-clifton-10-navy-white',
+        '1162030-OLTM': 'men-s-clifton-10-oatmeal-oat-milk',
+        '1162030-PTYG': 'men-s-clifton-10-putty-grout',
+        '1162030-RNN': 'men-s-clifton-10-raw-linen-stone',
+        '1162030-SGNN': 'men-s-clifton-10-sage-neon-flame',
+        '1162030-STLLR': 'men-s-clifton-10-stellar-grey-stardust',
+        '1162030-VLLN': 'men-s-clifton-10-vermillion-varsity-navy',
+        '1162030-WKY': 'men-s-clifton-10-white-skyward-blue',
+        '1162030-WWH': 'men-s-clifton-10-white-white',
+        '1162031-ARRS': 'women-s-clifton-10-alabaster-rose-gold',
+        '1162031-BBLC': 'women-s-clifton-10-black-black',
+        '1162031-BHLB': 'women-s-clifton-10-birch-alabaster',
+        '1162031-BHRS': 'women-s-clifton-10-blush-rose-latte',
+        '1162031-BKGD': 'women-s-clifton-10-black-gold',
+        '1162031-BRGL': 'women-s-clifton-10-black-rose-gold',
+        '1162031-BWHT': 'women-s-clifton-10-black-white',
+        '1162031-CRDS': 'women-s-clifton-10-cosmic-grey-stardust',
+        '1162031-CTNS': 'women-s-clifton-10-carnation-starlight-glow',
+        '1162031-DTDR': 'women-s-clifton-10-droplet-druzy',
+        '1162031-GRTM': 'women-s-clifton-10-grout-mineral-blue',
+        '1162031-NYL': 'women-s-clifton-10-night-sky-ultramarine',
+        '1162031-OTP': 'women-s-clifton-10-overcast-petal',
+        '1162031-RMD': 'women-s-clifton-10-rose-cream-dried-rose',
+        '1162031-SBLF': 'women-s-clifton-10-soaring-blue-frost',
+        '1162031-SJD': 'women-s-clifton-10-sea-glass-jadeite',
+        '1162031-SKYW': 'women-s-clifton-10-skyward-blue-cielo-blue',
+        '1162031-SLSSN': 'women-s-clifton-10-sea-glass-neon-flame',
+        '1162031-SRYG': 'women-s-clifton-10-stellar-grey-galactic-grey',
+        '1162031-VCH': 'women-s-clifton-10-vanilla-birch',
+        '1162031-WTLC': 'women-s-clifton-10-white-electric-rose',
+        '1162031-WWH': 'women-s-clifton-10-white-white',
+        '1162032-ALF': 'men-s-clifton-10-alpine-blue-foggy-night',
+        '1162032-BBLC': 'men-s-clifton-10-black-black',
+        '1162032-BKSV': 'men-s-clifton-10-black-silver',
+        '1162032-BWHT': 'men-s-clifton-10-black-white',
+        '1162032-GYST': 'men-s-clifton-10-galactic-grey-asteroid',
+        '1162032-HSK': 'men-s-clifton-10-hoka-blue-skyward-blue',
+        '1162032-NMD': 'men-s-clifton-10-night-sky-midnight-blue',
+        '1162032-NWT': 'men-s-clifton-10-navy-white',
+        '1162032-PTYG': 'men-s-clifton-10-putty-grout',
+        '1162032-RNN': 'men-s-clifton-10-raw-linen-stone',
+        '1162032-STLLR': 'men-s-clifton-10-stellar-grey-stardust',
+        '1162032-VLLN': 'men-s-clifton-10-vermillion-varsity-navy',
+        '1162032-WKY': 'men-s-clifton-10-white-skyward-blue',
+        '1162032-WWH': 'men-s-clifton-10-white-white',
+        '1162050-BBLC': 'women-s-clifton-10-black-black',
+        '1162050-BHLB': 'women-s-clifton-10-birch-alabaster',
+        '1162050-BHRS': 'women-s-clifton-10-blush-rose-latte',
+        '1162050-BWHT': 'women-s-clifton-10-black-white',
+        '1162050-CRDS': 'women-s-clifton-10-cosmic-grey-stardust',
+        '1162050-CTNS': 'women-s-clifton-10-carnation-starlight-glow',
+        '1162050-GRTM': 'women-s-clifton-10-grout-mineral-blue',
+        '1162050-NYL': 'women-s-clifton-10-night-sky-ultramarine',
+        '1162050-OTP': 'women-s-clifton-10-overcast-petal',
+        '1162050-RMD': 'women-s-clifton-10-rose-cream-dried-rose',
+        '1162050-SLSSN': 'women-s-clifton-10-sea-glass-neon-flame',
+        '1162050-SRYG': 'women-s-clifton-10-stellar-grey-galactic-grey',
+        '1162050-VCH': 'women-s-clifton-10-vanilla-birch',
+        '1162050-WTCL': 'women-s-clifton-10-white-cielo-blue',
+        '1162050-WWH': 'women-s-clifton-10-white-white',
+        '1162051-BBLC': 'men-s-clifton-10-black-black-extra',
+        '1162051-BWHT': 'men-s-clifton-10-black-white-extra',
+        '1162051-NWT': 'men-s-clifton-10-navy-white-extra',
+        '1162051-PTYG': 'men-s-clifton-10-putty-grout-extra',
+        '1162051-STLLR': 'men-s-clifton-10-stellar-grey-stardust-extra',
+        '1162052-BBLC': 'women-s-clifton-10-black-black-extra',
+        '1162052-BWHT': 'women-s-clifton-10-black-white-extra',
+        '1162052-GRTM': 'women-s-clifton-10-grout-mineral-blue-extra',
+        '1162052-WWH': 'women-s-clifton-10-white-white-extra',
+        '1164371-EEGG': 'women-s-transport-eggnog-eggnog',
+        '1168690-ADSL': 'men-s-arahi-8-asteroid-silver',
+        '1168690-ALBST': 'men-s-arahi-8-alabaster-birch',
+        '1168690-BBLC': 'men-s-arahi-8-black-black',
+        '1168690-BKSK': 'men-s-arahi-8-black-skyward-blue',
+        '1168690-BWHT': 'men-s-arahi-8-black-white',
+        '1168690-GTP': 'men-s-arahi-8-grout-putty',
+        '1168690-NZN': 'men-s-arahi-8-neon-yuzu-neon-flame',
+        '1168690-SSTC': 'men-s-arahi-8-stardust-cosmic-grey',
+        '1168690-TDRC': 'men-s-arahi-8-thunder-cloud-vermillion',
+        '1168690-TYS': 'men-s-arahi-8-truffle-salt-oyster-mushroom',
+        '1168690-VYN': 'men-s-arahi-8-varsity-navy-white',
+        '1168690-WWH': 'men-s-arahi-8-white-white',
+        '1168691-ARLN': 'women-s-arahi-8-alabaster-lingonberry',
+        '1168691-ARRS': 'women-s-arahi-8-alabaster-rose-gold',
+        '1168691-BBLC': 'women-s-arahi-8-black-black',
+        '1168691-BHLB': 'women-s-arahi-8-birch-alabaster',
+        '1168691-BHRS': 'women-s-arahi-8-blush-rose-latte',
+        '1168691-BRGL': 'women-s-arahi-8-black-rose-gold',
+        '1168691-BWHT': 'women-s-arahi-8-black-white',
+        '1168691-CYG': 'women-s-arahi-8-charcoal-grey-grey-skies',
+        '1168691-DZLP': 'women-s-arahi-8-drizzle-petal',
+        '1168691-MLLT': 'women-s-arahi-8-midnight-blue-ultramarine',
+        '1168691-ORF': 'arahi-8-oyster-mushroom-truffle-salt',
+        '1168691-RCRM': 'women-s-arahi-8-rose-cream-alabaster',
+        '1168691-SYZ': 'women-s-arahi-8-sunlight-neon-yuzu',
+        '1168691-WWH': 'women-s-arahi-8-white-white',
+        '1168710-BBLC': 'men-s-arahi-8-black-black',
+        '1168710-BKSK': 'men-s-arahi-8-black-skyward-blue',
+        '1168710-BWHT': 'men-s-arahi-8-black-white',
+        '1168710-GTP': 'men-s-arahi-8-grout-putty',
+        '1168710-SSTC': 'men-s-arahi-8-stardust-cosmic-grey',
+        '1168710-VYN': 'men-s-arahi-8-varsity-navy-white',
+        '1168711-BBLC': 'women-s-arahi-8-black-black',
+        '1168711-BHLB': 'women-s-arahi-8-birch-alabaster',
+        '1168711-BRGL': 'women-s-arahi-8-black-rose-gold',
+        '1168711-BWHT': 'women-s-arahi-8-black-white',
+        '1168711-RCRM': 'women-s-arahi-8-rose-cream-alabaster',
+        '1168711-WWH': 'women-s-arahi-8-white-white',
+        '1168720-NNHK': 'mach-x-3-neon-hoka-citrus-neon-lime',
+        '1168720-NZS': 'men-s-mach-x-3-neon-yuzu-squid-ink',
+        '1168720-WBS': 'men-s-mach-x-3-white-alabaster',
+        '1168720-WNG': 'men-s-mach-x-3-white-neon-tangerine',
+        '1168721-NNRS': 'women-s-mach-x-3-neon-rose-neon-tangerine',
+        '1168721-NZS': 'women-s-mach-x-3-neon-yuzu-squid-ink',
+        '1168721-WBS': 'women-s-mach-x-3-white-alabaster',
+        '1168721-WNL': 'women-s-mach-x-3-white-neon-lime',
+        '1169450-BBLC': 'men-s-transport-gtx-black-black',
+        '1169451-DEGG': 'women-s-transport-gtx-dune-eggnog',
+        '1171850-ABST': 'women-s-transport-alabaster-alabaster',
+        '1171850-BBLC': 'women-s-transport-black-black',
+        '1171850-BKLB': 'women-s-transport-black-alabaster',
+        '1171850-SSTSG': 'women-s-transport-stardust-sea-glass',
+        '1171850-TNQ': 'women-s-transport-tranquil-blue-ambient-blue',
+        '1171850-WWH': 'women-s-transport-white-white',
+        '1171851-ABST': 'men-s-transport-alabaster-alabaster',
+        '1171851-BBLC': 'men-s-transport-black-black',
+        '1171851-BKLB': 'men-s-transport-black-alabaster',
+        '1171851-CMVN': 'men-s-transport-cream-vintage-yellow',
+        '1171851-FYM': 'men-s-transport-faded-navy-mineral-blue',
+        '1171851-GLST': 'men-s-transport-gravel-stucco',
+        '1171852-ABST': 'men-s-solimar-alabaster-alabaster',
+        '1171852-BBLC': 'men-s-solimar-black-black',
+        '1171852-BWHT': 'men-s-solimar-black-white',
+        '1171852-MGRT': 'men-s-solimar-midnight-blue-grout',
+        '1171852-STBY': 'men-s-solimar-stardust-bay-leaf',
+        '1171853-ABST': 'women-s-solimar-alabaster-alabaster',
+        '1171853-BBLC': 'women-s-solimar-black-black',
+        '1171853-BWHT': 'women-s-solimar-black-white',
+        '1171853-CBRR': 'women-s-solimar-cosmic-grey-berry-patch',
+        '1171853-FTMN': 'women-s-solimar-frost-mineral-blue',
+        '1171928-BWHT': 'men-s-speedgoat-7-black-white',
+        '1171928-KWN': 'men-s-speedgoat-7-kiwi-neon-yuzu',
+        '1171928-VMR': 'men-s-speedgoat-7-vintage-yellow-turmeric',
+        '1171929-BWHT': 'women-s-speedgoat-7-black-white',
+        '1171929-PYZ': 'women-s-speedgoat-7-persimmon-neon-yuzu',
+        '1171929-VWN': 'women-s-speedgoat-7-vintage-yellow-neon-flame',
+        '1171930-BWHT': 'men-s-speedgoat-7-black-white',
+        '1171931-BWHT': 'women-s-speedgoat-7-black-white',
+        '1171931-VWN': 'women-s-speedgoat-7-vintage-yellow-neon-flame',
+        '1171932-BBLC': 'men-s-gaviota-6-black-black',
+        '1171932-BWHT': 'men-s-gaviota-6-black-white',
+        '1171932-MLFD': 'men-s-gaviota-6-midnight-blue-faded-navy',
+        '1171932-STLLR': 'men-s-gaviota-6-stellar-grey-stardust',
+        '1171933-BBLC': 'women-s-gaviota-6-black-black',
+        '1171933-BHY': 'women-s-gaviota-6-birch-yellow-gold',
+        '1171933-BWHT': 'women-s-gaviota-6-black-white',
+        '1171933-CRDS': 'women-s-gaviota-6-cosmic-grey-stardust',
+        '1171933-SSSG': 'women-s-gaviota-6-sea-glass-sage',
+        '1171934-BBLC': 'men-s-gaviota-6-black-black',
+        '1171934-BWHT': 'men-s-gaviota-6-black-white',
+        '1171934-MLFD': 'men-s-gaviota-6-midnight-blue-faded-navy',
+        '1171934-STLLR': 'men-s-gaviota-6-stellar-grey-stardust',
+        '1171935-BBLC': 'women-s-gaviota-6-black-black',
+        '1171935-BHY': 'women-s-gaviota-6-birch-yellow-gold',
+        '1171935-BWHT': 'women-s-gaviota-6-black-white',
+        '1171935-CRDS': 'women-s-gaviota-6-cosmic-grey-stardust',
+        '1171936-BBLC': 'men-s-gaviota-6-black-black-extra',
+        '1171936-BWHT': 'men-s-gaviota-6-black-white-extra',
+        '1171936-MLFD': 'men-s-gaviota-6-midnight-blue-faded-navy-extra',
+        '1171936-STLLR': 'men-s-gaviota-6-stellar-grey-stardust-extra',
+        '1171937-BBLC': 'women-s-gaviota-6-black-black-extra',
+        '1171937-BWHT': 'women-s-gaviota-6-black-white-extra',
+        '1172912-BBLC': 'men-s-transport-gtx-black-black',
+        '1172912-GLF': 'men-s-transport-gtx-gravel-fern',
+        '1172912-LSH': 'men-s-transport-gtx-light-roast-eggshell',
+        '1172912-SRCG': 'men-s-transport-gtx-spruce-green-oyster-mushroom',
+        '1172912-STBLS': 'men-s-transport-gtx-slate-blue-stucco',
+        '1172912-VYT': 'men-s-transport-gtx-varsity-navy-truffle-salt',
+        '1172912-WNTM': 'men-s-transport-gtx-walnut-maple',
+        '1172913-BBLC': 'women-s-transport-gtx-black-black',
+        '1172913-CSTC': 'women-s-transport-gtx-cement-stucco',
+        '1172913-GSKS': 'women-s-transport-gtx-grey-skies-sea-glass',
+        '1172913-OVN': 'women-s-transport-gtx-oyster-mushroom-vintage-yellow',
+        '1172913-RSLT': 'women-s-transport-gtx-rose-latte-blush',
+        '1174777-ABST': 'women-s-transport-alabaster-alabaster',
+        '1174777-BBLC': 'women-s-transport-black-black',
+        '1174777-BKLB': 'women-s-transport-black-alabaster',
+        '1174777-SSTSG': 'women-s-transport-stardust-sea-glass',
+        '1174777-WWH': 'women-s-transport-white-white',
+        '1174778-ABST': 'men-s-transport-alabaster-alabaster',
+        '1174778-BBLC': 'men-s-transport-black-black',
+        '1174778-BKLB': 'men-s-transport-black-alabaster',
+        '1174778-CMVN': 'men-s-transport-cream-vintage-yellow',
+        '1174778-GLST': 'men-s-transport-gravel-stucco',
+        '1175530-BBLC': 'men-s-arahi-8-black-black-extra',
+        '1175530-BWHT': 'men-s-arahi-8-black-white-extra',
+        '1175530-GTP': 'men-s-arahi-8-grout-putty-extra',
+        '1175530-VYN': 'men-s-arahi-8-varsity-navy-white-extra',
+        '1175531-BRGL': 'women-s-arahi-8-black-rose-gold-extra',
+        '1175531-BWHT': 'women-s-arahi-8-black-white-extra',
+        '1175531-RCRM': 'women-s-arahi-8-rose-cream-alabaster-extra',
+        '1175531-WWH': 'women-s-arahi-8-white-white-extra',
+        '1177330-ABST': 'men-s-solimar-alabaster-alabaster',
+        '1177330-BBLC': 'men-s-solimar-black-black',
+        '1177330-BWHT': 'men-s-solimar-black-white',
+        '1177330-STBY': 'men-s-solimar-stardust-bay-leaf',
+        '1177331-ABST': 'women-s-solimar-alabaster-alabaster',
+        '1177331-BBLC': 'women-s-solimar-black-black',
+        '1177331-BWHT': 'women-s-solimar-black-white'
+    },
+
+    isAvailableNow: function(availableDateStr) {
         if (!availableDateStr) return true;
-        
         try {
-            const [month, day, year] = availableDateStr.toString().split('/').map(num => parseInt(num));
-            const availableDate = new Date(year, month - 1, day);
-            
-            const today = new Date();
+            var parts = availableDateStr.toString().split('/').map(function(num) { return parseInt(num); });
+            var month = parts[0];
+            var day = parts[1];
+            var year = parts[2];
+            var availableDate = new Date(year, month - 1, day);
+            var today = new Date();
             today.setHours(0, 0, 0, 0);
-            
             return availableDate <= today;
         } catch (e) {
             console.warn('Could not parse available date:', availableDateStr);
             return true;
         }
     },
-    
+
     productInfo: {
         'Mach 6': {
-            description: 'Behold the lightest, most responsive Mach to date. This lively trainer has been fine-tuned for extra energy return with a super critical foam midsole and updated for enhanced durability with strategic rubber coverage in the outsole.',
+            description: 'Behold the lightest, most responsive Mach to date.',
             specs: { stack: '37/32mm', drop: '5mm', weight: '8.1 oz' },
-            features: ['Lightweight design', 'Responsive cushioning', 'Daily trainer', 'Tempo runs'],
-            category: 'neutral daily trainer',
-            bestFor: 'Daily training, tempo runs, 5K to half marathon races'
+            category: 'neutral daily trainer'
         },
         'Mach 7': {
-            description: 'The lightest, most responsive Mach yet. The Mach 7 delivers an energetic ride with updated cushioning and improved durability, making it the perfect daily trainer for runners seeking speed and comfort.',
+            description: 'The lightest, most responsive Mach yet.',
             specs: { stack: '37/32mm', drop: '5mm', weight: '8.1 oz' },
-            features: ['Lightweight design', 'Responsive cushioning', 'Updated upper', 'Improved durability'],
-            category: 'neutral daily trainer',
-            bestFor: 'Daily training, tempo runs, 5K to half marathon races'
+            category: 'neutral daily trainer'
         },
         'Mach X 3': {
-            description: 'A plated daily trainer that brings the heat to speedwork. Built for up-tempo training miles with an extra-resilient PEBA-topped midsole and snappy Pebax® plate.',
+            description: 'A plated daily trainer that brings the heat to speedwork.',
             specs: { stack: '38/33mm', drop: '5mm', weight: '10.2 oz' },
-            features: ['Carbon plate', 'PEBA midsole', 'Speed training', 'Race day ready'],
-            category: 'plated performance trainer',
-            bestFor: 'Speed workouts, tempo runs, race day from 5K to marathon'
+            category: 'plated performance trainer'
         },
         'Skyward X': {
-            description: 'Pushing soft and smooth to the extreme, this cushy trainer features a revolutionary suspension system with a convex carbon fiber plate.',
+            description: 'Pushing soft and smooth to the extreme with a convex carbon fiber plate.',
             specs: { stack: '48/43mm', drop: '5mm', weight: '11.3 oz' },
-            features: ['Max cushioning', 'Carbon fiber plate', 'Suspension system', 'Long runs'],
-            category: 'max cushion trainer',
-            bestFor: 'Long runs, recovery runs, ultra-distance training'
+            category: 'max cushion trainer'
         },
         'Clifton 10': {
-            description: 'A trusted trainer for daily maintenance miles. Ushering in a new era of plush performance with additional heel-to-toe drop.',
+            description: 'A trusted trainer for daily maintenance miles.',
             specs: { stack: '42/34mm', drop: '8mm', weight: '9.7 oz' },
-            features: ['Plush cushioning', 'Neutral support', 'Daily miles', 'Versatile trainer'],
-            category: 'neutral cushioned trainer',
-            bestFor: 'Daily training, easy runs, long runs, walking'
+            category: 'neutral cushioned trainer'
         },
         'Bondi 9': {
-            description: 'One of the hardest working shoes in the HOKA lineup. Delivers peak plushness for everyday miles with increased stack height.',
+            description: 'One of the hardest working shoes in the HOKA lineup.',
             specs: { stack: '43/38mm', drop: '5mm', weight: '10.5 oz' },
-            features: ['Maximum cushioning', 'High stack height', 'Recovery runs', 'All-day comfort'],
-            category: 'max cushion trainer',
-            bestFor: 'Recovery runs, easy miles, walking, all-day wear'
+            category: 'max cushion trainer'
         },
         'Arahi 8': {
-            description: 'Anything but your average stability shoe. Features enhanced H-frame™ technology for combating overpronation.',
+            description: 'Anything but your average stability shoe with H-frame technology.',
             specs: { stack: '39/31mm', drop: '8mm', weight: '9.8 oz' },
-            features: ['Stability support', 'H-Frame technology', 'Overpronation control', 'Daily trainer'],
-            category: 'stability trainer',
-            bestFor: 'Daily training for overpronators, long runs, marathon training'
+            category: 'stability trainer'
         },
         'Skyflow': {
-            description: 'Designed to elevate your daily running practice. Combines premium geometry with upgraded foam compounds.',
+            description: 'Designed to elevate your daily running practice.',
             specs: { stack: '40/35mm', drop: '5mm', weight: '10 oz' },
-            features: ['Balanced cushioning', 'Smooth ride', 'Daily versatility', 'Premium foam'],
-            category: 'neutral daily trainer',
-            bestFor: 'Daily training, base miles, tempo runs'
+            category: 'neutral daily trainer'
         },
         'Gaviota 5': {
-            description: 'Maximum stability meets plush comfort in the Gaviota 5. Featuring an updated H-Frame™ design that guides your gait while delivering a smooth, cushioned ride.',
+            description: 'Maximum stability meets plush comfort.',
             specs: { stack: '40/35mm', drop: '5mm', weight: '10.3 oz' },
-            features: ['Maximum stability', 'H-Frame technology', 'Plush cushioning', 'GuideRails support'],
-            category: 'max stability trainer',
-            bestFor: 'Daily training for severe overpronators, long runs, marathon training'
+            category: 'max stability trainer'
         },
         'Gaviota 6': {
-            description: 'Maximum stability meets plush comfort in the Gaviota 6. This premium stability shoe features an enhanced H-Frame™ technology and generous cushioning to guide your gait while delivering a smooth, comfortable ride for overpronators.',
+            description: 'Maximum stability meets plush comfort with enhanced H-Frame technology.',
             specs: { stack: '40/35mm', drop: '5mm', weight: '10.3 oz' },
-            features: ['Enhanced H-Frame technology', 'Plush cushioning', 'Updated upper', 'Early-stage Meta-Rocker'],
-            category: 'max stability trainer',
-            bestFor: 'Daily training for overpronators, long runs, marathon training'
+            category: 'max stability trainer'
         },
         'Transport': {
-            description: 'The perfect everyday shoe that transitions from trail to town. Combines outdoor-inspired design with HOKA cushioning for all-day comfort.',
+            description: 'The perfect everyday shoe from trail to town.',
             specs: { stack: '38/33mm', drop: '5mm', weight: '11.5 oz' },
-            features: ['Versatile design', 'CMEVA midsole', 'Durable outsole', 'All-terrain ready'],
-            category: 'lifestyle/casual',
-            bestFor: 'Everyday wear, casual walking, light trails, urban adventures'
+            category: 'lifestyle/casual'
         },
         'Transport Chukka': {
-            description: 'Elevated style meets everyday comfort. The Transport Chukka features a mid-height design with HOKA cushioning for all-day wear.',
+            description: 'Elevated style meets everyday comfort.',
             specs: { stack: '38/33mm', drop: '5mm', weight: '12 oz' },
-            features: ['Mid-height design', 'Versatile style', 'CMEVA midsole', 'Premium materials'],
-            category: 'lifestyle/casual',
-            bestFor: 'Everyday wear, casual occasions, urban exploration'
+            category: 'lifestyle/casual'
         },
         'Transport GTX': {
-            description: 'Weather-ready versatility with GORE-TEX waterproof protection. The Transport GTX keeps you dry and comfortable in any conditions.',
+            description: 'Weather-ready versatility with GORE-TEX protection.',
             specs: { stack: '38/33mm', drop: '5mm', weight: '12.5 oz' },
-            features: ['GORE-TEX waterproof', 'Versatile design', 'All-weather protection', 'Durable construction'],
-            category: 'lifestyle/casual',
-            bestFor: 'Wet weather, everyday wear, light trails, all-season use'
+            category: 'lifestyle/casual'
         },
         'Transport Hike': {
-            description: 'Trail-ready comfort with enhanced support and traction. The Transport Hike brings HOKA cushioning to light hiking adventures.',
+            description: 'Trail-ready comfort with enhanced support and traction.',
             specs: { stack: '38/33mm', drop: '5mm', weight: '12.5 oz' },
-            features: ['Enhanced traction', 'Trail-ready', 'Supportive design', 'HOKA cushioning'],
-            category: 'lifestyle/hiking',
-            bestFor: 'Light hiking, trail walking, outdoor adventures'
+            category: 'lifestyle/hiking'
         },
         'Transport Mid': {
-            description: 'Ankle support meets everyday comfort. The Transport Mid features a supportive mid-height design with signature HOKA cushioning.',
+            description: 'Ankle support meets everyday comfort.',
             specs: { stack: '38/33mm', drop: '5mm', weight: '13 oz' },
-            features: ['Mid-height support', 'Ankle stability', 'Versatile design', 'Premium comfort'],
-            category: 'lifestyle/casual',
-            bestFor: 'Everyday wear, light hiking, urban exploration, extra ankle support'
+            category: 'lifestyle/casual'
         },
         'Solimar': {
-            description: 'A lightweight, responsive trainer designed for faster-paced runs. Features a propulsive midsole geometry and breathable engineered mesh upper.',
+            description: 'A lightweight, responsive trainer for faster-paced runs.',
             specs: { stack: '30/25mm', drop: '5mm', weight: '7.2 oz' },
-            features: ['Lightweight build', 'Responsive cushioning', 'Breathable mesh', 'Tempo-ready'],
-            category: 'lightweight performance trainer',
-            bestFor: 'Tempo runs, speed workouts, race day, faster training paces'
+            category: 'lightweight performance trainer'
         },
         'Speedgoat 6': {
-            description: 'Named after legendary ultrarunner Karl "Speedgoat" Metzler, this trail icon delivers unmatched traction and protection on technical terrain.',
+            description: 'Trail icon with unmatched traction on technical terrain.',
             specs: { stack: '33/29mm', drop: '4mm', weight: '9.7 oz' },
-            features: ['Vibram Megagrip outsole', 'Trail protection', 'Aggressive traction', 'Technical terrain'],
-            category: 'trail running',
-            bestFor: 'Technical trails, ultra-distance, mountain running, all-terrain adventures'
+            category: 'trail running'
         },
         'Speedgoat 7': {
-            description: 'Named after legendary ultrarunner Karl "Speedgoat" Metzler, the Speedgoat 7 continues its legacy as the ultimate trail shoe for technical terrain. With enhanced traction, improved durability, and signature HOKA cushioning, this trail icon is ready for your toughest adventures.',
+            description: 'The ultimate trail shoe with enhanced traction and improved durability.',
             specs: { stack: '33/29mm', drop: '4mm', weight: '9.7 oz' },
-            features: ['Vibram Megagrip outsole', '5mm lugs', 'Enhanced upper', 'Protective toe cap'],
-            category: 'trail running',
-            bestFor: 'Technical trails, ultra-distance, mountain running, wet conditions'
+            category: 'trail running'
         }
     },
-    
+
     allowedProducts: [
-        'Mach 6', 'Mach 7', 'Mach X 3', 'Skyward X', 'Clifton 10', 'Bondi 9', 'Arahi 8', 
-        'Skyflow', 'Gaviota 5', 'Gaviota 6', 'Transport', 'Transport Chukka', 'Transport GTX', 
+        'Mach 6', 'Mach 7', 'Mach X 3', 'Skyward X', 'Clifton 10', 'Bondi 9', 'Arahi 8',
+        'Skyflow', 'Gaviota 5', 'Gaviota 6', 'Transport', 'Transport Chukka', 'Transport GTX',
         'Transport Hike', 'Transport Mid', 'Solimar', 'Speedgoat 6', 'Speedgoat 7'
     ],
-    
-    isAllowedProduct(productName) {
+
+    isAllowedProduct: function(productName) {
         if (!productName) return false;
-        let nameLower = productName.toLowerCase();
-        
+        var nameLower = productName.toLowerCase();
         nameLower = nameLower.replace(/^[mwuy]\s+/, '');
-        
+
         if (nameLower.includes('arahi')) {
             return nameLower.includes('arahi 8') || nameLower.includes('arahi8');
         }
-        
         if (nameLower.includes('gaviota')) {
             return nameLower.includes('gaviota 5') || nameLower.includes('gaviota5') ||
                    nameLower.includes('gaviota 6') || nameLower.includes('gaviota6');
         }
-        
         if (nameLower.includes('mach')) {
             return nameLower.includes('mach 6') || nameLower.includes('mach6') ||
                    nameLower.includes('mach 7') || nameLower.includes('mach7') ||
                    nameLower.includes('mach x') || nameLower.includes('machx');
         }
-        
         if (nameLower.includes('speedgoat')) {
             return nameLower.includes('speedgoat 6') || nameLower.includes('speedgoat6') ||
                    nameLower.includes('speedgoat 7') || nameLower.includes('speedgoat7');
         }
-        
         if (nameLower.includes('transport')) {
-            if (nameLower.includes('chukka')) return this.allowedProducts.includes('Transport Chukka');
-            if (nameLower.includes('gtx')) return this.allowedProducts.includes('Transport GTX');
-            if (nameLower.includes('hike')) return this.allowedProducts.includes('Transport Hike');
-            if (nameLower.includes('mid')) return this.allowedProducts.includes('Transport Mid');
-            return this.allowedProducts.includes('Transport');
+            if (nameLower.includes('chukka')) return true;
+            if (nameLower.includes('gtx')) return true;
+            if (nameLower.includes('hike')) return true;
+            if (nameLower.includes('mid')) return true;
+            return true;
         }
-        
-        return this.allowedProducts.some(allowed => {
-            const allowedLower = allowed.toLowerCase();
-            return nameLower.includes(allowedLower) || 
+        var self = this;
+        return this.allowedProducts.some(function(allowed) {
+            var allowedLower = allowed.toLowerCase();
+            return nameLower.includes(allowedLower) ||
                    nameLower.includes(allowedLower.replace(/\s+/g, ''));
         });
     },
-    
-    getMatchingProduct(productName) {
+
+    getMatchingProduct: function(productName) {
         if (!productName) return null;
-        let nameLower = productName.toLowerCase();
-        
+        var nameLower = productName.toLowerCase();
         nameLower = nameLower.replace(/^[mwuy]\s+/, '');
-        
+
         if (nameLower.includes('arahi')) {
-            if (nameLower.includes('arahi 8') || nameLower.includes('arahi8')) {
-                return 'Arahi 8';
-            }
+            if (nameLower.includes('arahi 8') || nameLower.includes('arahi8')) return 'Arahi 8';
             return null;
         }
-        
         if (nameLower.includes('gaviota')) {
-            if (nameLower.includes('gaviota 6') || nameLower.includes('gaviota6')) {
-                return 'Gaviota 6';
-            }
-            if (nameLower.includes('gaviota 5') || nameLower.includes('gaviota5')) {
-                return 'Gaviota 5';
-            }
+            if (nameLower.includes('gaviota 6') || nameLower.includes('gaviota6')) return 'Gaviota 6';
+            if (nameLower.includes('gaviota 5') || nameLower.includes('gaviota5')) return 'Gaviota 5';
             return null;
         }
-        
         if (nameLower.includes('mach')) {
-            if (nameLower.includes('mach x') || nameLower.includes('machx')) {
-                return 'Mach X 3';
-            }
-            if (nameLower.includes('mach 7') || nameLower.includes('mach7')) {
-                return 'Mach 7';
-            }
-            if (nameLower.includes('mach 6') || nameLower.includes('mach6')) {
-                return 'Mach 6';
-            }
+            if (nameLower.includes('mach x') || nameLower.includes('machx')) return 'Mach X 3';
+            if (nameLower.includes('mach 7') || nameLower.includes('mach7')) return 'Mach 7';
+            if (nameLower.includes('mach 6') || nameLower.includes('mach6')) return 'Mach 6';
             return null;
         }
-        
         if (nameLower.includes('speedgoat')) {
-            if (nameLower.includes('speedgoat 7') || nameLower.includes('speedgoat7')) {
-                return 'Speedgoat 7';
-            }
-            if (nameLower.includes('speedgoat 6') || nameLower.includes('speedgoat6')) {
-                return 'Speedgoat 6';
-            }
+            if (nameLower.includes('speedgoat 7') || nameLower.includes('speedgoat7')) return 'Speedgoat 7';
+            if (nameLower.includes('speedgoat 6') || nameLower.includes('speedgoat6')) return 'Speedgoat 6';
             return null;
         }
-        
         if (nameLower.includes('transport')) {
             if (nameLower.includes('chukka')) return 'Transport Chukka';
             if (nameLower.includes('gtx')) return 'Transport GTX';
@@ -741,295 +681,307 @@ const HokaConverter = {
             if (nameLower.includes('mid')) return 'Transport Mid';
             return 'Transport';
         }
-        
-        for (const allowed of this.allowedProducts) {
-            const allowedLower = allowed.toLowerCase();
-            if (nameLower.includes(allowedLower) || 
+        for (var i = 0; i < this.allowedProducts.length; i++) {
+            var allowed = this.allowedProducts[i];
+            var allowedLower = allowed.toLowerCase();
+            if (nameLower.includes(allowedLower) ||
                 nameLower.includes(allowedLower.replace(/\s+/g, ''))) {
                 return allowed;
             }
         }
         return null;
     },
-    
-    formatGender(division) {
+
+    formatGender: function(division) {
         if (!division) return '';
-        const divStr = division.toString().trim();
+        var divStr = division.toString().trim();
         if (divStr.toLowerCase() === "women's" || divStr.toLowerCase() === "womens" || divStr === "W") return "Women's";
         if (divStr.toLowerCase() === "men's" || divStr.toLowerCase() === "mens" || divStr === "M") return "Men's";
         if (divStr.toLowerCase() === "youth" || divStr.toLowerCase() === "kids") return 'Youth';
         if (divStr.toLowerCase() === "unisex" || divStr === "U") return 'Unisex';
         return divStr;
     },
-    
-    formatGenderForHandle(gender) {
+
+    formatGenderForHandle: function(gender) {
         if (!gender) return 'unisex';
-        const g = gender.toString().toLowerCase();
+        var g = gender.toString().toLowerCase();
         if (g.includes('men') && !g.includes('women')) return 'mens';
         if (g.includes('women')) return 'womens';
         return 'unisex';
     },
-    
+
     // ========== SMART HANDLE GENERATION ==========
-    getProductHandle(lookupKey, matchingProduct, colorway, gender, width) {
+    // Step 1: Check if existing handle exists for this style+color combo
+    // Step 2: If not, generate a new uniform handle: hoka-{gender}-{model}-{colorway}[-wide]
+    getProductHandle: function(lookupKey, matchingProduct, colorway, gender, width) {
         // STEP 1: Check existing handles
         if (this.existingHandles[lookupKey]) {
-            const baseHandle = this.existingHandles[lookupKey];
-            
+            var baseHandle = this.existingHandles[lookupKey];
             // Add width suffix for wide shoes
             if (width === 'EE' || width === 'EEEE') {
-                return `${baseHandle}-wide`;
+                return baseHandle + '-wide';
             }
-            
             return baseHandle;
         }
-        
-        // STEP 2: NEW PRODUCT - Generate unified format
+
+        // STEP 2: NEW PRODUCT - Generate uniform format
         // Format: hoka-{gender}-{model}-{colorway}[-wide]
-        
-        const genderPrefix = this.formatGenderForHandle(gender);
-        
-        const baseHandle = `hoka-${genderPrefix}-${matchingProduct}-${colorway}`
+        var genderPrefix = this.formatGenderForHandle(gender);
+
+        var baseHandle = ('hoka-' + genderPrefix + '-' + matchingProduct + '-' + colorway)
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-+|-+$/g, '');
-        
+
         // Add width suffix
         if (width === 'EE' || width === 'EEEE') {
-            return `${baseHandle}-wide`;
+            return baseHandle + '-wide';
         }
-        
+
         return baseHandle;
     },
-    
-    async convert(file) {
-        try {
-            let data = [];
-            
-            if (file.name.toLowerCase().endsWith('.xlsx') || 
-                file.name.toLowerCase().endsWith('.xls')) {
-                const arrayBuffer = await file.arrayBuffer();
-                const workbook = XLSX.read(arrayBuffer);
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-            } else {
-                const text = await file.text();
-                const parseResult = Papa.parse(text, {
-                    delimiter: '\t',
-                    header: false,
-                    skipEmptyLines: true,
-                    dynamicTyping: true
-                });
-                data = parseResult.data;
-            }
-            
-            let startIdx = 0;
-            if (data.length > 0 && (data[0][0] === 'Division' || data[0][5] === 'Style Name' || data[0][5] === 'Product Name')) {
-                startIdx = 1;
-            }
-            
-            const filteredProducts = data.slice(startIdx).filter(row => {
-                if (!row || row.length < 10) return false;
-                const productName = row[5];
-                const division = row[0];
-                
-                if (division && (division.toString().trim().toLowerCase() === 'youth' || 
-                               division.toString().trim().toLowerCase() === 'kids' ||
-                               division.toString().trim().toUpperCase() === 'Y')) {
-                    return false;
-                }
-                
-                return this.isAllowedProduct(productName);
-            });
-            
-            const processedVariants = new Map();
-            
-            for (let i = 0; i < filteredProducts.length; i++) {
-                const product = filteredProducts[i];
-                
-                const division = product[0];
-                const productName = product[5];
-                const colorway = product[6];
-                const styleSKU = product[7];
-                const sizeInfo = product[8];
-                const variantSKU = product[9];
-                const upc = product[10];
-                const availableDate = product[11];
-                const quantity = product[12];
-                const retail = product[14];
-                
-                if (!this.isAvailableNow(availableDate)) {
-                    continue;
-                }
-                
-                const matchingProduct = this.getMatchingProduct(productName);
-                if (!matchingProduct) continue;
-                
-                const formattedGender = this.formatGender(division);
-                
-                let size = sizeInfo ? sizeInfo.toString().replace(/[A-Z]/g, '') : '';
-                if (size) {
-                    size = size.replace(/^0/, '');
-                    if (size.includes('/')) {
-                        size = size.split('/')[0];
-                    }
-                    if (!size.includes('.')) {
-                        size = size + '.0';
-                    }
-                }
-                
-                let width = 'Regular';
-                if (variantSKU && sizeInfo) {
-                    const skuUpper = variantSKU.toUpperCase();
-                    const isWomen = formattedGender === "Women's";
-                    
-                    const sizeStr = sizeInfo.toString().toUpperCase();
-                    
-                    const nameUpper = productName ? productName.toUpperCase() : '';
-                    if (nameUpper.includes('X-WIDE') || nameUpper.includes('XWIDE')) {
-                        width = 'Extra Wide';
-                    } else if (nameUpper.includes(' WIDE')) {
-                        width = 'Wide';
-                    } else if (isWomen) {
-                        if (sizeStr.includes('EE') || sizeStr.includes('2E')) {
-                            width = 'Extra Wide';
-                        } else if (sizeStr.endsWith('D') || sizeStr.includes('D ')) {
-                            width = 'Wide';
-                        } else if (skuUpper.includes('EE') || skuUpper.includes('2E')) {
-                            width = 'Extra Wide';
-                        } else if (skuUpper.match(/\d+\.?\d*D$/i) || skuUpper.includes('-D-') || skuUpper.endsWith('-D')) {
-                            width = 'Wide';
+
+    convert: function(file) {
+        var self = this;
+
+        return new Promise(function(resolve, reject) {
+            try {
+                var reader = new FileReader();
+
+                reader.onload = function(e) {
+                    try {
+                        var data = [];
+
+                        if (file.name.toLowerCase().endsWith('.xlsx') ||
+                            file.name.toLowerCase().endsWith('.xls')) {
+                            var arrayBuffer = e.target.result;
+                            var workbook = XLSX.read(arrayBuffer);
+                            var worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                            data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                        } else {
+                            var text = e.target.result;
+                            var parseResult = Papa.parse(text, {
+                                delimiter: '\t',
+                                header: false,
+                                skipEmptyLines: true,
+                                dynamicTyping: true
+                            });
+                            data = parseResult.data;
                         }
-                    } else {
-                        if (sizeStr.includes('EEEE') || skuUpper.includes('EEEE')) {
-                            width = 'Extra Wide';
-                        } else if (sizeStr.includes('EE') || sizeStr.includes('2E') || skuUpper.includes('EE') || skuUpper.includes('2E')) {
-                            width = 'Wide';
+
+                        // Skip header row if it exists
+                        var startIdx = 0;
+                        if (data.length > 0 && (data[0][0] === 'Division' || data[0][5] === 'Style Name' || data[0][5] === 'Product Name')) {
+                            startIdx = 1;
                         }
+
+                        var filteredProducts = data.slice(startIdx).filter(function(row) {
+                            if (!row || row.length < 10) return false;
+                            var productName = row[5];
+                            var division = row[0];
+                            if (division && (division.toString().trim().toLowerCase() === 'youth' ||
+                                           division.toString().trim().toLowerCase() === 'kids' ||
+                                           division.toString().trim().toUpperCase() === 'Y')) {
+                                return false;
+                            }
+                            return self.isAllowedProduct(productName);
+                        });
+
+                        var processedVariants = new Map();
+
+                        for (var i = 0; i < filteredProducts.length; i++) {
+                            var product = filteredProducts[i];
+
+                            var division = product[0];
+                            var productName = product[5];
+                            var colorway = product[6];
+                            var styleSKU = product[7];
+                            var sizeInfo = product[8];
+                            var variantSKU = product[9];
+                            var upc = product[10];
+                            var availableDate = product[11];
+                            var quantity = product[12];
+                            var retail = product[14];
+
+                            if (!self.isAvailableNow(availableDate)) {
+                                continue;
+                            }
+
+                            var matchingProduct = self.getMatchingProduct(productName);
+                            if (!matchingProduct) continue;
+
+                            var formattedGender = self.formatGender(division);
+
+                            var size = sizeInfo ? sizeInfo.toString().replace(/[A-Z]/g, '') : '';
+                            if (size) {
+                                size = size.replace(/^0/, '');
+                                if (size.includes('/')) {
+                                    size = size.split('/')[0];
+                                }
+                                if (!size.includes('.')) {
+                                    size = size + '.0';
+                                }
+                            }
+
+                            var width = 'Regular';
+                            if (variantSKU && sizeInfo) {
+                                var skuUpper = variantSKU.toUpperCase();
+                                var isWomen = formattedGender === "Women's";
+                                var sizeStr = sizeInfo.toString().toUpperCase();
+                                var nameUpper = productName ? productName.toUpperCase() : '';
+
+                                if (nameUpper.includes('X-WIDE') || nameUpper.includes('XWIDE')) {
+                                    width = 'Extra Wide';
+                                } else if (nameUpper.includes(' WIDE')) {
+                                    width = 'Wide';
+                                } else if (isWomen) {
+                                    if (sizeStr.includes('EE') || sizeStr.includes('2E')) {
+                                        width = 'Extra Wide';
+                                    } else if (sizeStr.endsWith('D') || sizeStr.includes('D ')) {
+                                        width = 'Wide';
+                                    } else if (skuUpper.includes('EE') || skuUpper.includes('2E')) {
+                                        width = 'Extra Wide';
+                                    } else if (skuUpper.match(/\d+\.?\d*D$/i) || skuUpper.includes('-D-') || skuUpper.endsWith('-D')) {
+                                        width = 'Wide';
+                                    }
+                                } else {
+                                    if (sizeStr.includes('EEEE') || skuUpper.includes('EEEE')) {
+                                        width = 'Extra Wide';
+                                    } else if (sizeStr.includes('EE') || sizeStr.includes('2E') || skuUpper.includes('EE') || skuUpper.includes('2E')) {
+                                        width = 'Wide';
+                                    }
+                                }
+                            }
+
+                            var variantKey = formattedGender + '-' + matchingProduct + '-' + colorway + '-' + size + '-' + width;
+
+                            var actualQuantity = 0;
+                            if (typeof quantity === 'string') {
+                                if (quantity.includes('+')) {
+                                    actualQuantity = parseInt(quantity.replace('+', '')) || 100;
+                                } else {
+                                    actualQuantity = parseInt(quantity) || 0;
+                                }
+                            } else if (typeof quantity === 'number') {
+                                actualQuantity = quantity;
+                            }
+
+                            if (processedVariants.has(variantKey)) {
+                                var existing = processedVariants.get(variantKey);
+                                existing.quantity += actualQuantity;
+                                continue;
+                            }
+
+                            processedVariants.set(variantKey, {
+                                division: division,
+                                gender: formattedGender,
+                                productName: productName,
+                                matchingProduct: matchingProduct,
+                                colorway: colorway,
+                                styleSKU: styleSKU,
+                                size: size,
+                                width: width,
+                                variantSKU: variantSKU,
+                                upc: upc,
+                                quantity: actualQuantity,
+                                retail: retail
+                            });
+                        }
+
+                        var sortedVariants = Array.from(processedVariants.entries()).sort(function(a, b) {
+                            var dataA = a[1];
+                            var dataB = b[1];
+                            if (dataA.matchingProduct !== dataB.matchingProduct) return dataA.matchingProduct.localeCompare(dataB.matchingProduct);
+                            if (dataA.gender !== dataB.gender) {
+                                if (dataA.gender === "Men's") return -1;
+                                if (dataB.gender === "Men's") return 1;
+                                return dataA.gender.localeCompare(dataB.gender);
+                            }
+                            if (dataA.colorway !== dataB.colorway) return dataA.colorway.localeCompare(dataB.colorway);
+                            if (dataA.width !== dataB.width) {
+                                if (dataA.width === 'Regular') return -1;
+                                if (dataB.width === 'Regular') return 1;
+                                return dataA.width.localeCompare(dataB.width);
+                            }
+                            return (parseFloat(dataA.size) || 0) - (parseFloat(dataB.size) || 0);
+                        });
+
+                        var shopifyInventory = [];
+
+                        for (var j = 0; j < sortedVariants.length; j++) {
+                            var variantData = sortedVariants[j][1];
+
+                            var productTitle = 'HOKA ' + variantData.gender + ' ' + variantData.matchingProduct + ' - ' + variantData.colorway;
+
+                            // Build lookup key: styleNumber-colorCode from variantSKU
+                            var skuParts = variantData.variantSKU.split('-');
+                            var lookupKey = skuParts[0] + '-' + skuParts[1];
+
+                            // Determine width code for handle generation
+                            var widthCode = '';
+                            if (variantData.width === 'Wide') {
+                                widthCode = 'EE';
+                            } else if (variantData.width === 'Extra Wide') {
+                                widthCode = 'EEEE';
+                            }
+
+                            // Use smart handle generation
+                            var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, widthCode);
+
+                            var hasWidth = variantData.width !== 'Regular';
+                            var finalTitle = productTitle + (hasWidth ? ' (' + variantData.width + ')' : '');
+
+                            shopifyInventory.push({
+                                Handle: handle,
+                                Title: finalTitle,
+                                'Option1 Name': 'Size',
+                                'Option1 Value': variantData.size,
+                                'Option2 Name': '',
+                                'Option2 Value': '',
+                                'Option3 Name': '',
+                                'Option3 Value': '',
+                                SKU: variantData.variantSKU,
+                                Barcode: variantData.upc || '',
+                                'HS Code': '',
+                                COO: '',
+                                Location: 'Needham',
+                                'Bin name': '',
+                                'Incoming (not editable)': '',
+                                'Unavailable (not editable)': '',
+                                'Committed (not editable)': '',
+                                'Available (not editable)': '',
+                                'On hand (current)': '',
+                                'On hand (new)': variantData.quantity
+                            });
+                        }
+
+                        self.inventoryData = shopifyInventory;
+                        resolve(shopifyInventory);
+
+                    } catch (error) {
+                        console.error('HOKA conversion error:', error);
+                        reject(error);
                     }
+                };
+
+                reader.onerror = function() {
+                    reject(new Error('Failed to read file'));
+                };
+
+                if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    reader.readAsText(file);
                 }
-                
-                const variantKey = `${formattedGender}-${matchingProduct}-${colorway}-${size}-${width}`;
-                
-                let actualQuantity = 0;
-                if (typeof quantity === 'string') {
-                    if (quantity.includes('+')) {
-                        actualQuantity = parseInt(quantity.replace('+', '')) || 100;
-                    } else {
-                        actualQuantity = parseInt(quantity) || 0;
-                    }
-                } else if (typeof quantity === 'number') {
-                    actualQuantity = quantity;
-                }
-                
-                if (processedVariants.has(variantKey)) {
-                    const existing = processedVariants.get(variantKey);
-                    existing.quantity += actualQuantity;
-                    continue;
-                }
-                
-                processedVariants.set(variantKey, {
-                    division,
-                    gender: formattedGender,
-                    productName,
-                    matchingProduct,
-                    colorway,
-                    styleSKU,
-                    size,
-                    width,
-                    variantSKU,
-                    upc,
-                    quantity: actualQuantity,
-                    retail: retail
-                });
+
+            } catch (error) {
+                console.error('HOKA conversion error:', error);
+                reject(error);
             }
-            
-            const sortedVariants = Array.from(processedVariants.entries()).sort((a, b) => {
-                const [keyA, dataA] = a;
-                const [keyB, dataB] = b;
-                
-                if (dataA.matchingProduct !== dataB.matchingProduct) {
-                    return dataA.matchingProduct.localeCompare(dataB.matchingProduct);
-                }
-                
-                if (dataA.gender !== dataB.gender) {
-                    if (dataA.gender === "Men's") return -1;
-                    if (dataB.gender === "Men's") return 1;
-                    return dataA.gender.localeCompare(dataB.gender);
-                }
-                
-                if (dataA.colorway !== dataB.colorway) {
-                    return dataA.colorway.localeCompare(dataB.colorway);
-                }
-                
-                if (dataA.width !== dataB.width) {
-                    if (dataA.width === 'Regular') return -1;
-                    if (dataB.width === 'Regular') return 1;
-                    return dataA.width.localeCompare(dataB.width);
-                }
-                
-                const sizeA = parseFloat(dataA.size) || 0;
-                const sizeB = parseFloat(dataB.size) || 0;
-                return sizeA - sizeB;
-            });
-            
-            const shopifyInventory = [];
-            
-            for (const [variantKey, variantData] of sortedVariants) {
-                const productTitle = 'HOKA ' + variantData.gender + ' ' + variantData.matchingProduct + ' - ' + variantData.colorway;
-                
-                // Build lookup key for existing handles: styleNumber-colorCode
-                const skuParts = variantData.variantSKU.split('-');
-                const lookupKey = `${skuParts[0]}-${skuParts[1]}`;
-                
-                // Determine width code for handle generation
-                let widthCode = '';
-                if (variantData.width === 'Wide') {
-                    widthCode = 'EE';
-                } else if (variantData.width === 'Extra Wide') {
-                    widthCode = 'EEEE';
-                }
-                
-                // Use smart handle generation
-                const handle = this.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, widthCode);
-                
-                const hasWidth = variantData.width !== 'Regular';
-                const finalTitle = productTitle + (hasWidth ? ' (' + variantData.width + ')' : '');
-                
-                shopifyInventory.push({
-                    Handle: handle,
-                    Title: finalTitle,
-                    'Option1 Name': 'Size',
-                    'Option1 Value': variantData.size,
-                    'Option2 Name': '',
-                    'Option2 Value': '',
-                    'Option3 Name': '',
-                    'Option3 Value': '',
-                    SKU: variantData.variantSKU,
-                    Barcode: variantData.upc || '',
-                    'HS Code': '',
-                    COO: '',
-                    Location: 'Needham',
-                    'Bin name': '',
-                    'Incoming (not editable)': '',
-                    'Unavailable (not editable)': '',
-                    'Committed (not editable)': '',
-                    'Available (not editable)': '',
-                    'On hand (current)': '',
-                    'On hand (new)': variantData.quantity
-                });
-            }
-            
-            this.inventoryData = shopifyInventory;
-            return shopifyInventory;
-            
-        } catch (error) {
-            console.error('HOKA conversion error:', error);
-            throw error;
-        }
+        });
     },
-    
-    generateInventoryCSV() {
+
+    generateInventoryCSV: function() {
         if (typeof Papa !== 'undefined') {
             return Papa.unparse(this.inventoryData, {
                 quotes: true,
@@ -1037,18 +989,18 @@ const HokaConverter = {
                 delimiter: ','
             });
         }
-        
-        const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
-                       '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
-                       '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
+
+        var inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"',
+                       '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"',
+                       '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"',
                        '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
-        
-        const csvRows = [inventoryHeaders.join(',')];
-        
-        this.inventoryData.forEach(row => {
-            const csvRow = [
+
+        var csvRows = [inventoryHeaders.join(',')];
+
+        this.inventoryData.forEach(function(row) {
+            var csvRow = [
                 row.Handle,
-                `"${row.Title.replace(/"/g, '""')}"`,
+                '"' + row.Title.replace(/"/g, '""') + '"',
                 row['Option1 Name'],
                 row['Option1 Value'],
                 row['Option2 Name'] || '',
@@ -1064,7 +1016,7 @@ const HokaConverter = {
             ];
             csvRows.push(csvRow.join(','));
         });
-        
+
         return csvRows.join('\n');
     }
 };
