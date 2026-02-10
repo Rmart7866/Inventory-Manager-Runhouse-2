@@ -604,13 +604,141 @@ const HokaConverter = {
             description: 'The ultimate trail shoe with enhanced traction and improved durability.',
             specs: { stack: '33/29mm', drop: '4mm', weight: '9.7 oz' },
             category: 'trail running'
+        },
+        'Speedgoat 6 GTX': {
+            description: 'Waterproof trail running with GORE-TEX protection and Vibram Megagrip outsole.',
+            specs: { stack: '33/29mm', drop: '4mm', weight: '10.8 oz' },
+            category: 'waterproof trail running'
+        },
+        'Speedgoat 6 Mid GTX': {
+            description: 'Mid-cut waterproof trail shoe with ankle protection and aggressive traction.',
+            specs: { stack: '33/29mm', drop: '4mm', weight: '12.1 oz' },
+            category: 'waterproof trail running'
+        },
+        'Bondi SR': {
+            description: 'Slip-resistant version of the iconic Bondi, designed for professionals on their feet all day.',
+            specs: { stack: '43/38mm', drop: '5mm', weight: '11.2 oz' },
+            category: 'work/slip-resistant'
+        },
+        'Arahi SR': {
+            description: 'Slip-resistant stability shoe for all-day comfort and support on the job.',
+            specs: { stack: '39/31mm', drop: '8mm', weight: '10.5 oz' },
+            category: 'work/slip-resistant'
+        },
+        'Challenger 8': {
+            description: 'Versatile road-to-trail shoe with a responsive midsole and durable outsole.',
+            specs: { stack: '33/29mm', drop: '4mm', weight: '9.3 oz' },
+            category: 'road-to-trail'
+        },
+        'Challenger 8 GTX': {
+            description: 'Waterproof road-to-trail shoe with GORE-TEX protection.',
+            specs: { stack: '33/29mm', drop: '4mm', weight: '10.2 oz' },
+            category: 'waterproof road-to-trail'
+        },
+        'Solimar 2': {
+            description: 'Updated lightweight trainer for faster-paced runs with improved responsiveness.',
+            specs: { stack: '30/25mm', drop: '5mm', weight: '7.2 oz' },
+            category: 'lightweight performance trainer'
+        },
+        'Clifton 9 GTX': {
+            description: 'Waterproof daily trainer with GORE-TEX protection and signature Clifton cushioning.',
+            specs: { stack: '39/31mm', drop: '8mm', weight: '10.5 oz' },
+            category: 'waterproof daily trainer'
+        },
+        'Stinson 7': {
+            description: 'Maximum cushion trail shoe for long adventures on moderate terrain.',
+            specs: { stack: '40/35mm', drop: '5mm', weight: '11.5 oz' },
+            category: 'max cushion trail'
+        },
+        'Mafate X': {
+            description: 'Premium trail running shoe with plated midsole for aggressive terrain.',
+            specs: { stack: '35/30mm', drop: '5mm', weight: '10.5 oz' },
+            category: 'premium trail'
+        },
+        'Mafate 5': {
+            description: 'Legendary trail shoe built for rugged terrain with maximum protection.',
+            specs: { stack: '35/30mm', drop: '5mm', weight: '11.2 oz' },
+            category: 'premium trail'
+        },
+        'Tecton X 3': {
+            description: 'Carbon-plated trail racing shoe for competitive trail runners.',
+            specs: { stack: '32/27mm', drop: '5mm', weight: '8.9 oz' },
+            category: 'trail racing'
+        },
+        'Skyward Laceless': {
+            description: 'Easy on/off max cushion shoe with laceless design and plush comfort.',
+            specs: { stack: '48/43mm', drop: '5mm', weight: '11.5 oz' },
+            category: 'max cushion laceless'
+        },
+        'Skyward X 2': {
+            description: 'Next generation max cushion plated trainer with enhanced suspension system.',
+            specs: { stack: '48/43mm', drop: '5mm', weight: '11.3 oz' },
+            category: 'max cushion trainer'
+        },
+        'Transport 2': {
+            description: 'Updated everyday lifestyle shoe for seamless trail-to-town transitions.',
+            specs: { stack: '38/33mm', drop: '5mm', weight: '11.5 oz' },
+            category: 'lifestyle/casual'
+        },
+        'Transport Chukka GTX': {
+            description: 'Waterproof mid-height casual shoe with GORE-TEX and HOKA cushioning.',
+            specs: { stack: '38/33mm', drop: '5mm', weight: '13 oz' },
+            category: 'lifestyle/casual'
+        },
+        'Transport Hike GTX': {
+            description: 'Waterproof hiking shoe with enhanced traction and HOKA cushioning.',
+            specs: { stack: '38/33mm', drop: '5mm', weight: '13 oz' },
+            category: 'lifestyle/hiking'
+        },
+        'Cielo X1 2.0': {
+            description: 'Elite carbon-plated super shoe for road racing. Second generation Cielo X1.',
+            specs: { stack: '39/36mm', drop: '3mm', weight: '6.2 oz' },
+            category: 'elite carbon road racer'
+        },
+        'Cielo X1 3.0': {
+            description: 'Third generation elite carbon road racer with refined geometry.',
+            specs: { stack: '39/36mm', drop: '3mm', weight: '6.2 oz' },
+            category: 'elite carbon road racer'
+        },
+        'Cielo X MD': {
+            description: 'Carbon-plated middle distance racing spike for track competition.',
+            specs: { stack: '25/20mm', drop: '5mm', weight: '5.0 oz' },
+            category: 'track racing spike'
+        },
+        'Cielo X 3 MD': {
+            description: 'Third generation middle distance racing spike with carbon plate.',
+            specs: { stack: '25/20mm', drop: '5mm', weight: '5.0 oz' },
+            category: 'track racing spike'
+        },
+        'Cielo X 3 LD': {
+            description: 'Third generation long distance racing spike with carbon plate.',
+            specs: { stack: '25/20mm', drop: '5mm', weight: '5.2 oz' },
+            category: 'track racing spike'
+        },
+        'Rocket X 3': {
+            description: 'Carbon-plated road racing shoe for race day performance.',
+            specs: { stack: '38/33mm', drop: '5mm', weight: '7.5 oz' },
+            category: 'carbon road racer'
+        },
+        'Zinal 3': {
+            description: 'Lightweight trail racing shoe for fast and technical terrain.',
+            specs: { stack: '28/24mm', drop: '4mm', weight: '8.5 oz' },
+            category: 'trail racing'
         }
     },
 
     allowedProducts: [
-        'Mach 6', 'Mach 7', 'Mach X 3', 'Skyward X', 'Clifton 10', 'Bondi 9', 'Arahi 8',
-        'Skyflow', 'Gaviota 5', 'Gaviota 6', 'Transport', 'Transport Chukka', 'Transport GTX',
-        'Transport Hike', 'Transport Mid', 'Solimar', 'Speedgoat 6', 'Speedgoat 7'
+        'Mach 6', 'Mach 7', 'Mach X 3', 'Skyward X', 'Skyward X 2', 'Skyward Laceless',
+        'Clifton 10', 'Clifton 9 GTX', 'Bondi 9', 'Bondi SR', 'Arahi 8', 'Arahi SR',
+        'Skyflow', 'Gaviota 5', 'Gaviota 6',
+        'Transport', 'Transport 2', 'Transport Chukka', 'Transport Chukka GTX',
+        'Transport GTX', 'Transport Hike', 'Transport Hike GTX', 'Transport Mid',
+        'Solimar', 'Solimar 2',
+        'Speedgoat 6', 'Speedgoat 6 GTX', 'Speedgoat 6 Mid GTX', 'Speedgoat 7',
+        'Challenger 8', 'Challenger 8 GTX', 'Stinson 7',
+        'Mafate X', 'Mafate 5', 'Tecton X 3', 'Zinal 3',
+        'Cielo X1 2.0', 'Cielo X1 3.0', 'Cielo X MD', 'Cielo X 3 MD', 'Cielo X 3 LD',
+        'Rocket X 3'
     ],
 
     isAllowedProduct: function(productName) {
@@ -618,35 +746,67 @@ const HokaConverter = {
         var nameLower = productName.toLowerCase();
         nameLower = nameLower.replace(/^[mwuy]\s+/, '');
 
-        if (nameLower.includes('arahi')) {
-            return nameLower.includes('arahi 8') || nameLower.includes('arahi8');
+        // Strip WIDE/X-WIDE suffix for matching purposes (but not from GTX WIDE -> must keep GTX)
+        var nameBase = nameLower.replace(/\s+(?:x-wide|xwide)$/i, '').replace(/\s+wide$/i, '').trim();
+
+        if (nameBase.includes('arahi')) {
+            return nameBase.includes('arahi 8') || nameBase.includes('arahi8') ||
+                   nameBase.includes('arahi sr');
         }
-        if (nameLower.includes('gaviota')) {
-            return nameLower.includes('gaviota 5') || nameLower.includes('gaviota5') ||
-                   nameLower.includes('gaviota 6') || nameLower.includes('gaviota6');
+        if (nameBase.includes('gaviota')) {
+            return nameBase.includes('gaviota 5') || nameBase.includes('gaviota5') ||
+                   nameBase.includes('gaviota 6') || nameBase.includes('gaviota6');
         }
-        if (nameLower.includes('mach')) {
-            return nameLower.includes('mach 6') || nameLower.includes('mach6') ||
-                   nameLower.includes('mach 7') || nameLower.includes('mach7') ||
-                   nameLower.includes('mach x') || nameLower.includes('machx');
+        if (nameBase.includes('mach')) {
+            if (nameBase.includes('mach x') || nameBase.includes('machx')) {
+                return nameBase.includes('mach x 3') || nameBase.includes('machx3') || nameBase.includes('mach x3');
+            }
+            return nameBase.includes('mach 6') || nameBase.includes('mach6') ||
+                   nameBase.includes('mach 7') || nameBase.includes('mach7');
         }
-        if (nameLower.includes('speedgoat')) {
-            return nameLower.includes('speedgoat 6') || nameLower.includes('speedgoat6') ||
-                   nameLower.includes('speedgoat 7') || nameLower.includes('speedgoat7');
+        if (nameBase.includes('speedgoat')) {
+            return nameBase.includes('speedgoat 6') || nameBase.includes('speedgoat6') ||
+                   nameBase.includes('speedgoat 7') || nameBase.includes('speedgoat7');
         }
-        if (nameLower.includes('transport')) {
-            if (nameLower.includes('chukka')) return true;
-            if (nameLower.includes('gtx')) return true;
-            if (nameLower.includes('hike')) return true;
-            if (nameLower.includes('mid')) return true;
+        if (nameBase.includes('bondi')) {
+            return nameBase.includes('bondi 9') || nameBase.includes('bondi9') ||
+                   nameBase.includes('bondi sr');
+        }
+        if (nameBase.includes('clifton')) {
+            return nameBase.includes('clifton 10') || nameBase.includes('clifton10') ||
+                   nameBase.includes('clifton 9 gtx');
+        }
+        if (nameBase.includes('skyward')) {
+            return nameBase.includes('skyward x 2') || nameBase.includes('skyward x2') ||
+                   nameBase.includes('skyward x') || nameBase.includes('skyward laceless');
+        }
+        if (nameBase.includes('transport')) {
+            // Accept all transport variants: Transport, Transport 2, Chukka, GTX, Hike, Mid, Hike GTX, Chukka GTX
             return true;
         }
-        var self = this;
-        return this.allowedProducts.some(function(allowed) {
-            var allowedLower = allowed.toLowerCase();
-            return nameLower.includes(allowedLower) ||
-                   nameLower.includes(allowedLower.replace(/\s+/g, ''));
-        });
+        if (nameBase.includes('challenger')) {
+            return nameBase.includes('challenger 8') || nameBase.includes('challenger8');
+        }
+        if (nameBase.includes('cielo')) {
+            return nameBase.includes('cielo x1') || nameBase.includes('cielo x md') ||
+                   nameBase.includes('cielo x 3');
+        }
+        if (nameBase.includes('rocket x')) {
+            return nameBase.includes('rocket x 3') || nameBase.includes('rocket x3');
+        }
+        if (nameBase.includes('mafate')) {
+            return nameBase.includes('mafate x') || nameBase.includes('mafate 5') || nameBase.includes('mafate5');
+        }
+        if (nameBase.includes('solimar')) {
+            return nameBase.includes('solimar 2') || nameBase.includes('solimar2') ||
+                   nameBase === 'solimar';
+        }
+        // Simple name matches
+        var simpleMatches = ['skyflow', 'stinson 7', 'tecton x 3', 'zinal 3'];
+        for (var i = 0; i < simpleMatches.length; i++) {
+            if (nameBase.includes(simpleMatches[i])) return true;
+        }
+        return false;
     },
 
     getMatchingProduct: function(productName) {
@@ -654,51 +814,106 @@ const HokaConverter = {
         var nameLower = productName.toLowerCase();
         nameLower = nameLower.replace(/^[mwuy]\s+/, '');
 
-        if (nameLower.includes('arahi')) {
-            if (nameLower.includes('arahi 8') || nameLower.includes('arahi8')) return 'Arahi 8';
+        // Strip WIDE/X-WIDE suffix for matching (but not from GTX WIDE -> must keep GTX)
+        var nameBase = nameLower.replace(/\s+(?:x-wide|xwide)$/i, '').replace(/\s+wide$/i, '').trim();
+
+        if (nameBase.includes('arahi')) {
+            if (nameBase.includes('arahi sr')) return 'Arahi SR';
+            if (nameBase.includes('arahi 8') || nameBase.includes('arahi8')) return 'Arahi 8';
             return null;
         }
-        if (nameLower.includes('gaviota')) {
-            if (nameLower.includes('gaviota 6') || nameLower.includes('gaviota6')) return 'Gaviota 6';
-            if (nameLower.includes('gaviota 5') || nameLower.includes('gaviota5')) return 'Gaviota 5';
+        if (nameBase.includes('gaviota')) {
+            if (nameBase.includes('gaviota 6') || nameBase.includes('gaviota6')) return 'Gaviota 6';
+            if (nameBase.includes('gaviota 5') || nameBase.includes('gaviota5')) return 'Gaviota 5';
             return null;
         }
-        if (nameLower.includes('mach')) {
-            if (nameLower.includes('mach x') || nameLower.includes('machx')) return 'Mach X 3';
-            if (nameLower.includes('mach 7') || nameLower.includes('mach7')) return 'Mach 7';
-            if (nameLower.includes('mach 6') || nameLower.includes('mach6')) return 'Mach 6';
+        if (nameBase.includes('mach')) {
+            if (nameBase.includes('mach x') || nameBase.includes('machx')) {
+                if (nameBase.includes('mach x 3') || nameBase.includes('machx3') || nameBase.includes('mach x3')) return 'Mach X 3';
+                return null; // Reject Mach X 2 etc.
+            }
+            if (nameBase.includes('mach 7') || nameBase.includes('mach7')) return 'Mach 7';
+            if (nameBase.includes('mach 6') || nameBase.includes('mach6')) return 'Mach 6';
             return null;
         }
-        if (nameLower.includes('speedgoat')) {
-            if (nameLower.includes('speedgoat 7') || nameLower.includes('speedgoat7')) return 'Speedgoat 7';
-            if (nameLower.includes('speedgoat 6') || nameLower.includes('speedgoat6')) return 'Speedgoat 6';
+        if (nameBase.includes('speedgoat')) {
+            if (nameBase.includes('speedgoat 7') || nameBase.includes('speedgoat7')) return 'Speedgoat 7';
+            // Speedgoat 6 variants — check most specific first
+            if (nameBase.includes('speedgoat 6 mid gtx') || nameBase.includes('speedgoat6 mid gtx')) return 'Speedgoat 6 Mid GTX';
+            if (nameBase.includes('speedgoat 6 gtx') || nameBase.includes('speedgoat6 gtx')) return 'Speedgoat 6 GTX';
+            if (nameBase.includes('speedgoat 6') || nameBase.includes('speedgoat6')) return 'Speedgoat 6';
             return null;
         }
-        if (nameLower.includes('transport')) {
-            if (nameLower.includes('chukka')) return 'Transport Chukka';
-            if (nameLower.includes('gtx')) return 'Transport GTX';
-            if (nameLower.includes('hike')) return 'Transport Hike';
-            if (nameLower.includes('mid')) return 'Transport Mid';
+        if (nameBase.includes('bondi')) {
+            if (nameBase.includes('bondi sr')) return 'Bondi SR';
+            if (nameBase.includes('bondi 9') || nameBase.includes('bondi9')) return 'Bondi 9';
+            return null;
+        }
+        if (nameBase.includes('clifton')) {
+            if (nameBase.includes('clifton 9 gtx')) return 'Clifton 9 GTX';
+            if (nameBase.includes('clifton 10') || nameBase.includes('clifton10')) return 'Clifton 10';
+            return null;
+        }
+        if (nameBase.includes('skyward')) {
+            if (nameBase.includes('skyward laceless')) return 'Skyward Laceless';
+            if (nameBase.includes('skyward x 2') || nameBase.includes('skyward x2')) return 'Skyward X 2';
+            if (nameBase.includes('skyward x')) return 'Skyward X';
+            return null;
+        }
+        if (nameBase.includes('transport')) {
+            // Most specific first
+            if (nameBase.includes('chukka') && nameBase.includes('gtx')) return 'Transport Chukka GTX';
+            if (nameBase.includes('chukka')) return 'Transport Chukka';
+            if (nameBase.includes('hike') && nameBase.includes('gtx')) return 'Transport Hike GTX';
+            if (nameBase.includes('hike')) return 'Transport Hike';
+            if (nameBase.includes('mid')) return 'Transport Mid';
+            if (nameBase.includes('gtx')) return 'Transport GTX';
+            if (nameBase.includes('transport 2') || nameBase.includes('transport2')) return 'Transport 2';
             return 'Transport';
         }
-        for (var i = 0; i < this.allowedProducts.length; i++) {
-            var allowed = this.allowedProducts[i];
-            var allowedLower = allowed.toLowerCase();
-            if (nameLower.includes(allowedLower) ||
-                nameLower.includes(allowedLower.replace(/\s+/g, ''))) {
-                return allowed;
-            }
+        if (nameBase.includes('challenger')) {
+            if (nameBase.includes('challenger 8 gtx') || nameBase.includes('challenger8 gtx')) return 'Challenger 8 GTX';
+            if (nameBase.includes('challenger 8') || nameBase.includes('challenger8')) return 'Challenger 8';
+            return null;
         }
+        if (nameBase.includes('cielo')) {
+            if (nameBase.includes('cielo x1 3.0') || nameBase.includes('cielo x1 3')) return 'Cielo X1 3.0';
+            if (nameBase.includes('cielo x1 2.0') || nameBase.includes('cielo x1 2')) return 'Cielo X1 2.0';
+            if (nameBase.includes('cielo x1')) return 'Cielo X1 3.0'; // default to newest
+            if (nameBase.includes('cielo x 3 md')) return 'Cielo X 3 MD';
+            if (nameBase.includes('cielo x 3 ld')) return 'Cielo X 3 LD';
+            if (nameBase.includes('cielo x md')) return 'Cielo X MD';
+            return null;
+        }
+        if (nameBase.includes('rocket x')) {
+            if (nameBase.includes('rocket x 3') || nameBase.includes('rocket x3')) return 'Rocket X 3';
+            return null;
+        }
+        if (nameBase.includes('mafate')) {
+            if (nameBase.includes('mafate x')) return 'Mafate X';
+            if (nameBase.includes('mafate 5') || nameBase.includes('mafate5')) return 'Mafate 5';
+            return null;
+        }
+        if (nameBase.includes('solimar')) {
+            if (nameBase.includes('solimar 2') || nameBase.includes('solimar2')) return 'Solimar 2';
+            if (nameBase === 'solimar') return 'Solimar';
+            return 'Solimar';
+        }
+        if (nameBase.includes('skyflow')) return 'Skyflow';
+        if (nameBase.includes('stinson 7') || nameBase.includes('stinson7')) return 'Stinson 7';
+        if (nameBase.includes('tecton x 3') || nameBase.includes('tecton x3')) return 'Tecton X 3';
+        if (nameBase.includes('zinal 3') || nameBase.includes('zinal3')) return 'Zinal 3';
+
         return null;
     },
 
     formatGender: function(division) {
-        if (!division) return '';
+        if (!division) return 'Unisex';
         var divStr = division.toString().trim();
         if (divStr.toLowerCase() === "women's" || divStr.toLowerCase() === "womens" || divStr === "W") return "Women's";
         if (divStr.toLowerCase() === "men's" || divStr.toLowerCase() === "mens" || divStr === "M") return "Men's";
         if (divStr.toLowerCase() === "youth" || divStr.toLowerCase() === "kids") return 'Youth';
-        if (divStr.toLowerCase() === "unisex" || divStr === "U") return 'Unisex';
+        if (divStr.toLowerCase() === "unisex" || divStr === "U" || divStr === '') return 'Unisex';
         return divStr;
     },
 
@@ -810,14 +1025,24 @@ const HokaConverter = {
                             var matchingProduct = self.getMatchingProduct(productName);
                             if (!matchingProduct) continue;
 
-                            var formattedGender = self.formatGender(division);
+                            // Detect gender: prefer product name prefix for unisex items
+                            var formattedGender;
+                            var namePrefix = productName.toString().trim().charAt(0).toUpperCase();
+                            if (namePrefix === 'U') {
+                                formattedGender = 'Unisex';
+                            } else {
+                                formattedGender = self.formatGender(division);
+                            }
 
                             var size = sizeInfo ? sizeInfo.toString().replace(/[A-Z]/g, '') : '';
                             if (size) {
                                 size = size.replace(/^0/, '');
+                                // For unisex dual-sizing (e.g. "05.5/07"), keep the first size (men's)
                                 if (size.includes('/')) {
                                     size = size.split('/')[0];
                                 }
+                                // Remove leading zero again after split
+                                size = size.replace(/^0/, '');
                                 if (!size.includes('.')) {
                                     size = size + '.0';
                                 }
