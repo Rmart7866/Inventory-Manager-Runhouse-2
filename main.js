@@ -44,6 +44,12 @@ const ASICS_SIZE_MAPPING = {
     '15': 'M15'
 };
 
+// Handles that need size conversion (only specific products)
+const ASICS_HANDLES_NEEDING_SIZE_CONVERSION = [
+    'unisex-asics-novablast-5-la-marathon',
+    // Add more handles here if other ASICS products need size conversion
+];
+
 // Function to replace handles in ASICS data
 function replaceAsicsHandles(inventory) {
     return inventory.map(row => {
@@ -63,15 +69,15 @@ function replaceAsicsHandles(inventory) {
     });
 }
 
-// Function to convert ASICS sizes to Shopify unisex format
+// Function to convert ASICS sizes to Shopify unisex format (only for specific handles)
 function convertAsicsSizes(inventory) {
     return inventory.map(row => {
         const originalSize = row['Option1 Value'];
         
-        // Check if this size needs to be converted
-        if (ASICS_SIZE_MAPPING[originalSize]) {
+        // Only convert sizes for handles that need it
+        if (ASICS_HANDLES_NEEDING_SIZE_CONVERSION.includes(row.Handle) && ASICS_SIZE_MAPPING[originalSize]) {
             const newSize = ASICS_SIZE_MAPPING[originalSize];
-            console.log(`Converting ASICS size: "${originalSize}" → "${newSize}"`);
+            console.log(`Converting ASICS size for ${row.Handle}: "${originalSize}" → "${newSize}"`);
             return {
                 ...row,
                 'Option1 Value': newSize
@@ -86,7 +92,7 @@ function convertAsicsSizes(inventory) {
 const BrandConverter = {
     brands: {
         saucony: { file: null, inventory: [], csv: '' },
-        hoka: { file: null, inventory: [], csv: '' },
+        hoka: { file: null, inventory: [], csv: '', scanned: false },
         puma: { file: null, inventory: [], csv: '' },
         newbalance: { file: null, inventory: [], csv: '' },
         asics: { file: null, inventory: [], csv: '', csvOnly: true },
@@ -219,9 +225,27 @@ const BrandConverter = {
         this.brands[brand].file = file;
         document.getElementById(`${brand}-filename`).textContent = file.name;
         document.getElementById(`${brand}-uploaded`).style.display = 'flex';
-        document.getElementById(`${brand}-convert`).style.display = 'block';
         document.getElementById(`${brand}-dropzone`).style.display = 'none';
         this.hideStatus(brand);
+
+        // HOKA: auto-scan the file and show the product picker
+        if (brand === 'hoka') {
+            this.brands.hoka.scanned = false;
+            document.getElementById('hoka-convert').style.display = 'none';
+            this.showStatus('hoka', 'Scanning file for products...', 'success');
+
+            HokaConverter.scanFile(file).then(function(products) {
+                buildHokaProductPicker(products);
+                BrandConverter.brands.hoka.scanned = true;
+                document.getElementById('hoka-convert').style.display = 'block';
+                BrandConverter.showStatus('hoka', 'Found ' + products.length + ' products in file. Select which to include, then click Generate.', 'success');
+            }).catch(function(err) {
+                BrandConverter.showStatus('hoka', 'Error scanning file: ' + err.message, 'error');
+                console.error('HOKA scan error:', err);
+            });
+        } else {
+            document.getElementById(`${brand}-convert`).style.display = 'block';
+        }
     },
     
     showStatus(brand, message, type) {
@@ -251,13 +275,9 @@ const BrandConverter = {
                 hasAnyInventory = true;
                 totalVariants += this.brands[brand].inventory.length;
                 
-                // Create container for checkbox and button
+                // Create container for checkbox and buttons in a row
                 const container = document.createElement('div');
-                container.className = 'download-item';
-                container.style.display = 'flex';
-                container.style.alignItems = 'center';
-                container.style.gap = '12px';
-                container.style.marginBottom = '12px';
+                container.className = 'brand-download-row';
                 
                 // Add checkbox for unified selection
                 const checkbox = document.createElement('input');
@@ -273,12 +293,18 @@ const BrandConverter = {
                 // Create download button
                 const btn = document.createElement('button');
                 btn.className = `download-btn ${brand}`;
-                btn.style.flex = '1';
-                btn.innerHTML = `📥 ${this.getBrandDisplayName(brand)} (${this.brands[brand].inventory.length} variants)`;
+                btn.innerHTML = `${this.getBrandDisplayName(brand)} <span style="color: #6c757d; font-weight: 400;">(${this.brands[brand].inventory.length} variants)</span>`;
                 btn.onclick = () => this.downloadBrandInventory(brand);
+                
+                // Create reset download button
+                const resetBtn = document.createElement('button');
+                resetBtn.className = `download-btn reset-btn`;
+                resetBtn.innerHTML = `Reset to 0`;
+                resetBtn.onclick = () => this.downloadBrandReset(brand);
                 
                 container.appendChild(checkbox);
                 container.appendChild(btn);
+                container.appendChild(resetBtn);
                 individualDownloads.appendChild(container);
             }
         });
@@ -340,6 +366,57 @@ const BrandConverter = {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    },
+    
+    downloadBrandReset(brand) {
+        const date = getFormattedDate();
+        const filename = `${brand}-reset-${date}.csv`;
+        
+        // Get inventory and set all quantities to 0
+        const resetInventory = this.brands[brand].inventory.map(row => ({
+            ...row,
+            'On hand (new)': '0'
+        }));
+        
+        // Generate CSV with 0 quantities
+        const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
+                       '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
+                       '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
+                       '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
+        
+        const csvRows = [inventoryHeaders.join(',')];
+        
+        resetInventory.forEach(row => {
+            const csvRow = [
+                row.Handle,
+                `"${(row.Title || '').replace(/"/g, '""')}"`,
+                row['Option1 Name'],
+                row['Option1 Value'],
+                row['Option2 Name'] || '',
+                row['Option2 Value'] || '',
+                row['Option3 Name'] || '',
+                row['Option3 Value'] || '',
+                row.SKU,
+                row.Barcode || '',
+                '', '',
+                row.Location,
+                '', '', '', '', '', '',
+                '0'  // All quantities set to 0
+            ];
+            csvRows.push(csvRow.join(','));
+        });
+        
+        const csvData = csvRows.join('\n');
+        
+        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 };
 
@@ -369,6 +446,12 @@ function clearFile(brand) {
         document.getElementById(`${brand}-convert`).style.display = 'none';
         document.getElementById(`${brand}-dropzone`).style.display = 'flex';
         BrandConverter.hideStatus(brand);
+
+        // HOKA: also hide the product picker
+        if (brand === 'hoka') {
+            document.getElementById('hoka-product-picker').style.display = 'none';
+            BrandConverter.brands.hoka.scanned = false;
+        }
     }
     
     BrandConverter.updateDownloadSection();
@@ -444,6 +527,18 @@ async function convertBrand(brand) {
     if (!file) {
         BrandConverter.showStatus(brand, 'Please select a file first!', 'error');
         return;
+    }
+
+    // HOKA: check that products are selected
+    if (brand === 'hoka') {
+        if (!BrandConverter.brands.hoka.scanned) {
+            BrandConverter.showStatus('hoka', 'File is still being scanned, please wait...', 'error');
+            return;
+        }
+        if (HokaConverter.selectedProducts.size === 0) {
+            BrandConverter.showStatus('hoka', 'Please select at least one product to include!', 'error');
+            return;
+        }
     }
     
     BrandConverter.showStatus(brand, 'Processing...', 'success');
@@ -640,6 +735,79 @@ function downloadUnified() {
             showComparisonReport();
         }
     }
+}
+
+// Download unified reset inventory - All quantities set to 0
+function downloadUnifiedReset() {
+    const allInventory = [];
+    let selectedBrands = [];
+    
+    ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks', 'on'].forEach(brand => {
+        const checkbox = document.getElementById(`select-${brand}`);
+        if (checkbox && checkbox.checked && BrandConverter.brands[brand].inventory.length > 0) {
+            // Apply handle replacement for ASICS if needed (safety check)
+            let brandInventory = [...BrandConverter.brands[brand].inventory];
+            if (brand === 'asics') {
+                brandInventory = replaceAsicsHandles(brandInventory);
+                brandInventory = convertAsicsSizes(brandInventory);
+            }
+            allInventory.push(...brandInventory);
+            selectedBrands.push(BrandConverter.getBrandDisplayName(brand));
+        }
+    });
+    
+    if (allInventory.length === 0) {
+        alert('Please select at least one brand to download!');
+        return;
+    }
+    
+    // Set all quantities to 0
+    const resetInventory = allInventory.map(row => ({
+        ...row,
+        'On hand (new)': '0'
+    }));
+    
+    const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
+                   '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
+                   '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
+                   '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
+    
+    const csvRows = [inventoryHeaders.join(',')];
+    
+    resetInventory.forEach(row => {
+        const csvRow = [
+            row.Handle,
+            `"${(row.Title || '').replace(/"/g, '""')}"`,
+            row['Option1 Name'],
+            row['Option1 Value'],
+            row['Option2 Name'] || '',
+            row['Option2 Value'] || '',
+            row['Option3 Name'] || '',
+            row['Option3 Value'] || '',
+            row.SKU,
+            row.Barcode || '',
+            '', '',
+            row.Location,
+            '', '', '', '', '', '',
+            '0'  // All quantities set to 0
+        ];
+        csvRows.push(csvRow.join(','));
+    });
+    
+    const csvData = csvRows.join('\n');
+    
+    const date = getFormattedDate();
+    const filename = `combined-reset-${date}.csv`;
+    
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // Initialize on page load
