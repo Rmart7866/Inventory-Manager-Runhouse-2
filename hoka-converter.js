@@ -1449,10 +1449,11 @@ const HokaConverter = {
             if (info.category) tags.push(info.category);
             if (product.width && product.width !== 'Regular') tags.push(product.width);
 
-            // Price from retail
+            // Price from retail (MSRP) - strip $ and any whitespace
             var price = '';
             if (product.retail) {
-                price = parseFloat(product.retail);
+                var priceStr = String(product.retail).replace(/[$,\s]/g, '');
+                price = parseFloat(priceStr);
                 if (isNaN(price)) price = '';
                 else price = price.toFixed(2);
             }
