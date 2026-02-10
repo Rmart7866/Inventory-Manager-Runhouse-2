@@ -1457,16 +1457,20 @@ const HokaConverter = {
                 else price = price.toFixed(2);
             }
 
-            // Type based on category
-            var productType = 'Running Shoes';
+            // Type based on gender
+            var productType = "Unisex Shoes";
             if (info.category) {
                 var cat = info.category.toLowerCase();
-                if (cat.includes('trail')) productType = 'Trail Running Shoes';
-                else if (cat.includes('racing') || cat.includes('racer') || cat.includes('spike')) productType = 'Racing Shoes';
-                else if (cat.includes('lifestyle') || cat.includes('hiking') || cat.includes('hike')) productType = 'Lifestyle Shoes';
-                else if (cat.includes('work') || cat.includes('slip')) productType = 'Work Shoes';
-                else if (cat.includes('recovery')) productType = 'Recovery Shoes';
-                else if (cat.includes('sock') || cat.includes('accessor')) productType = 'Accessories';
+                if (cat.includes('sock') || cat.includes('accessor')) {
+                    productType = 'Accessories';
+                } else if (product.gender === "Men's") {
+                    productType = "Men's Shoes";
+                } else if (product.gender === "Women's") {
+                    productType = "Women's Shoes";
+                }
+            } else {
+                if (product.gender === "Men's") productType = "Men's Shoes";
+                else if (product.gender === "Women's") productType = "Women's Shoes";
             }
 
             product.variants.forEach(function(variant, idx) {
