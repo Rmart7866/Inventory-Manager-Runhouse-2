@@ -1457,6 +1457,13 @@ const HokaConverter = {
                 if (isNaN(price)) price = '';
                 else price = price.toFixed(2);
             }
+            if (!price && product.variants.length > 0 && product.variants[0].retail) {
+                var priceStr2 = String(product.variants[0].retail).replace(/[$,\s]/g, '');
+                price = parseFloat(priceStr2);
+                if (isNaN(price)) price = '';
+                else price = price.toFixed(2);
+            }
+            console.log('Product:', product.title.substring(0, 40), 'retail:', product.retail, 'price:', price);
 
             // Type based on gender
             var productType = "Unisex Shoes";
