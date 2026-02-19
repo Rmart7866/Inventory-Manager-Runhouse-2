@@ -622,9 +622,45 @@ async function convertBrand(brand) {
                 case 'hoka':
                     inventory = await HokaConverter.convert(file);
                     BrandConverter.brands[brand].inventory = inventory;
-                    BrandConverter.brands[brand].csv = HokaConverter.generateInventoryCSV();
+
                     // Show the product CSV download button
                     if (typeof showHokaProductCSVButton === 'function') showHokaProductCSVButton();
+
+                    // Inventory Tracker: compare with Firestore and append removed products
+                    if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                        try {
+                            BrandConverter.showStatus('hoka', 'Comparing with previous inventory...', 'success');
+                            var comparison = await InventoryTracker.saveAndCompare('hoka', inventory);
+
+                            // Append removed products at 0 quantity
+                            if (comparison.removed.length > 0) {
+                                var removedRows = InventoryTracker.generateRemovedRows(comparison.removed);
+                                inventory = inventory.concat(removedRows);
+                                BrandConverter.brands[brand].inventory = inventory;
+                                // Also update HokaConverter.inventoryData so CSV generation includes removed rows
+                                HokaConverter.inventoryData = inventory;
+                            }
+
+                            // Show tracker report in UI
+                            if (typeof showTrackerReport === 'function') {
+                                showTrackerReport(comparison);
+                            }
+
+                            var statusMsg = 'Processed ' + inventory.length + ' variants';
+                            if (comparison.removed.length > 0) {
+                                statusMsg += ' (includes ' + comparison.removed.length + ' removed colorways at 0)';
+                            }
+                            if (comparison.added.length > 0) {
+                                statusMsg += ' | ' + comparison.added.length + ' new colorways detected';
+                            }
+                            BrandConverter.showStatus('hoka', statusMsg, 'success');
+                        } catch (trackerError) {
+                            console.warn('Inventory tracker error (continuing without tracking):', trackerError);
+                            BrandConverter.showStatus('hoka', 'Processed ' + inventory.length + ' variants (tracker unavailable)', 'success');
+                        }
+                    }
+
+                    BrandConverter.brands[brand].csv = HokaConverter.generateInventoryCSV();
                     break;
                 case 'puma':
                     inventory = await PumaConverter.convert(file);
