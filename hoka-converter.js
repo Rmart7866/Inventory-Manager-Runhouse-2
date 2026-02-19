@@ -839,6 +839,8 @@ const HokaConverter = {
 
                         // Scan all rows and group by product
                         var productMap = {}; // productName -> { rows, inventory, isDefault }
+                        // Use Firestore known products if available, otherwise fall back to hardcoded defaults
+                        var knownSet = self._knownProducts || null;
 
                         for (var i = startIdx; i < data.length; i++) {
                             var row = data[i];
@@ -858,11 +860,17 @@ const HokaConverter = {
                             if (!identified) continue;
 
                             if (!productMap[identified]) {
+                                var isKnown;
+                                if (knownSet) {
+                                    isKnown = knownSet.has(identified);
+                                } else {
+                                    isKnown = self.defaultProducts.indexOf(identified) !== -1;
+                                }
                                 productMap[identified] = {
                                     name: identified,
                                     rows: 0,
                                     inventory: 0,
-                                    isDefault: self.defaultProducts.indexOf(identified) !== -1
+                                    isDefault: isKnown
                                 };
                             }
 
@@ -1282,7 +1290,8 @@ const HokaConverter = {
                                 'Committed (not editable)': '',
                                 'Available (not editable)': '',
                                 'On hand (current)': '',
-                                'On hand (new)': variantData.quantity
+                                'On hand (new)': variantData.quantity,
+                                _matchingProduct: variantData.matchingProduct
                             });
                         }
 
