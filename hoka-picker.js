@@ -81,6 +81,14 @@ function buildHokaProductPicker(products) {
             nameSpan.className = 'product-item-name';
             nameSpan.textContent = product.name;
 
+            // NEW badge for products not yet on Shopify
+            if (!product.isDefault) {
+                var newBadge = document.createElement('span');
+                newBadge.className = 'product-new-badge';
+                newBadge.textContent = 'NEW';
+                nameSpan.appendChild(newBadge);
+            }
+
             var statsSpan = document.createElement('span');
             statsSpan.className = 'product-item-stats';
             var inventoryClass = product.inventory > 0 ? 'inventory-count' : 'zero-inventory';
@@ -217,70 +225,134 @@ function showTrackerReport(comparison) {
 
     var summary = comparison.summary;
 
-    // Build report HTML
+    // If no data in DB yet and no changes, skip report
+    if (summary.totalInDB === 0 && summary.newProducts === 0 && summary.newColorways === 0 && summary.removedColorways === 0) {
+        container.innerHTML = '<div class="tracker-report-header"><h4>No tracking data yet — run the seed script first</h4></div>';
+        container.style.display = 'block';
+        return;
+    }
+
     var html = '<div class="tracker-report-header">';
-    html += '<h4>Inventory Changes</h4>';
+    html += '<h4>Inventory Tracker</h4>';
     html += '<span class="tracker-timestamp">' + new Date().toLocaleString() + '</span>';
     html += '</div>';
 
     // Summary stats
     html += '<div class="tracker-stats">';
-    html += '<div class="tracker-stat">';
-    html += '<span class="tracker-stat-number">' + summary.totalCurrent + '</span>';
-    html += '<span class="tracker-stat-label">Current</span>';
-    html += '</div>';
-    if (summary.totalPrevious > 0) {
-        html += '<div class="tracker-stat tracker-stat-new">';
-        html += '<span class="tracker-stat-number">+' + summary.addedCount + '</span>';
-        html += '<span class="tracker-stat-label">New</span>';
-        html += '</div>';
-        html += '<div class="tracker-stat tracker-stat-removed">';
-        html += '<span class="tracker-stat-number">-' + summary.removedCount + '</span>';
-        html += '<span class="tracker-stat-label">Removed</span>';
-        html += '</div>';
-        html += '<div class="tracker-stat">';
-        html += '<span class="tracker-stat-number">' + summary.unchangedCount + '</span>';
-        html += '<span class="tracker-stat-label">Unchanged</span>';
-        html += '</div>';
-    } else {
-        html += '<div class="tracker-stat tracker-stat-first">';
-        html += '<span class="tracker-stat-number">First Run</span>';
-        html += '<span class="tracker-stat-label">Saved to database</span>';
-        html += '</div>';
+    html += '<div class="tracker-stat"><span class="tracker-stat-number">' + summary.totalInATS + '</span><span class="tracker-stat-label">In ATS File</span></div>';
+    html += '<div class="tracker-stat"><span class="tracker-stat-number">' + summary.totalInDB + '</span><span class="tracker-stat-label">On Shopify</span></div>';
+    html += '<div class="tracker-stat"><span class="tracker-stat-number">' + summary.matchingColorways + '</span><span class="tracker-stat-label">Matched</span></div>';
+    if (summary.newProducts > 0) {
+        html += '<div class="tracker-stat tracker-stat-new-product"><span class="tracker-stat-number">+' + summary.newProducts + '</span><span class="tracker-stat-label">New Products</span></div>';
+    }
+    if (summary.newColorways > 0) {
+        html += '<div class="tracker-stat tracker-stat-new"><span class="tracker-stat-number">+' + summary.newColorways + '</span><span class="tracker-stat-label">New Colors</span></div>';
+    }
+    if (summary.removedColorways > 0) {
+        html += '<div class="tracker-stat tracker-stat-removed"><span class="tracker-stat-number">-' + summary.removedColorways + '</span><span class="tracker-stat-label">Removed</span></div>';
     }
     html += '</div>';
 
-    // New colorways list
-    if (comparison.added.length > 0) {
-        html += '<div class="tracker-section tracker-added">';
-        html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'added\')">'; 
-        html += '<span>New Colorways (' + comparison.added.length + ')</span>';
-        html += '<span class="tracker-toggle" id="tracker-toggle-added">▼</span>';
+    // ========== NEW PRODUCTS section (entirely new models) ==========
+    if (comparison.newProducts.length > 0) {
+        // Group new products by model name for cleaner display
+        var byModel = {};
+        for (var p = 0; p < comparison.newProducts.length; p++) {
+            var prod = comparison.newProducts[p];
+            var modelKey = prod.modelName || 'Unknown Model';
+            if (!byModel[modelKey]) byModel[modelKey] = [];
+            byModel[modelKey].push(prod);
+        }
+
+        html += '<div class="tracker-section tracker-new-products">';
+        html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'newproducts\')">';
+        html += '<span>🆕 New Products Not On Shopify (' + comparison.newProducts.length + ' colorways)</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-newproducts">▼</span>';
         html += '</div>';
-        html += '<div class="tracker-section-body" id="tracker-body-added">';
-        for (var i = 0; i < comparison.added.length; i++) {
-            var item = comparison.added[i];
-            html += '<div class="tracker-item tracker-item-new">';
-            html += '<span class="tracker-item-name">' + item.title + '</span>';
-            html += '<span class="tracker-item-detail">' + item.variantCount + ' sizes</span>';
+        html += '<div class="tracker-section-body" id="tracker-body-newproducts">';
+
+        var modelNames = Object.keys(byModel).sort();
+        for (var m = 0; m < modelNames.length; m++) {
+            var mName = modelNames[m];
+            var mColorways = byModel[mName];
+            html += '<div class="tracker-model-group">';
+            html += '<div class="tracker-model-name">' + mName + ' <span class="tracker-model-count">(' + mColorways.length + ' colorway' + (mColorways.length > 1 ? 's' : '') + ')</span></div>';
+            for (var mc = 0; mc < mColorways.length; mc++) {
+                var mcItem = mColorways[mc];
+                html += '<div class="tracker-item tracker-item-new-product">';
+                html += '<input type="checkbox" class="tracker-confirm-cb" data-handle="' + mcItem.handle + '" data-title="' + (mcItem.title || '').replace(/"/g, '&quot;') + '" data-variants=\'' + JSON.stringify(mcItem.variants || {}).replace(/'/g, '&#39;') + '\' data-model="' + mName.replace(/"/g, '&quot;') + '">';
+                html += '<span class="tracker-item-badge tracker-badge-new-product">NEW PRODUCT</span>';
+                html += '<span class="tracker-item-name">' + (mcItem.title || mcItem.handle) + '</span>';
+                html += '<span class="tracker-item-detail">' + mcItem.variantCount + ' sizes</span>';
+                html += '</div>';
+            }
             html += '</div>';
         }
+
+        html += '<div class="tracker-confirm-actions">';
+        html += '<label class="tracker-select-all"><input type="checkbox" id="tracker-select-all-newproducts" onchange="toggleAllTrackerSection(\'newproducts\', this.checked)"> Select All</label>';
+        html += '<button class="tracker-confirm-btn" data-section="newproducts" onclick="confirmNewItems(\'newproducts\')">✓ Confirm Selected On Shopify</button>';
+        html += '</div>';
         html += '</div></div>';
     }
 
-    // Removed colorways list
-    if (comparison.removed.length > 0) {
+    // ========== NEW COLORWAYS section (new colors of known products) ==========
+    if (comparison.newColorways.length > 0) {
+        // Group by model
+        var cwByModel = {};
+        for (var c = 0; c < comparison.newColorways.length; c++) {
+            var cw = comparison.newColorways[c];
+            var cwModelKey = cw.modelName || 'Unknown Model';
+            if (!cwByModel[cwModelKey]) cwByModel[cwModelKey] = [];
+            cwByModel[cwModelKey].push(cw);
+        }
+
+        html += '<div class="tracker-section tracker-added">';
+        html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'newcolors\')">';
+        html += '<span>🎨 New Colorways of Existing Products (' + comparison.newColorways.length + ')</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-newcolors">▼</span>';
+        html += '</div>';
+        html += '<div class="tracker-section-body" id="tracker-body-newcolors">';
+
+        var cwModelNames = Object.keys(cwByModel).sort();
+        for (var cm = 0; cm < cwModelNames.length; cm++) {
+            var cmName = cwModelNames[cm];
+            var cmColorways = cwByModel[cmName];
+            html += '<div class="tracker-model-group">';
+            html += '<div class="tracker-model-name">' + cmName + ' <span class="tracker-model-count">(' + cmColorways.length + ' new color' + (cmColorways.length > 1 ? 's' : '') + ')</span></div>';
+            for (var cc = 0; cc < cmColorways.length; cc++) {
+                var ccItem = cmColorways[cc];
+                html += '<div class="tracker-item tracker-item-new">';
+                html += '<input type="checkbox" class="tracker-confirm-cb" data-handle="' + ccItem.handle + '" data-title="' + (ccItem.title || '').replace(/"/g, '&quot;') + '" data-variants=\'' + JSON.stringify(ccItem.variants || {}).replace(/'/g, '&#39;') + '\' data-model="' + cmName.replace(/"/g, '&quot;') + '">';
+                html += '<span class="tracker-item-badge tracker-badge-new">NEW COLOR</span>';
+                html += '<span class="tracker-item-name">' + (ccItem.title || ccItem.handle) + '</span>';
+                html += '<span class="tracker-item-detail">' + ccItem.variantCount + ' sizes</span>';
+                html += '</div>';
+            }
+            html += '</div>';
+        }
+
+        html += '<div class="tracker-confirm-actions">';
+        html += '<label class="tracker-select-all"><input type="checkbox" id="tracker-select-all-newcolors" onchange="toggleAllTrackerSection(\'newcolors\', this.checked)"> Select All</label>';
+        html += '<button class="tracker-confirm-btn" data-section="newcolors" onclick="confirmNewItems(\'newcolors\')">✓ Confirm Selected On Shopify</button>';
+        html += '</div>';
+        html += '</div></div>';
+    }
+
+    // ========== REMOVED section ==========
+    if (comparison.removedColorways.length > 0) {
         html += '<div class="tracker-section tracker-removed">';
         html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'removed\')">';
-        html += '<span>Removed Colorways (' + comparison.removed.length + ') — zeroed out in CSV</span>';
+        html += '<span>❌ Removed From ATS (' + comparison.removedColorways.length + ') — zeroed out in CSV</span>';
         html += '<span class="tracker-toggle" id="tracker-toggle-removed">▼</span>';
         html += '</div>';
         html += '<div class="tracker-section-body" id="tracker-body-removed">';
-        for (var j = 0; j < comparison.removed.length; j++) {
-            var rItem = comparison.removed[j];
-            var varCount = Object.keys(rItem.variants).length;
+        for (var j = 0; j < comparison.removedColorways.length; j++) {
+            var rItem = comparison.removedColorways[j];
+            var varCount = Object.keys(rItem.variants || {}).length;
             html += '<div class="tracker-item tracker-item-removed">';
-            html += '<span class="tracker-item-name">' + rItem.title + '</span>';
+            html += '<span class="tracker-item-badge tracker-badge-removed">GONE</span>';
+            html += '<span class="tracker-item-name">' + (rItem.title || rItem.handle) + '</span>';
             html += '<span class="tracker-item-detail">' + varCount + ' sizes → 0</span>';
             html += '</div>';
         }
@@ -289,6 +361,97 @@ function showTrackerReport(comparison) {
 
     container.innerHTML = html;
     container.style.display = 'block';
+}
+
+// Toggle all checkboxes in a given section
+function toggleAllTrackerSection(sectionId, checked) {
+    var body = document.getElementById('tracker-body-' + sectionId);
+    if (!body) return;
+    var checkboxes = body.querySelectorAll('.tracker-confirm-cb');
+    for (var i = 0; i < checkboxes.length; i++) {
+        checkboxes[i].checked = checked;
+    }
+}
+
+// Confirm selected new items (works for both newproducts and newcolors sections)
+function confirmNewItems(sectionId) {
+    if (typeof InventoryTracker === 'undefined' || typeof db === 'undefined') {
+        alert('Firestore not available');
+        return;
+    }
+
+    var body = document.getElementById('tracker-body-' + sectionId);
+    if (!body) return;
+
+    var checkboxes = body.querySelectorAll('.tracker-confirm-cb:checked');
+    if (checkboxes.length === 0) {
+        alert('No items selected. Check the ones you\'ve added to Shopify.');
+        return;
+    }
+
+    var colorwayData = [];
+    var modelNames = new Set();
+
+    for (var i = 0; i < checkboxes.length; i++) {
+        var cb = checkboxes[i];
+        var handle = cb.getAttribute('data-handle');
+        var title = cb.getAttribute('data-title');
+        var modelName = cb.getAttribute('data-model');
+        var variants = {};
+        try { variants = JSON.parse(cb.getAttribute('data-variants')); } catch(e) {}
+
+        colorwayData.push({ handle: handle, title: title, variants: variants });
+
+        if (modelName) modelNames.add(modelName);
+    }
+
+    var btn = body.querySelector('.tracker-confirm-btn');
+    if (btn) {
+        btn.textContent = 'Saving...';
+        btn.disabled = true;
+    }
+
+    // Figure out which models are actually new
+    var newModels = [];
+    modelNames.forEach(function(name) {
+        if (!InventoryTracker.isKnownModel(name)) {
+            newModels.push(name);
+        }
+    });
+
+    var promises = [InventoryTracker.confirmColorways('hoka', colorwayData)];
+    if (newModels.length > 0) {
+        promises.push(InventoryTracker.confirmModels('hoka', newModels));
+    }
+
+    Promise.all(promises).then(function() {
+        if (btn) {
+            btn.textContent = '✓ Saved ' + colorwayData.length + ' colorways';
+            btn.className = 'tracker-confirm-btn tracker-confirmed';
+        }
+
+        var summaryMsg = 'Confirmed ' + colorwayData.length + ' colorways on Shopify';
+        if (newModels.length > 0) summaryMsg += ' + ' + newModels.length + ' new models';
+        console.log(summaryMsg);
+
+        // Grey out confirmed items
+        for (var j = 0; j < checkboxes.length; j++) {
+            var item = checkboxes[j].closest('.tracker-item');
+            if (item) {
+                item.style.opacity = '0.5';
+                var badge = item.querySelector('.tracker-item-badge');
+                if (badge) {
+                    badge.textContent = 'SAVED';
+                    badge.className = 'tracker-item-badge tracker-badge-saved';
+                }
+            }
+        }
+    }).catch(function(err) {
+        if (btn) {
+            btn.textContent = 'Error: ' + err.message;
+            btn.disabled = false;
+        }
+    });
 }
 
 function toggleTrackerSection(sectionId) {
@@ -322,10 +485,10 @@ function initTrackerStatus() {
         if (!badge) return;
 
         if (status.connected && status.hasData) {
-            badge.innerHTML = '🟢 Tracking active — ' + status.productCount + ' products in database';
+            badge.innerHTML = '🟢 Tracking active — ' + status.modelCount + ' models, ' + status.productCount + ' colorways in database';
             badge.className = 'tracker-badge tracker-badge-active';
         } else if (status.connected && !status.hasData) {
-            badge.innerHTML = '🟡 Tracker connected — no data yet (first run will save)';
+            badge.innerHTML = '🟡 Tracker connected — no data yet (run seed script)';
             badge.className = 'tracker-badge tracker-badge-empty';
         } else {
             badge.innerHTML = '🔴 Tracker offline — ' + (status.error || 'check Firebase config');
