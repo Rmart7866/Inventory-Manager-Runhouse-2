@@ -157,12 +157,81 @@ function hokaPickerSelectNone() {
 }
 
 function hokaPickerSelectDefaults() {
+    var knownModels = (typeof InventoryTracker !== 'undefined') ? InventoryTracker.getKnownModels() : new Set();
     var checkboxes = document.querySelectorAll('#hoka-picker-body input[type="checkbox"]');
     checkboxes.forEach(function(cb) {
         var productName = cb.getAttribute('data-product');
-        cb.checked = HokaConverter.defaultProducts.indexOf(productName) !== -1;
+        cb.checked = knownModels.has(productName);
     });
     updateHokaPickerSummary();
+}
+
+function saveHokaDefaults() {
+    if (typeof InventoryTracker === 'undefined' || typeof db === 'undefined') {
+        alert('Firestore not available');
+        return;
+    }
+
+    // Get currently checked products
+    var checkboxes = document.querySelectorAll('#hoka-picker-body input[type="checkbox"]');
+    var selectedModels = [];
+    var allProducts = [];
+
+    checkboxes.forEach(function(cb) {
+        var name = cb.getAttribute('data-product');
+        allProducts.push(name);
+        if (cb.checked) selectedModels.push(name);
+    });
+
+    if (selectedModels.length === 0) {
+        alert('No products selected. Check the ones you want as defaults first.');
+        return;
+    }
+
+    var btn = document.getElementById('hoka-save-defaults-btn');
+    if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+
+    // Deactivate all models first, then activate selected ones
+    var now = new Date().toISOString();
+    var promises = [];
+
+    // Deactivate all
+    allProducts.forEach(function(name) {
+        promises.push(
+            db.collection('inventory-tracker').doc('hoka').collection('models').doc(name).set({
+                name: name, active: false, lastSeen: now
+            }, { merge: true }).catch(function() {})
+        );
+    });
+
+    Promise.all(promises).then(function() {
+        // Activate selected
+        var activatePromises = [];
+        selectedModels.forEach(function(name) {
+            activatePromises.push(
+                db.collection('inventory-tracker').doc('hoka').collection('models').doc(name).set({
+                    name: name, active: true, firstSeen: now, lastSeen: now
+                }, { merge: true })
+            );
+        });
+        return Promise.all(activatePromises);
+    }).then(function() {
+        // Update local cache
+        InventoryTracker.invalidateCache();
+
+        if (btn) {
+            btn.textContent = '✓ Saved ' + selectedModels.length + ' defaults';
+            btn.className = 'picker-save-defaults-btn picker-saved';
+            setTimeout(function() {
+                btn.textContent = 'Save as Defaults';
+                btn.className = 'picker-save-defaults-btn';
+                btn.disabled = false;
+            }, 3000);
+        }
+        console.log('Saved ' + selectedModels.length + ' models as defaults');
+    }).catch(function(err) {
+        if (btn) { btn.textContent = 'Error: ' + err.message; btn.disabled = false; }
+    });
 }
 
 function toggleHokaCategory(catId) {
