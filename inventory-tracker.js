@@ -1,351 +1,262 @@
-// ========== INVENTORY TRACKER ==========
-// Tracks inventory snapshots in Firestore for change detection
-// Currently supports HOKA only, designed to expand to other brands
+// ========== INVENTORY TRACKER (FIRESTORE) ==========
+// Source of truth for what's currently on Shopify
+// Tracks both product models and individual colorways
+// Nothing gets saved until user confirms it's on Shopify
 
 var InventoryTracker = {
 
-    // ========== CORE METHODS ==========
+    _knownModels: null,
+    _knownColorways: null,
+    _loaded: false,
 
-    // Save current inventory to Firestore and return comparison results
-    // inventoryData: array of Shopify inventory rows from the converter
-    // brand: string like 'hoka'
-    // Returns: { added: [], removed: [], unchanged: [], summary: {} }
-    saveAndCompare: function(brand, inventoryData) {
+    // ========== LOAD FROM FIRESTORE ==========
+
+    load: function(brand) {
         var self = this;
+        if (self._loaded) {
+            return Promise.resolve({ models: self._knownModels, colorways: self._knownColorways });
+        }
 
-        return self.loadCurrentProducts(brand).then(function(previousProducts) {
-            // Build current product map from inventory data
-            var currentProducts = self.buildProductMap(inventoryData);
+        var modelsPromise = db.collection('inventory-tracker').doc(brand).collection('models')
+            .where('active', '==', true).get()
+            .then(function(snap) {
+                var models = new Set();
+                snap.forEach(function(doc) { models.add(doc.id); });
+                return models;
+            }).catch(function() { return new Set(); });
 
-            // Compare
-            var comparison = self.compareSnapshots(previousProducts, currentProducts);
+        var colorwaysPromise = db.collection('inventory-tracker').doc(brand).collection('products')
+            .where('active', '==', true).get()
+            .then(function(snap) {
+                var cw = new Map();
+                snap.forEach(function(doc) { cw.set(doc.id, doc.data()); });
+                return cw;
+            }).catch(function() { return new Map(); });
 
-            // Save to Firestore
-            return self.saveSnapshot(brand, currentProducts).then(function() {
-                // Clean old snapshots (keep 7 days)
-                return self.cleanOldSnapshots(brand, 7);
-            }).then(function() {
-                return comparison;
-            });
+        return Promise.all([modelsPromise, colorwaysPromise]).then(function(results) {
+            self._knownModels = results[0];
+            self._knownColorways = results[1];
+            self._loaded = true;
+            console.log('Firestore: ' + self._knownModels.size + ' models, ' + self._knownColorways.size + ' colorways');
+            return { models: self._knownModels, colorways: self._knownColorways };
         });
     },
 
-    // Build a map of handle -> product data from inventory rows
-    buildProductMap: function(inventoryData) {
-        var products = new Map();
+    invalidateCache: function() {
+        this._knownModels = null;
+        this._knownColorways = null;
+        this._loaded = false;
+    },
+
+    // ========== CHECKS ==========
+
+    isKnownModel: function(modelName) {
+        return this._knownModels ? this._knownModels.has(modelName) : false;
+    },
+
+    isKnownColorway: function(handle) {
+        return this._knownColorways ? this._knownColorways.has(handle) : false;
+    },
+
+    getKnownModels: function() { return this._knownModels || new Set(); },
+    getKnownColorways: function() { return this._knownColorways || new Map(); },
+
+    // ========== COMPARE ATS VS FIRESTORE ==========
+
+    compare: function(inventoryData) {
+        var self = this;
+        var currentHandles = new Map();
 
         for (var i = 0; i < inventoryData.length; i++) {
             var row = inventoryData[i];
             var handle = row.Handle;
-            var title = row.Title;
-            var size = row['Option1 Value'];
-            var sku = row.SKU;
-            var barcode = row.Barcode || '';
-            var quantity = parseInt(row['On hand (new)']) || 0;
-
-            if (!products.has(handle)) {
-                products.set(handle, {
-                    handle: handle,
-                    title: title || '',
-                    variants: {}
-                });
+            if (!currentHandles.has(handle)) {
+                currentHandles.set(handle, { handle: handle, title: row.Title || '', variants: {} });
             }
-
-            var product = products.get(handle);
-            // Fill title from first row that has it
-            if (!product.title && title) {
-                product.title = title;
-            }
-
-            product.variants[size] = {
-                sku: sku,
-                barcode: barcode,
-                quantity: quantity
+            var p = currentHandles.get(handle);
+            if (!p.title && row.Title) p.title = row.Title;
+            p.variants[row['Option1 Value']] = {
+                sku: row.SKU, barcode: row.Barcode || '',
+                quantity: parseInt(row['On hand (new)']) || 0
             };
         }
 
-        return products;
-    },
+        // Separate new handles into new PRODUCTS vs new COLORWAYS
+        var newProducts = [];   // Model not in DB at all
+        var newColorways = [];  // Model known, but this color isn't
+        currentHandles.forEach(function(product, handle) {
+            if (!self.isKnownColorway(handle)) {
+                // Try to identify the model name from the title
+                var modelName = null;
+                if (product.title && typeof HokaConverter !== 'undefined' && HokaConverter.identifyProduct) {
+                    modelName = HokaConverter.identifyProduct(product.title);
+                }
 
-    // Compare previous snapshot with current data
-    // Returns: { added: [...], removed: [...], unchanged: [...], summary: {} }
-    compareSnapshots: function(previousProducts, currentProducts) {
-        var added = [];
-        var removed = [];
-        var unchanged = [];
-
-        // Find removed: in previous but not in current
-        previousProducts.forEach(function(prevProduct, handle) {
-            if (!currentProducts.has(handle)) {
-                removed.push({
+                var entry = {
                     handle: handle,
-                    title: prevProduct.title,
-                    variants: prevProduct.variants,
-                    lastSeen: prevProduct.lastSeen || null
-                });
-            }
-        });
-
-        // Find added and unchanged
-        currentProducts.forEach(function(currProduct, handle) {
-            if (!previousProducts.has(handle)) {
-                added.push({
-                    handle: handle,
-                    title: currProduct.title,
-                    variantCount: Object.keys(currProduct.variants).length
-                });
-            } else {
-                unchanged.push(handle);
-            }
-        });
-
-        var summary = {
-            totalCurrent: currentProducts.size,
-            totalPrevious: previousProducts.size,
-            addedCount: added.length,
-            removedCount: removed.length,
-            unchangedCount: unchanged.length
-        };
-
-        return {
-            added: added,
-            removed: removed,
-            unchanged: unchanged,
-            summary: summary
-        };
-    },
-
-    // ========== FIRESTORE OPERATIONS ==========
-
-    // Load all active products for a brand from Firestore
-    // Returns: Map of handle -> { title, variants, lastSeen, firstSeen }
-    loadCurrentProducts: function(brand) {
-        var collection = db.collection('inventory-tracker').doc(brand).collection('products');
-
-        return collection.where('active', '==', true).get().then(function(snapshot) {
-            var products = new Map();
-
-            snapshot.forEach(function(doc) {
-                var data = doc.data();
-                products.set(doc.id, {
-                    title: data.title || '',
-                    variants: data.variants || {},
-                    firstSeen: data.firstSeen || null,
-                    lastSeen: data.lastSeen || null
-                });
-            });
-
-            console.log('Loaded ' + products.size + ' active products from Firestore for ' + brand);
-            return products;
-        }).catch(function(error) {
-            console.warn('Error loading from Firestore (may be first run):', error);
-            return new Map();
-        });
-    },
-
-    // Save current snapshot to Firestore
-    // Updates each product doc and creates a snapshot record
-    saveSnapshot: function(brand, currentProducts) {
-        var batch = db.batch();
-        var productsCollection = db.collection('inventory-tracker').doc(brand).collection('products');
-        var snapshotsCollection = db.collection('inventory-tracker').doc(brand).collection('snapshots');
-        var now = new Date().toISOString();
-        var batchCount = 0;
-        var batches = [];
-
-        // We need to handle Firestore's 500 write limit per batch
-        var MAX_BATCH_SIZE = 400; // Leave room
-
-        // First: mark all active products as inactive (we'll reactivate current ones)
-        // Actually, better approach: just update current products and deactivate missing ones
-        // We'll do this in two passes
-
-        var self = this;
-
-        // Load ALL products (active and inactive) to know what exists
-        return productsCollection.get().then(function(snapshot) {
-            var existingHandles = new Set();
-            snapshot.forEach(function(doc) {
-                existingHandles.add(doc.id);
-            });
-
-            // Pass 1: Upsert current products (set active=true, update variants/lastSeen)
-            var promises = [];
-            var currentHandles = new Set();
-
-            currentProducts.forEach(function(product, handle) {
-                currentHandles.add(handle);
-
-                var docData = {
                     title: product.title,
+                    variantCount: Object.keys(product.variants).length,
                     variants: product.variants,
-                    lastSeen: now,
-                    active: true
+                    modelName: modelName
                 };
 
-                // If new product, add firstSeen
-                if (!existingHandles.has(handle)) {
-                    docData.firstSeen = now;
+                if (modelName && self.isKnownModel(modelName)) {
+                    // Model exists on Shopify — this is just a new color
+                    newColorways.push(entry);
+                } else {
+                    // Model NOT in DB — this is a new product entirely
+                    newProducts.push(entry);
                 }
+            }
+        });
 
-                // Use set with merge to preserve firstSeen on existing docs
-                promises.push(
-                    productsCollection.doc(handle).set(docData, { merge: true })
-                );
-            });
-
-            // Pass 2: Deactivate products not in current set
-            existingHandles.forEach(function(handle) {
+        var removedColorways = [];
+        if (self._knownColorways) {
+            self._knownColorways.forEach(function(data, handle) {
                 if (!currentHandles.has(handle)) {
-                    promises.push(
-                        productsCollection.doc(handle).update({
-                            active: false,
-                            deactivatedAt: now
-                        }).catch(function() {
-                            // Ignore errors on deactivation
-                        })
-                    );
+                    removedColorways.push({ handle: handle, title: data.title || handle, variants: data.variants || {} });
                 }
             });
+        }
 
-            // Save snapshot metadata
-            var snapshotId = now.replace(/[:.]/g, '-');
-            promises.push(
-                snapshotsCollection.doc(snapshotId).set({
-                    date: now,
-                    productCount: currentProducts.size,
-                    variantCount: self.countVariants(currentProducts),
-                    type: 'inventory-update'
-                })
-            );
-
-            return Promise.all(promises);
-        }).then(function() {
-            console.log('Saved ' + currentProducts.size + ' products to Firestore for ' + brand);
-        });
+        return {
+            newProducts: newProducts,
+            newColorways: newColorways,
+            removedColorways: removedColorways,
+            currentHandles: currentHandles,
+            summary: {
+                totalInATS: currentHandles.size,
+                totalInDB: self._knownColorways ? self._knownColorways.size : 0,
+                newProducts: newProducts.length,
+                newColorways: newColorways.length,
+                removedColorways: removedColorways.length,
+                matchingColorways: currentHandles.size - newProducts.length - newColorways.length
+            }
+        };
     },
 
-    // Count total variants across all products
-    countVariants: function(productMap) {
-        var count = 0;
-        productMap.forEach(function(product) {
-            count += Object.keys(product.variants).length;
-        });
-        return count;
+    // ========== CONFIRM ON SHOPIFY ==========
+
+    confirmModels: function(brand, modelNames) {
+        var self = this;
+        var now = new Date().toISOString();
+        var promises = [];
+        for (var i = 0; i < modelNames.length; i++) {
+            (function(name) {
+                promises.push(
+                    db.collection('inventory-tracker').doc(brand).collection('models').doc(name).set({
+                        name: name, active: true, firstSeen: now, lastSeen: now
+                    }, { merge: true })
+                );
+                if (self._knownModels) self._knownModels.add(name);
+            })(modelNames[i]);
+        }
+        console.log('Confirming ' + modelNames.length + ' models on Shopify');
+        return Promise.all(promises);
     },
 
-    // Clean snapshots older than N days
-    cleanOldSnapshots: function(brand, keepDays) {
-        var cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - keepDays);
-        var cutoffStr = cutoff.toISOString();
-
-        var snapshotsCollection = db.collection('inventory-tracker').doc(brand).collection('snapshots');
-
-        return snapshotsCollection.where('date', '<', cutoffStr).get().then(function(snapshot) {
-            if (snapshot.empty) return;
-
-            var deletePromises = [];
-            snapshot.forEach(function(doc) {
-                deletePromises.push(doc.ref.delete());
-            });
-
-            return Promise.all(deletePromises).then(function() {
-                console.log('Cleaned ' + deletePromises.length + ' old snapshots for ' + brand);
-            });
-        }).catch(function(error) {
-            console.warn('Error cleaning old snapshots:', error);
-        });
+    confirmColorways: function(brand, colorwayData) {
+        var self = this;
+        var now = new Date().toISOString();
+        var promises = [];
+        for (var i = 0; i < colorwayData.length; i++) {
+            (function(cw) {
+                promises.push(
+                    db.collection('inventory-tracker').doc(brand).collection('products').doc(cw.handle).set({
+                        title: cw.title, variants: cw.variants || {}, active: true, firstSeen: now, lastSeen: now
+                    }, { merge: true })
+                );
+                if (self._knownColorways) {
+                    self._knownColorways.set(cw.handle, { title: cw.title, variants: cw.variants || {}, active: true });
+                }
+            })(colorwayData[i]);
+        }
+        console.log('Confirming ' + colorwayData.length + ' colorways on Shopify');
+        return Promise.all(promises);
     },
 
-    // ========== CSV HELPERS ==========
+    // Update quantities for existing colorways (runs each generate)
+    updateExistingColorways: function(brand, inventoryData) {
+        var self = this;
+        var now = new Date().toISOString();
+        var byHandle = new Map();
 
-    // Generate zeroed-out inventory rows for removed products
-    // Returns array of Shopify inventory row objects (same format as converter output)
-    generateRemovedRows: function(removedProducts) {
+        for (var i = 0; i < inventoryData.length; i++) {
+            var row = inventoryData[i];
+            if (!byHandle.has(row.Handle)) byHandle.set(row.Handle, { title: row.Title || '', variants: {} });
+            var p = byHandle.get(row.Handle);
+            if (!p.title && row.Title) p.title = row.Title;
+            p.variants[row['Option1 Value']] = {
+                sku: row.SKU, barcode: row.Barcode || '',
+                quantity: parseInt(row['On hand (new)']) || 0
+            };
+        }
+
+        var promises = [];
+        byHandle.forEach(function(data, handle) {
+            if (self.isKnownColorway(handle)) {
+                promises.push(
+                    db.collection('inventory-tracker').doc(brand).collection('products').doc(handle).update({
+                        variants: data.variants, lastSeen: now
+                    }).catch(function() {})
+                );
+            }
+        });
+
+        if (promises.length > 0) console.log('Updating ' + promises.length + ' existing colorways');
+        return Promise.all(promises);
+    },
+
+    // ========== ZEROED ROWS FOR REMOVED COLORWAYS ==========
+
+    generateRemovedRows: function(removedColorways) {
         var rows = [];
-
-        for (var i = 0; i < removedProducts.length; i++) {
-            var product = removedProducts[i];
-            var variants = product.variants;
+        for (var i = 0; i < removedColorways.length; i++) {
+            var product = removedColorways[i];
+            var variants = product.variants || {};
             var isFirst = true;
-
-            // Sort sizes numerically
             var sizes = Object.keys(variants).sort(function(a, b) {
                 return (parseFloat(a) || 0) - (parseFloat(b) || 0);
             });
 
-            for (var j = 0; j < sizes.length; j++) {
-                var size = sizes[j];
-                var variant = variants[size];
+            if (sizes.length === 0) continue; // Skip seeded entries with no variant data
 
+            for (var j = 0; j < sizes.length; j++) {
+                var variant = variants[sizes[j]];
                 rows.push({
                     Handle: product.handle,
-                    Title: isFirst ? product.title : '',
+                    Title: isFirst ? (product.title || '') : '',
                     'Option1 Name': isFirst ? 'Size' : '',
-                    'Option1 Value': size,
-                    'Option2 Name': '',
-                    'Option2 Value': '',
-                    'Option3 Name': '',
-                    'Option3 Value': '',
-                    SKU: variant.sku || '',
-                    Barcode: variant.barcode || '',
-                    'HS Code': '',
-                    COO: '',
-                    Location: 'Needham',
-                    'Bin name': '',
-                    'Incoming (not editable)': '',
-                    'Unavailable (not editable)': '',
-                    'Committed (not editable)': '',
-                    'Available (not editable)': '',
-                    'On hand (current)': '',
-                    'On hand (new)': 0
+                    'Option1 Value': sizes[j],
+                    'Option2 Name': '', 'Option2 Value': '',
+                    'Option3 Name': '', 'Option3 Value': '',
+                    SKU: variant.sku || '', Barcode: variant.barcode || '',
+                    'HS Code': '', COO: '',
+                    Location: 'Needham', 'Bin name': '',
+                    'Incoming (not editable)': '', 'Unavailable (not editable)': '',
+                    'Committed (not editable)': '', 'Available (not editable)': '',
+                    'On hand (current)': '', 'On hand (new)': 0
                 });
-
                 isFirst = false;
             }
         }
-
         return rows;
     },
 
-    // ========== STATUS CHECK ==========
+    // ========== STATUS ==========
 
-    // Check if Firestore is connected and has data for a brand
     checkStatus: function(brand) {
         return db.collection('inventory-tracker').doc(brand).collection('products')
-            .where('active', '==', true)
-            .get()
-            .then(function(snapshot) {
-                return {
-                    connected: true,
-                    productCount: snapshot.size,
-                    hasData: snapshot.size > 0
-                };
-            })
-            .catch(function(error) {
-                return {
-                    connected: false,
-                    productCount: 0,
-                    hasData: false,
-                    error: error.message
-                };
-            });
-    },
-
-    // Get last snapshot info for a brand
-    getLastSnapshot: function(brand) {
-        return db.collection('inventory-tracker').doc(brand).collection('snapshots')
-            .orderBy('date', 'desc')
-            .limit(1)
-            .get()
-            .then(function(snapshot) {
-                if (snapshot.empty) return null;
-                var doc = snapshot.docs[0];
-                return doc.data();
-            })
-            .catch(function() {
-                return null;
+            .where('active', '==', true).get()
+            .then(function(snap) {
+                var productCount = snap.size;
+                return db.collection('inventory-tracker').doc(brand).collection('models')
+                    .where('active', '==', true).get()
+                    .then(function(modelSnap) {
+                        return { connected: true, productCount: productCount, modelCount: modelSnap.size, hasData: productCount > 0 || modelSnap.size > 0 };
+                    });
+            }).catch(function(error) {
+                return { connected: false, productCount: 0, modelCount: 0, hasData: false, error: error.message };
             });
     }
 };
