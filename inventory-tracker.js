@@ -1,339 +1,351 @@
-// ====================================================================
-// INVENTORY TRACKER - CORRECTED VERSION
-// ====================================================================
-// Discontinued = Any colorway not present in new file (set qty to 0)
-// New Colorway = Any colorway in new file that wasn't in old file
-// ====================================================================
+// ========== INVENTORY TRACKER ==========
+// Tracks inventory snapshots in Firestore for change detection
+// Currently supports HOKA only, designed to expand to other brands
 
-function compareInventories(yesterdayCSV, todayCSV) {
-    console.log('Starting comparison...');
-    
-    // Parse CSVs
-    const yesterday = parseShopifyCSV(yesterdayCSV);
-    const today = parseShopifyCSV(todayCSV);
-    
-    console.log(`Yesterday variants: ${yesterday.length}`);
-    console.log(`Today variants: ${today.length}`);
-    
-    // Group by colorway (Handle)
-    const yesterdayColorways = new Map(); // handle -> variants
-    const todayColorways = new Map();
-    
-    // Group yesterday's data by Handle (colorway)
-    yesterday.forEach(variant => {
-        if (!yesterdayColorways.has(variant.Handle)) {
-            yesterdayColorways.set(variant.Handle, []);
-        }
-        yesterdayColorways.get(variant.Handle).push(variant);
-    });
-    
-    // Group today's data by Handle (colorway)
-    today.forEach(variant => {
-        if (!todayColorways.has(variant.Handle)) {
-            todayColorways.set(variant.Handle, []);
-        }
-        todayColorways.get(variant.Handle).push(variant);
-    });
-    
-    // Find DISCONTINUED colorways (in yesterday but NOT in today)
-    const discontinuedColorways = [];
-    
-    yesterdayColorways.forEach((variants, handle) => {
-        if (!todayColorways.has(handle)) {
-            // This colorway is discontinued
-            discontinuedColorways.push({
-                handle: handle,
-                title: variants[0].Title,
-                variants: variants
-            });
-        }
-    });
-    
-    // Find NEW colorways (in today but NOT in yesterday)
-    const newColorways = [];
-    
-    todayColorways.forEach((variants, handle) => {
-        if (!yesterdayColorways.has(handle)) {
-            // This is a new colorway
-            newColorways.push({
-                handle: handle,
-                title: variants[0].Title,
-                variants: variants
-            });
-        }
-    });
-    
-    // Sort alphabetically by title
-    discontinuedColorways.sort((a, b) => a.title.localeCompare(b.title));
-    newColorways.sort((a, b) => a.title.localeCompare(b.title));
-    
-    console.log(`Found ${discontinuedColorways.length} discontinued colorways`);
-    console.log(`Found ${newColorways.length} new colorways`);
-    
-    return {
-        discontinuedColorways,
-        newColorways,
-        yesterdayColorways,
-        todayColorways
-    };
-}
+var InventoryTracker = {
 
-function parseShopifyCSV(csvText) {
-    const lines = csvText.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-    
-    const handleIndex = headers.indexOf('Handle');
-    const titleIndex = headers.indexOf('Title');
-    const variantSKUIndex = headers.indexOf('Variant SKU');
-    const option1Index = headers.indexOf('Option1 Value'); // Size
-    const variantInventoryQtyIndex = headers.indexOf('Variant Inventory Qty');
-    
-    const variants = [];
-    
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.trim()) continue;
-        
-        const values = parseCSVLine(line);
-        
-        const handle = values[handleIndex]?.trim().replace(/^"|"$/g, '') || '';
-        const title = values[titleIndex]?.trim().replace(/^"|"$/g, '') || '';
-        const sku = values[variantSKUIndex]?.trim().replace(/^"|"$/g, '') || '';
-        const size = values[option1Index]?.trim().replace(/^"|"$/g, '') || '';
-        const qty = values[variantInventoryQtyIndex]?.trim().replace(/^"|"$/g, '') || '0';
-        
-        if (handle && size) {
-            variants.push({
-                Handle: handle,
-                Title: title,
-                SKU: sku,
-                Size: size,
-                Quantity: parseInt(qty) || 0
-            });
-        }
-    }
-    
-    return variants;
-}
+    // ========== CORE METHODS ==========
 
-function parseCSVLine(line) {
-    const values = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        
-        if (char === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-                current += '"';
-                i++;
-            } else {
-                inQuotes = !inQuotes;
+    // Save current inventory to Firestore and return comparison results
+    // inventoryData: array of Shopify inventory rows from the converter
+    // brand: string like 'hoka'
+    // Returns: { added: [], removed: [], unchanged: [], summary: {} }
+    saveAndCompare: function(brand, inventoryData) {
+        var self = this;
+
+        return self.loadCurrentProducts(brand).then(function(previousProducts) {
+            // Build current product map from inventory data
+            var currentProducts = self.buildProductMap(inventoryData);
+
+            // Compare
+            var comparison = self.compareSnapshots(previousProducts, currentProducts);
+
+            // Save to Firestore
+            return self.saveSnapshot(brand, currentProducts).then(function() {
+                // Clean old snapshots (keep 7 days)
+                return self.cleanOldSnapshots(brand, 7);
+            }).then(function() {
+                return comparison;
+            });
+        });
+    },
+
+    // Build a map of handle -> product data from inventory rows
+    buildProductMap: function(inventoryData) {
+        var products = new Map();
+
+        for (var i = 0; i < inventoryData.length; i++) {
+            var row = inventoryData[i];
+            var handle = row.Handle;
+            var title = row.Title;
+            var size = row['Option1 Value'];
+            var sku = row.SKU;
+            var barcode = row.Barcode || '';
+            var quantity = parseInt(row['On hand (new)']) || 0;
+
+            if (!products.has(handle)) {
+                products.set(handle, {
+                    handle: handle,
+                    title: title || '',
+                    variants: {}
+                });
             }
-        } else if (char === ',' && !inQuotes) {
-            values.push(current);
-            current = '';
-        } else {
-            current += char;
+
+            var product = products.get(handle);
+            // Fill title from first row that has it
+            if (!product.title && title) {
+                product.title = title;
+            }
+
+            product.variants[size] = {
+                sku: sku,
+                barcode: barcode,
+                quantity: quantity
+            };
         }
-    }
-    values.push(current);
-    
-    return values;
-}
 
-function generateReport(comparison) {
-    const { discontinuedColorways, newColorways } = comparison;
-    
-    let report = '';
-    
-    // Header
-    report += '======================================================================\n';
-    report += '              RUN HOUSE INVENTORY COMPARISON REPORT\n';
-    report += '======================================================================\n\n';
-    
-    // Discontinued Colorways Section
-    report += `DISCONTINUED COLORWAYS\n`;
-    report += `======================================================================\n`;
-    report += `${discontinuedColorways.length} colorways discontinued\n`;
-    report += `${discontinuedColorways.reduce((sum, cw) => sum + cw.variants.length, 0)} total variants\n\n`;
-    
-    if (discontinuedColorways.length > 0) {
-        discontinuedColorways.forEach(colorway => {
-            report += `${colorway.title}\n`;
-            report += `  Sizes: `;
-            const sizeList = colorway.variants
-                .sort((a, b) => parseFloat(a.Size) - parseFloat(b.Size))
-                .map(v => `${v.Size} (${v.Quantity})`)
-                .join(', ');
-            report += sizeList + '\n';
-            report += `  Total variants: ${colorway.variants.length}\n\n`;
-        });
-    } else {
-        report += 'No discontinued colorways found.\n\n';
-    }
-    
-    report += '\n';
-    
-    // New Colorways Section
-    report += `NEW COLORWAYS\n`;
-    report += `======================================================================\n`;
-    report += `${newColorways.length} new colorways detected\n`;
-    report += `${newColorways.reduce((sum, cw) => sum + cw.variants.length, 0)} total variants\n\n`;
-    
-    if (newColorways.length > 0) {
-        newColorways.forEach(colorway => {
-            report += `${colorway.title}\n`;
-            report += `  Sizes: `;
-            const sizeList = colorway.variants
-                .sort((a, b) => parseFloat(a.Size) - parseFloat(b.Size))
-                .map(v => `${v.Size} (${v.Quantity})`)
-                .join(', ');
-            report += sizeList + '\n';
-            report += `  Total variants: ${colorway.variants.length}\n\n`;
-        });
-    } else {
-        report += 'No new colorways found.\n\n';
-    }
-    
-    report += '======================================================================\n';
-    
-    return report;
-}
+        return products;
+    },
 
-function generateDiscontinuedCSV(discontinuedColorways) {
-    if (discontinuedColorways.length === 0) {
-        return null;
-    }
-    
-    // Shopify CSV format
-    let csv = 'Handle,Title,Body (HTML),Vendor,Product Category,Type,Tags,Published,Option1 Name,Option1 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item,Included / United States,Price / United States,Compare At Price / United States,Included / International,Price / International,Compare At Price / International,Status\n';
-    
-    discontinuedColorways.forEach(colorway => {
-        colorway.variants.forEach((variant, index) => {
-            const isFirstVariant = index === 0;
-            
-            csv += `"${variant.Handle}",`;
-            csv += `"${isFirstVariant ? variant.Title : ''}",`;
-            csv += `"",`; // Body (HTML)
-            csv += `"",`; // Vendor
-            csv += `"",`; // Product Category
-            csv += `"",`; // Type
-            csv += `"",`; // Tags
-            csv += `"TRUE",`; // Published
-            csv += `"${isFirstVariant ? 'Size' : ''}",`; // Option1 Name
-            csv += `"${variant.Size}",`; // Option1 Value
-            csv += `"${variant.SKU}",`; // Variant SKU
-            csv += `"0",`; // Variant Grams
-            csv += `"shopify",`; // Variant Inventory Tracker
-            csv += `"0",`; // Variant Inventory Qty - SET TO 0
-            csv += `"deny",`; // Variant Inventory Policy
-            csv += `"manual",`; // Variant Fulfillment Service
-            csv += `"",`; // Variant Price
-            csv += `"",`; // Variant Compare At Price
-            csv += `"TRUE",`; // Variant Requires Shipping
-            csv += `"TRUE",`; // Variant Taxable
-            csv += `"",`; // Variant Barcode
-            csv += `"",`; // Image Src
-            csv += `"",`; // Image Position
-            csv += `"",`; // Image Alt Text
-            csv += `"FALSE",`; // Gift Card
-            csv += `"",`; // SEO Title
-            csv += `"",`; // SEO Description
-            csv += `"",`; // Google Shopping / Google Product Category
-            csv += `"",`; // Google Shopping / Gender
-            csv += `"",`; // Google Shopping / Age Group
-            csv += `"",`; // Google Shopping / MPN
-            csv += `"",`; // Google Shopping / Condition
-            csv += `"",`; // Google Shopping / Custom Product
-            csv += `"",`; // Google Shopping / Custom Label 0
-            csv += `"",`; // Google Shopping / Custom Label 1
-            csv += `"",`; // Google Shopping / Custom Label 2
-            csv += `"",`; // Google Shopping / Custom Label 3
-            csv += `"",`; // Google Shopping / Custom Label 4
-            csv += `"",`; // Variant Image
-            csv += `"lb",`; // Variant Weight Unit
-            csv += `"",`; // Variant Tax Code
-            csv += `"",`; // Cost per item
-            csv += `"TRUE",`; // Included / United States
-            csv += `"",`; // Price / United States
-            csv += `"",`; // Compare At Price / United States
-            csv += `"FALSE",`; // Included / International
-            csv += `"",`; // Price / International
-            csv += `"",`; // Compare At Price / International
-            csv += `"active"`; // Status
-            csv += '\n';
-        });
-    });
-    
-    return csv;
-}
+    // Compare previous snapshot with current data
+    // Returns: { added: [...], removed: [...], unchanged: [...], summary: {} }
+    compareSnapshots: function(previousProducts, currentProducts) {
+        var added = [];
+        var removed = [];
+        var unchanged = [];
 
-function generateNewColorwaysCSV(newColorways) {
-    if (newColorways.length === 0) {
-        return null;
-    }
-    
-    // Shopify CSV format
-    let csv = 'Handle,Title,Body (HTML),Vendor,Product Category,Type,Tags,Published,Option1 Name,Option1 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item,Included / United States,Price / United States,Compare At Price / United States,Included / International,Price / International,Compare At Price / International,Status\n';
-    
-    newColorways.forEach(colorway => {
-        colorway.variants.forEach((variant, index) => {
-            const isFirstVariant = index === 0;
-            
-            csv += `"${variant.Handle}",`;
-            csv += `"${isFirstVariant ? variant.Title : ''}",`;
-            csv += `"",`; // Body (HTML)
-            csv += `"",`; // Vendor
-            csv += `"",`; // Product Category
-            csv += `"",`; // Type
-            csv += `"",`; // Tags
-            csv += `"TRUE",`; // Published
-            csv += `"${isFirstVariant ? 'Size' : ''}",`; // Option1 Name
-            csv += `"${variant.Size}",`; // Option1 Value
-            csv += `"${variant.SKU}",`; // Variant SKU
-            csv += `"0",`; // Variant Grams
-            csv += `"shopify",`; // Variant Inventory Tracker
-            csv += `"${variant.Quantity}",`; // Variant Inventory Qty - ACTUAL QTY
-            csv += `"deny",`; // Variant Inventory Policy
-            csv += `"manual",`; // Variant Fulfillment Service
-            csv += `"",`; // Variant Price
-            csv += `"",`; // Variant Compare At Price
-            csv += `"TRUE",`; // Variant Requires Shipping
-            csv += `"TRUE",`; // Variant Taxable
-            csv += `"",`; // Variant Barcode
-            csv += `"",`; // Image Src
-            csv += `"",`; // Image Position
-            csv += `"",`; // Image Alt Text
-            csv += `"FALSE",`; // Gift Card
-            csv += `"",`; // SEO Title
-            csv += `"",`; // SEO Description
-            csv += `"",`; // Google Shopping / Google Product Category
-            csv += `"",`; // Google Shopping / Gender
-            csv += `"",`; // Google Shopping / Age Group
-            csv += `"",`; // Google Shopping / MPN
-            csv += `"",`; // Google Shopping / Condition
-            csv += `"",`; // Google Shopping / Custom Product
-            csv += `"",`; // Google Shopping / Custom Label 0
-            csv += `"",`; // Google Shopping / Custom Label 1
-            csv += `"",`; // Google Shopping / Custom Label 2
-            csv += `"",`; // Google Shopping / Custom Label 3
-            csv += `"",`; // Google Shopping / Custom Label 4
-            csv += `"",`; // Variant Image
-            csv += `"lb",`; // Variant Weight Unit
-            csv += `"",`; // Variant Tax Code
-            csv += `"",`; // Cost per item
-            csv += `"TRUE",`; // Included / United States
-            csv += `"",`; // Price / United States
-            csv += `"",`; // Compare At Price / United States
-            csv += `"FALSE",`; // Included / International
-            csv += `"",`; // Price / International
-            csv += `"",`; // Compare At Price / International
-            csv += `"active"`; // Status
-            csv += '\n';
+        // Find removed: in previous but not in current
+        previousProducts.forEach(function(prevProduct, handle) {
+            if (!currentProducts.has(handle)) {
+                removed.push({
+                    handle: handle,
+                    title: prevProduct.title,
+                    variants: prevProduct.variants,
+                    lastSeen: prevProduct.lastSeen || null
+                });
+            }
         });
-    });
-    
-    return csv;
-}
+
+        // Find added and unchanged
+        currentProducts.forEach(function(currProduct, handle) {
+            if (!previousProducts.has(handle)) {
+                added.push({
+                    handle: handle,
+                    title: currProduct.title,
+                    variantCount: Object.keys(currProduct.variants).length
+                });
+            } else {
+                unchanged.push(handle);
+            }
+        });
+
+        var summary = {
+            totalCurrent: currentProducts.size,
+            totalPrevious: previousProducts.size,
+            addedCount: added.length,
+            removedCount: removed.length,
+            unchangedCount: unchanged.length
+        };
+
+        return {
+            added: added,
+            removed: removed,
+            unchanged: unchanged,
+            summary: summary
+        };
+    },
+
+    // ========== FIRESTORE OPERATIONS ==========
+
+    // Load all active products for a brand from Firestore
+    // Returns: Map of handle -> { title, variants, lastSeen, firstSeen }
+    loadCurrentProducts: function(brand) {
+        var collection = db.collection('inventory-tracker').doc(brand).collection('products');
+
+        return collection.where('active', '==', true).get().then(function(snapshot) {
+            var products = new Map();
+
+            snapshot.forEach(function(doc) {
+                var data = doc.data();
+                products.set(doc.id, {
+                    title: data.title || '',
+                    variants: data.variants || {},
+                    firstSeen: data.firstSeen || null,
+                    lastSeen: data.lastSeen || null
+                });
+            });
+
+            console.log('Loaded ' + products.size + ' active products from Firestore for ' + brand);
+            return products;
+        }).catch(function(error) {
+            console.warn('Error loading from Firestore (may be first run):', error);
+            return new Map();
+        });
+    },
+
+    // Save current snapshot to Firestore
+    // Updates each product doc and creates a snapshot record
+    saveSnapshot: function(brand, currentProducts) {
+        var batch = db.batch();
+        var productsCollection = db.collection('inventory-tracker').doc(brand).collection('products');
+        var snapshotsCollection = db.collection('inventory-tracker').doc(brand).collection('snapshots');
+        var now = new Date().toISOString();
+        var batchCount = 0;
+        var batches = [];
+
+        // We need to handle Firestore's 500 write limit per batch
+        var MAX_BATCH_SIZE = 400; // Leave room
+
+        // First: mark all active products as inactive (we'll reactivate current ones)
+        // Actually, better approach: just update current products and deactivate missing ones
+        // We'll do this in two passes
+
+        var self = this;
+
+        // Load ALL products (active and inactive) to know what exists
+        return productsCollection.get().then(function(snapshot) {
+            var existingHandles = new Set();
+            snapshot.forEach(function(doc) {
+                existingHandles.add(doc.id);
+            });
+
+            // Pass 1: Upsert current products (set active=true, update variants/lastSeen)
+            var promises = [];
+            var currentHandles = new Set();
+
+            currentProducts.forEach(function(product, handle) {
+                currentHandles.add(handle);
+
+                var docData = {
+                    title: product.title,
+                    variants: product.variants,
+                    lastSeen: now,
+                    active: true
+                };
+
+                // If new product, add firstSeen
+                if (!existingHandles.has(handle)) {
+                    docData.firstSeen = now;
+                }
+
+                // Use set with merge to preserve firstSeen on existing docs
+                promises.push(
+                    productsCollection.doc(handle).set(docData, { merge: true })
+                );
+            });
+
+            // Pass 2: Deactivate products not in current set
+            existingHandles.forEach(function(handle) {
+                if (!currentHandles.has(handle)) {
+                    promises.push(
+                        productsCollection.doc(handle).update({
+                            active: false,
+                            deactivatedAt: now
+                        }).catch(function() {
+                            // Ignore errors on deactivation
+                        })
+                    );
+                }
+            });
+
+            // Save snapshot metadata
+            var snapshotId = now.replace(/[:.]/g, '-');
+            promises.push(
+                snapshotsCollection.doc(snapshotId).set({
+                    date: now,
+                    productCount: currentProducts.size,
+                    variantCount: self.countVariants(currentProducts),
+                    type: 'inventory-update'
+                })
+            );
+
+            return Promise.all(promises);
+        }).then(function() {
+            console.log('Saved ' + currentProducts.size + ' products to Firestore for ' + brand);
+        });
+    },
+
+    // Count total variants across all products
+    countVariants: function(productMap) {
+        var count = 0;
+        productMap.forEach(function(product) {
+            count += Object.keys(product.variants).length;
+        });
+        return count;
+    },
+
+    // Clean snapshots older than N days
+    cleanOldSnapshots: function(brand, keepDays) {
+        var cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - keepDays);
+        var cutoffStr = cutoff.toISOString();
+
+        var snapshotsCollection = db.collection('inventory-tracker').doc(brand).collection('snapshots');
+
+        return snapshotsCollection.where('date', '<', cutoffStr).get().then(function(snapshot) {
+            if (snapshot.empty) return;
+
+            var deletePromises = [];
+            snapshot.forEach(function(doc) {
+                deletePromises.push(doc.ref.delete());
+            });
+
+            return Promise.all(deletePromises).then(function() {
+                console.log('Cleaned ' + deletePromises.length + ' old snapshots for ' + brand);
+            });
+        }).catch(function(error) {
+            console.warn('Error cleaning old snapshots:', error);
+        });
+    },
+
+    // ========== CSV HELPERS ==========
+
+    // Generate zeroed-out inventory rows for removed products
+    // Returns array of Shopify inventory row objects (same format as converter output)
+    generateRemovedRows: function(removedProducts) {
+        var rows = [];
+
+        for (var i = 0; i < removedProducts.length; i++) {
+            var product = removedProducts[i];
+            var variants = product.variants;
+            var isFirst = true;
+
+            // Sort sizes numerically
+            var sizes = Object.keys(variants).sort(function(a, b) {
+                return (parseFloat(a) || 0) - (parseFloat(b) || 0);
+            });
+
+            for (var j = 0; j < sizes.length; j++) {
+                var size = sizes[j];
+                var variant = variants[size];
+
+                rows.push({
+                    Handle: product.handle,
+                    Title: isFirst ? product.title : '',
+                    'Option1 Name': isFirst ? 'Size' : '',
+                    'Option1 Value': size,
+                    'Option2 Name': '',
+                    'Option2 Value': '',
+                    'Option3 Name': '',
+                    'Option3 Value': '',
+                    SKU: variant.sku || '',
+                    Barcode: variant.barcode || '',
+                    'HS Code': '',
+                    COO: '',
+                    Location: 'Needham',
+                    'Bin name': '',
+                    'Incoming (not editable)': '',
+                    'Unavailable (not editable)': '',
+                    'Committed (not editable)': '',
+                    'Available (not editable)': '',
+                    'On hand (current)': '',
+                    'On hand (new)': 0
+                });
+
+                isFirst = false;
+            }
+        }
+
+        return rows;
+    },
+
+    // ========== STATUS CHECK ==========
+
+    // Check if Firestore is connected and has data for a brand
+    checkStatus: function(brand) {
+        return db.collection('inventory-tracker').doc(brand).collection('products')
+            .where('active', '==', true)
+            .get()
+            .then(function(snapshot) {
+                return {
+                    connected: true,
+                    productCount: snapshot.size,
+                    hasData: snapshot.size > 0
+                };
+            })
+            .catch(function(error) {
+                return {
+                    connected: false,
+                    productCount: 0,
+                    hasData: false,
+                    error: error.message
+                };
+            });
+    },
+
+    // Get last snapshot info for a brand
+    getLastSnapshot: function(brand) {
+        return db.collection('inventory-tracker').doc(brand).collection('snapshots')
+            .orderBy('date', 'desc')
+            .limit(1)
+            .get()
+            .then(function(snapshot) {
+                if (snapshot.empty) return null;
+                var doc = snapshot.docs[0];
+                return doc.data();
+            })
+            .catch(function() {
+                return null;
+            });
+    }
+};
