@@ -209,3 +209,134 @@ function hideHokaProductCSVButton() {
     if (btn) btn.style.display = 'none';
 }
 // ========== END HOKA PRODUCT CSV DOWNLOAD ==========
+
+// ========== INVENTORY TRACKER REPORT ==========
+function showTrackerReport(comparison) {
+    var container = document.getElementById('hoka-tracker-report');
+    if (!container) return;
+
+    var summary = comparison.summary;
+
+    // Build report HTML
+    var html = '<div class="tracker-report-header">';
+    html += '<h4>Inventory Changes</h4>';
+    html += '<span class="tracker-timestamp">' + new Date().toLocaleString() + '</span>';
+    html += '</div>';
+
+    // Summary stats
+    html += '<div class="tracker-stats">';
+    html += '<div class="tracker-stat">';
+    html += '<span class="tracker-stat-number">' + summary.totalCurrent + '</span>';
+    html += '<span class="tracker-stat-label">Current</span>';
+    html += '</div>';
+    if (summary.totalPrevious > 0) {
+        html += '<div class="tracker-stat tracker-stat-new">';
+        html += '<span class="tracker-stat-number">+' + summary.addedCount + '</span>';
+        html += '<span class="tracker-stat-label">New</span>';
+        html += '</div>';
+        html += '<div class="tracker-stat tracker-stat-removed">';
+        html += '<span class="tracker-stat-number">-' + summary.removedCount + '</span>';
+        html += '<span class="tracker-stat-label">Removed</span>';
+        html += '</div>';
+        html += '<div class="tracker-stat">';
+        html += '<span class="tracker-stat-number">' + summary.unchangedCount + '</span>';
+        html += '<span class="tracker-stat-label">Unchanged</span>';
+        html += '</div>';
+    } else {
+        html += '<div class="tracker-stat tracker-stat-first">';
+        html += '<span class="tracker-stat-number">First Run</span>';
+        html += '<span class="tracker-stat-label">Saved to database</span>';
+        html += '</div>';
+    }
+    html += '</div>';
+
+    // New colorways list
+    if (comparison.added.length > 0) {
+        html += '<div class="tracker-section tracker-added">';
+        html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'added\')">'; 
+        html += '<span>New Colorways (' + comparison.added.length + ')</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-added">▼</span>';
+        html += '</div>';
+        html += '<div class="tracker-section-body" id="tracker-body-added">';
+        for (var i = 0; i < comparison.added.length; i++) {
+            var item = comparison.added[i];
+            html += '<div class="tracker-item tracker-item-new">';
+            html += '<span class="tracker-item-name">' + item.title + '</span>';
+            html += '<span class="tracker-item-detail">' + item.variantCount + ' sizes</span>';
+            html += '</div>';
+        }
+        html += '</div></div>';
+    }
+
+    // Removed colorways list
+    if (comparison.removed.length > 0) {
+        html += '<div class="tracker-section tracker-removed">';
+        html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'removed\')">';
+        html += '<span>Removed Colorways (' + comparison.removed.length + ') — zeroed out in CSV</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-removed">▼</span>';
+        html += '</div>';
+        html += '<div class="tracker-section-body" id="tracker-body-removed">';
+        for (var j = 0; j < comparison.removed.length; j++) {
+            var rItem = comparison.removed[j];
+            var varCount = Object.keys(rItem.variants).length;
+            html += '<div class="tracker-item tracker-item-removed">';
+            html += '<span class="tracker-item-name">' + rItem.title + '</span>';
+            html += '<span class="tracker-item-detail">' + varCount + ' sizes → 0</span>';
+            html += '</div>';
+        }
+        html += '</div></div>';
+    }
+
+    container.innerHTML = html;
+    container.style.display = 'block';
+}
+
+function toggleTrackerSection(sectionId) {
+    var body = document.getElementById('tracker-body-' + sectionId);
+    var toggle = document.getElementById('tracker-toggle-' + sectionId);
+    if (!body || !toggle) return;
+
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        toggle.textContent = '▼';
+    } else {
+        body.style.display = 'none';
+        toggle.textContent = '▶';
+    }
+}
+
+function hideTrackerReport() {
+    var container = document.getElementById('hoka-tracker-report');
+    if (container) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+    }
+}
+
+// Show tracker connection status on page load
+function initTrackerStatus() {
+    if (typeof InventoryTracker === 'undefined' || typeof db === 'undefined') return;
+
+    InventoryTracker.checkStatus('hoka').then(function(status) {
+        var badge = document.getElementById('hoka-tracker-badge');
+        if (!badge) return;
+
+        if (status.connected && status.hasData) {
+            badge.innerHTML = '🟢 Tracking active — ' + status.productCount + ' products in database';
+            badge.className = 'tracker-badge tracker-badge-active';
+        } else if (status.connected && !status.hasData) {
+            badge.innerHTML = '🟡 Tracker connected — no data yet (first run will save)';
+            badge.className = 'tracker-badge tracker-badge-empty';
+        } else {
+            badge.innerHTML = '🔴 Tracker offline — ' + (status.error || 'check Firebase config');
+            badge.className = 'tracker-badge tracker-badge-error';
+        }
+        badge.style.display = 'block';
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(initTrackerStatus, 1500); // Give Firebase time to init
+});
+// ========== END INVENTORY TRACKER REPORT ==========
