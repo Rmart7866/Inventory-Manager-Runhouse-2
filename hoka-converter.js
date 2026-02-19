@@ -727,20 +727,9 @@ const HokaConverter = {
         }
     },
 
-    // Default products that come pre-checked in the product picker
-    defaultProducts: [
-        'Mach 6', 'Mach 7', 'Mach X 3', 'Skyward X', 'Skyward X 2', 'Skyward Laceless',
-        'Clifton 10', 'Clifton 9 GTX', 'Bondi 9', 'Bondi SR', 'Arahi 8', 'Arahi SR',
-        'Skyflow', 'Gaviota 5', 'Gaviota 6',
-        'Transport', 'Transport 2', 'Transport Chukka', 'Transport Chukka GTX',
-        'Transport GTX', 'Transport Hike', 'Transport Hike GTX', 'Transport Mid',
-        'Solimar', 'Solimar 2',
-        'Speedgoat 6', 'Speedgoat 6 GTX', 'Speedgoat 6 Mid GTX', 'Speedgoat 7',
-        'Challenger 8', 'Challenger 8 GTX', 'Stinson 7',
-        'Mafate X', 'Mafate 5', 'Mafate X Hike', 'Tecton X 3', 'Zinal 3',
-        'Cielo X1 2.0', 'Cielo X1 3.0', 'Cielo X MD', 'Cielo X 3 MD', 'Cielo X 3 LD',
-        'Rocket X 3'
-    ],
+    // Default products - loaded from Firestore at runtime via _knownProducts
+    // Falls back to empty (nothing pre-checked) if Firestore unavailable
+    defaultProducts: [],
 
     // Set of currently selected products (populated by product picker)
     selectedProducts: new Set(),
