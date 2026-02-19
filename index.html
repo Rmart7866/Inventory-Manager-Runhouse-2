@@ -825,8 +825,56 @@
         .tracker-item:last-child { border-bottom: none; }
         .tracker-item-name { flex: 1; color: #1a1a1a; }
         .tracker-item-detail { font-size: 12px; color: #6c757d; white-space: nowrap; margin-left: 12px; }
-        .tracker-item-new .tracker-item-name::before { content: '+ '; color: #28a745; font-weight: 700; }
-        .tracker-item-removed .tracker-item-name::before { content: '− '; color: #dc3545; font-weight: 700; }
+        .tracker-item-new .tracker-item-name::before { content: ''; }
+        .tracker-item-removed .tracker-item-name::before { content: ''; }
+
+        /* Tracker item badges */
+        .tracker-item-badge {
+            display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px;
+            border-radius: 3px; margin-right: 8px; text-transform: uppercase; letter-spacing: 0.5px;
+            flex-shrink: 0;
+        }
+        .tracker-badge-new { background: #d4edda; color: #155724; }
+        .tracker-badge-new-product { background: #fff3cd; color: #856404; font-weight: bold; }
+        .tracker-badge-removed { background: #f8d7da; color: #721c24; }
+        .tracker-badge-saved { background: #cce5ff; color: #004085; }
+        .tracker-stat-new-product .tracker-stat-number { color: #d4a017; }
+
+        /* Model grouping */
+        .tracker-model-group { margin-bottom: 8px; }
+        .tracker-model-name { font-weight: 600; padding: 6px 16px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; font-size: 13px; }
+        .tracker-model-count { font-weight: normal; color: #6c757d; font-size: 12px; }
+        .tracker-item-new-product { border-left: 3px solid #ffc107; }
+        .tracker-new-products { border-color: #ffc107; }
+        .tracker-new-products .tracker-section-header { background: #fff9e6; border-bottom-color: #ffc107; }
+        .tracker-new-products .tracker-confirm-actions { background: #fff9e6; border-top-color: #ffc107; }
+
+        /* Tracker confirm section */
+        .tracker-confirm-actions {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 16px; background: #f0fdf4; border-top: 1px solid #c3e6cb;
+        }
+        .tracker-select-all { font-size: 13px; color: #495057; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .tracker-select-all input { cursor: pointer; }
+        .tracker-confirm-btn {
+            background: #28a745; color: white; border: none; padding: 8px 16px;
+            border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .tracker-confirm-btn:hover { background: #218838; }
+        .tracker-confirm-btn:disabled { background: #6c757d; cursor: not-allowed; }
+        .tracker-confirmed { background: #004085 !important; cursor: default; }
+
+        /* Tracker item checkboxes */
+        .tracker-confirm-cb { margin-right: 8px; cursor: pointer; flex-shrink: 0; }
+        .tracker-item { display: flex; align-items: center; }
+
+        /* Product picker NEW badge */
+        .product-new-badge {
+            display: inline-block; font-size: 9px; font-weight: 700; padding: 1px 5px;
+            border-radius: 3px; margin-left: 6px; background: #d4edda; color: #155724;
+            text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle;
+        }
         /* ========== END TRACKER STYLES ========== */
     </style>
 </head>
