@@ -661,6 +661,22 @@
 
         .picker-action-btn:hover { background: rgba(255, 255, 255, 0.35); }
 
+        .picker-save-defaults-btn {
+            background: rgba(40, 167, 69, 0.3);
+            border: 1px solid rgba(40, 167, 69, 0.6);
+            color: white;
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-left: 4px;
+        }
+        .picker-save-defaults-btn:hover { background: rgba(40, 167, 69, 0.5); }
+        .picker-save-defaults-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .picker-saved { background: rgba(0, 64, 133, 0.4) !important; border-color: rgba(0, 64, 133, 0.6) !important; }
+
         .product-picker-summary {
             padding: 12px 24px;
             background: #f0f9ff;
@@ -1045,6 +1061,7 @@
                                 <button class="picker-action-btn" onclick="hokaPickerSelectAll()">Select All</button>
                                 <button class="picker-action-btn" onclick="hokaPickerSelectNone()">Select None</button>
                                 <button class="picker-action-btn" onclick="hokaPickerSelectDefaults()">Defaults</button>
+                                <button class="picker-save-defaults-btn" id="hoka-save-defaults-btn" onclick="saveHokaDefaults()">Save as Defaults</button>
                             </div>
                         </div>
                         <div class="product-picker-summary" id="hoka-picker-summary">
