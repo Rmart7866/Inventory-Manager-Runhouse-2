@@ -1463,7 +1463,6 @@ const HokaConverter = {
                 if (isNaN(price)) price = '';
                 else price = price.toFixed(2);
             }
-            console.log('Product:', product.title.substring(0, 40), 'retail:', product.retail, 'price:', price);
 
             // Type based on gender
             var productType = "Unisex Shoes";
