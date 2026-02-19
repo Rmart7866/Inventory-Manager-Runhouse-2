@@ -6,6 +6,9 @@
     <title>Run House Inventory Manager</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
         * {
             margin: 0;
@@ -738,6 +741,93 @@
         .product-picker-body::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         .product-picker-body::-webkit-scrollbar-thumb:hover { background: #a1a1a1; }
         /* ========== END PRODUCT PICKER STYLES ========== */
+
+        /* ========== INVENTORY TRACKER STYLES ========== */
+        .tracker-badge {
+            display: none;
+            margin: 0 32px 12px 32px;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+        }
+        .tracker-badge-active { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .tracker-badge-empty { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .tracker-badge-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        .tracker-report {
+            display: none;
+            margin: 0 32px 20px 32px;
+            border: 2px solid #e1e8ed;
+            border-radius: 14px;
+            overflow: hidden;
+            background: white;
+        }
+        .tracker-report-header {
+            background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+            color: white;
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tracker-report-header h4 { font-size: 15px; font-weight: 700; margin: 0; }
+        .tracker-timestamp { font-size: 12px; opacity: 0.8; }
+
+        .tracker-stats {
+            display: flex;
+            gap: 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .tracker-stat {
+            flex: 1;
+            padding: 14px;
+            text-align: center;
+            border-right: 1px solid #e9ecef;
+        }
+        .tracker-stat:last-child { border-right: none; }
+        .tracker-stat-number { display: block; font-size: 22px; font-weight: 800; color: #1a1a1a; }
+        .tracker-stat-label { display: block; font-size: 11px; font-weight: 600; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+        .tracker-stat-new .tracker-stat-number { color: #28a745; }
+        .tracker-stat-removed .tracker-stat-number { color: #dc3545; }
+        .tracker-stat-first .tracker-stat-number { font-size: 16px; color: #667eea; }
+
+        .tracker-section { border-bottom: 1px solid #e9ecef; }
+        .tracker-section:last-child { border-bottom: none; }
+        .tracker-section-header {
+            padding: 12px 20px;
+            background: #f8f9fa;
+            font-size: 13px;
+            font-weight: 700;
+            color: #495057;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        .tracker-section-header:hover { background: #e9ecef; }
+        .tracker-toggle { font-size: 11px; color: #6c757d; }
+
+        .tracker-section-body { max-height: 250px; overflow-y: auto; }
+        .tracker-added .tracker-section-header { border-left: 4px solid #28a745; }
+        .tracker-removed .tracker-section-header { border-left: 4px solid #dc3545; }
+
+        .tracker-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 20px 8px 28px;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .tracker-item:last-child { border-bottom: none; }
+        .tracker-item-name { flex: 1; color: #1a1a1a; }
+        .tracker-item-detail { font-size: 12px; color: #6c757d; white-space: nowrap; margin-left: 12px; }
+        .tracker-item-new .tracker-item-name::before { content: '+ '; color: #28a745; font-weight: 700; }
+        .tracker-item-removed .tracker-item-name::before { content: '− '; color: #dc3545; font-weight: 700; }
+        /* ========== END TRACKER STYLES ========== */
     </style>
 </head>
 <body>
@@ -924,6 +1014,9 @@
                         </button>
                     </div>
                     <div class="status" id="hoka-status"></div>
+                    <!-- Inventory Tracker UI -->
+                    <div class="tracker-badge" id="hoka-tracker-badge"></div>
+                    <div class="tracker-report" id="hoka-tracker-report"></div>
                 </div>
 
                 <!-- Puma Section -->
@@ -1256,6 +1349,8 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
 
     <script src="saucony-converter.js"></script>
     <script src="hoka-converter.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="inventory-tracker.js"></script>
     <script src="hoka-picker.js"></script>
     <script src="puma-converter.js"></script>
     <script src="newbalance-converter.js"></script>
