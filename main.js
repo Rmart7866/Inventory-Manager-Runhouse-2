@@ -228,13 +228,29 @@ const BrandConverter = {
         document.getElementById(`${brand}-dropzone`).style.display = 'none';
         this.hideStatus(brand);
 
-        // HOKA: auto-scan the file and show the product picker
+        // HOKA: load Firestore data, then scan the file and show the product picker
         if (brand === 'hoka') {
             this.brands.hoka.scanned = false;
             document.getElementById('hoka-convert').style.display = 'none';
-            this.showStatus('hoka', 'Scanning file for products...', 'success');
+            this.showStatus('hoka', 'Loading database...', 'success');
 
-            HokaConverter.scanFile(file).then(function(products) {
+            // Load known models from Firestore before scanning
+            var loadModels = Promise.resolve();
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                loadModels = InventoryTracker.load('hoka').then(function(data) {
+                    // Feed known models into HokaConverter so picker uses them as defaults
+                    HokaConverter._knownProducts = data.models;
+                    console.log('Loaded ' + data.models.size + ' known models for picker defaults');
+                }).catch(function(err) {
+                    console.warn('Could not load Firestore models, using hardcoded defaults:', err);
+                    HokaConverter._knownProducts = null;
+                });
+            }
+
+            loadModels.then(function() {
+                BrandConverter.showStatus('hoka', 'Scanning file for products...', 'success');
+                return HokaConverter.scanFile(file);
+            }).then(function(products) {
                 buildHokaProductPicker(products);
                 BrandConverter.brands.hoka.scanned = true;
                 document.getElementById('hoka-convert').style.display = 'block';
@@ -626,20 +642,30 @@ async function convertBrand(brand) {
                     // Show the product CSV download button
                     if (typeof showHokaProductCSVButton === 'function') showHokaProductCSVButton();
 
-                    // Inventory Tracker: compare with Firestore and append removed products
+                    // Inventory Tracker: load DB, compare, append removed colorways
                     if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
                         try {
-                            BrandConverter.showStatus('hoka', 'Comparing with previous inventory...', 'success');
-                            var comparison = await InventoryTracker.saveAndCompare('hoka', inventory);
+                            BrandConverter.showStatus('hoka', 'Loading Shopify database...', 'success');
 
-                            // Append removed products at 0 quantity
-                            if (comparison.removed.length > 0) {
-                                var removedRows = InventoryTracker.generateRemovedRows(comparison.removed);
+                            // Load what's known to be on Shopify
+                            await InventoryTracker.load('hoka');
+
+                            // Compare current ATS against Firestore
+                            var comparison = InventoryTracker.compare(inventory);
+
+                            // Store comparison for the report UI
+                            window._hokaComparison = comparison;
+
+                            // Append removed colorways at 0 quantity
+                            if (comparison.removedColorways.length > 0) {
+                                var removedRows = InventoryTracker.generateRemovedRows(comparison.removedColorways);
                                 inventory = inventory.concat(removedRows);
                                 BrandConverter.brands[brand].inventory = inventory;
-                                // Also update HokaConverter.inventoryData so CSV generation includes removed rows
                                 HokaConverter.inventoryData = inventory;
                             }
+
+                            // Update existing colorways with latest quantities
+                            await InventoryTracker.updateExistingColorways('hoka', inventory);
 
                             // Show tracker report in UI
                             if (typeof showTrackerReport === 'function') {
@@ -647,11 +673,14 @@ async function convertBrand(brand) {
                             }
 
                             var statusMsg = 'Processed ' + inventory.length + ' variants';
-                            if (comparison.removed.length > 0) {
-                                statusMsg += ' (includes ' + comparison.removed.length + ' removed colorways at 0)';
+                            if (comparison.removedColorways.length > 0) {
+                                statusMsg += ' (includes ' + comparison.removedColorways.length + ' removed colorways at 0)';
                             }
-                            if (comparison.added.length > 0) {
-                                statusMsg += ' | ' + comparison.added.length + ' new colorways detected';
+                            if (comparison.newProducts.length > 0) {
+                                statusMsg += ' | ' + comparison.newProducts.length + ' new products detected';
+                            }
+                            if (comparison.newColorways.length > 0) {
+                                statusMsg += ' | ' + comparison.newColorways.length + ' new colorways detected';
                             }
                             BrandConverter.showStatus('hoka', statusMsg, 'success');
                         } catch (trackerError) {
