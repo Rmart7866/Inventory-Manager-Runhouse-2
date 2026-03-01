@@ -251,7 +251,7 @@ function toggleHokaCategory(catId) {
 }
 // ========== END HOKA PRODUCT PICKER LOGIC ==========
 
-// ========== HOKA PRODUCT CSV DOWNLOAD ==========
+// ========== HOKA PRODUCT CSV DOWNLOAD (ALL PRODUCTS) ==========
 function downloadHokaProductCSV() {
     var csv = HokaConverter.generateProductCSV();
     if (!csv) {
@@ -263,7 +263,7 @@ function downloadHokaProductCSV() {
     var dateStr = date.getFullYear() + '-' + 
         String(date.getMonth() + 1).padStart(2, '0') + '-' + 
         String(date.getDate()).padStart(2, '0');
-    var filename = 'hoka-products-' + dateStr + '.csv';
+    var filename = 'hoka-products-ALL-' + dateStr + '.csv';
 
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     var link = document.createElement('a');
@@ -287,10 +287,71 @@ function hideHokaProductCSVButton() {
 }
 // ========== END HOKA PRODUCT CSV DOWNLOAD ==========
 
+// ========== HOKA NEW PRODUCTS CSV DOWNLOAD ==========
+function downloadHokaNewProductCSV() {
+    var comparison = window._hokaTrackerComparison;
+    if (!comparison) {
+        alert('No tracker comparison data available. Generate inventory first.');
+        return;
+    }
+
+    var csv = HokaConverter.generateNewProductCSV(comparison);
+    if (!csv) {
+        alert('No new products detected — everything is already on Shopify.');
+        return;
+    }
+
+    var date = new Date();
+    var dateStr = date.getFullYear() + '-' +
+        String(date.getMonth() + 1).padStart(2, '0') + '-' +
+        String(date.getDate()).padStart(2, '0');
+    var filename = 'hoka-NEW-products-' + dateStr + '.csv';
+
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    var url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function showHokaNewProductButton(comparison) {
+    var btn = document.getElementById('hoka-new-product-csv-btn');
+    if (!btn) return;
+
+    var totalNew = 0;
+    if (comparison.newProducts) totalNew += comparison.newProducts.length;
+    if (comparison.newColorways) totalNew += comparison.newColorways.length;
+
+    if (totalNew > 0) {
+        btn.textContent = '\u2B07 Download NEW Products CSV (' + totalNew + ' new)';
+        btn.style.display = 'block';
+    } else {
+        btn.style.display = 'none';
+    }
+}
+
+function hideHokaNewProductButton() {
+    var btn = document.getElementById('hoka-new-product-csv-btn');
+    if (btn) btn.style.display = 'none';
+}
+// ========== END HOKA NEW PRODUCTS CSV DOWNLOAD ==========
+
 // ========== INVENTORY TRACKER REPORT ==========
 function showTrackerReport(comparison) {
     var container = document.getElementById('hoka-tracker-report');
     if (!container) return;
+
+    // Store comparison globally for new product CSV button
+    window._hokaTrackerComparison = comparison;
+
+    // Show new product CSV button if there are new items
+    if (typeof showHokaNewProductButton === 'function') {
+        showHokaNewProductButton(comparison);
+    }
 
     var summary = comparison.summary;
 
@@ -335,8 +396,8 @@ function showTrackerReport(comparison) {
 
         html += '<div class="tracker-section tracker-new-products">';
         html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'newproducts\')">';
-        html += '<span>🆕 New Products Not On Shopify (' + comparison.newProducts.length + ' colorways)</span>';
-        html += '<span class="tracker-toggle" id="tracker-toggle-newproducts">▼</span>';
+        html += '<span>\uD83C\uDD95 New Products Not On Shopify (' + comparison.newProducts.length + ' colorways)</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-newproducts">\u25BC</span>';
         html += '</div>';
         html += '<div class="tracker-section-body" id="tracker-body-newproducts">';
 
@@ -378,8 +439,8 @@ function showTrackerReport(comparison) {
 
         html += '<div class="tracker-section tracker-added">';
         html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'newcolors\')">';
-        html += '<span>🎨 New Colorways of Existing Products (' + comparison.newColorways.length + ')</span>';
-        html += '<span class="tracker-toggle" id="tracker-toggle-newcolors">▼</span>';
+        html += '<span>\uD83C\uDFA8 New Colorways of Existing Products (' + comparison.newColorways.length + ')</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-newcolors">\u25BC</span>';
         html += '</div>';
         html += '<div class="tracker-section-body" id="tracker-body-newcolors">';
 
@@ -412,8 +473,8 @@ function showTrackerReport(comparison) {
     if (comparison.removedColorways.length > 0) {
         html += '<div class="tracker-section tracker-removed">';
         html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'removed\')">';
-        html += '<span>❌ Removed From ATS (' + comparison.removedColorways.length + ') — zeroed out in CSV</span>';
-        html += '<span class="tracker-toggle" id="tracker-toggle-removed">▼</span>';
+        html += '<span>\u274C Removed From ATS (' + comparison.removedColorways.length + ') \u2014 zeroed out in CSV</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-removed">\u25BC</span>';
         html += '</div>';
         html += '<div class="tracker-section-body" id="tracker-body-removed">';
         for (var j = 0; j < comparison.removedColorways.length; j++) {
@@ -422,7 +483,7 @@ function showTrackerReport(comparison) {
             html += '<div class="tracker-item tracker-item-removed">';
             html += '<span class="tracker-item-badge tracker-badge-removed">GONE</span>';
             html += '<span class="tracker-item-name">' + (rItem.title || rItem.handle) + '</span>';
-            html += '<span class="tracker-item-detail">' + varCount + ' sizes → 0</span>';
+            html += '<span class="tracker-item-detail">' + varCount + ' sizes \u2192 0</span>';
             html += '</div>';
         }
         html += '</div></div>';
@@ -495,7 +556,7 @@ function confirmNewItems(sectionId) {
 
     Promise.all(promises).then(function() {
         if (btn) {
-            btn.textContent = '✓ Saved ' + colorwayData.length + ' colorways';
+            btn.textContent = '\u2713 Saved ' + colorwayData.length + ' colorways';
             btn.className = 'tracker-confirm-btn tracker-confirmed';
         }
 
@@ -530,10 +591,10 @@ function toggleTrackerSection(sectionId) {
 
     if (body.style.display === 'none') {
         body.style.display = 'block';
-        toggle.textContent = '▼';
+        toggle.textContent = '\u25BC';
     } else {
         body.style.display = 'none';
-        toggle.textContent = '▶';
+        toggle.textContent = '\u25B6';
     }
 }
 
@@ -554,13 +615,13 @@ function initTrackerStatus() {
         if (!badge) return;
 
         if (status.connected && status.hasData) {
-            badge.innerHTML = '🟢 Tracking active — ' + status.modelCount + ' models, ' + status.productCount + ' colorways in database';
+            badge.innerHTML = '\uD83D\uDFE2 Tracking active \u2014 ' + status.modelCount + ' models, ' + status.productCount + ' colorways in database';
             badge.className = 'tracker-badge tracker-badge-active';
         } else if (status.connected && !status.hasData) {
-            badge.innerHTML = '🟡 Tracker connected — no data yet (run seed script)';
+            badge.innerHTML = '\uD83D\uDFE1 Tracker connected \u2014 no data yet (run seed script)';
             badge.className = 'tracker-badge tracker-badge-empty';
         } else {
-            badge.innerHTML = '🔴 Tracker offline — ' + (status.error || 'check Firebase config');
+            badge.innerHTML = '\uD83D\uDD34 Tracker offline \u2014 ' + (status.error || 'check Firebase config');
             badge.className = 'tracker-badge tracker-badge-error';
         }
         badge.style.display = 'block';
