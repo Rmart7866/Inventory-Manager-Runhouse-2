@@ -171,8 +171,8 @@ const BrandConverter = {
         this.hideStatus('on');
 
         // ========== ON: SCAN + PICKER (like HOKA flow) ==========
-        // Once BOTH files are uploaded, scan them and show the product picker
-        if (this.brands.on.menFile && this.brands.on.womenFile) {
+        // Scan as soon as at least ONE file is uploaded; re-scan if second file added
+        if (this.brands.on.menFile || this.brands.on.womenFile) {
             this.brands.on.scanned = false;
             document.getElementById('on-convert').style.display = 'none';
             this.showStatus('on', 'Scanning files for products...', 'success');
@@ -203,7 +203,8 @@ const BrandConverter = {
 
                 self.brands.on.scanned = true;
                 document.getElementById('on-convert').style.display = 'block';
-                self.showStatus('on', 'Found ' + products.length + ' product models in files. Select which to include, then click Generate.', 'success');
+                var fileCount = (menFile ? 1 : 0) + (womenFile ? 1 : 0);
+                self.showStatus('on', 'Found ' + products.length + ' product models in ' + fileCount + ' file(s). Select which to include, then click Generate.', 'success');
             }).catch(function(err) {
                 self.showStatus('on', 'Error scanning files: ' + err.message, 'error');
                 console.error('ON scan error:', err);
@@ -470,8 +471,8 @@ async function convertBrand(brand) {
     
     // ========== ON RUNNING: Use OnConverter (like HOKA flow) ==========
     if (brand === 'on') {
-        if (!BrandConverter.brands.on.menFile || !BrandConverter.brands.on.womenFile) {
-            BrandConverter.showStatus('on', 'Please upload both files!', 'error');
+        if (!BrandConverter.brands.on.menFile && !BrandConverter.brands.on.womenFile) {
+            BrandConverter.showStatus('on', 'Please upload at least one file!', 'error');
             return;
         }
 
