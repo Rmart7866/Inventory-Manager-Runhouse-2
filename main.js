@@ -736,17 +736,7 @@ function downloadUnified() {
         return;
     }
     
-    // Create current snapshot (if tracking is available)
-    if (typeof InventoryTracker !== 'undefined') {
-        InventoryTracker.createCurrentSnapshot(BrandConverter.brands);
-        
-        // Add discontinued products with 0 quantity if we have a previous snapshot
-        const discontinuedRows = InventoryTracker.generateDiscontinuedInventoryRows();
-        if (discontinuedRows.length > 0) {
-            console.log(`Adding ${discontinuedRows.length} discontinued products with 0 quantity`);
-            allInventory.push(...discontinuedRows);
-        }
-    }
+   
     
     // CRITICAL FIX: Match the exact format from individual converters with quoted headers
     const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
@@ -795,14 +785,7 @@ function downloadUnified() {
     if (document.getElementById('tracking-actions')) {
         document.getElementById('tracking-actions').style.display = 'block';
     }
-    
-    // Show comparison if we had a previous snapshot
-    if (typeof showComparisonReport !== 'undefined' && typeof InventoryTracker !== 'undefined') {
-        const discontinuedRows = InventoryTracker.generateDiscontinuedInventoryRows();
-        if (discontinuedRows && discontinuedRows.length > 0) {
-            showComparisonReport();
-        }
-    }
+
 }
 
 // Download unified reset inventory - All quantities set to 0
