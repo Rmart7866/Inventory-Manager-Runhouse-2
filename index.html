@@ -1074,7 +1074,7 @@
                     </div>
                     <div class="convert-section" id="hoka-convert">
                         <button class="convert-btn" onclick="convertBrand('hoka')">Generate Inventory</button>
-                                              <button class="convert-btn" id="hoka-new-product-csv-btn" onclick="downloadHokaNewProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
+                        <button class="convert-btn" id="hoka-new-product-csv-btn" onclick="downloadHokaNewProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
                              Download NEW Products CSV (only new colorways and products)
                         </button>
                     </div>
@@ -1294,14 +1294,6 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
                                 </ul>
                             </li>
                         </ol>
-                        <div id="on-picker-container" style="display: none;"></div>
-<div id="on-tracker-report" style="display: none;"></div>
-<button class="convert-btn" id="on-product-csv-btn" onclick="downloadOnProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #6c757d 0%, #495057 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
-    Download Product Creation CSV (for new Shopify products)
-</button>
-<button class="convert-btn" id="on-new-product-csv-btn" onclick="downloadOnNewProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
-    Download NEW Products CSV (only new colorways)
-</button>
                     </div>
                     
                     <div class="drop-zone" id="on-men-dropzone">
@@ -1325,11 +1317,23 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
                         <div class="uploaded-file-info"><strong id="on-women-filename"></strong></div>
                         <button class="clear-btn" onclick="clearOnFile('women')">Clear</button>
                     </div>
+
+                    <!-- ON Product Picker (shown after both files scanned) -->
+                    <div id="on-picker-container" style="display: none; margin: 0 32px 16px 32px;"></div>
                     
                     <div class="convert-section" id="on-convert" style="display: none;">
                         <button class="convert-btn" onclick="convertBrand('on')">Combine &amp; Add to Unified</button>
+                        <button class="convert-btn" id="on-product-csv-btn" onclick="downloadOnProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #6c757d 0%, #495057 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
+                            Download Product Creation CSV (for new Shopify products)
+                        </button>
+                        <button class="convert-btn" id="on-new-product-csv-btn" onclick="downloadOnNewProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
+                            Download NEW Products CSV (only new colorways)
+                        </button>
                     </div>
                     <div class="status" id="on-status"></div>
+                    <!-- ON Inventory Tracker UI -->
+                    <div class="tracker-badge" id="on-tracker-badge"></div>
+                    <div class="tracker-report" id="on-tracker-report" style="display: none;"></div>
                 </div>
             </div>
 
@@ -1401,8 +1405,12 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
                 document.getElementById('on-women-uploaded').style.display = 'none';
                 document.getElementById('on-women-dropzone').style.display = 'flex';
             }
-            if (!BrandConverter.brands.on.menFile || !BrandConverter.brands.on.womenFile) {
+            if (!BrandConverter.brands.on.menFile && !BrandConverter.brands.on.womenFile) {
                 document.getElementById('on-convert').style.display = 'none';
+                // Hide picker and tracker when both files cleared
+                document.getElementById('on-picker-container').style.display = 'none';
+                document.getElementById('on-tracker-report').style.display = 'none';
+                BrandConverter.brands.on.scanned = false;
             }
             BrandConverter.hideStatus('on');
         }
@@ -1428,7 +1436,7 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
     <script src="puma-converter.js"></script>
     <script src="newbalance-converter.js"></script>
     <script src="on-converter.js"></script>
-<script src="on-picker.js"></script>
+    <script src="on-picker.js"></script>
     <!-- INVENTORY COMPARISON SCRIPTS -->
     <script>
         let yesterdayData = null;
