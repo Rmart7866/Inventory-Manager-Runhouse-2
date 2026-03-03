@@ -1554,6 +1554,196 @@ const HokaConverter = {
             html += '</ul>';
         }
 
-        return html;
+  return html;
+    },
+
+    // ========== NEW PRODUCT CSV (ONLY NEW COLORWAYS/PRODUCTS) ==========
+    generateNewProductCSV: function(comparison) {
+        if (!comparison) return null;
+        var self = this;
+
+        // Collect handles of new products + new colorways
+        var newHandles = new Set();
+        if (comparison.newProducts) {
+            for (var i = 0; i < comparison.newProducts.length; i++) {
+                newHandles.add(comparison.newProducts[i].handle);
+            }
+        }
+        if (comparison.newColorways) {
+            for (var j = 0; j < comparison.newColorways.length; j++) {
+                newHandles.add(comparison.newColorways[j].handle);
+            }
+        }
+
+        if (newHandles.size === 0) return null;
+        if (!this.productVariantData || this.productVariantData.length === 0) return null;
+
+        var headers = [
+            'Title', 'URL handle', 'Description', 'Vendor', 'Product category', 'Type', 'Tags',
+            'Published on online store', 'Status',
+            'SKU', 'Barcode',
+            'Option1 name', 'Option1 value', 'Option1 Linked To',
+            'Option2 name', 'Option2 value', 'Option2 Linked To',
+            'Option3 name', 'Option3 value', 'Option3 Linked To',
+            'Price', 'Compare-at price', 'Cost per item',
+            'Charge tax', 'Tax code',
+            'Unit price total measure', 'Unit price total measure unit',
+            'Unit price base measure', 'Unit price base measure unit',
+            'Inventory tracker', 'Inventory quantity', 'Continue selling when out of stock',
+            'Weight value (grams)', 'Weight unit for display',
+            'Requires shipping', 'Fulfillment service',
+            'Product image URL', 'Image position', 'Image alt text', 'Variant image URL',
+            'Gift card',
+            'SEO title', 'SEO description',
+            'Color (product.metafields.shopify.color-pattern)',
+            'Google Shopping / Google product category',
+            'Google Shopping / Gender', 'Google Shopping / Age group',
+            'Google Shopping / Manufacturer part number (MPN)',
+            'Google Shopping / Ad group name', 'Google Shopping / Ads labels',
+            'Google Shopping / Condition', 'Google Shopping / Custom product',
+            'Google Shopping / Custom label 0', 'Google Shopping / Custom label 1',
+            'Google Shopping / Custom label 2', 'Google Shopping / Custom label 3',
+            'Google Shopping / Custom label 4'
+        ];
+
+        // Group variants by handle — only new ones
+        var productGroups = new Map();
+
+        for (var k = 0; k < this.productVariantData.length; k++) {
+            var variantData = this.productVariantData[k][1];
+            var productTitle = 'HOKA ' + variantData.gender + ' ' + variantData.matchingProduct + ' - ' + variantData.colorway;
+            var skuParts = variantData.variantSKU.split('-');
+            var lookupKey = skuParts[0] + '-' + skuParts[1];
+
+            var widthCode = '';
+            if (variantData.width === 'Wide') widthCode = 'EE';
+            else if (variantData.width === 'Extra Wide') widthCode = 'EEEE';
+
+            var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, widthCode);
+
+            if (!newHandles.has(handle)) continue;
+
+            var hasWidth = variantData.width !== 'Regular';
+            var finalTitle = productTitle + (hasWidth ? ' (' + variantData.width + ')' : '');
+
+            if (!productGroups.has(handle)) {
+                productGroups.set(handle, {
+                    handle: handle, title: finalTitle,
+                    matchingProduct: variantData.matchingProduct,
+                    gender: variantData.gender, colorway: variantData.colorway,
+                    retail: variantData.retail, width: variantData.width,
+                    variants: []
+                });
+            }
+
+            productGroups.get(handle).variants.push({
+                size: variantData.size, sku: variantData.variantSKU,
+                upc: variantData.upc || '', quantity: variantData.quantity,
+                retail: variantData.retail
+            });
+        }
+
+        if (productGroups.size === 0) return null;
+
+        var csvRows = [];
+
+        productGroups.forEach(function(product) {
+            var info = self.productInfo[product.matchingProduct] || {};
+            var description = self.buildProductDescription(product.matchingProduct, info);
+
+            var gGender = 'Unisex';
+            if (product.gender === "Men's") gGender = 'Male';
+            else if (product.gender === "Women's") gGender = 'Female';
+
+            var tags = ['HOKA', product.matchingProduct];
+            if (product.gender !== 'Unisex') tags.push(product.gender.replace("'s", ''));
+            if (info.category) tags.push(info.category);
+            if (product.width && product.width !== 'Regular') tags.push(product.width);
+
+            var price = '';
+            if (product.retail) {
+                var priceStr = String(product.retail).replace(/[$,\s]/g, '');
+                price = parseFloat(priceStr);
+                if (isNaN(price)) price = '';
+                else price = price.toFixed(2);
+            }
+            if (!price && product.variants.length > 0 && product.variants[0].retail) {
+                var priceStr2 = String(product.variants[0].retail).replace(/[$,\s]/g, '');
+                price = parseFloat(priceStr2);
+                if (isNaN(price)) price = '';
+                else price = price.toFixed(2);
+            }
+
+            var productType = "Unisex Shoes";
+            if (info.category) {
+                var cat = info.category.toLowerCase();
+                if (cat.includes('sock') || cat.includes('accessor')) {
+                    productType = 'Accessories';
+                } else if (product.gender === "Men's") {
+                    productType = "Men's Shoes";
+                } else if (product.gender === "Women's") {
+                    productType = "Women's Shoes";
+                }
+            } else {
+                if (product.gender === "Men's") productType = "Men's Shoes";
+                else if (product.gender === "Women's") productType = "Women's Shoes";
+            }
+
+            product.variants.forEach(function(variant, idx) {
+                var row = {};
+
+                if (idx === 0) {
+                    row['Title'] = product.title;
+                    row['URL handle'] = product.handle;
+                    row['Description'] = description;
+                    row['Vendor'] = 'HOKA';
+                    row['Product category'] = 'Apparel & Accessories > Shoes';
+                    row['Type'] = productType;
+                    row['Tags'] = tags.join(', ');
+                    row['Published on online store'] = 'FALSE';
+                    row['Status'] = 'Draft';
+                    row['Option1 name'] = 'Size';
+                    row['SEO title'] = product.title;
+                    row['SEO description'] = (info.description || product.title).substring(0, 320);
+                    row['Google Shopping / Google product category'] = 'Apparel & Accessories > Shoes';
+                    row['Google Shopping / Gender'] = gGender;
+                    row['Google Shopping / Age group'] = 'Adult (13+ years old)';
+                    row['Google Shopping / Condition'] = 'New';
+                    row['Google Shopping / Custom product'] = 'FALSE';
+                    row['Google Shopping / Custom label 0'] = product.matchingProduct;
+                } else {
+                    row['URL handle'] = product.handle;
+                }
+
+                row['Option1 value'] = variant.size;
+                row['SKU'] = variant.sku;
+                row['Barcode'] = variant.upc;
+                row['Price'] = price;
+                row['Charge tax'] = 'TRUE';
+                row['Inventory tracker'] = 'shopify';
+                row['Inventory quantity'] = variant.quantity;
+                row['Continue selling when out of stock'] = 'DENY';
+                row['Weight value (grams)'] = '';
+                row['Weight unit for display'] = '';
+                row['Requires shipping'] = 'TRUE';
+                row['Fulfillment service'] = 'manual';
+                row['Gift card'] = 'FALSE';
+
+                csvRows.push(row);
+            });
+        });
+
+        var headerLine = headers.map(function(h) { return '"' + h.replace(/"/g, '""') + '"'; }).join(',');
+        var lines = [headerLine];
+
+        csvRows.forEach(function(row) {
+            var values = headers.map(function(h) {
+                var val = row[h] !== undefined ? String(row[h]) : '';
+                return '"' + val.replace(/"/g, '""') + '"';
+            });
+            lines.push(values.join(','));
+        });
+
+        return lines.join('\n');
     }
 };
