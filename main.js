@@ -13,12 +13,9 @@ function getFormattedDate() {
 const ASICS_HANDLE_MAPPING = {
     '1013a213-800': 'unisex-asics-novablast-5-la-marathon',
     // Add more handle mappings here as needed
-    // Example:
-    // 'asics-gel-nimbus-25-mens-black-white': 'asics-gel-nimbus-25-black-white',
 };
 
 // ========== ASICS SIZE CONVERSION MAPPING ==========
-// Convert ASICS numeric sizes to Shopify unisex format
 const ASICS_SIZE_MAPPING = {
     '3.5': 'M3.5/W5',
     '4': 'M4/W5.5',
@@ -47,24 +44,17 @@ const ASICS_SIZE_MAPPING = {
 // Handles that need size conversion (only specific products)
 const ASICS_HANDLES_NEEDING_SIZE_CONVERSION = [
     'unisex-asics-novablast-5-la-marathon',
-    // Add more handles here if other ASICS products need size conversion
 ];
 
 // Function to replace handles in ASICS data
 function replaceAsicsHandles(inventory) {
     return inventory.map(row => {
         const originalHandle = row.Handle;
-        
-        // Check if this handle needs to be replaced
         if (ASICS_HANDLE_MAPPING[originalHandle]) {
             const newHandle = ASICS_HANDLE_MAPPING[originalHandle];
             console.log(`Replacing ASICS handle: "${originalHandle}" → "${newHandle}"`);
-            return {
-                ...row,
-                Handle: newHandle
-            };
+            return { ...row, Handle: newHandle };
         }
-        
         return row;
     });
 }
@@ -73,17 +63,11 @@ function replaceAsicsHandles(inventory) {
 function convertAsicsSizes(inventory) {
     return inventory.map(row => {
         const originalSize = row['Option1 Value'];
-        
-        // Only convert sizes for handles that need it
         if (ASICS_HANDLES_NEEDING_SIZE_CONVERSION.includes(row.Handle) && ASICS_SIZE_MAPPING[originalSize]) {
             const newSize = ASICS_SIZE_MAPPING[originalSize];
             console.log(`Converting ASICS size for ${row.Handle}: "${originalSize}" → "${newSize}"`);
-            return {
-                ...row,
-                'Option1 Value': newSize
-            };
+            return { ...row, 'Option1 Value': newSize };
         }
-        
         return row;
     });
 }
@@ -97,16 +81,13 @@ const BrandConverter = {
         newbalance: { file: null, inventory: [], csv: '' },
         asics: { file: null, inventory: [], csv: '', csvOnly: true },
         brooks: { file: null, inventory: [], csv: '', csvOnly: true },
-        on: { menFile: null, womenFile: null, inventory: [], csv: '', csvOnly: true }
+        on: { menFile: null, womenFile: null, inventory: [], csv: '', scanned: false }
     },
     
     init() {
-        // Setup drag and drop for all brands
         ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks'].forEach(brand => {
             this.setupBrandDropzone(brand);
         });
-        
-        // Setup ON Running's two drop zones
         this.setupOnDropzones();
     },
     
@@ -146,28 +127,15 @@ const BrandConverter = {
         const menFileInput = document.getElementById('on-men-file');
         
         menDropZone.addEventListener('click', () => menFileInput.click());
-        
-        menDropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            menDropZone.classList.add('dragover');
-        });
-        
-        menDropZone.addEventListener('dragleave', () => {
-            menDropZone.classList.remove('dragover');
-        });
-        
+        menDropZone.addEventListener('dragover', (e) => { e.preventDefault(); menDropZone.classList.add('dragover'); });
+        menDropZone.addEventListener('dragleave', () => { menDropZone.classList.remove('dragover'); });
         menDropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             menDropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) {
-                this.handleOnFile('men', e.dataTransfer.files[0]);
-            }
+            if (e.dataTransfer.files.length > 0) this.handleOnFile('men', e.dataTransfer.files[0]);
         });
-        
         menFileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.handleOnFile('men', e.target.files[0]);
-            }
+            if (e.target.files.length > 0) this.handleOnFile('men', e.target.files[0]);
         });
         
         // Setup Women's dropzone
@@ -175,28 +143,15 @@ const BrandConverter = {
         const womenFileInput = document.getElementById('on-women-file');
         
         womenDropZone.addEventListener('click', () => womenFileInput.click());
-        
-        womenDropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            womenDropZone.classList.add('dragover');
-        });
-        
-        womenDropZone.addEventListener('dragleave', () => {
-            womenDropZone.classList.remove('dragover');
-        });
-        
+        womenDropZone.addEventListener('dragover', (e) => { e.preventDefault(); womenDropZone.classList.add('dragover'); });
+        womenDropZone.addEventListener('dragleave', () => { womenDropZone.classList.remove('dragover'); });
         womenDropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             womenDropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) {
-                this.handleOnFile('women', e.dataTransfer.files[0]);
-            }
+            if (e.dataTransfer.files.length > 0) this.handleOnFile('women', e.dataTransfer.files[0]);
         });
-        
         womenFileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.handleOnFile('women', e.target.files[0]);
-            }
+            if (e.target.files.length > 0) this.handleOnFile('women', e.target.files[0]);
         });
     },
     
@@ -213,12 +168,47 @@ const BrandConverter = {
             document.getElementById('on-women-dropzone').style.display = 'none';
         }
         
-        // Show convert button only if both files are uploaded
-        if (this.brands.on.menFile && this.brands.on.womenFile) {
-            document.getElementById('on-convert').style.display = 'block';
-        }
-        
         this.hideStatus('on');
+
+        // ========== ON: SCAN + PICKER (like HOKA flow) ==========
+        // Once BOTH files are uploaded, scan them and show the product picker
+        if (this.brands.on.menFile && this.brands.on.womenFile) {
+            this.brands.on.scanned = false;
+            document.getElementById('on-convert').style.display = 'none';
+            this.showStatus('on', 'Scanning files for products...', 'success');
+
+            var self = this;
+            var menFile = this.brands.on.menFile;
+            var womenFile = this.brands.on.womenFile;
+
+            // Load Firestore known products for ON (if available), then scan
+            var loadModels = Promise.resolve();
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                loadModels = InventoryTracker.load('on').then(function(data) {
+                    OnConverter._knownProducts = data.models;
+                    console.log('Loaded ' + data.models.size + ' known ON models for picker defaults');
+                }).catch(function(err) {
+                    console.warn('Could not load Firestore ON models, all will be checked by default:', err);
+                    OnConverter._knownProducts = null;
+                });
+            }
+
+            loadModels.then(function() {
+                return OnConverter.scanFiles(menFile, womenFile);
+            }).then(function(products) {
+                // Show the product picker UI
+                if (typeof showOnPicker === 'function') {
+                    showOnPicker(products);
+                }
+
+                self.brands.on.scanned = true;
+                document.getElementById('on-convert').style.display = 'block';
+                self.showStatus('on', 'Found ' + products.length + ' product models in files. Select which to include, then click Generate.', 'success');
+            }).catch(function(err) {
+                self.showStatus('on', 'Error scanning files: ' + err.message, 'error');
+                console.error('ON scan error:', err);
+            });
+        }
     },
     
     handleFile(brand, file) {
@@ -234,11 +224,9 @@ const BrandConverter = {
             document.getElementById('hoka-convert').style.display = 'none';
             this.showStatus('hoka', 'Loading database...', 'success');
 
-            // Load known models from Firestore before scanning
             var loadModels = Promise.resolve();
             if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
                 loadModels = InventoryTracker.load('hoka').then(function(data) {
-                    // Feed known models into HokaConverter so picker uses them as defaults
                     HokaConverter._knownProducts = data.models;
                     console.log('Loaded ' + data.models.size + ' known models for picker defaults');
                 }).catch(function(err) {
@@ -278,7 +266,6 @@ const BrandConverter = {
     updateDownloadSection() {
         const downloadSection = document.getElementById('download-section');
         const individualDownloads = document.getElementById('individual-downloads');
-        const unifiedSection = document.getElementById('unified-section');
         const unifiedInfo = document.getElementById('unified-info');
         
         individualDownloads.innerHTML = '';
@@ -291,11 +278,9 @@ const BrandConverter = {
                 hasAnyInventory = true;
                 totalVariants += this.brands[brand].inventory.length;
                 
-                // Create container for checkbox and buttons in a row
                 const container = document.createElement('div');
                 container.className = 'brand-download-row';
                 
-                // Add checkbox for unified selection
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.id = `select-${brand}`;
@@ -306,13 +291,11 @@ const BrandConverter = {
                 checkbox.style.cursor = 'pointer';
                 checkbox.onchange = () => this.updateUnifiedInfo();
                 
-                // Create download button
                 const btn = document.createElement('button');
                 btn.className = `download-btn ${brand}`;
                 btn.innerHTML = `${this.getBrandDisplayName(brand)} <span style="color: #6c757d; font-weight: 400;">(${this.brands[brand].inventory.length} variants)</span>`;
                 btn.onclick = () => this.downloadBrandInventory(brand);
                 
-                // Create reset download button
                 const resetBtn = document.createElement('button');
                 resetBtn.className = `download-btn reset-btn`;
                 resetBtn.innerHTML = `Reset to 0`;
@@ -388,13 +371,11 @@ const BrandConverter = {
         const date = getFormattedDate();
         const filename = `${brand}-reset-${date}.csv`;
         
-        // Get inventory and set all quantities to 0
         const resetInventory = this.brands[brand].inventory.map(row => ({
             ...row,
             'On hand (new)': '0'
         }));
         
-        // Generate CSV with 0 quantities
         const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
                        '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
                        '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
@@ -417,7 +398,7 @@ const BrandConverter = {
                 '', '',
                 row.Location,
                 '', '', '', '', '', '',
-                '0'  // All quantities set to 0
+                '0'
             ];
             csvRows.push(csvRow.join(','));
         });
@@ -443,6 +424,7 @@ function clearFile(brand) {
         BrandConverter.brands.on.womenFile = null;
         BrandConverter.brands.on.inventory = [];
         BrandConverter.brands.on.csv = '';
+        BrandConverter.brands.on.scanned = false;
         
         document.getElementById('on-men-file').value = '';
         document.getElementById('on-women-file').value = '';
@@ -452,6 +434,15 @@ function clearFile(brand) {
         document.getElementById('on-women-dropzone').style.display = 'flex';
         document.getElementById('on-convert').style.display = 'none';
         BrandConverter.hideStatus('on');
+
+        // Hide ON picker and tracker
+        var pickerContainer = document.getElementById('on-picker-container');
+        if (pickerContainer) pickerContainer.style.display = 'none';
+        var trackerReport = document.getElementById('on-tracker-report');
+        if (trackerReport) trackerReport.style.display = 'none';
+        if (typeof hideOnNewProductButton === 'function') hideOnNewProductButton();
+        var productCsvBtn = document.getElementById('on-product-csv-btn');
+        if (productCsvBtn) productCsvBtn.style.display = 'none';
     } else {
         BrandConverter.brands[brand].file = null;
         BrandConverter.brands[brand].inventory = [];
@@ -463,7 +454,6 @@ function clearFile(brand) {
         document.getElementById(`${brand}-dropzone`).style.display = 'flex';
         BrandConverter.hideStatus(brand);
 
-        // HOKA: also hide the product picker and product CSV button
         if (brand === 'hoka') {
             document.getElementById('hoka-product-picker').style.display = 'none';
             BrandConverter.brands.hoka.scanned = false;
@@ -478,69 +468,101 @@ function clearFile(brand) {
 async function convertBrand(brand) {
     const file = BrandConverter.brands[brand].file;
     
-    // Special handling for ON Running
+    // ========== ON RUNNING: Use OnConverter (like HOKA flow) ==========
     if (brand === 'on') {
         if (!BrandConverter.brands.on.menFile || !BrandConverter.brands.on.womenFile) {
-            BrandConverter.showStatus('on', 'Please upload both men\'s and women\'s files!', 'error');
+            BrandConverter.showStatus('on', 'Please upload both files!', 'error');
+            return;
+        }
+
+        // Check that scan is done
+        if (!BrandConverter.brands.on.scanned) {
+            BrandConverter.showStatus('on', 'Files are still being scanned, please wait...', 'error');
+            return;
+        }
+
+        // Check that products are selected (from picker)
+        if (OnConverter.selectedProducts.size === 0) {
+            BrandConverter.showStatus('on', 'Please select at least one product to include!', 'error');
             return;
         }
         
-        BrandConverter.showStatus('on', 'Processing both files...', 'success');
+        BrandConverter.showStatus('on', 'Processing with OnConverter...', 'success');
         
         try {
-            const menText = await BrandConverter.brands.on.menFile.text();
-            const womenText = await BrandConverter.brands.on.womenFile.text();
+            // Use OnConverter.convert() which respects selectedProducts and applies handle mapping
+            var inventory = await OnConverter.convert(
+                BrandConverter.brands.on.menFile,
+                BrandConverter.brands.on.womenFile
+            );
             
-            const menParsed = Papa.parse(menText, { header: true });
-            const womenParsed = Papa.parse(womenText, { header: true });
-            
-            const menData = menParsed.data.filter(row => row.Handle && row.Handle.trim() !== '');
-            const womenData = womenParsed.data.filter(row => row.Handle && row.Handle.trim() !== '');
-            
-            const combinedInventory = [...menData, ...womenData];
-            
-            BrandConverter.brands.on.inventory = combinedInventory;
-            
-            // Generate combined CSV
-            const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
-                           '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
-                           '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
-                           '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
-            
-            const csvRows = [inventoryHeaders.join(',')];
-            
-            combinedInventory.forEach(row => {
-                const csvRow = [
-                    row.Handle,
-                    `"${(row.Title || '').replace(/"/g, '""')}"`,
-                    row['Option1 Name'],
-                    row['Option1 Value'],
-                    row['Option2 Name'] || '',
-                    row['Option2 Value'] || '',
-                    row['Option3 Name'] || '',
-                    row['Option3 Value'] || '',
-                    row.SKU,
-                    row.Barcode || '',
-                    '', '',
-                    row.Location,
-                    '', '', '', '', '', '',
-                    row['On hand (new)']
-                ];
-                csvRows.push(csvRow.join(','));
-            });
-            
-            BrandConverter.brands.on.csv = csvRows.join('\n');
-            
-            BrandConverter.showStatus('on', `Processed ${combinedInventory.length} total variants (${menData.length} men's + ${womenData.length} women's)`, 'success');
+            BrandConverter.brands.on.inventory = inventory;
+
+            // Show the product CSV download button
+            var productCsvBtn = document.getElementById('on-product-csv-btn');
+            if (productCsvBtn) productCsvBtn.style.display = 'block';
+
+            // ========== ON Inventory Tracker (like HOKA) ==========
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                try {
+                    BrandConverter.showStatus('on', 'Loading Shopify database for ON...', 'success');
+
+                    // Load what's known to be on Shopify for ON
+                    await InventoryTracker.load('on');
+
+                    // Compare current inventory against Firestore
+                    var comparison = InventoryTracker.compare(inventory);
+
+                    // Store comparison for tracker report / new product CSV
+                    window._onTrackerComparison = comparison;
+
+                    // Append removed colorways at 0 quantity
+                    if (comparison.removedColorways && comparison.removedColorways.length > 0) {
+                        var removedRows = InventoryTracker.generateRemovedRows(comparison.removedColorways);
+                        inventory = inventory.concat(removedRows);
+                        BrandConverter.brands.on.inventory = inventory;
+                        OnConverter.inventoryData = inventory;
+                    }
+
+                    // Update existing colorways with latest quantities
+                    await InventoryTracker.updateExistingColorways('on', inventory);
+
+                    // Show tracker report in UI
+                    if (typeof showOnTrackerReport === 'function') {
+                        showOnTrackerReport(comparison);
+                    }
+
+                    var statusMsg = 'Processed ' + inventory.length + ' variants';
+                    if (comparison.removedColorways && comparison.removedColorways.length > 0) {
+                        statusMsg += ' (includes ' + comparison.removedColorways.length + ' removed colorways at 0)';
+                    }
+                    if (comparison.newProducts && comparison.newProducts.length > 0) {
+                        statusMsg += ' | ' + comparison.newProducts.length + ' new products detected';
+                    }
+                    if (comparison.newColorways && comparison.newColorways.length > 0) {
+                        statusMsg += ' | ' + comparison.newColorways.length + ' new colorways detected';
+                    }
+                    BrandConverter.showStatus('on', statusMsg, 'success');
+                } catch (trackerError) {
+                    console.warn('ON inventory tracker error (continuing without tracking):', trackerError);
+                    BrandConverter.showStatus('on', 'Processed ' + inventory.length + ' variants (tracker unavailable)', 'success');
+                }
+            } else {
+                BrandConverter.showStatus('on', 'Processed ' + inventory.length + ' variants', 'success');
+            }
+
+            // Generate the CSV from OnConverter
+            BrandConverter.brands.on.csv = OnConverter.generateInventoryCSV();
+
             BrandConverter.updateDownloadSection();
         } catch (error) {
             BrandConverter.showStatus('on', 'Error: ' + error.message, 'error');
-            console.error('Conversion error:', error);
+            console.error('ON conversion error:', error);
         }
         return;
     }
     
-    // Regular single-file handling for other brands
+    // ========== Regular single-file handling for other brands ==========
     if (!file) {
         BrandConverter.showStatus(brand, 'Please select a file first!', 'error');
         return;
@@ -565,7 +587,6 @@ async function convertBrand(brand) {
         
         // Check if this is a CSV-only brand (ASICS, Brooks)
         if (BrandConverter.brands[brand].csvOnly) {
-            // Parse the already-formatted CSV file
             const text = await file.text();
             const parsed = Papa.parse(text, { header: true });
             inventory = parsed.data.filter(row => row.Handle && row.Handle.trim() !== '');
@@ -574,7 +595,6 @@ async function convertBrand(brand) {
             if (brand === 'asics') {
                 console.log(`Processing ASICS file with ${inventory.length} variants`);
                 
-                // Count how many handles will be replaced
                 const replacementCount = inventory.filter(row => ASICS_HANDLE_MAPPING[row.Handle]).length;
                 
                 if (replacementCount > 0) {
@@ -582,17 +602,11 @@ async function convertBrand(brand) {
                     inventory = replaceAsicsHandles(inventory);
                 }
                 
-                // Convert ASICS sizes to Shopify unisex format
                 console.log(`Converting ASICS sizes to Shopify format`);
                 inventory = convertAsicsSizes(inventory);
                 
-                const sizeConversionCount = inventory.filter(row => 
-                    ASICS_SIZE_MAPPING[row['Option1 Value']]
-                ).length;
-                
                 BrandConverter.showStatus(brand, `Processed ${inventory.length} variants (${replacementCount} handles replaced, sizes converted to Shopify format)`, 'success');
             }
-            // ========== END HANDLE REPLACEMENT ==========
             
             BrandConverter.brands[brand].inventory = inventory;
             
@@ -628,7 +642,7 @@ async function convertBrand(brand) {
             
             BrandConverter.brands[brand].csv = csvRows.join('\n');
         } else {
-            // Use brand-specific converters for brands that need conversion
+            // Use brand-specific converters
             switch(brand) {
                 case 'saucony':
                     inventory = await SauconyConverter.convert(file);
@@ -639,24 +653,17 @@ async function convertBrand(brand) {
                     inventory = await HokaConverter.convert(file);
                     BrandConverter.brands[brand].inventory = inventory;
 
-                    // Show the product CSV download button
                     if (typeof showHokaProductCSVButton === 'function') showHokaProductCSVButton();
 
-                    // Inventory Tracker: load DB, compare, append removed colorways
+                    // Inventory Tracker
                     if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
                         try {
                             BrandConverter.showStatus('hoka', 'Loading Shopify database...', 'success');
 
-                            // Load what's known to be on Shopify
                             await InventoryTracker.load('hoka');
-
-                            // Compare current ATS against Firestore
                             var comparison = InventoryTracker.compare(inventory);
-
-                            // Store comparison for the report UI
                             window._hokaComparison = comparison;
 
-                            // Append removed colorways at 0 quantity
                             if (comparison.removedColorways.length > 0) {
                                 var removedRows = InventoryTracker.generateRemovedRows(comparison.removedColorways);
                                 inventory = inventory.concat(removedRows);
@@ -664,10 +671,8 @@ async function convertBrand(brand) {
                                 HokaConverter.inventoryData = inventory;
                             }
 
-                            // Update existing colorways with latest quantities
                             await InventoryTracker.updateExistingColorways('hoka', inventory);
 
-                            // Show tracker report in UI
                             if (typeof showTrackerReport === 'function') {
                                 showTrackerReport(comparison);
                             }
@@ -720,7 +725,6 @@ function downloadUnified() {
     ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks', 'on'].forEach(brand => {
         const checkbox = document.getElementById(`select-${brand}`);
         if (checkbox && checkbox.checked && BrandConverter.brands[brand].inventory.length > 0) {
-            // Apply handle replacement for ASICS if needed (safety check)
             let brandInventory = [...BrandConverter.brands[brand].inventory];
             if (brand === 'asics') {
                 brandInventory = replaceAsicsHandles(brandInventory);
@@ -736,9 +740,6 @@ function downloadUnified() {
         return;
     }
     
-   
-    
-    // CRITICAL FIX: Match the exact format from individual converters with quoted headers
     const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
                    '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
                    '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
@@ -749,7 +750,7 @@ function downloadUnified() {
     allInventory.forEach(row => {
         const csvRow = [
             row.Handle,
-            `"${(row.Title || '').replace(/"/g, '""')}"`,  // Properly escape quotes in titles
+            `"${(row.Title || '').replace(/"/g, '""')}"`,
             row['Option1 Name'],
             row['Option1 Value'],
             row['Option2 Name'] || '',
@@ -758,9 +759,9 @@ function downloadUnified() {
             row['Option3 Value'] || '',
             row.SKU,
             row.Barcode || '',
-            '', '',  // HS Code and COO - empty
+            '', '',
             row.Location,
-            '', '', '', '', '', '',  // All the "not editable" and "current" fields
+            '', '', '', '', '', '',
             row['On hand (new)']
         ];
         csvRows.push(csvRow.join(','));
@@ -781,11 +782,9 @@ function downloadUnified() {
     link.click();
     document.body.removeChild(link);
     
-    // Show tracking actions if available
     if (document.getElementById('tracking-actions')) {
         document.getElementById('tracking-actions').style.display = 'block';
     }
-
 }
 
 // Download unified reset inventory - All quantities set to 0
@@ -796,7 +795,6 @@ function downloadUnifiedReset() {
     ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks', 'on'].forEach(brand => {
         const checkbox = document.getElementById(`select-${brand}`);
         if (checkbox && checkbox.checked && BrandConverter.brands[brand].inventory.length > 0) {
-            // Apply handle replacement for ASICS if needed (safety check)
             let brandInventory = [...BrandConverter.brands[brand].inventory];
             if (brand === 'asics') {
                 brandInventory = replaceAsicsHandles(brandInventory);
@@ -812,7 +810,6 @@ function downloadUnifiedReset() {
         return;
     }
     
-    // Set all quantities to 0
     const resetInventory = allInventory.map(row => ({
         ...row,
         'On hand (new)': '0'
@@ -840,7 +837,7 @@ function downloadUnifiedReset() {
             '', '',
             row.Location,
             '', '', '', '', '', '',
-            '0'  // All quantities set to 0
+            '0'
         ];
         csvRows.push(csvRow.join(','));
     });
