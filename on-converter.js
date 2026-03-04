@@ -462,6 +462,43 @@ var OnConverter = {
     },
 
     // Generate new product CSV for Shopify product creation
+    // Clean title: strip pipe-separated categories for Shopify display
+    // "ON Women's PTR | X | Cloud X 4 - Ivory Heron" -> "ON Women's Cloud X 4 - Ivory Heron"
+    // "ON Women's Runner | Cloudrunner 3 - Black Black" -> "ON Women's Cloudrunner 3 - Black Black"
+    cleanTitle: function(title) {
+        if (!title || title.indexOf('|') === -1) return title;
+
+        // Find the gender prefix: "ON Women's " or "ON Men's "
+        var prefix = '';
+        var rest = title;
+        var genderMatch = title.match(/^(ON\s+(?:Women's|Men's|Unisex)\s+)/i);
+        if (genderMatch) {
+            prefix = genderMatch[1];
+            rest = title.substring(prefix.length);
+        }
+
+        // Find the last pipe - everything after it is the model + color
+        var lastPipeIdx = rest.lastIndexOf('|');
+        if (lastPipeIdx !== -1) {
+            var modelAndColor = rest.substring(lastPipeIdx + 1).trim();
+            return prefix + modelAndColor;
+        }
+
+        return title;
+    },
+
+    // Clean handle: strip pipe-separated category segments for Shopify URL
+    // "on-womens-ptr-|-x-|-cloud-x-4-ivo" -> "on-womens-cloud-x-4-ivory-heron"
+    cleanHandle: function(handle, cleanedTitle) {
+        // Generate handle from the cleaned title instead
+        if (!cleanedTitle) return handle;
+        return cleanedTitle
+            .toLowerCase()
+            .replace(/['']/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+    },
+
     generateNewProductCSV: function(comparison) {
         if (!comparison) return null;
 
@@ -540,6 +577,10 @@ var OnConverter = {
             if (product.gender === "Men's") gGender = 'Male';
             else if (product.gender === "Women's") gGender = 'Female';
 
+            // Clean title: strip pipe categories for Shopify display
+            var cleanedTitle = self.cleanTitle(product.title);
+            var cleanedHandle = self.cleanHandle(product.handle, cleanedTitle);
+
             var tags = ['ON Running', product.model];
             if (product.gender !== 'Unisex') tags.push(product.gender.replace("'s", ''));
             if (product.category) tags.push(product.category);
@@ -552,8 +593,8 @@ var OnConverter = {
                 var row = {};
 
                 if (idx === 0) {
-                    row['Title'] = product.title;
-                    row['URL handle'] = product.handle;
+                    row['Title'] = cleanedTitle;
+                    row['URL handle'] = cleanedHandle;
                     row['Description'] = '';
                     row['Vendor'] = 'ON Running';
                     row['Product category'] = 'Apparel & Accessories > Shoes';
@@ -562,8 +603,8 @@ var OnConverter = {
                     row['Published on online store'] = 'FALSE';
                     row['Status'] = 'Draft';
                     row['Option1 name'] = 'Size';
-                    row['SEO title'] = product.title;
-                    row['SEO description'] = product.title;
+                    row['SEO title'] = cleanedTitle;
+                    row['SEO description'] = cleanedTitle;
                     row['Google Shopping / Google product category'] = 'Apparel & Accessories > Shoes';
                     row['Google Shopping / Gender'] = gGender;
                     row['Google Shopping / Age group'] = 'Adult (13+ years old)';
@@ -571,7 +612,7 @@ var OnConverter = {
                     row['Google Shopping / Custom product'] = 'FALSE';
                     row['Google Shopping / Custom label 0'] = product.model;
                 } else {
-                    row['URL handle'] = product.handle;
+                    row['URL handle'] = cleanedHandle;
                 }
 
                 row['Option1 value'] = variant.size;
