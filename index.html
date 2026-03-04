@@ -1207,10 +1207,24 @@ https://b2b.asics.com/orders/100555134/products/1011C127?colorCode=001&deliveryD
                         <div class="uploaded-file-info"><strong id="asics-filename"></strong></div>
                         <button class="clear-btn" onclick="clearFile('asics')">Clear</button>
                     </div>
+
+                    <!-- ASICS Picker (populated by asics-picker.js) -->
+                    <div id="asics-picker-container" style="display: none; margin: 0 32px 16px 32px;"></div>
+
                     <div class="convert-section" id="asics-convert">
-                        <button class="convert-btn" onclick="convertBrand('asics')">Add to Unified</button>
+                        <button class="convert-btn" onclick="convertBrand('asics')">Generate Inventory</button>
+                        <button class="convert-btn" id="asics-product-csv-btn" onclick="downloadAsicsProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #6c757d 0%, #495057 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
+                            Download Products CSV
+                        </button>
+                        <button class="convert-btn" id="asics-new-product-csv-btn" onclick="downloadAsicsNewProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
+                            Download NEW Products CSV
+                        </button>
                     </div>
                     <div class="status" id="asics-status"></div>
+
+                    <!-- ASICS Tracker -->
+                    <div class="tracker-badge" id="asics-tracker-badge"></div>
+                    <div class="tracker-report" id="asics-tracker-report" style="display: none;"></div>
                 </div>
 
                 <!-- Brooks Section -->
@@ -1437,6 +1451,8 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
     <script src="newbalance-converter.js"></script>
     <script src="on-converter.js"></script>
     <script src="on-picker.js"></script>
+    <script src="asics-converter.js"></script>
+    <script src="asics-picker.js"></script>
     <!-- INVENTORY COMPARISON SCRIPTS -->
     <script>
         let yesterdayData = null;
