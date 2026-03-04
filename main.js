@@ -79,7 +79,7 @@ const BrandConverter = {
         hoka: { file: null, inventory: [], csv: '', scanned: false },
         puma: { file: null, inventory: [], csv: '' },
         newbalance: { file: null, inventory: [], csv: '' },
-        asics: { file: null, inventory: [], csv: '', csvOnly: true },
+        asics: { file: null, inventory: [], csv: '', scanned: false },
         brooks: { file: null, inventory: [], csv: '', csvOnly: true },
         on: { menFile: null, womenFile: null, inventory: [], csv: '', scanned: false }
     },
@@ -248,6 +248,38 @@ const BrandConverter = {
                 BrandConverter.showStatus('hoka', 'Error scanning file: ' + err.message, 'error');
                 console.error('HOKA scan error:', err);
             });
+
+        // ASICS: scan file and show picker (same pattern as HOKA)
+        } else if (brand === 'asics') {
+            this.brands.asics.scanned = false;
+            document.getElementById('asics-convert').style.display = 'none';
+            this.showStatus('asics', 'Scanning file for products...', 'success');
+
+            var loadAsicsModels = Promise.resolve();
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                loadAsicsModels = InventoryTracker.load('asics').then(function(data) {
+                    AsicsConverter._knownProducts = data.models;
+                    console.log('Loaded ' + data.models.size + ' known ASICS models for picker defaults');
+                }).catch(function(err) {
+                    console.warn('Could not load Firestore ASICS models, all checked by default:', err);
+                    AsicsConverter._knownProducts = null;
+                });
+            }
+
+            loadAsicsModels.then(function() {
+                return AsicsConverter.scanFile(file);
+            }).then(function(products) {
+                if (typeof showAsicsPicker === 'function') {
+                    showAsicsPicker(products);
+                }
+                BrandConverter.brands.asics.scanned = true;
+                document.getElementById('asics-convert').style.display = 'block';
+                BrandConverter.showStatus('asics', 'Found ' + products.length + ' product models. Select which to include, then click Generate.', 'success');
+            }).catch(function(err) {
+                BrandConverter.showStatus('asics', 'Error scanning file: ' + err.message, 'error');
+                console.error('ASICS scan error:', err);
+            });
+
         } else {
             document.getElementById(`${brand}-convert`).style.display = 'block';
         }
@@ -460,6 +492,18 @@ function clearFile(brand) {
             BrandConverter.brands.hoka.scanned = false;
             if (typeof hideHokaProductCSVButton === 'function') hideHokaProductCSVButton();
         }
+
+        if (brand === 'asics') {
+            BrandConverter.brands.asics.scanned = false;
+            var asicsPickerContainer = document.getElementById('asics-picker-container');
+            if (asicsPickerContainer) asicsPickerContainer.style.display = 'none';
+            var asicsTrackerReport = document.getElementById('asics-tracker-report');
+            if (asicsTrackerReport) asicsTrackerReport.style.display = 'none';
+            var asicsProductBtn = document.getElementById('asics-product-csv-btn');
+            if (asicsProductBtn) asicsProductBtn.style.display = 'none';
+            var asicsNewProductBtn = document.getElementById('asics-new-product-csv-btn');
+            if (asicsNewProductBtn) asicsNewProductBtn.style.display = 'none';
+        }
     }
     
     BrandConverter.updateDownloadSection();
@@ -580,13 +624,82 @@ async function convertBrand(brand) {
             return;
         }
     }
+
+    // ASICS: check scan + selection, then use AsicsConverter with tracker
+    if (brand === 'asics') {
+        if (!BrandConverter.brands.asics.scanned) {
+            BrandConverter.showStatus('asics', 'File is still being scanned, please wait...', 'error');
+            return;
+        }
+        if (AsicsConverter.selectedProducts.size === 0) {
+            BrandConverter.showStatus('asics', 'Please select at least one product!', 'error');
+            return;
+        }
+
+        BrandConverter.showStatus('asics', 'Processing with AsicsConverter...', 'success');
+
+        try {
+            var asicsInventory = await AsicsConverter.convert(file);
+            BrandConverter.brands.asics.inventory = asicsInventory;
+
+            var asicsProductBtn = document.getElementById('asics-product-csv-btn');
+            if (asicsProductBtn) asicsProductBtn.style.display = 'block';
+
+            // Inventory Tracker
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                try {
+                    BrandConverter.showStatus('asics', 'Loading Shopify database for ASICS...', 'success');
+                    await InventoryTracker.load('asics');
+                    var asicsComparison = InventoryTracker.compare(asicsInventory);
+                    window._asicsTrackerComparison = asicsComparison;
+
+                    if (asicsComparison.removedColorways && asicsComparison.removedColorways.length > 0) {
+                        var removedRows = InventoryTracker.generateRemovedRows(asicsComparison.removedColorways);
+                        asicsInventory = asicsInventory.concat(removedRows);
+                        BrandConverter.brands.asics.inventory = asicsInventory;
+                        AsicsConverter.inventoryData = asicsInventory;
+                    }
+
+                    await InventoryTracker.updateExistingColorways('asics', asicsInventory);
+
+                    if (typeof showAsicsTrackerReport === 'function') {
+                        showAsicsTrackerReport(asicsComparison);
+                    }
+
+                    var aMsg = 'Processed ' + asicsInventory.length + ' variants';
+                    if (asicsComparison.removedColorways && asicsComparison.removedColorways.length > 0) {
+                        aMsg += ' (includes ' + asicsComparison.removedColorways.length + ' removed at 0)';
+                    }
+                    if (asicsComparison.newProducts && asicsComparison.newProducts.length > 0) {
+                        aMsg += ' | ' + asicsComparison.newProducts.length + ' new products';
+                    }
+                    if (asicsComparison.newColorways && asicsComparison.newColorways.length > 0) {
+                        aMsg += ' | ' + asicsComparison.newColorways.length + ' new colorways';
+                    }
+                    BrandConverter.showStatus('asics', aMsg, 'success');
+                } catch (trackerError) {
+                    console.warn('ASICS tracker error (continuing):', trackerError);
+                    BrandConverter.showStatus('asics', 'Processed ' + asicsInventory.length + ' variants (tracker unavailable)', 'success');
+                }
+            } else {
+                BrandConverter.showStatus('asics', 'Processed ' + asicsInventory.length + ' variants', 'success');
+            }
+
+            BrandConverter.brands.asics.csv = AsicsConverter.generateInventoryCSV();
+            BrandConverter.updateDownloadSection();
+        } catch (asicsError) {
+            BrandConverter.showStatus('asics', 'Error: ' + asicsError.message, 'error');
+            console.error('ASICS conversion error:', asicsError);
+        }
+        return;
+    }
     
     BrandConverter.showStatus(brand, 'Processing...', 'success');
     
     try {
         let inventory;
         
-        // Check if this is a CSV-only brand (ASICS, Brooks)
+        // Check if this is a CSV-only brand (Brooks)
         if (BrandConverter.brands[brand].csvOnly) {
             const text = await file.text();
             const parsed = Papa.parse(text, { header: true });
