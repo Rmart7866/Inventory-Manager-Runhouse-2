@@ -1015,17 +1015,31 @@
                     </div>
                     <div class="drop-zone" id="saucony-dropzone">
                         <h3>Drop Saucony file here</h3>
-                        <p>or click to browse</p>
+                        <p>or click to browse (.xlsx)</p>
                         <input type="file" class="file-input" id="saucony-file" accept=".xlsx,.xls,.csv">
                     </div>
                     <div class="uploaded-file" id="saucony-uploaded">
                         <div class="uploaded-file-info"><strong id="saucony-filename"></strong></div>
                         <button class="clear-btn" onclick="clearFile('saucony')">Clear</button>
                     </div>
+
+                    <!-- Saucony Picker -->
+                    <div id="saucony-picker-container" style="display: none; margin: 0 32px 16px 32px;"></div>
+
                     <div class="convert-section" id="saucony-convert">
                         <button class="convert-btn" onclick="convertBrand('saucony')">Generate Inventory</button>
+                        <button class="convert-btn" id="saucony-product-csv-btn" onclick="downloadSauconyProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #6c757d 0%, #495057 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
+                            Download Products CSV
+                        </button>
+                        <button class="convert-btn" id="saucony-new-product-csv-btn" onclick="downloadSauconyNewProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
+                            Download NEW Products CSV
+                        </button>
                     </div>
                     <div class="status" id="saucony-status"></div>
+
+                    <!-- Saucony Tracker -->
+                    <div class="tracker-badge" id="saucony-tracker-badge"></div>
+                    <div class="tracker-report" id="saucony-tracker-report" style="display: none;"></div>
                 </div>
 
                 <!-- HOKA Section -->
@@ -1471,6 +1485,7 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
     </script>
 
     <script src="saucony-converter.js"></script>
+    <script src="saucony-picker.js"></script>
     <script src="hoka-converter.js"></script>
     <script src="firebase-config.js"></script>
     <script src="inventory-tracker.js"></script>
