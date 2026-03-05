@@ -80,7 +80,7 @@ const BrandConverter = {
         puma: { file: null, inventory: [], csv: '' },
         newbalance: { file: null, inventory: [], csv: '' },
         asics: { file: null, inventory: [], csv: '', scanned: false },
-        brooks: { file: null, inventory: [], csv: '', csvOnly: true },
+        brooks: { file: null, inventory: [], csv: '', scanned: false },
         on: { menFile: null, womenFile: null, inventory: [], csv: '', scanned: false }
     },
     
@@ -278,6 +278,37 @@ const BrandConverter = {
             }).catch(function(err) {
                 BrandConverter.showStatus('asics', 'Error scanning file: ' + err.message, 'error');
                 console.error('ASICS scan error:', err);
+            });
+
+        // BROOKS: scan file and show picker
+        } else if (brand === 'brooks') {
+            this.brands.brooks.scanned = false;
+            document.getElementById('brooks-convert').style.display = 'none';
+            this.showStatus('brooks', 'Scanning file for products...', 'success');
+
+            var loadBrooksModels = Promise.resolve();
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                loadBrooksModels = InventoryTracker.load('brooks').then(function(data) {
+                    BrooksConverter._knownProducts = data.models;
+                    console.log('Loaded ' + data.models.size + ' known Brooks models for picker defaults');
+                }).catch(function(err) {
+                    console.warn('Could not load Firestore Brooks models:', err);
+                    BrooksConverter._knownProducts = null;
+                });
+            }
+
+            loadBrooksModels.then(function() {
+                return BrooksConverter.scanFile(file);
+            }).then(function(products) {
+                if (typeof showBrooksPicker === 'function') {
+                    showBrooksPicker(products);
+                }
+                BrandConverter.brands.brooks.scanned = true;
+                document.getElementById('brooks-convert').style.display = 'block';
+                BrandConverter.showStatus('brooks', 'Found ' + products.length + ' product models. Select which to include, then click Generate.', 'success');
+            }).catch(function(err) {
+                BrandConverter.showStatus('brooks', 'Error scanning file: ' + err.message, 'error');
+                console.error('Brooks scan error:', err);
             });
 
         } else {
@@ -504,6 +535,18 @@ function clearFile(brand) {
             var asicsNewProductBtn = document.getElementById('asics-new-product-csv-btn');
             if (asicsNewProductBtn) asicsNewProductBtn.style.display = 'none';
         }
+
+        if (brand === 'brooks') {
+            BrandConverter.brands.brooks.scanned = false;
+            var brooksPickerContainer = document.getElementById('brooks-picker-container');
+            if (brooksPickerContainer) brooksPickerContainer.style.display = 'none';
+            var brooksTrackerReport = document.getElementById('brooks-tracker-report');
+            if (brooksTrackerReport) brooksTrackerReport.style.display = 'none';
+            var brooksProductBtn = document.getElementById('brooks-product-csv-btn');
+            if (brooksProductBtn) brooksProductBtn.style.display = 'none';
+            var brooksNewProductBtn = document.getElementById('brooks-new-product-csv-btn');
+            if (brooksNewProductBtn) brooksNewProductBtn.style.display = 'none';
+        }
     }
     
     BrandConverter.updateDownloadSection();
@@ -693,14 +736,80 @@ async function convertBrand(brand) {
         }
         return;
     }
-    
-    BrandConverter.showStatus(brand, 'Processing...', 'success');
+
+    // BROOKS: check scan + selection, then use BrooksConverter with tracker
+    if (brand === 'brooks') {
+        if (!BrandConverter.brands.brooks.scanned) {
+            BrandConverter.showStatus('brooks', 'File is still being scanned, please wait...', 'error');
+            return;
+        }
+        if (BrooksConverter.selectedProducts.size === 0) {
+            BrandConverter.showStatus('brooks', 'Please select at least one product!', 'error');
+            return;
+        }
+
+        BrandConverter.showStatus('brooks', 'Processing with BrooksConverter...', 'success');
+
+        try {
+            var brooksInventory = await BrooksConverter.convert(file);
+            BrandConverter.brands.brooks.inventory = brooksInventory;
+
+            var brooksProductBtn = document.getElementById('brooks-product-csv-btn');
+            if (brooksProductBtn) brooksProductBtn.style.display = 'block';
+
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                try {
+                    BrandConverter.showStatus('brooks', 'Loading Shopify database for Brooks...', 'success');
+                    await InventoryTracker.load('brooks');
+                    var brooksComparison = InventoryTracker.compare(brooksInventory);
+                    window._brooksTrackerComparison = brooksComparison;
+
+                    if (brooksComparison.removedColorways && brooksComparison.removedColorways.length > 0) {
+                        var removedRows = InventoryTracker.generateRemovedRows(brooksComparison.removedColorways);
+                        brooksInventory = brooksInventory.concat(removedRows);
+                        BrandConverter.brands.brooks.inventory = brooksInventory;
+                        BrooksConverter.inventoryData = brooksInventory;
+                    }
+
+                    await InventoryTracker.updateExistingColorways('brooks', brooksInventory);
+
+                    if (typeof showBrooksTrackerReport === 'function') {
+                        showBrooksTrackerReport(brooksComparison);
+                    }
+
+                    var bMsg = 'Processed ' + brooksInventory.length + ' variants';
+                    if (brooksComparison.removedColorways && brooksComparison.removedColorways.length > 0) {
+                        bMsg += ' (includes ' + brooksComparison.removedColorways.length + ' removed at 0)';
+                    }
+                    if (brooksComparison.newProducts && brooksComparison.newProducts.length > 0) {
+                        bMsg += ' | ' + brooksComparison.newProducts.length + ' new products';
+                    }
+                    if (brooksComparison.newColorways && brooksComparison.newColorways.length > 0) {
+                        bMsg += ' | ' + brooksComparison.newColorways.length + ' new colorways';
+                    }
+                    BrandConverter.showStatus('brooks', bMsg, 'success');
+                } catch (trackerError) {
+                    console.warn('Brooks tracker error (continuing):', trackerError);
+                    BrandConverter.showStatus('brooks', 'Processed ' + brooksInventory.length + ' variants (tracker unavailable)', 'success');
+                }
+            } else {
+                BrandConverter.showStatus('brooks', 'Processed ' + brooksInventory.length + ' variants', 'success');
+            }
+
+            BrandConverter.brands.brooks.csv = BrooksConverter.generateInventoryCSV();
+            BrandConverter.updateDownloadSection();
+        } catch (brooksError) {
+            BrandConverter.showStatus('brooks', 'Error: ' + brooksError.message, 'error');
+            console.error('Brooks conversion error:', brooksError);
+        }
+        return;
+    }
     
     try {
         let inventory;
         
-        // Check if this is a CSV-only brand (Brooks)
-        if (BrandConverter.brands[brand].csvOnly) {
+        // Check if this is a CSV-only brand (none currently)
+        if (BrandConverter.brands[brand] && BrandConverter.brands[brand].csvOnly) {
             const text = await file.text();
             const parsed = Papa.parse(text, { header: true });
             inventory = parsed.data.filter(row => row.Handle && row.Handle.trim() !== '');
