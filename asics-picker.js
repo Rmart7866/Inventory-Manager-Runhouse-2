@@ -72,14 +72,18 @@ function showAsicsPicker(products) {
         });
 
         catProducts.forEach(function(product) {
-            var isChecked = knownProducts ? knownProducts.has(product.name) : true;
-            var isNew = knownProducts && !knownProducts.has(product.name);
+            // knownProducts stores model names without gender (e.g. "GEL-NIMBUS 27")
+            // product.name includes gender (e.g. "Men's GEL-NIMBUS 27")
+            // Check if the model part (product.model) is in knownProducts
+            var modelForCheck = product.model || product.name;
+            var isChecked = knownProducts ? knownProducts.has(modelForCheck) : true;
+            var isNew = knownProducts && !knownProducts.has(modelForCheck);
             var colorCount = product.colorways ? product.colorways.length : 0;
             var inventoryClass = product.totalInventory > 0 ? 'inventory-count' : 'zero-inventory';
 
             html += '<div class="product-item' + (isNew ? ' is-new' : '') + '">';
-            html += '<input type="checkbox" class="asics-picker-cb" data-model="' + product.name.replace(/"/g, '&quot;') + '" ' + (isChecked ? 'checked' : '') + '>';
-            html += '<span class="product-item-name">' + (product.gender ? product.gender + ' ' : '') + product.name + '</span>';
+            html += '<input type="checkbox" class="asics-picker-cb" data-model="' + product.name.replace(/"/g, '&quot;') + '" data-model-base="' + (product.model || product.name).replace(/"/g, '&quot;') + '" ' + (isChecked ? 'checked' : '') + '>';
+            html += '<span class="product-item-name">' + product.name + '</span>';
 
             if (isNew) {
                 html += '<span class="product-new-badge" style="background: #fff3cd; color: #856404;">NEW</span>';
@@ -169,7 +173,8 @@ function asicsPickerSelectNone() {
 function asicsPickerSelectDefaults() {
     var knownProducts = AsicsConverter._knownProducts;
     document.querySelectorAll('.asics-picker-cb').forEach(function(cb) {
-        cb.checked = knownProducts ? knownProducts.has(cb.getAttribute('data-model')) : true;
+        var modelBase = cb.getAttribute('data-model-base');
+        cb.checked = knownProducts ? knownProducts.has(modelBase) : true;
     });
     updateAsicsPickerSelection();
     updateAsicsPickerSummary();
