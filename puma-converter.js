@@ -86,6 +86,32 @@ var PumaConverter = {
         return clean.toUpperCase();
     },
 
+    // ========== NORMALIZE MODEL (collapse collabs into base) ==========
+    // "DEVIATE NITRO 4 PUMA X HYROX" -> "DEVIATE NITRO 4"
+    // "DEVIATE NITRO 4 WIDE" stays as-is
+    _collabSuffixes: [
+        'PUMA X HYROX', '- PUMA X HYROX', 'HYROX AH25', 'HYROX',
+        'DIGITOKYO', 'SAYSKY', 'MARATHON SERIES',
+        'PSYCHEDELIC RUSH W', 'PSYCHEDELIC RUSH',
+        'RADIANT RUN', 'FIREGLOW', 'FIRE', 'CARBON',
+        'SUNSET', 'KNIT', 'FADE', 'ULTRAWEAVE',
+        'RC', 'ST', 'AT', 'TECH'
+    ],
+
+    normalizeModel: function(modelName) {
+        if (!modelName) return modelName;
+        var n = modelName.trim();
+        // Remove leading collab prefixes
+        n = n.replace(/^AMF1\s+/i, '');
+        // Remove collab suffixes (longest first)
+        var suffixes = this._collabSuffixes.slice().sort(function(a, b) { return b.length - a.length; });
+        for (var i = 0; i < suffixes.length; i++) {
+            var re = new RegExp('\\s+' + suffixes[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$', 'i');
+            n = n.replace(re, '');
+        }
+        return n.trim();
+    },
+
     // ========== PARSE EXCEL/CSV ==========
     parseFile: function(file) {
         var self = this;
@@ -148,13 +174,15 @@ var PumaConverter = {
                 if (category === null) return;
 
                 var gender = self.formatGender(fields.gender);
-                var modelName = self.cleanModelName(fields.styleName);
+                var rawModelName = self.cleanModelName(fields.styleName);
+                var modelName = self.normalizeModel(rawModelName);
                 var genderPrefix = gender ? (gender + ' ') : '';
                 var modelKey = genderPrefix + modelName;
 
                 var qty = parseInt(fields.quantity) || 0;
 
-                var colorHandle = (modelKey + '-' + (fields.colorName || ''))
+                // Use raw model name in colorway handle/title for specificity
+                var colorHandle = (genderPrefix + rawModelName + '-' + (fields.colorName || ''))
                     .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
                 if (!productsByModel.has(modelKey)) {
@@ -176,7 +204,7 @@ var PumaConverter = {
                 if (!modelData.colorways.has(colorHandle)) {
                     modelData.colorways.set(colorHandle, {
                         handle: colorHandle,
-                        title: (gender ? gender + ' ' : '') + 'Puma ' + modelName + ' - ' + (fields.colorName || ''),
+                        title: (gender ? gender + ' ' : '') + 'Puma ' + rawModelName + ' - ' + (fields.colorName || ''),
                         color: fields.colorName || '',
                         rows: 0,
                         inventory: 0
@@ -228,28 +256,30 @@ var PumaConverter = {
                 if (category === null) return;
 
                 var gender = self.formatGender(fields.gender);
-                var modelName = self.cleanModelName(fields.styleName);
+                var rawModelName = self.cleanModelName(fields.styleName);
+                var modelName = self.normalizeModel(rawModelName);
                 var genderPrefix = gender ? (gender + ' ') : '';
                 var modelKey = genderPrefix + modelName;
 
-                // Filter by picker selection
+                // Filter by picker selection (uses normalized model key)
                 if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) return;
 
                 var qty = parseInt(fields.quantity) || 0;
                 var size = fields.size ? fields.size.toString().trim() : '';
                 var color = (fields.colorName || '').trim();
 
-                // Deduplicate by model+color+size
-                var variantKey = modelKey + '|' + color + '|' + size;
+                // Deduplicate by raw model+color+size (keeps collab variants distinct)
+                var variantKey = genderPrefix + rawModelName + '|' + color + '|' + size;
                 if (processedVariants.has(variantKey)) {
                     processedVariants.get(variantKey).quantity += qty;
                     return;
                 }
 
-                var handle = (genderPrefix + modelName + '-' + color)
+                // Handle uses raw model name so collabs get unique handles
+                var handle = (genderPrefix + rawModelName + '-' + color)
                     .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-                var title = (gender ? gender + ' ' : '') + 'Puma ' + modelName + ' - ' + color;
+                var title = (gender ? gender + ' ' : '') + 'Puma ' + rawModelName + ' - ' + color;
                 var sku = fields.sku || (fields.styleNumber + '-' + fields.colorCode + '-' + size);
 
                 var variant = {
