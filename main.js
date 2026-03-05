@@ -75,7 +75,7 @@ function convertAsicsSizes(inventory) {
 
 const BrandConverter = {
     brands: {
-        saucony: { file: null, inventory: [], csv: '' },
+        saucony: { file: null, inventory: [], csv: '', scanned: false },
         hoka: { file: null, inventory: [], csv: '', scanned: false },
         puma: { file: null, inventory: [], csv: '', scanned: false },
         newbalance: { file: null, inventory: [], csv: '' },
@@ -309,6 +309,35 @@ const BrandConverter = {
             }).catch(function(err) {
                 BrandConverter.showStatus('brooks', 'Error scanning file: ' + err.message, 'error');
                 console.error('Brooks scan error:', err);
+            });
+
+        // SAUCONY: scan file and show picker
+        } else if (brand === 'saucony') {
+            this.brands.saucony.scanned = false;
+            document.getElementById('saucony-convert').style.display = 'none';
+            this.showStatus('saucony', 'Scanning file for products...', 'success');
+
+            var loadSauconyModels = Promise.resolve();
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                loadSauconyModels = InventoryTracker.load('saucony').then(function(data) {
+                    SauconyConverter._knownProducts = data.models;
+                    console.log('Loaded ' + data.models.size + ' known Saucony models');
+                }).catch(function(err) {
+                    console.warn('Could not load Firestore Saucony models:', err);
+                    SauconyConverter._knownProducts = null;
+                });
+            }
+
+            loadSauconyModels.then(function() {
+                return SauconyConverter.scanFile(file);
+            }).then(function(products) {
+                if (typeof showSauconyPicker === 'function') showSauconyPicker(products);
+                BrandConverter.brands.saucony.scanned = true;
+                document.getElementById('saucony-convert').style.display = 'block';
+                BrandConverter.showStatus('saucony', 'Found ' + products.length + ' products. Select which to include, then click Generate.', 'success');
+            }).catch(function(err) {
+                BrandConverter.showStatus('saucony', 'Error scanning file: ' + err.message, 'error');
+                console.error('Saucony scan error:', err);
             });
 
         // PUMA: scan file and show picker
@@ -587,6 +616,18 @@ function clearFile(brand) {
             if (pumaProductBtn) pumaProductBtn.style.display = 'none';
             var pumaNewProductBtn = document.getElementById('puma-new-product-csv-btn');
             if (pumaNewProductBtn) pumaNewProductBtn.style.display = 'none';
+        }
+
+        if (brand === 'saucony') {
+            BrandConverter.brands.saucony.scanned = false;
+            var sauconyPickerContainer = document.getElementById('saucony-picker-container');
+            if (sauconyPickerContainer) sauconyPickerContainer.style.display = 'none';
+            var sauconyTrackerReport = document.getElementById('saucony-tracker-report');
+            if (sauconyTrackerReport) sauconyTrackerReport.style.display = 'none';
+            var sauconyProductBtn = document.getElementById('saucony-product-csv-btn');
+            if (sauconyProductBtn) sauconyProductBtn.style.display = 'none';
+            var sauconyNewProductBtn = document.getElementById('saucony-new-product-csv-btn');
+            if (sauconyNewProductBtn) sauconyNewProductBtn.style.display = 'none';
         }
     }
     
@@ -902,6 +943,65 @@ async function convertBrand(brand) {
         } catch (pumaError) {
             BrandConverter.showStatus('puma', 'Error: ' + pumaError.message, 'error');
             console.error('Puma conversion error:', pumaError);
+        }
+        return;
+    }
+
+    // SAUCONY: check scan + selection, then use SauconyConverter with tracker
+    if (brand === 'saucony') {
+        if (!BrandConverter.brands.saucony.scanned) {
+            BrandConverter.showStatus('saucony', 'File is still being scanned, please wait...', 'error');
+            return;
+        }
+        if (SauconyConverter.selectedProducts.size === 0) {
+            BrandConverter.showStatus('saucony', 'Please select at least one product!', 'error');
+            return;
+        }
+
+        BrandConverter.showStatus('saucony', 'Processing with SauconyConverter...', 'success');
+
+        try {
+            var sauconyInventory = await SauconyConverter.convert(file);
+            BrandConverter.brands.saucony.inventory = sauconyInventory;
+
+            var sauconyProductBtn = document.getElementById('saucony-product-csv-btn');
+            if (sauconyProductBtn) sauconyProductBtn.style.display = 'block';
+
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                try {
+                    BrandConverter.showStatus('saucony', 'Loading Shopify database for Saucony...', 'success');
+                    await InventoryTracker.load('saucony');
+                    var sauconyComparison = InventoryTracker.compare(sauconyInventory);
+                    window._sauconyTrackerComparison = sauconyComparison;
+
+                    if (sauconyComparison.removedColorways && sauconyComparison.removedColorways.length > 0) {
+                        var removedRows = InventoryTracker.generateRemovedRows(sauconyComparison.removedColorways);
+                        sauconyInventory = sauconyInventory.concat(removedRows);
+                        BrandConverter.brands.saucony.inventory = sauconyInventory;
+                        SauconyConverter.inventoryData = sauconyInventory;
+                    }
+
+                    await InventoryTracker.updateExistingColorways('saucony', sauconyInventory);
+                    if (typeof showSauconyTrackerReport === 'function') showSauconyTrackerReport(sauconyComparison);
+
+                    var sMsg = 'Processed ' + sauconyInventory.length + ' variants';
+                    if (sauconyComparison.removedColorways && sauconyComparison.removedColorways.length > 0) sMsg += ' (includes ' + sauconyComparison.removedColorways.length + ' removed at 0)';
+                    if (sauconyComparison.newProducts && sauconyComparison.newProducts.length > 0) sMsg += ' | ' + sauconyComparison.newProducts.length + ' new products';
+                    if (sauconyComparison.newColorways && sauconyComparison.newColorways.length > 0) sMsg += ' | ' + sauconyComparison.newColorways.length + ' new colorways';
+                    BrandConverter.showStatus('saucony', sMsg, 'success');
+                } catch (trackerError) {
+                    console.warn('Saucony tracker error:', trackerError);
+                    BrandConverter.showStatus('saucony', 'Processed ' + sauconyInventory.length + ' variants (tracker unavailable)', 'success');
+                }
+            } else {
+                BrandConverter.showStatus('saucony', 'Processed ' + sauconyInventory.length + ' variants', 'success');
+            }
+
+            BrandConverter.brands.saucony.csv = SauconyConverter.generateInventoryCSV();
+            BrandConverter.updateDownloadSection();
+        } catch (sauconyError) {
+            BrandConverter.showStatus('saucony', 'Error: ' + sauconyError.message, 'error');
+            console.error('Saucony conversion error:', sauconyError);
         }
         return;
     }
