@@ -1,6 +1,7 @@
 // Saucony Converter - Updated with scan/picker/tracker flow
 // Reads B2B Excel files with size columns, handles gender/width/unisex sizing
 
+
 var SauconyConverter = {
     inventoryData: [],
     productVariantData: [],
