@@ -1103,17 +1103,31 @@
                     </div>
                     <div class="drop-zone" id="puma-dropzone">
                         <h3>Drop Puma file here</h3>
-                        <p>or click to browse</p>
+                        <p>or click to browse (.xlsx or .csv)</p>
                         <input type="file" class="file-input" id="puma-file" accept=".xlsx,.xls,.csv">
                     </div>
                     <div class="uploaded-file" id="puma-uploaded">
                         <div class="uploaded-file-info"><strong id="puma-filename"></strong></div>
                         <button class="clear-btn" onclick="clearFile('puma')">Clear</button>
                     </div>
+
+                    <!-- Puma Picker -->
+                    <div id="puma-picker-container" style="display: none; margin: 0 32px 16px 32px;"></div>
+
                     <div class="convert-section" id="puma-convert">
                         <button class="convert-btn" onclick="convertBrand('puma')">Generate Inventory</button>
+                        <button class="convert-btn" id="puma-product-csv-btn" onclick="downloadPumaProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #6c757d 0%, #495057 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
+                            Download Products CSV
+                        </button>
+                        <button class="convert-btn" id="puma-new-product-csv-btn" onclick="downloadPumaNewProductCSV()" style="display:none; margin-top: 10px; background: linear-gradient(135deg, #28a745 0%, #34ce57 100%); font-size: 14px; padding: 14px; text-transform: none; letter-spacing: 0;">
+                            Download NEW Products CSV
+                        </button>
                     </div>
                     <div class="status" id="puma-status"></div>
+
+                    <!-- Puma Tracker -->
+                    <div class="tracker-badge" id="puma-tracker-badge"></div>
+                    <div class="tracker-report" id="puma-tracker-report" style="display: none;"></div>
                 </div>
 
                 <!-- New Balance Section -->
@@ -1268,13 +1282,6 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120426/12042
 https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110437/110437346/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
 https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110438/110438033/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
 https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/120427044/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-                                   https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120467/120467477/9284_31457)?q=glycerin%20flex&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-                                https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110478/110478114/9284_31457)?q=glycerin%20flex&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-                                https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120492/120492822/9284_31457)?q=glycerin%20&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-                                https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110503/110503154/9284_31457)?q=glycerin%20&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-                                https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120465/120465090/9284_31457)?q=glycerin%20&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-                                https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110476/110476096/9284_31457)?q=glycerin%20&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-
                             </div>
                             <button class="copy-btn" onclick="copyLinks('brooks')">Copy All Links</button>
                         </div>
@@ -1468,6 +1475,7 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
     <script src="firebase-config.js"></script>
     <script src="inventory-tracker.js"></script>
     <script src="puma-converter.js"></script>
+    <script src="puma-picker.js"></script>
     <script src="newbalance-converter.js"></script>
     <script src="on-converter.js"></script>
     <script src="on-picker.js"></script>
