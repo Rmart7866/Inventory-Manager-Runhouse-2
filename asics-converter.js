@@ -2,6 +2,7 @@
 // Simpler than HOKA/ON since the scraper already outputs Shopify-format CSV
 
 
+
 var AsicsConverter = {
     inventoryData: [],
     productVariantData: [],
