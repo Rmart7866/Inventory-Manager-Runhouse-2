@@ -1,40 +1,29 @@
-// Saucony Converter Logic - UPDATED WITH RIDE 19 CONSISTENT GENDER SUFFIXES
-const SauconyConverter = {
-    productsData: [],
+// Saucony Converter - Updated with scan/picker/tracker flow
+// Reads B2B Excel files with size columns, handles gender/width/unisex sizing
+
+var SauconyConverter = {
     inventoryData: [],
-    
-    // Saucony Product Prices
-    productPrices: {
-        'Endorphin Pro 4': 240,
-        'Endorphin Elite 2': 290,
-        'Guide 18': 150,
-        'Ride 18': 145,
-        'Ride 19': 145,
-        'Triumph 23': 170,
-        'Triumph 23 GTX': 190
+    productVariantData: [],
+    selectedProducts: new Set(),
+    scannedProducts: [],
+    _knownProducts: null,
+    _rawWorkbook: null,
+
+    // ========== CATEGORY MAPPING ==========
+    productCategories: {
+        'Daily Training': ['RIDE 19', 'RIDE 18'],
+        'Max Cushion': ['TRIUMPH 23', 'TRIUMPH 23 GTX'],
+        'Stability': ['GUIDE 18'],
+        'Racing / Performance': ['ENDORPHIN ELITE 2', 'ENDORPHIN PRO 4', 'ENDORPHIN SPEED 5']
     },
 
-    // Saucony Product Descriptions
-    productDescriptions: {
-        'Endorphin Pro 4': 'Elite carbon-plated racing shoe featuring revolutionary dual-foam technology with PWRRUN HG and PWRRUN PB foam for maximum energy return. Engineered for marathon and half-marathon racing with an 8mm drop and weighing just 7.5oz. The full-length carbon fiber plate and SPEEDROLL technology deliver explosive propulsion while maintaining exceptional comfort for long-distance performance.',
-        'Endorphin Elite 2': 'Ultimate racing shoe with full PWRRUN HG foam midsole delivering unmatched energy return. Features aggressive carbon plate geometry and ultralight construction. Designed for elite runners seeking maximum performance in races from 5K to marathon.',
-        'Guide 18': 'Stability daily trainer featuring CenterPath Technology for natural support and guidance. PWRRUN foam cushioning with 6mm drop provides comfortable protection for daily miles. The engineered mesh upper offers breathability while the stability features help control pronation.',
-        'Ride 18': 'Versatile neutral daily trainer with PWRRUN+ cushioning for responsive comfort. Features 8mm drop for a natural stride. Enhanced breathability and durability make it perfect for daily training, long runs, and everything in between.',
-        'Ride 19': 'Updated neutral daily trainer featuring enhanced PWRRUN+ cushioning that delivers responsive, durable comfort mile after mile. With an 8mm drop and improved breathable mesh upper, the Ride 19 offers a smooth, reliable ride for everyday training, long runs, and everything in between. The ultimate workhorse trainer built to handle your daily training demands.',
-        'Triumph 23': 'Premium max-cushioned trainer featuring soft and responsive PWRRUN PB foam for ultimate comfort. 10mm drop with 37mm heel stack provides plush protection for long runs. Features Super Responsive Sockliner for added energy return.',
-        'Triumph 23 GTX': 'Waterproof version of the premium max-cushioned Triumph 23 featuring GORE-TEX protection. Soft and responsive PWRRUN PB foam provides plush protection in any weather.'
-    },
-    
-    // EXISTING SHOPIFY HANDLES
+    // ========== EXISTING SHOPIFY HANDLES ==========
     existingHandles: {
-        // Endorphin Elite 2 - Unisex
         'Endorphin Elite 2|Citron Black|unisex': 'endorphin-elite-2-citron-black',
         'Endorphin Elite 2|Coral White|unisex': 'endorphin-elite-2-coral-white',
         'Endorphin Elite 2|Fog Cinder|unisex': 'endorphin-elite-2-fog-cinder',
         'Endorphin Elite 2|White Mutant|unisex': 'endorphin-elite-2-white-mutant',
         'Endorphin Elite 2|White Peel|unisex': 'endorphin-elite-2-white-peel',
-        
-        // Endorphin Pro 4 - Women's
         'Endorphin Pro 4|Black Vizired|women': 'endorphin-pro-4-black-vizired',
         'Endorphin Pro 4|Cavern Violet|women': 'endorphin-pro-4-cavern-violet',
         'Endorphin Pro 4|Citron Silver|women': 'endorphin-pro-4-citron-silver',
@@ -49,8 +38,6 @@ const SauconyConverter = {
         'Endorphin Pro 4|White Shadow|women': 'endorphin-pro-4-white-shadow',
         'Endorphin Pro 4|White Silver|women': 'endorphin-pro-4-white-silver',
         'Endorphin Pro 4|White Violet|women': 'endorphin-pro-4-white-violet',
-        
-        // Endorphin Pro 4 - Men's
         'Endorphin Pro 4|Black Vo2|men': 'endorphin-pro-4-black-vo2',
         'Endorphin Pro 4|Cavern Purple|men': 'endorphin-pro-4-cavern-purple',
         'Endorphin Pro 4|Lapis Citron|men': 'endorphin-pro-4-lapis-citron',
@@ -60,8 +47,6 @@ const SauconyConverter = {
         'Endorphin Pro 4|Viziorange|men': 'endorphin-pro-4-viziorange',
         'Endorphin Pro 4|White Black|men': 'endorphin-pro-4-white-black',
         'Endorphin Pro 4|White Gold|men': 'endorphin-pro-4-white-gold',
-        
-        // Guide 18 - Women's
         'Guide 18|Ballad Skydiver|women': 'guide-18-ballad-skydiver',
         'Guide 18|Black White|women': 'guide-18-black-white',
         'Guide 18|Cameo Terra|women': 'guide-18-cameo-terra',
@@ -78,8 +63,6 @@ const SauconyConverter = {
         'Guide 18|White Fuchsia|women': 'guide-18-white-fuchsia',
         'Guide 18|White Ice Melt|women': 'guide-18-white-ice-melt',
         'Guide 18|White Mist|women': 'guide-18-white-mist',
-        
-        // Guide 18 - Men's
         'Guide 18|Autumn Amber|men': 'guide-18-autumn-amber',
         'Guide 18|Black Lapis|men': 'guide-18-black-lapis',
         'Guide 18|Bone|men': 'guide-18-bone',
@@ -93,8 +76,6 @@ const SauconyConverter = {
         'Guide 18|Shadow Vizi|men': 'guide-18-shadow-vizi',
         'Guide 18|White Navy|men': 'guide-18-white-navy',
         'Guide 18|White Peel|men': 'guide-18-white-peel',
-        
-        // Ride 18 - Women's
         'Ride 18|Black Gum|women': 'ride-18-black-gum',
         'Ride 18|Black White|women': 'ride-18-black-white',
         'Ride 18|Cameo Peony|women': 'ride-18-cameo-peony',
@@ -111,8 +92,6 @@ const SauconyConverter = {
         'Ride 18|Violet Bloom|women': 'ride-18-violet-bloom',
         'Ride 18|White Indigo|women': 'ride-18-white-indigo',
         'Ride 18|White Sky|women': 'ride-18-white-sky',
-        
-        // Ride 18 - Men's
         'Ride 18|Arctic Barley|men': 'ride-18-arctic-barley',
         'Ride 18|Azurite Peel|men': 'ride-18-azurite-peel',
         'Ride 18|Black Shadow|men': 'ride-18-black-shadow',
@@ -125,278 +104,454 @@ const SauconyConverter = {
         'Ride 18|Shadow Sage|men': 'ride-18-shadow-sage',
         'Ride 18|Undyed Grey|men': 'ride-18-undyed-grey-men',
         'Ride 18|White Black|men': 'ride-18-white-black',
-        
-        // Ride 19 - NOT in existingHandles
-        // All Ride 19 products follow the new standard format (product-color-gender)
-        // and are handled automatically by the new product logic
-        
-        // Triumph 23 - Women's
         'Triumph 23|Cloud Grey|women': 'triumph-23-cloud-grey',
         'Triumph 23|Fog Shadow|women': 'triumph-23-fog-shadow',
         'Triumph 23|Stone Veil|women': 'triumph-23-stone-veil',
         'Triumph 23|White Punch|women': 'triumph-23-white-punch',
-        
-        // Triumph 23 - Men's
         'Triumph 23|Olive Steel|men': 'triumph-23-olive-steel',
         'Triumph 23|Shadow Citron|men': 'triumph-23-shadow-citron',
         'Triumph 23|White Geo|men': 'triumph-23-white-geo',
         'Triumph 23|White Shadow|men': 'triumph-23-white-shadow',
-        
-        // Triumph 23 GTX
         'Triumph 23 GTX|Sage|men': 'triumph-23-gtx-sage',
         'Triumph 23 GTX|Shadow Black|men': 'triumph-23-gtx-shadow-black',
         'Triumph 23 GTX|Stone Violet|women': 'triumph-23-gtx-stone-violet'
     },
-    
-    getProductPrice(productName) {
-        if (!productName) return 140;
-        for (let key in this.productPrices) {
-            if (productName.toLowerCase() === key.toLowerCase()) {
-                return this.productPrices[key];
+
+    // ========== HELPERS ==========
+    getCategory: function(modelName) {
+        if (!modelName) return 'Other';
+        var upper = modelName.toUpperCase();
+        for (var cat in this.productCategories) {
+            for (var i = 0; i < this.productCategories[cat].length; i++) {
+                if (upper.indexOf(this.productCategories[cat][i]) !== -1) return cat;
             }
         }
-        for (let key in this.productPrices) {
-            if (productName.toLowerCase().includes(key.toLowerCase())) {
-                return this.productPrices[key];
-            }
-        }
-        return 140;
+        return 'Other';
     },
 
-    getProductDescription(productName) {
-        if (!productName) return 'High-performance Saucony running shoe.';
-        for (let key in this.productDescriptions) {
-            if (productName.toLowerCase() === key.toLowerCase()) {
-                return this.productDescriptions[key];
-            }
-        }
-        for (let key in this.productDescriptions) {
-            if (productName.toLowerCase().includes(key.toLowerCase())) {
-                return this.productDescriptions[key];
-            }
-        }
-        return 'High-performance Saucony running shoe designed for optimal comfort and performance.';
-    },
-    
-    formatProductName(name) {
+    formatProductName: function(name) {
         if (!name) return name;
-        const specialCases = {
-            'endorphin pro': 'Endorphin Pro',
-            'endorphin elite': 'Endorphin Elite',
-            'guide': 'Guide',
-            'ride': 'Ride',
-            'triumph': 'Triumph',
-            'gtx': 'GTX'
-        };
-        let formatted = name.toLowerCase();
-        for (let [key, value] of Object.entries(specialCases)) {
-            const regex = new RegExp('\\b' + key + '\\b', 'gi');
-            formatted = formatted.replace(regex, value);
-        }
-        formatted = formatted.replace(/\b\w/g, l => l.toUpperCase());
-        formatted = formatted.replace(/\s+(\d+)/g, ' $1');
-        return formatted;
+        return name.toLowerCase()
+            .replace(/\bgtx\b/gi, 'GTX')
+            .replace(/\b\w/g, function(l) { return l.toUpperCase(); })
+            .replace(/\s+(\d+)/g, ' $1');
     },
-    
-    formatColorName(color) {
+
+    formatColorName: function(color) {
         if (!color) return color;
         return color.toLowerCase()
             .split(/[\s\/-]+/)
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); })
             .join(' ');
     },
-    
-    getProductHandle(productName, colorName, genderType, width) {
-        const formattedProductName = this.formatProductName(productName);
-        const formattedColorName = this.formatColorName(colorName);
-        
-        // Build lookup key for existing handles (without width for lookup)
-        const lookupKey = `${formattedProductName}|${formattedColorName}|${genderType}`;
-        
-        // FIRST: Check if this exact product+color+gender exists in Shopify
-        if (this.existingHandles[lookupKey]) {
-            const baseHandle = this.existingHandles[lookupKey];
-            // Add -wide suffix for wide width shoes
-            return width === 'W' ? `${baseHandle}-wide` : baseHandle;
-        }
-        
-        // NEW PRODUCT LOGIC: Generate handle with gender suffix
-        // Generate base handle from product + color
-        const baseHandle = (formattedProductName + "-" + formattedColorName)
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-');
-        
-        // For NEW products, ALWAYS add gender suffix (except unisex)
-        let handleWithGender = baseHandle;
-        if (genderType === 'men' || genderType === 'women') {
-            handleWithGender = `${baseHandle}-${genderType}`;
-        }
-        // Unisex products don't get gender suffix
-        
-        // Add -wide suffix for wide width shoes (after gender)
-        const finalHandle = width === 'W' ? `${handleWithGender}-wide` : handleWithGender;
-        
-        return finalHandle;
+
+    getGenderType: function(gender, productName) {
+        if (!gender) return 'men';
+        var g = gender.toString().toLowerCase();
+        if (g.indexOf('unisex') !== -1) return 'unisex';
+        if (productName && productName.toLowerCase().indexOf('endorphin elite') !== -1) return 'unisex';
+        if (g.indexOf('women') !== -1) return 'women';
+        return 'men';
     },
-    
-    async convert(file) {
-        const arrayBuffer = await file.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer);
-        
-        let sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-            header: 1,
-            range: 1
+
+    getGenderPrefix: function(genderType) {
+        if (genderType === 'unisex') return 'Unisex';
+        if (genderType === 'women') return "Women's";
+        return "Men's";
+    },
+
+    getSizeColumns: function(genderType) {
+        if (genderType === 'unisex') {
+            return [
+                {col: 9, size: "M7.0/W8.5"}, {col: 10, size: "M7.5/W9.0"}, {col: 11, size: "M8.0/W9.5"},
+                {col: 12, size: "M8.5/W10.0"}, {col: 13, size: "M9.0/W10.5"}, {col: 14, size: "M9.5/W11.0"},
+                {col: 15, size: "M10.0/W11.5"}, {col: 16, size: "M10.5/W12.0"}, {col: 17, size: "M11.0/W12.5"},
+                {col: 18, size: "M11.5/W13.0"}, {col: 19, size: "M12.0/W13.5"}, {col: 20, size: "M12.5/W14.0"},
+                {col: 21, size: "M13.0/W14.5"}, {col: 22, size: "M13.5/W15.0"}, {col: 23, size: "M14.0/W15.5"}
+            ];
+        } else if (genderType === 'women') {
+            return [
+                {col: 9, size: "5.0"}, {col: 10, size: "5.5"}, {col: 11, size: "6.0"},
+                {col: 12, size: "6.5"}, {col: 13, size: "7.0"}, {col: 14, size: "7.5"},
+                {col: 15, size: "8.0"}, {col: 16, size: "8.5"}, {col: 17, size: "9.0"},
+                {col: 18, size: "9.5"}, {col: 19, size: "10.0"}, {col: 20, size: "10.5"},
+                {col: 21, size: "11.0"}, {col: 22, size: "11.5"}, {col: 23, size: "12.0"}
+            ];
+        } else {
+            return [
+                {col: 9, size: "7.0"}, {col: 10, size: "7.5"}, {col: 11, size: "8.0"},
+                {col: 12, size: "8.5"}, {col: 13, size: "9.0"}, {col: 14, size: "9.5"},
+                {col: 15, size: "10.0"}, {col: 16, size: "10.5"}, {col: 17, size: "11.0"},
+                {col: 18, size: "11.5"}, {col: 19, size: "12.0"}, {col: 20, size: "12.5"},
+                {col: 21, size: "13.0"}, {col: 22, size: "13.5"}, {col: 23, size: "14.0"}
+            ];
+        }
+    },
+
+    getProductHandle: function(productName, colorName, genderType, width) {
+        var formattedProduct = this.formatProductName(productName);
+        var formattedColor = this.formatColorName(colorName);
+        var lookupKey = formattedProduct + '|' + formattedColor + '|' + genderType;
+
+        if (this.existingHandles[lookupKey]) {
+            var base = this.existingHandles[lookupKey];
+            return width === 'W' ? base + '-wide' : base;
+        }
+
+        // New product: generate handle with gender suffix
+        var baseHandle = (formattedProduct + '-' + formattedColor)
+            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        var withGender = baseHandle;
+        if (genderType === 'men' || genderType === 'women') {
+            withGender = baseHandle + '-' + genderType;
+        }
+        return width === 'W' ? withGender + '-wide' : withGender;
+    },
+
+    // ========== PARSE EXCEL ==========
+    parseExcel: function(file) {
+        return file.arrayBuffer().then(function(arrayBuffer) {
+            var workbook = XLSX.read(arrayBuffer);
+            var ws = workbook.Sheets[workbook.SheetNames[0]];
+            var rawData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 1 });
+            return rawData.filter(function(row) {
+                return row && row[1] && row[1] !== null && row[1] !== '' &&
+                    !(row[2] && row[2].toString().toLowerCase().indexOf('product name') !== -1);
+            });
         });
-        
-        const products = jsonData.filter(row => row && row[1] && row[1] !== null && row[1] !== "");
-        
-        const shopifyInventory = [];
-        
-        for (let rowIndex = 0; rowIndex < products.length; rowIndex++) {
-            const product = products[rowIndex];
-            const styleNumber = product[1];
-            const productName = product[2];
-            const color = product[3];
-            const gender = product[4];
-            const width = product[7] || 'M';
-            
-            // Skip header rows
-            if (!productName || productName.toString().toLowerCase().includes('product name')) {
-                continue;
-            }
-            
-            // Process both standard (M) and wide (W) width shoes
-            const widthStr = width.toString().toUpperCase();
-            if (widthStr !== 'M' && widthStr !== 'W') {
-                continue; // Skip other widths like 2E, D, XW
-            }
-            
-            const isEndorphinElite = productName && productName.toString().toLowerCase().includes('endorphin elite');
-            
-            const formattedProductName = this.formatProductName(productName);
-            const formattedColorName = this.formatColorName(color);
-            
-            let genderPrefix = '';
-            let sizeColumns = [];
-            
-            // Excel structure: Column 9-23 contains sizes for ALL shoes
-            // Women's: columns represent sizes 5.0-12.0
-            // Men's: same columns represent sizes 7.0-14.0
-            // Unisex: same columns, treated as men's sizing (standard for unisex running shoes)
-            
-            if (isEndorphinElite || (gender && gender.toString().toLowerCase().includes('unisex'))) {
-                // Unisex shoes use men's sizing
-                genderPrefix = "Unisex ";
-                sizeColumns = [
-                    {col: 9, size: "M7.0/W8.5"}, {col: 10, size: "M7.5/W9.0"}, {col: 11, size: "M8.0/W9.5"},
-                    {col: 12, size: "M8.5/W10.0"}, {col: 13, size: "M9.0/W10.5"}, {col: 14, size: "M9.5/W11.0"},
-                    {col: 15, size: "M10.0/W11.5"}, {col: 16, size: "M10.5/W12.0"}, {col: 17, size: "M11.0/W12.5"},
-                    {col: 18, size: "M11.5/W13.0"}, {col: 19, size: "M12.0/W13.5"}, {col: 20, size: "M12.5/W14.0"},
-                    {col: 21, size: "M13.0/W14.5"}, {col: 22, size: "M13.5/W15.0"}, {col: 23, size: "M14.0/W15.5"}
-                ];
-            } else if (gender && gender.toString().toLowerCase().includes('women')) {
-                genderPrefix = "Women's ";
-                sizeColumns = [
-                    {col: 9, size: "5.0"}, {col: 10, size: "5.5"}, {col: 11, size: "6.0"},
-                    {col: 12, size: "6.5"}, {col: 13, size: "7.0"}, {col: 14, size: "7.5"},
-                    {col: 15, size: "8.0"}, {col: 16, size: "8.5"}, {col: 17, size: "9.0"},
-                    {col: 18, size: "9.5"}, {col: 19, size: "10.0"}, {col: 20, size: "10.5"},
-                    {col: 21, size: "11.0"}, {col: 22, size: "11.5"}, {col: 23, size: "12.0"}
-                ];
-            } else {
-                // Men's shoes
-                genderPrefix = "Men's ";
-                sizeColumns = [
-                    {col: 9, size: "7.0"}, {col: 10, size: "7.5"}, {col: 11, size: "8.0"},
-                    {col: 12, size: "8.5"}, {col: 13, size: "9.0"}, {col: 14, size: "9.5"},
-                    {col: 15, size: "10.0"}, {col: 16, size: "10.5"}, {col: 17, size: "11.0"},
-                    {col: 18, size: "11.5"}, {col: 19, size: "12.0"}, {col: 20, size: "12.5"},
-                    {col: 21, size: "13.0"}, {col: 22, size: "13.5"}, {col: 23, size: "14.0"}
-                ];
-            }
-            
-            // Add width to title if wide
-            const widthSuffix = widthStr === 'W' ? ' Wide' : '';
-            const productTitle = genderPrefix + "Saucony " + formattedProductName + " - " + formattedColorName + widthSuffix;
-            
-            // Determine gender type for handle generation
-            let genderType = 'men';
-            if (isEndorphinElite || (gender && gender.toString().toLowerCase().includes('unisex'))) {
-                genderType = 'unisex';
-            } else if (gender && gender.toString().toLowerCase().includes('women')) {
-                genderType = 'women';
-            }
-            
-            // Use smart handle generation that checks existing Shopify handles and adds width
-            const handle = this.getProductHandle(productName, color, genderType, widthStr);
-            
-            for (let sizeInfo of sizeColumns) {
-                const quantity = product[sizeInfo.col];
-                if (!quantity && quantity !== 0) continue;
-                
-                const actualQuantity = quantity === "100+" ? 100 : parseInt(quantity) || 0;
-                const variantSKU = styleNumber + '-' + sizeInfo.size.replace(/\//g, '-');
-                
-                shopifyInventory.push({
-                    'Handle': handle,
-                    'Title': productTitle,
-                    'Option1 Name': 'Size',
-                    'Option1 Value': sizeInfo.size,
-                    'Option2 Name': '',
-                    'Option2 Value': '',
-                    'Option3 Name': '',
-                    'Option3 Value': '',
-                    'SKU': variantSKU,
-                    'Barcode': '',
-                    'HS Code': '',
-                    'COO': '',
-                    'Location': 'Needham',
-                    'Bin name': '',
-                    'Incoming (not editable)': '',
-                    'Unavailable (not editable)': '',
-                    'Committed (not editable)': '',
-                    'Available (not editable)': '',
-                    'On hand (current)': '',
-                    'On hand (new)': actualQuantity
+    },
+
+    // ========== SCAN FILE ==========
+    scanFile: function(file) {
+        var self = this;
+
+        return this.parseExcel(file).then(function(rows) {
+            var productsByModel = new Map();
+
+            rows.forEach(function(row) {
+                var productName = (row[2] || '').toString().trim();
+                var color = (row[3] || '').toString().trim();
+                var gender = (row[4] || '').toString().trim();
+                var width = (row[7] || 'M').toString().trim().toUpperCase();
+                if (!productName) return;
+                if (width !== 'M' && width !== 'W') return;
+
+                var genderType = self.getGenderType(gender, productName);
+                var genderPrefix = self.getGenderPrefix(genderType);
+                var formattedProduct = self.formatProductName(productName);
+                var modelUpper = formattedProduct.toUpperCase();
+                var widthSuffix = width === 'W' ? ' (Wide)' : '';
+                var modelKey = genderPrefix + ' ' + modelUpper + widthSuffix;
+
+                // Sum quantities
+                var qty = 0;
+                for (var c = 9; c < Math.min(24, row.length); c++) {
+                    var val = row[c];
+                    if (val === null || val === undefined) continue;
+                    if (typeof val === 'string' && val.indexOf('+') !== -1) qty += 100;
+                    else qty += parseInt(val) || 0;
+                }
+
+                var handle = self.getProductHandle(productName, color, genderType, width);
+
+                if (!productsByModel.has(modelKey)) {
+                    productsByModel.set(modelKey, {
+                        model: modelUpper,
+                        modelKey: modelKey,
+                        gender: genderPrefix,
+                        genderType: genderType,
+                        width: width === 'W' ? 'Wide' : '',
+                        category: self.getCategory(modelUpper),
+                        colorways: new Map(),
+                        totalRows: 0,
+                        totalInventory: 0
+                    });
+                }
+
+                var modelData = productsByModel.get(modelKey);
+                modelData.totalRows++;
+                modelData.totalInventory += qty;
+
+                if (!modelData.colorways.has(handle)) {
+                    modelData.colorways.set(handle, {
+                        handle: handle,
+                        title: genderPrefix + ' Saucony ' + formattedProduct + ' - ' + self.formatColorName(color) + (width === 'W' ? ' Wide' : ''),
+                        color: color,
+                        rows: 0,
+                        inventory: 0
+                    });
+                }
+                var cw = modelData.colorways.get(handle);
+                cw.rows++;
+                cw.inventory += qty;
+            });
+
+            var products = [];
+            productsByModel.forEach(function(data) {
+                products.push({
+                    name: data.modelKey,
+                    model: data.model,
+                    gender: data.gender,
+                    genderType: data.genderType,
+                    width: data.width,
+                    category: data.category,
+                    colorways: Array.from(data.colorways.values()),
+                    rowCount: data.totalRows,
+                    totalInventory: data.totalInventory
+                });
+            });
+
+            products.sort(function(a, b) {
+                var catOrder = ['Daily Training', 'Max Cushion', 'Stability', 'Racing / Performance', 'Other'];
+                var catComp = catOrder.indexOf(a.category) - catOrder.indexOf(b.category);
+                if (catComp !== 0) return catComp;
+                return a.name.localeCompare(b.name);
+            });
+
+            self.scannedProducts = products;
+            return products;
+        });
+    },
+
+    // ========== CONVERT ==========
+    convert: function(file) {
+        var self = this;
+
+        return this.parseExcel(file).then(function(rows) {
+            var inventory = [];
+            var productVariantData = [];
+
+            rows.forEach(function(row) {
+                var styleNumber = (row[1] || '').toString().trim();
+                var productName = (row[2] || '').toString().trim();
+                var color = (row[3] || '').toString().trim();
+                var gender = (row[4] || '').toString().trim();
+                var width = (row[7] || 'M').toString().trim().toUpperCase();
+                if (!productName) return;
+                if (width !== 'M' && width !== 'W') return;
+
+                var genderType = self.getGenderType(gender, productName);
+                var genderPrefix = self.getGenderPrefix(genderType);
+                var formattedProduct = self.formatProductName(productName);
+                var modelUpper = formattedProduct.toUpperCase();
+                var widthSuffix = width === 'W' ? ' (Wide)' : '';
+                var modelKey = genderPrefix + ' ' + modelUpper + widthSuffix;
+
+                // Filter by picker selection
+                if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) return;
+
+                var handle = self.getProductHandle(productName, color, genderType, width);
+                var formattedColor = self.formatColorName(color);
+                var productTitle = genderPrefix + ' Saucony ' + formattedProduct + ' - ' + formattedColor + (width === 'W' ? ' Wide' : '');
+                var sizeColumns = self.getSizeColumns(genderType);
+
+                for (var s = 0; s < sizeColumns.length; s++) {
+                    var sizeInfo = sizeColumns[s];
+                    var val = row[sizeInfo.col];
+                    if (val === null || val === undefined) continue;
+                    var qty = (typeof val === 'string' && val.indexOf('+') !== -1) ? 100 : (parseInt(val) || 0);
+                    var sku = styleNumber + '-' + sizeInfo.size.replace(/\//g, '-');
+
+                    var inventoryRow = {
+                        'Handle': handle,
+                        'Title': productTitle,
+                        'Option1 Name': 'Size',
+                        'Option1 Value': sizeInfo.size,
+                        'Option2 Name': '',
+                        'Option2 Value': '',
+                        'Option3 Name': '',
+                        'Option3 Value': '',
+                        'SKU': sku,
+                        'Barcode': '',
+                        'HS Code': '',
+                        'COO': '',
+                        'Location': 'Needham',
+                        'Bin name': '',
+                        'On hand (new)': qty
+                    };
+
+                    inventory.push(inventoryRow);
+                    productVariantData.push([inventoryRow, {
+                        handle: handle,
+                        title: productTitle,
+                        gender: genderPrefix,
+                        genderType: genderType,
+                        model: modelUpper,
+                        color: formattedColor,
+                        width: width === 'W' ? 'Wide' : '',
+                        category: self.getCategory(modelUpper),
+                        sku: sku,
+                        size: sizeInfo.size,
+                        quantity: qty,
+                        barcode: ''
+                    }]);
+                }
+            });
+
+            self.inventoryData = inventory;
+            self.productVariantData = productVariantData;
+            return inventory;
+        });
+    },
+
+    // ========== GENERATE INVENTORY CSV ==========
+    generateInventoryCSV: function() {
+        var headers = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"',
+            '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"',
+            '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"',
+            '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
+
+        var csvRows = [headers.join(',')];
+        this.inventoryData.forEach(function(row) {
+            csvRows.push([
+                row.Handle,
+                '"' + (row.Title || '').replace(/"/g, '""') + '"',
+                row['Option1 Name'] || 'Size', row['Option1 Value'] || '',
+                '', '', '', '',
+                row.SKU || '', row.Barcode || '', '', '',
+                row.Location || 'Needham', '',
+                '', '', '', '', '',
+                row['On hand (new)'] || '0'
+            ].join(','));
+        });
+        return csvRows.join('\n');
+    },
+
+    // ========== CLEAN TITLE / HANDLE (for NEW product CSV) ==========
+    cleanTitle: function(title) {
+        if (!title) return title;
+        if (title.indexOf('Saucony') === -1) return 'Saucony ' + title;
+        return title;
+    },
+
+    cleanHandle: function(cleanedTitle) {
+        if (!cleanedTitle) return '';
+        return cleanedTitle
+            .toLowerCase()
+            .replace(/['']/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+    },
+
+    // ========== GENERATE NEW PRODUCT CSV ==========
+    generateNewProductCSV: function(comparison) {
+        if (!comparison) return null;
+        var self = this;
+        var newHandles = new Set();
+        if (comparison.newProducts) comparison.newProducts.forEach(function(p) { newHandles.add(p.handle); });
+        if (comparison.newColorways) comparison.newColorways.forEach(function(c) { newHandles.add(c.handle); });
+        if (newHandles.size === 0) return null;
+        if (!this.productVariantData || this.productVariantData.length === 0) return null;
+
+        var headers = [
+            'Title', 'URL handle', 'Description', 'Vendor', 'Product category', 'Type', 'Tags',
+            'Published on online store', 'Status', 'SKU', 'Barcode',
+            'Option1 name', 'Option1 value', 'Option1 Linked To',
+            'Option2 name', 'Option2 value', 'Option2 Linked To',
+            'Option3 name', 'Option3 value', 'Option3 Linked To',
+            'Price', 'Compare-at price', 'Cost per item',
+            'Charge tax', 'Tax code',
+            'Unit price total measure', 'Unit price total measure unit',
+            'Unit price base measure', 'Unit price base measure unit',
+            'Inventory tracker', 'Inventory quantity', 'Continue selling when out of stock',
+            'Weight value (grams)', 'Weight unit for display',
+            'Requires shipping', 'Fulfillment service',
+            'Product image URL', 'Image position', 'Image alt text', 'Variant image URL',
+            'Gift card', 'SEO title', 'SEO description',
+            'Color (product.metafields.shopify.color-pattern)',
+            'Google Shopping / Google product category',
+            'Google Shopping / Gender', 'Google Shopping / Age group',
+            'Google Shopping / Manufacturer part number (MPN)',
+            'Google Shopping / Ad group name', 'Google Shopping / Ads labels',
+            'Google Shopping / Condition', 'Google Shopping / Custom product',
+            'Google Shopping / Custom label 0', 'Google Shopping / Custom label 1',
+            'Google Shopping / Custom label 2', 'Google Shopping / Custom label 3',
+            'Google Shopping / Custom label 4'
+        ];
+
+        var productGroups = new Map();
+        this.productVariantData.forEach(function(entry) {
+            var v = entry[1];
+            if (!newHandles.has(v.handle)) return;
+            if (!productGroups.has(v.handle)) {
+                productGroups.set(v.handle, {
+                    handle: v.handle, title: v.title, model: v.model,
+                    gender: v.gender, genderType: v.genderType,
+                    color: v.color, width: v.width, category: v.category, variants: []
                 });
             }
-        }
-        
-        this.inventoryData = shopifyInventory;
-        return shopifyInventory;
-    },
-    
-    generateInventoryCSV() {
-        const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
-                       '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
-                       '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
-                       '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
-        
-        const csvRows = [inventoryHeaders.join(',')];
-        
-        this.inventoryData.forEach(row => {
-            const csvRow = [
-                row.Handle,
-                `"${row.Title}"`,
-                row['Option1 Name'],
-                row['Option1 Value'],
-                row['Option2 Name'] || '',
-                row['Option2 Value'] || '',
-                row['Option3 Name'] || '',
-                row['Option3 Value'] || '',
-                row.SKU,
-                row.Barcode,
-                '', '',
-                row.Location,
-                '', '', '', '', '', '',
-                row['On hand (new)']
-            ];
-            csvRows.push(csvRow.join(','));
+            productGroups.get(v.handle).variants.push({
+                size: v.size, sku: v.sku, barcode: v.barcode || '', quantity: v.quantity
+            });
         });
-        
-        return csvRows.join('\n');
+        if (productGroups.size === 0) return null;
+
+        var csvRows = [];
+        productGroups.forEach(function(product) {
+            var gGender = 'Unisex';
+            if (product.genderType === 'men') gGender = 'Male';
+            else if (product.genderType === 'women') gGender = 'Female';
+
+            var cleanedTitle = self.cleanTitle(product.title);
+            var cleanedHandle = self.cleanHandle(cleanedTitle);
+
+            var tags = ['Saucony', product.model];
+            if (product.genderType !== 'unisex') tags.push(product.gender.replace("'s", ''));
+            if (product.width) tags.push(product.width);
+            if (product.category) tags.push(product.category);
+
+            var productType = 'Unisex Shoes';
+            if (product.genderType === 'men') productType = "Men's Shoes";
+            else if (product.genderType === 'women') productType = "Women's Shoes";
+
+            product.variants.forEach(function(variant, idx) {
+                var row = {};
+                if (idx === 0) {
+                    row['Title'] = cleanedTitle;
+                    row['URL handle'] = cleanedHandle;
+                    row['Description'] = '';
+                    row['Vendor'] = 'Saucony';
+                    row['Product category'] = 'Apparel & Accessories > Shoes';
+                    row['Type'] = productType;
+                    row['Tags'] = tags.join(', ');
+                    row['Published on online store'] = 'FALSE';
+                    row['Status'] = 'Draft';
+                    row['Option1 name'] = 'Size';
+                    row['SEO title'] = cleanedTitle;
+                    row['SEO description'] = cleanedTitle;
+                    row['Google Shopping / Google product category'] = 'Apparel & Accessories > Shoes';
+                    row['Google Shopping / Gender'] = gGender;
+                    row['Google Shopping / Age group'] = 'Adult (13+ years old)';
+                    row['Google Shopping / Condition'] = 'New';
+                    row['Google Shopping / Custom product'] = 'FALSE';
+                    row['Google Shopping / Custom label 0'] = product.model;
+                } else {
+                    row['URL handle'] = cleanedHandle;
+                }
+                row['Option1 value'] = variant.size;
+                row['SKU'] = variant.sku;
+                row['Barcode'] = variant.barcode;
+                row['Price'] = '';
+                row['Charge tax'] = 'TRUE';
+                row['Inventory tracker'] = 'shopify';
+                row['Inventory quantity'] = variant.quantity;
+                row['Continue selling when out of stock'] = 'DENY';
+                row['Requires shipping'] = 'TRUE';
+                row['Fulfillment service'] = 'manual';
+                row['Gift card'] = 'FALSE';
+                csvRows.push(row);
+            });
+        });
+
+        var headerLine = headers.map(function(h) { return '"' + h.replace(/"/g, '""') + '"'; }).join(',');
+        var lines = [headerLine];
+        csvRows.forEach(function(row) {
+            var values = headers.map(function(h) {
+                var val = row[h] !== undefined ? String(row[h]) : '';
+                return '"' + val.replace(/"/g, '""') + '"';
+            });
+            lines.push(values.join(','));
+        });
+        return lines.join('\n');
     }
 };
-
