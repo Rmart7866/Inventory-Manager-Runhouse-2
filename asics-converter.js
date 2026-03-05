@@ -70,20 +70,22 @@ var AsicsConverter = {
 
                 self._rawRows = allRows;
 
-                // Group by model
+                // Group by gender + model (so Men's and Women's show separately)
                 var productsByModel = new Map();
 
                 allRows.forEach(function(row) {
                     var titleInfo = self.parseTitle(row.Title || '');
-                    var modelKey = titleInfo.model || 'Unknown';
+                    var genderPrefix = titleInfo.gender ? (titleInfo.gender + ' ') : '';
+                    var modelKey = genderPrefix + (titleInfo.model || 'Unknown');
                     var handle = row.Handle.trim();
                     var qty = parseInt(row['On hand (new)'] || '0') || 0;
 
                     if (!productsByModel.has(modelKey)) {
                         productsByModel.set(modelKey, {
-                            model: modelKey,
+                            model: titleInfo.model || 'Unknown',
+                            modelKey: modelKey,
                             gender: titleInfo.gender,
-                            category: self.getCategory(modelKey),
+                            category: self.getCategory(titleInfo.model || ''),
                             colorways: new Map(),
                             totalRows: 0,
                             totalInventory: 0
@@ -113,7 +115,8 @@ var AsicsConverter = {
                 var products = [];
                 productsByModel.forEach(function(data) {
                     products.push({
-                        name: data.model,
+                        name: data.modelKey,
+                        model: data.model,
                         gender: data.gender,
                         category: data.category,
                         colorways: Array.from(data.colorways.values()),
@@ -150,9 +153,10 @@ var AsicsConverter = {
 
                 allRows.forEach(function(row) {
                     var titleInfo = self.parseTitle(row.Title || '');
-                    var modelKey = titleInfo.model || 'Unknown';
+                    var genderPrefix = titleInfo.gender ? (titleInfo.gender + ' ') : '';
+                    var modelKey = genderPrefix + (titleInfo.model || 'Unknown');
 
-                    // Filter by picker selection
+                    // Filter by picker selection (uses gender+model key)
                     if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) {
                         return;
                     }
