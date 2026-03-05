@@ -27,9 +27,12 @@ var AsicsConverter = {
     parseTitle: function(title) {
         if (!title) return { gender: '', model: '', color: '' };
 
+        // Strip quotes
+        title = title.replace(/^"|"$/g, '').trim();
+
         var gender = '';
-        if (title.indexOf("Women's") !== -1) gender = "Women's";
-        else if (title.indexOf("Men's") !== -1) gender = "Men's";
+        if (title.indexOf("Women's") !== -1 || title.indexOf("Womens") !== -1) gender = "Women's";
+        else if (title.indexOf("Men's") !== -1 || title.indexOf("Mens") !== -1) gender = "Men's";
         else if (title.indexOf("Unisex") !== -1) gender = 'Unisex';
 
         var model = '';
@@ -38,11 +41,14 @@ var AsicsConverter = {
         var dashIdx = title.lastIndexOf(' - ');
         if (dashIdx !== -1) {
             model = title.substring(0, dashIdx)
-                .replace(/^(Men's|Women's|Unisex's?)\s+/i, '').trim();
+                .replace(/^(Men's|Women's|Unisex's?|Mens|Womens)\s+/i, '').trim();
             color = title.substring(dashIdx + 3).trim();
         } else {
-            model = title.replace(/^(Men's|Women's|Unisex's?)\s+/i, '').trim();
+            model = title.replace(/^(Men's|Women's|Unisex's?|Mens|Womens)\s+/i, '').trim();
         }
+
+        // Normalize model to uppercase for consistent matching
+        model = model.toUpperCase();
 
         return { gender: gender, model: model, color: color };
     },
