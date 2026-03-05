@@ -77,7 +77,7 @@ const BrandConverter = {
     brands: {
         saucony: { file: null, inventory: [], csv: '' },
         hoka: { file: null, inventory: [], csv: '', scanned: false },
-        puma: { file: null, inventory: [], csv: '' },
+        puma: { file: null, inventory: [], csv: '', scanned: false },
         newbalance: { file: null, inventory: [], csv: '' },
         asics: { file: null, inventory: [], csv: '', scanned: false },
         brooks: { file: null, inventory: [], csv: '', scanned: false },
@@ -309,6 +309,35 @@ const BrandConverter = {
             }).catch(function(err) {
                 BrandConverter.showStatus('brooks', 'Error scanning file: ' + err.message, 'error');
                 console.error('Brooks scan error:', err);
+            });
+
+        // PUMA: scan file and show picker
+        } else if (brand === 'puma') {
+            this.brands.puma.scanned = false;
+            document.getElementById('puma-convert').style.display = 'none';
+            this.showStatus('puma', 'Scanning file for running products...', 'success');
+
+            var loadPumaModels = Promise.resolve();
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                loadPumaModels = InventoryTracker.load('puma').then(function(data) {
+                    PumaConverter._knownProducts = data.models;
+                    console.log('Loaded ' + data.models.size + ' known Puma models');
+                }).catch(function(err) {
+                    console.warn('Could not load Firestore Puma models:', err);
+                    PumaConverter._knownProducts = null;
+                });
+            }
+
+            loadPumaModels.then(function() {
+                return PumaConverter.scanFile(file);
+            }).then(function(products) {
+                if (typeof showPumaPicker === 'function') showPumaPicker(products);
+                BrandConverter.brands.puma.scanned = true;
+                document.getElementById('puma-convert').style.display = 'block';
+                BrandConverter.showStatus('puma', 'Found ' + products.length + ' running products. Select which to include, then click Generate.', 'success');
+            }).catch(function(err) {
+                BrandConverter.showStatus('puma', 'Error scanning file: ' + err.message, 'error');
+                console.error('Puma scan error:', err);
             });
 
         } else {
@@ -546,6 +575,18 @@ function clearFile(brand) {
             if (brooksProductBtn) brooksProductBtn.style.display = 'none';
             var brooksNewProductBtn = document.getElementById('brooks-new-product-csv-btn');
             if (brooksNewProductBtn) brooksNewProductBtn.style.display = 'none';
+        }
+
+        if (brand === 'puma') {
+            BrandConverter.brands.puma.scanned = false;
+            var pumaPickerContainer = document.getElementById('puma-picker-container');
+            if (pumaPickerContainer) pumaPickerContainer.style.display = 'none';
+            var pumaTrackerReport = document.getElementById('puma-tracker-report');
+            if (pumaTrackerReport) pumaTrackerReport.style.display = 'none';
+            var pumaProductBtn = document.getElementById('puma-product-csv-btn');
+            if (pumaProductBtn) pumaProductBtn.style.display = 'none';
+            var pumaNewProductBtn = document.getElementById('puma-new-product-csv-btn');
+            if (pumaNewProductBtn) pumaNewProductBtn.style.display = 'none';
         }
     }
     
@@ -804,6 +845,68 @@ async function convertBrand(brand) {
         }
         return;
     }
+
+    // PUMA: check scan + selection, then use PumaConverter with tracker
+    if (brand === 'puma') {
+        if (!BrandConverter.brands.puma.scanned) {
+            BrandConverter.showStatus('puma', 'File is still being scanned, please wait...', 'error');
+            return;
+        }
+        if (PumaConverter.selectedProducts.size === 0) {
+            BrandConverter.showStatus('puma', 'Please select at least one product!', 'error');
+            return;
+        }
+
+        BrandConverter.showStatus('puma', 'Processing with PumaConverter...', 'success');
+
+        try {
+            var pumaInventory = await PumaConverter.convert(file);
+            BrandConverter.brands.puma.inventory = pumaInventory;
+
+            var pumaProductBtn = document.getElementById('puma-product-csv-btn');
+            if (pumaProductBtn) pumaProductBtn.style.display = 'block';
+
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                try {
+                    BrandConverter.showStatus('puma', 'Loading Shopify database for Puma...', 'success');
+                    await InventoryTracker.load('puma');
+                    var pumaComparison = InventoryTracker.compare(pumaInventory);
+                    window._pumaTrackerComparison = pumaComparison;
+
+                    if (pumaComparison.removedColorways && pumaComparison.removedColorways.length > 0) {
+                        var removedRows = InventoryTracker.generateRemovedRows(pumaComparison.removedColorways);
+                        pumaInventory = pumaInventory.concat(removedRows);
+                        BrandConverter.brands.puma.inventory = pumaInventory;
+                        PumaConverter.inventoryData = pumaInventory;
+                    }
+
+                    await InventoryTracker.updateExistingColorways('puma', pumaInventory);
+
+                    if (typeof showPumaTrackerReport === 'function') showPumaTrackerReport(pumaComparison);
+
+                    var pMsg = 'Processed ' + pumaInventory.length + ' variants';
+                    if (pumaComparison.removedColorways && pumaComparison.removedColorways.length > 0) pMsg += ' (includes ' + pumaComparison.removedColorways.length + ' removed at 0)';
+                    if (pumaComparison.newProducts && pumaComparison.newProducts.length > 0) pMsg += ' | ' + pumaComparison.newProducts.length + ' new products';
+                    if (pumaComparison.newColorways && pumaComparison.newColorways.length > 0) pMsg += ' | ' + pumaComparison.newColorways.length + ' new colorways';
+                    BrandConverter.showStatus('puma', pMsg, 'success');
+                } catch (trackerError) {
+                    console.warn('Puma tracker error (continuing):', trackerError);
+                    BrandConverter.showStatus('puma', 'Processed ' + pumaInventory.length + ' variants (tracker unavailable)', 'success');
+                }
+            } else {
+                BrandConverter.showStatus('puma', 'Processed ' + pumaInventory.length + ' variants', 'success');
+            }
+
+            BrandConverter.brands.puma.csv = PumaConverter.generateInventoryCSV();
+            BrandConverter.updateDownloadSection();
+        } catch (pumaError) {
+            BrandConverter.showStatus('puma', 'Error: ' + pumaError.message, 'error');
+            console.error('Puma conversion error:', pumaError);
+        }
+        return;
+    }
+    
+    BrandConverter.showStatus(brand, 'Processing...', 'success');
     
     try {
         let inventory;
