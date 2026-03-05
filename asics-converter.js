@@ -247,13 +247,28 @@ var AsicsConverter = {
 
     // ========== CLEAN TITLE (for product CSV) ==========
     cleanTitle: function(title) {
-        // ASICS titles are already clean: "Men's NOVABLAST 5 - BLACK/WHITE"
-        // Just add ASICS prefix if missing
+        // ASICS titles from scraper: "Men's NOVABLAST 5 - BLACK/WHITE"
+        // Add ASICS prefix: "ASICS Men's NOVABLAST 5 - BLACK/WHITE"
         if (!title) return title;
+        // Strip quotes
+        title = title.replace(/^"|"$/g, '').trim();
         if (title.indexOf('ASICS') === -1) {
             return 'ASICS ' + title;
         }
         return title;
+    },
+
+    // ========== CLEAN HANDLE (for product CSV) ==========
+    // Generate unified Shopify handle from cleaned title
+    // "ASICS Men's NOVABLAST 5 - BLACK/WHITE" -> "asics-mens-novablast-5-black-white"
+    cleanHandle: function(cleanedTitle) {
+        if (!cleanedTitle) return '';
+        return cleanedTitle
+            .toLowerCase()
+            .replace(/unisex's/g, 'unisex')  // Unisex's -> unisex
+            .replace(/[']/g, '')              // Men's -> Mens
+            .replace(/[^a-z0-9]+/g, '-')      // non-alphanumeric -> dash
+            .replace(/^-|-$/g, '');            // trim leading/trailing dashes
     },
 
     // ========== GENERATE NEW PRODUCT CSV ==========
@@ -336,6 +351,7 @@ var AsicsConverter = {
             else if (product.gender === "Women's") gGender = 'Female';
 
             var cleanedTitle = self.cleanTitle(product.title);
+            var cleanedHandle = self.cleanHandle(cleanedTitle);
 
             var tags = ['ASICS', product.model];
             if (product.gender && product.gender !== 'Unisex') tags.push(product.gender.replace("'s", ''));
@@ -350,7 +366,7 @@ var AsicsConverter = {
 
                 if (idx === 0) {
                     row['Title'] = cleanedTitle;
-                    row['URL handle'] = product.handle;
+                    row['URL handle'] = cleanedHandle;
                     row['Description'] = '';
                     row['Vendor'] = 'ASICS';
                     row['Product category'] = 'Apparel & Accessories > Shoes';
@@ -368,7 +384,7 @@ var AsicsConverter = {
                     row['Google Shopping / Custom product'] = 'FALSE';
                     row['Google Shopping / Custom label 0'] = product.model;
                 } else {
-                    row['URL handle'] = product.handle;
+                    row['URL handle'] = cleanedHandle;
                 }
 
                 row['Option1 value'] = variant.size;
