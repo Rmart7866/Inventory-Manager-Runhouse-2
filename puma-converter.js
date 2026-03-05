@@ -1,399 +1,496 @@
-// Puma Converter Logic
-const PumaConverter = {
+// Puma Converter - Processes B2B Excel/CSV files
+// Includes all running shoe categories: Road, Trail, Racing, Track & Field
+
+var PumaConverter = {
     inventoryData: [],
-    
-    productInfo: {
-        'Velocity Nitro 4': {
-            description: 'Experience premium cushioning and propulsive energy return with the Velocity Nitro 4. Built for daily training and speed work, this versatile running shoe features NITRO foam technology that delivers superior responsiveness and comfort mile after mile. The engineered mesh upper provides breathability and support, while the PUMAGRIP rubber outsole ensures reliable traction on any surface. Perfect for runners seeking a lightweight, cushioned ride for everything from easy runs to tempo workouts.',
-            specs: { 
-                stack: '32/24mm', 
-                drop: '8mm', 
-                weight: '9.2 oz',
-                technology: 'NITRO foam, PUMAGRIP outsole, PROFOAMLITE',
-                bestFor: 'Daily training, tempo runs, long runs'
-            }
-        },
-        'Deviate Nitro 3': {
-            description: 'The Deviate Nitro 3 is engineered for runners who demand maximum energy return. Featuring a full-length carbon fiber PWRPLATE and dual-density NITRO Elite foam, this high-performance trainer delivers explosive propulsion with every stride. The innovative asymmetric heel counter provides enhanced stability, while the engineered mesh upper offers targeted support and breathability. Designed to help you push your limits in training and racing, the Deviate Nitro 3 combines speed-focused technology with all-day comfort.',
-            specs: { 
-                stack: '39/31mm', 
-                drop: '8mm', 
-                weight: '10.4 oz',
-                technology: 'Carbon fiber PWRPLATE, NITRO Elite foam, PUMAGRIP',
-                bestFor: 'Tempo runs, interval training, races from 5K to marathon'
-            }
-        },
-        'Deviate Nitro 4': {
-            description: 'Push your limits with the Deviate Nitro 4, PUMA\'s latest evolution in carbon-plated racing excellence. This premium performance trainer features an innovative full-length carbon fiber PWRPLATE combined with dual-density NITRO Elite foam for explosive energy return and unmatched propulsion. The updated engineered mesh upper delivers exceptional breathability and a secure, race-ready fit, while the enhanced rocker geometry promotes smooth, efficient transitions. Built for serious runners who demand elite-level performance in training and racing.',
-            specs: { 
-                stack: '39/31mm', 
-                drop: '8mm', 
-                weight: '10.2 oz',
-                technology: 'Carbon fiber PWRPLATE, NITRO Elite foam, PUMAGRIP outsole',
-                bestFor: 'Tempo runs, interval training, races from 5K to marathon'
-            }
-        },
-        'Magmax': {
-            description: 'Maximum cushioning meets innovative design in the all-new Magmax. Engineered with PUMA\'s thickest stack height to date, this ultra-cushioned trainer features NITROFOAM™ technology for exceptional shock absorption and energy return. The wide platform base provides inherent stability, while the engineered mesh upper delivers a secure, comfortable fit. Whether you\'re logging easy miles or need all-day comfort, the Magmax offers plush cushioning without sacrificing responsiveness. Perfect for runners seeking maximum protection and comfort on their daily runs.',
-            specs: { 
-                stack: '46/40mm', 
-                drop: '6mm', 
-                weight: '11.8 oz',
-                technology: 'NITROFOAM™ cushioning, Wide platform geometry, PUMAGRIP outsole',
-                bestFor: 'Easy runs, recovery runs, all-day comfort'
-            }
-        },
-        'MagMax Nitro 2': {
-            description: 'Dominate your runs with the PUMA MagMax Nitro 2, the ultimate max-cushioned training shoe engineered for runners who demand supreme comfort and explosive energy return. This innovative running shoe combines PUMA\'s most advanced cushioning technology with responsive propulsion to help you push harder and run longer. The MagMax Nitro 2 features NITRO Elite foam in the midsole, PUMA\'s most responsive cushioning compound. This nitrogen-infused foam delivers exceptional energy return with every stride while maintaining incredible lightweight comfort.',
-            specs: { 
-                stack: '40/32mm', 
-                drop: '8mm', 
-                weight: '10.6 oz (men) / 8.8 oz (women)',
-                technology: 'NITRO Elite foam, Rocker geometry, PUMAGRIP outsole',
-                bestFor: 'Daily training, long runs, tempo runs'
-            }
-        },
-        'Magnify Nitro 3': {
-            description: 'Elevate your training with the PUMA Magnify Nitro 3, a versatile performance running shoe that perfectly balances cushioning, responsiveness, and durability for runners at every level. This third generation trainer builds on PUMA\'s proven Magnify platform with enhanced comfort features and updated styling that performs as good as it looks. At the heart of the Magnify Nitro 3 is PUMA\'s innovative NITRO foam technology in the midsole, delivering exceptional energy return and plush comfort without adding unnecessary weight.',
-            specs: { 
-                stack: '34/26mm', 
-                drop: '8mm', 
-                weight: '9.5 oz (men) / 7.8 oz (women)',
-                technology: 'NITRO foam, PUMAGRIP outsole, Engineered mesh upper',
-                bestFor: 'Daily training, easy runs, recovery runs, all-around versatility'
-            }
+    productVariantData: [],
+    selectedProducts: new Set(),
+    scannedProducts: [],
+    _knownProducts: null,
+    _rawData: null,
+
+    // ========== CATEGORY KEYWORDS ==========
+    // Order matters: more specific first
+    _racingKeywords: [
+        'DEVIATE NITRO ELITE', 'FAST-R NITRO ELITE', 'FAST-FWD NITRO ELITE'
+    ],
+    _trailKeywords: [
+        'VOYAGE NITRO', 'FAST-TRAC NITRO'
+    ],
+    _trackKeywords: [
+        'EVOSPEED', 'LONG DISTANCE NITRO', 'MID DISTANCE NITRO',
+        'CROSSFOX NITRO', 'HIGH JUMP NITRO', 'BERSERKER NITRO', 'PWR NITRO'
+    ],
+    _roadKeywords: [
+        'VELOCITY NITRO', 'DEVIATE NITRO', 'DEVIATE PURE NITRO',
+        'FOREVERRUN NITRO', 'ELECTRIFY NITRO',
+        'MAGMAX NITRO', 'MAGNIFY NITRO', 'PROPIO NITRO'
+    ],
+
+    // ========== EXCLUDED KEYWORDS ==========
+    _excludeKeywords: [
+        'TEE', 'SHORT', 'TANK', 'JACKET', 'ZIP', 'HEADBAND', 'PANT', 'HOODIE',
+        'ULTRA NITRO 7', 'ALL-PRO NITRO', 'FADE NITRO', 'BMW ', 'MCLAREN',
+        'UMBREON', 'PIKACHU', 'UNWIND', 'STELLAR', 'NITROCAT'
+    ],
+
+    // ========== CATEGORIZE PRODUCT ==========
+    getCategory: function(styleName) {
+        if (!styleName) return null;
+        var n = styleName.toUpperCase();
+
+        // Exclude non-running
+        for (var i = 0; i < this._excludeKeywords.length; i++) {
+            if (n.indexOf(this._excludeKeywords[i]) !== -1) return null;
         }
-    },
-    
-    allowedProducts: ['Velocity Nitro 4', 'Deviate Nitro 3', 'Deviate Nitro 4', 'MagMax Nitro 2', 'Magmax', 'Magnify Nitro 3'],
-    
-    isAllowedProduct(productName) {
-        if (!productName) return false;
-        
-        const nameLower = productName.toLowerCase();
-        
-        // Check for MagMax Nitro 2 first
-        if (nameLower.includes('magmax') && nameLower.includes('nitro') && nameLower.includes('2')) {
-            return true;
+
+        // Racing (check before road since "DEVIATE NITRO ELITE" contains "DEVIATE NITRO")
+        for (var i = 0; i < this._racingKeywords.length; i++) {
+            if (n.indexOf(this._racingKeywords[i]) !== -1) return 'Racing';
         }
-        
-        // Check for plain Magmax (without Nitro 2)
-        if (nameLower.includes('magmax') && !nameLower.includes('nitro 2')) {
-            return true;
+        // Track & Field
+        for (var i = 0; i < this._trackKeywords.length; i++) {
+            if (n.indexOf(this._trackKeywords[i]) !== -1) return 'Track & Field';
         }
-        
-        // Check for Magnify Nitro 3
-        if (nameLower.includes('magnify') && nameLower.includes('nitro') && nameLower.includes('3')) {
-            return true;
+        // Trail
+        for (var i = 0; i < this._trailKeywords.length; i++) {
+            if (n.indexOf(this._trailKeywords[i]) !== -1) return 'Trail Running';
         }
-        
-        // Check for Deviate Nitro 4 BEFORE Deviate Nitro 3
-        if (nameLower.includes('deviate') && nameLower.includes('nitro') && nameLower.includes('4')) {
-            return true;
+        // Road
+        for (var i = 0; i < this._roadKeywords.length; i++) {
+            if (n.indexOf(this._roadKeywords[i]) !== -1) return 'Road Running';
         }
-        
-        // Check for Deviate Nitro 3
-        if (nameLower.includes('deviate') && nameLower.includes('nitro') && nameLower.includes('3')) {
-            return true;
-        }
-        
-        // Check Velocity Nitro 4
-        if (nameLower.includes('velocity') && nameLower.includes('nitro') && nameLower.includes('4')) {
-            return true;
-        }
-        
-        return false;
-    },
-    
-    getMatchingProduct(productName) {
-        if (!productName) return null;
-        
-        const nameLower = productName.toLowerCase();
-        
-        // Check for MagMax Nitro 2 FIRST (before plain Magmax)
-        if (nameLower.includes('magmax') && nameLower.includes('nitro') && nameLower.includes('2')) {
-            return 'MagMax Nitro 2';
-        }
-        
-        // Then check for plain Magmax (without Nitro 2)
-        if (nameLower.includes('magmax') && !nameLower.includes('nitro 2')) {
-            return 'Magmax';
-        }
-        
-        // Check for Magnify Nitro 3
-        if (nameLower.includes('magnify') && nameLower.includes('nitro') && nameLower.includes('3')) {
-            return 'Magnify Nitro 3';
-        }
-        
-        // Check for Deviate Nitro 4 BEFORE Deviate Nitro 3
-        if (nameLower.includes('deviate') && nameLower.includes('nitro') && nameLower.includes('4')) {
-            return 'Deviate Nitro 4';
-        }
-        
-        // Check for Deviate Nitro 3
-        if (nameLower.includes('deviate') && nameLower.includes('nitro') && nameLower.includes('3')) {
-            return 'Deviate Nitro 3';
-        }
-        
-        // Check Velocity Nitro 4
-        if (nameLower.includes('velocity') && nameLower.includes('nitro') && nameLower.includes('4')) {
-            return 'Velocity Nitro 4';
-        }
-        
         return null;
     },
-    
-    formatGender(gender) {
+
+    // ========== FORMAT GENDER ==========
+    formatGender: function(gender) {
         if (!gender) return '';
-        const genderStr = gender.toString().trim().toUpperCase();
-        if (genderStr === 'MENS' || genderStr === 'MEN' || genderStr === 'M') return 'Mens';
-        if (genderStr === 'WOMENS' || genderStr === 'WOMEN' || genderStr === 'W') return 'Womens';
-        if (genderStr === 'YOUTH' || genderStr === 'KIDS' || genderStr === 'Y' || genderStr === 'K') return 'Youth';
-        if (genderStr === 'UNISEX' || genderStr === 'U') return 'Unisex';
-        return genderStr;
+        var g = gender.toString().trim().toUpperCase();
+        if (g === 'MENS' || g === 'MEN' || g === 'M') return "Men's";
+        if (g === 'WOMENS' || g === 'WOMEN' || g === 'W') return "Women's";
+        if (g === 'UNISEX' || g === 'U') return 'Unisex';
+        if (g === 'YOUTH' || g === 'KIDS' || g === 'JUNIORS') return 'Youth';
+        return '';
     },
-    
-    async convert(file) {
-        try {
-            let data = [];
-            let headers = [];
-            
-            if (file.name.toLowerCase().endsWith('.xlsx') || 
-                file.name.toLowerCase().endsWith('.xls')) {
-                const arrayBuffer = await file.arrayBuffer();
-                const workbook = XLSX.read(arrayBuffer);
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                headers = data[0];
-                data = data.slice(1);
+
+    // ========== CLEAN MODEL NAME ==========
+    // Strip gender prefix, WNS suffix, normalize
+    cleanModelName: function(styleName) {
+        if (!styleName) return '';
+        var clean = styleName.trim()
+            .replace(/^(MENS|WOMENS|UNISEX|JUNIORS)\s+/i, '')
+            .replace(/\s+WN[S]?\s*$/i, '')
+            .replace(/\s+WN\s+S\s*$/i, '')
+            .trim();
+        return clean.toUpperCase();
+    },
+
+    // ========== PARSE EXCEL/CSV ==========
+    parseFile: function(file) {
+        var self = this;
+
+        return new Promise(function(resolve, reject) {
+            if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+                file.arrayBuffer().then(function(arrayBuffer) {
+                    var workbook = XLSX.read(arrayBuffer);
+                    var worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    var rawData = XLSX.utils.sheet_to_json(worksheet);
+                    resolve(rawData);
+                }).catch(reject);
             } else {
-                const text = await file.text();
-                const parseResult = Papa.parse(text, {
-                    delimiter: ',',
-                    header: true,
-                    skipEmptyLines: true,
-                    dynamicTyping: true
-                });
-                
-                // Check if it's tab-delimited
-                if (parseResult.data.length === 0 || Object.keys(parseResult.data[0]).length === 1) {
-                    const tabParseResult = Papa.parse(text, {
-                        delimiter: '\t',
-                        header: true,
-                        skipEmptyLines: true,
-                        dynamicTyping: true
-                    });
-                    if (tabParseResult.data.length > 0) {
-                        headers = tabParseResult.meta.fields;
-                        data = tabParseResult.data;
+                file.text().then(function(text) {
+                    var parsed = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: true });
+                    if (parsed.data.length === 0 || Object.keys(parsed.data[0]).length <= 1) {
+                        parsed = Papa.parse(text, { delimiter: '\t', header: true, skipEmptyLines: true, dynamicTyping: true });
                     }
-                } else {
-                    headers = parseResult.meta.fields;
-                    data = parseResult.data;
-                }
+                    resolve(parsed.data);
+                }).catch(reject);
             }
-            
-            // Determine column indices
-            let styleNameIdx = headers.findIndex(h => h && h.toLowerCase().includes('style name'));
-            let styleNumberIdx = headers.findIndex(h => h && h.toLowerCase().includes('style number'));
-            let colorNameIdx = headers.findIndex(h => h && h.toLowerCase().includes('color name'));
-            let colorCodeIdx = headers.findIndex(h => h && h.toLowerCase().includes('color code'));
-            let sizeIdx = headers.findIndex(h => h && h.toLowerCase() === 'size');
-            let skuIdx = headers.findIndex(h => h && h.toLowerCase().includes('sku'));
-            let upcIdx = headers.findIndex(h => h && h.toLowerCase().includes('upc'));
-            let quantityIdx = headers.findIndex(h => h && h.toLowerCase().includes('quantity available'));
-            let wholesaleIdx = headers.findIndex(h => h && h.toLowerCase().includes('wholesale'));
-            let retailIdx = headers.findIndex(h => h && h.toLowerCase().includes('retail price'));
-            let genderIdx = headers.findIndex(h => h && h.toLowerCase().includes('gender'));
-            let labelIdx = headers.findIndex(h => h && h.toLowerCase().includes('label'));
-            
-            // If headers not found, assume standard positions
-            if (styleNameIdx === -1) styleNameIdx = 0;
-            if (colorNameIdx === -1) colorNameIdx = 2;
-            if (sizeIdx === -1) sizeIdx = 5;
-            
-            // Filter for allowed products
-            const filteredProducts = data.filter(row => {
-                if (!row) return false;
-                
-                let styleName;
-                if (Array.isArray(row)) {
-                    styleName = row[styleNameIdx];
-                } else {
-                    styleName = row['Style Name'] || row['style_name'] || Object.values(row)[0];
+        });
+    },
+
+    // ========== EXTRACT ROW FIELDS ==========
+    getField: function(row, names) {
+        for (var i = 0; i < names.length; i++) {
+            if (row[names[i]] !== undefined && row[names[i]] !== null) return row[names[i]];
+        }
+        return '';
+    },
+
+    extractRow: function(row) {
+        return {
+            styleName: this.getField(row, ['Style Name', 'style_name', 'style name']),
+            styleNumber: this.getField(row, ['Style Number', 'style_number', 'style number']),
+            colorName: this.getField(row, ['Color Name', 'color_name', 'color name']),
+            colorCode: this.getField(row, ['Color Code', 'color_code', 'color code']),
+            size: this.getField(row, ['Size', 'size']),
+            sku: this.getField(row, ['SKU', 'sku']),
+            upc: this.getField(row, ['UPC/EAN', 'upc', 'UPC']),
+            quantity: this.getField(row, ['Quantity Available', 'quantity_available', 'quantity available']),
+            gender: this.getField(row, ['Gender', 'gender']),
+            retail: this.getField(row, ['Retail Price', 'retail_price', 'retail price'])
+        };
+    },
+
+    // ========== SCAN FILE ==========
+    scanFile: function(file) {
+        var self = this;
+
+        return this.parseFile(file).then(function(rawData) {
+            self._rawData = rawData;
+
+            var productsByModel = new Map();
+
+            rawData.forEach(function(row) {
+                var fields = self.extractRow(row);
+                var category = self.getCategory(fields.styleName);
+                if (category === null) return;
+
+                var gender = self.formatGender(fields.gender);
+                var modelName = self.cleanModelName(fields.styleName);
+                var genderPrefix = gender ? (gender + ' ') : '';
+                var modelKey = genderPrefix + modelName;
+
+                var qty = parseInt(fields.quantity) || 0;
+
+                var colorHandle = (modelKey + '-' + (fields.colorName || ''))
+                    .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+                if (!productsByModel.has(modelKey)) {
+                    productsByModel.set(modelKey, {
+                        model: modelName,
+                        modelKey: modelKey,
+                        gender: gender,
+                        category: category,
+                        colorways: new Map(),
+                        totalRows: 0,
+                        totalInventory: 0
+                    });
                 }
-                
-                return this.isAllowedProduct(styleName);
+
+                var modelData = productsByModel.get(modelKey);
+                modelData.totalRows++;
+                modelData.totalInventory += qty;
+
+                if (!modelData.colorways.has(colorHandle)) {
+                    modelData.colorways.set(colorHandle, {
+                        handle: colorHandle,
+                        title: (gender ? gender + ' ' : '') + 'Puma ' + modelName + ' - ' + (fields.colorName || ''),
+                        color: fields.colorName || '',
+                        rows: 0,
+                        inventory: 0
+                    });
+                }
+
+                var cw = modelData.colorways.get(colorHandle);
+                cw.rows++;
+                cw.inventory += qty;
             });
-            
-            const shopifyInventory = [];
-            const processedVariants = new Map();
-            
-            for (let i = 0; i < filteredProducts.length; i++) {
-                const row = filteredProducts[i];
-                let product;
-                
-                // Handle both array and object formats
-                if (Array.isArray(row)) {
-                    product = {
-                        styleName: row[styleNameIdx],
-                        styleNumber: row[styleNumberIdx],
-                        colorName: row[colorNameIdx],
-                        colorCode: row[colorCodeIdx],
-                        size: row[sizeIdx],
-                        sku: row[skuIdx],
-                        upc: row[upcIdx],
-                        quantity: row[quantityIdx],
-                        wholesale: row[wholesaleIdx],
-                        retail: row[retailIdx],
-                        gender: row[genderIdx],
-                        label: row[labelIdx]
-                    };
-                } else {
-                    product = {
-                        styleName: row['Style Name'] || row['style_name'],
-                        styleNumber: row['Style Number'] || row['style_number'],
-                        colorName: row['Color Name'] || row['color_name'],
-                        colorCode: row['Color Code'] || row['color_code'],
-                        size: row['Size'] || row['size'],
-                        sku: row['SKU'] || row['sku'],
-                        upc: row['UPC/EAN'] || row['upc'],
-                        quantity: row['Quantity Available'] || row['quantity_available'],
-                        wholesale: row['Wholesale Price'] || row['wholesale_price'],
-                        retail: row['Retail Price'] || row['retail_price'],
-                        gender: row['Gender'] || row['gender'],
-                        label: row['Label'] || row['label']
-                    };
-                }
-                
-                const matchingProduct = this.getMatchingProduct(product.styleName);
-                if (!matchingProduct) continue;
-                
-                const formattedGender = this.formatGender(product.gender);
-                
-                let size = product.size ? product.size.toString().trim() : '';
-                
-                const variantKey = `${formattedGender}-${matchingProduct}-${product.colorName}-${size}`;
-                
-                let actualQuantity = 0;
-                if (typeof product.quantity === 'string') {
-                    actualQuantity = parseInt(product.quantity.replace(/[^0-9]/g, '')) || 0;
-                } else if (typeof product.quantity === 'number') {
-                    actualQuantity = product.quantity;
-                }
-                
-                if (processedVariants.has(variantKey)) {
-                    const existing = processedVariants.get(variantKey);
-                    existing.quantity += actualQuantity;
-                    continue;
-                }
-                
-                processedVariants.set(variantKey, {
-                    ...product,
-                    formattedGender,
-                    matchingProduct,
-                    quantity: actualQuantity
+
+            var products = [];
+            productsByModel.forEach(function(data) {
+                products.push({
+                    name: data.modelKey,
+                    model: data.model,
+                    gender: data.gender,
+                    category: data.category,
+                    colorways: Array.from(data.colorways.values()),
+                    rowCount: data.totalRows,
+                    totalInventory: data.totalInventory
                 });
-            }
-            
-            const sortedVariants = Array.from(processedVariants.entries()).sort((a, b) => {
-                const [keyA, dataA] = a;
-                const [keyB, dataB] = b;
-                
-                if (dataA.matchingProduct !== dataB.matchingProduct) {
-                    return dataA.matchingProduct.localeCompare(dataB.matchingProduct);
-                }
-                
-                if (dataA.formattedGender !== dataB.formattedGender) {
-                    if (dataA.formattedGender === 'Mens') return -1;
-                    if (dataB.formattedGender === 'Mens') return 1;
-                    return dataA.formattedGender.localeCompare(dataB.formattedGender);
-                }
-                
-                if (dataA.colorName !== dataB.colorName) {
-                    return dataA.colorName.localeCompare(dataB.colorName);
-                }
-                
-                const sizeA = parseFloat(dataA.size) || 0;
-                const sizeB = parseFloat(dataB.size) || 0;
-                return sizeA - sizeB;
             });
-            
-            for (const [variantKey, variantData] of sortedVariants) {
-                const productTitle = `${variantData.formattedGender} Puma ${variantData.matchingProduct} - ${variantData.colorName}`;
-                
-                const baseHandle = `${variantData.formattedGender}-${variantData.matchingProduct}-${variantData.colorName}`
-                    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                
-                shopifyInventory.push({
-                    Handle: baseHandle,
-                    Title: productTitle,
+
+            products.sort(function(a, b) {
+                var catOrder = ['Road Running', 'Trail Running', 'Racing', 'Track & Field', 'Other'];
+                var catComp = catOrder.indexOf(a.category) - catOrder.indexOf(b.category);
+                if (catComp !== 0) return catComp;
+                return a.name.localeCompare(b.name);
+            });
+
+            self.scannedProducts = products;
+            return products;
+        });
+    },
+
+    // ========== CONVERT ==========
+    convert: function(file) {
+        var self = this;
+
+        return this.parseFile(file).then(function(rawData) {
+            var inventory = [];
+            var productVariantData = [];
+            var processedVariants = new Map();
+
+            rawData.forEach(function(row) {
+                var fields = self.extractRow(row);
+                var category = self.getCategory(fields.styleName);
+                if (category === null) return;
+
+                var gender = self.formatGender(fields.gender);
+                var modelName = self.cleanModelName(fields.styleName);
+                var genderPrefix = gender ? (gender + ' ') : '';
+                var modelKey = genderPrefix + modelName;
+
+                // Filter by picker selection
+                if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) return;
+
+                var qty = parseInt(fields.quantity) || 0;
+                var size = fields.size ? fields.size.toString().trim() : '';
+                var color = (fields.colorName || '').trim();
+
+                // Deduplicate by model+color+size
+                var variantKey = modelKey + '|' + color + '|' + size;
+                if (processedVariants.has(variantKey)) {
+                    processedVariants.get(variantKey).quantity += qty;
+                    return;
+                }
+
+                var handle = (genderPrefix + modelName + '-' + color)
+                    .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+                var title = (gender ? gender + ' ' : '') + 'Puma ' + modelName + ' - ' + color;
+                var sku = fields.sku || (fields.styleNumber + '-' + fields.colorCode + '-' + size);
+
+                var variant = {
+                    handle: handle,
+                    title: title,
+                    gender: gender,
+                    model: modelName,
+                    color: color,
+                    category: category,
+                    size: size,
+                    sku: sku,
+                    barcode: (fields.upc || '').toString(),
+                    quantity: qty
+                };
+
+                processedVariants.set(variantKey, variant);
+            });
+
+            // Sort and build inventory
+            var sorted = Array.from(processedVariants.values()).sort(function(a, b) {
+                if (a.model !== b.model) return a.model.localeCompare(b.model);
+                if (a.gender !== b.gender) return a.gender.localeCompare(b.gender);
+                if (a.color !== b.color) return a.color.localeCompare(b.color);
+                return (parseFloat(a.size) || 0) - (parseFloat(b.size) || 0);
+            });
+
+            sorted.forEach(function(v) {
+                var inventoryRow = {
+                    'Handle': v.handle,
+                    'Title': v.title,
                     'Option1 Name': 'Size',
-                    'Option1 Value': variantData.size,
+                    'Option1 Value': v.size,
                     'Option2 Name': '',
                     'Option2 Value': '',
                     'Option3 Name': '',
                     'Option3 Value': '',
-                    SKU: variantData.sku || `${variantData.styleNumber}-${variantData.colorCode}-${variantData.size}`,
-                    Barcode: variantData.upc || '',
+                    'SKU': v.sku,
+                    'Barcode': v.barcode,
                     'HS Code': '',
-                    COO: '',
-                    Location: 'Needham',
+                    'COO': '',
+                    'Location': 'Needham',
                     'Bin name': '',
-                    'Incoming (not editable)': '',
-                    'Unavailable (not editable)': '',
-                    'Committed (not editable)': '',
-                    'Available (not editable)': '',
-                    'On hand (current)': '',
-                    'On hand (new)': variantData.quantity,
-                    // Additional columns for product creation compatibility
-                    'Variant Inventory Tracker': 'shopify',
-                    'Variant Inventory Policy': 'deny',
-                    'Variant Inventory Qty': variantData.quantity
-                });
-            }
-            
-            this.inventoryData = shopifyInventory;
-            return shopifyInventory;
-            
-        } catch (error) {
-            console.error('Puma conversion error:', error);
-            throw error;
-        }
+                    'On hand (new)': v.quantity
+                };
+
+                inventory.push(inventoryRow);
+                productVariantData.push([inventoryRow, v]);
+            });
+
+            self.inventoryData = inventory;
+            self.productVariantData = productVariantData;
+            return inventory;
+        });
     },
-    
-    generateInventoryCSV() {
-        const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
-                       '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
-                       '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
-                       '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"',
-                       '"Variant Inventory Tracker"', '"Variant Inventory Policy"', '"Variant Inventory Qty"'];
-        
-        const csvRows = [inventoryHeaders.join(',')];
-        
-        this.inventoryData.forEach(row => {
-            const csvRow = [
+
+    // ========== GENERATE INVENTORY CSV ==========
+    generateInventoryCSV: function() {
+        var headers = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"',
+            '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"',
+            '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"',
+            '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
+
+        var csvRows = [headers.join(',')];
+
+        this.inventoryData.forEach(function(row) {
+            var csvRow = [
                 row.Handle,
-                `"${row.Title}"`,
-                row['Option1 Name'],
-                row['Option1 Value'],
+                '"' + (row.Title || '').replace(/"/g, '""') + '"',
+                row['Option1 Name'] || 'Size',
+                row['Option1 Value'] || '',
                 row['Option2 Name'] || '',
                 row['Option2 Value'] || '',
                 row['Option3 Name'] || '',
                 row['Option3 Value'] || '',
-                row.SKU,
+                row.SKU || '',
                 row.Barcode || '',
                 '', '',
-                row.Location,
+                row.Location || 'Needham',
                 '', '', '', '', '', '',
-                row['On hand (new)'],
-                row['Variant Inventory Tracker'] || 'shopify',
-                row['Variant Inventory Policy'] || 'deny',
-                row['Variant Inventory Qty'] || row['On hand (new)']
+                row['On hand (new)'] || '0'
             ];
             csvRows.push(csvRow.join(','));
         });
-        
+
         return csvRows.join('\n');
+    },
+
+    // ========== CLEAN TITLE / HANDLE (for product CSV) ==========
+    cleanTitle: function(title) {
+        if (!title) return title;
+        if (title.indexOf('Puma') === -1 && title.indexOf('PUMA') === -1) {
+            return 'Puma ' + title;
+        }
+        return title;
+    },
+
+    cleanHandle: function(cleanedTitle) {
+        if (!cleanedTitle) return '';
+        return cleanedTitle
+            .toLowerCase()
+            .replace(/['']/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+    },
+
+    // ========== GENERATE NEW PRODUCT CSV ==========
+    generateNewProductCSV: function(comparison) {
+        if (!comparison) return null;
+
+        var self = this;
+        var newHandles = new Set();
+        if (comparison.newProducts) {
+            comparison.newProducts.forEach(function(p) { newHandles.add(p.handle); });
+        }
+        if (comparison.newColorways) {
+            comparison.newColorways.forEach(function(c) { newHandles.add(c.handle); });
+        }
+
+        if (newHandles.size === 0) return null;
+        if (!this.productVariantData || this.productVariantData.length === 0) return null;
+
+        var headers = [
+            'Title', 'URL handle', 'Description', 'Vendor', 'Product category', 'Type', 'Tags',
+            'Published on online store', 'Status',
+            'SKU', 'Barcode',
+            'Option1 name', 'Option1 value', 'Option1 Linked To',
+            'Option2 name', 'Option2 value', 'Option2 Linked To',
+            'Option3 name', 'Option3 value', 'Option3 Linked To',
+            'Price', 'Compare-at price', 'Cost per item',
+            'Charge tax', 'Tax code',
+            'Unit price total measure', 'Unit price total measure unit',
+            'Unit price base measure', 'Unit price base measure unit',
+            'Inventory tracker', 'Inventory quantity', 'Continue selling when out of stock',
+            'Weight value (grams)', 'Weight unit for display',
+            'Requires shipping', 'Fulfillment service',
+            'Product image URL', 'Image position', 'Image alt text', 'Variant image URL',
+            'Gift card',
+            'SEO title', 'SEO description',
+            'Color (product.metafields.shopify.color-pattern)',
+            'Google Shopping / Google product category',
+            'Google Shopping / Gender', 'Google Shopping / Age group',
+            'Google Shopping / Manufacturer part number (MPN)',
+            'Google Shopping / Ad group name', 'Google Shopping / Ads labels',
+            'Google Shopping / Condition', 'Google Shopping / Custom product',
+            'Google Shopping / Custom label 0', 'Google Shopping / Custom label 1',
+            'Google Shopping / Custom label 2', 'Google Shopping / Custom label 3',
+            'Google Shopping / Custom label 4'
+        ];
+
+        var productGroups = new Map();
+
+        this.productVariantData.forEach(function(entry) {
+            var v = entry[1];
+            if (!newHandles.has(v.handle)) return;
+
+            if (!productGroups.has(v.handle)) {
+                productGroups.set(v.handle, {
+                    handle: v.handle,
+                    title: v.title,
+                    model: v.model,
+                    gender: v.gender,
+                    color: v.color,
+                    category: v.category,
+                    variants: []
+                });
+            }
+
+            productGroups.get(v.handle).variants.push({
+                size: v.size, sku: v.sku, barcode: v.barcode || '', quantity: v.quantity
+            });
+        });
+
+        if (productGroups.size === 0) return null;
+
+        var csvRows = [];
+
+        productGroups.forEach(function(product) {
+            var gGender = 'Unisex';
+            if (product.gender === "Men's") gGender = 'Male';
+            else if (product.gender === "Women's") gGender = 'Female';
+
+            var cleanedTitle = self.cleanTitle(product.title);
+            var cleanedHandle = self.cleanHandle(cleanedTitle);
+
+            var tags = ['Puma', product.model];
+            if (product.gender) tags.push(product.gender.replace("'s", ''));
+            if (product.category) tags.push(product.category);
+
+            var productType = "Unisex Shoes";
+            if (product.gender === "Men's") productType = "Men's Shoes";
+            else if (product.gender === "Women's") productType = "Women's Shoes";
+
+            product.variants.forEach(function(variant, idx) {
+                var row = {};
+                if (idx === 0) {
+                    row['Title'] = cleanedTitle;
+                    row['URL handle'] = cleanedHandle;
+                    row['Description'] = '';
+                    row['Vendor'] = 'Puma';
+                    row['Product category'] = 'Apparel & Accessories > Shoes';
+                    row['Type'] = productType;
+                    row['Tags'] = tags.join(', ');
+                    row['Published on online store'] = 'FALSE';
+                    row['Status'] = 'Draft';
+                    row['Option1 name'] = 'Size';
+                    row['SEO title'] = cleanedTitle;
+                    row['SEO description'] = cleanedTitle;
+                    row['Google Shopping / Google product category'] = 'Apparel & Accessories > Shoes';
+                    row['Google Shopping / Gender'] = gGender;
+                    row['Google Shopping / Age group'] = 'Adult (13+ years old)';
+                    row['Google Shopping / Condition'] = 'New';
+                    row['Google Shopping / Custom product'] = 'FALSE';
+                    row['Google Shopping / Custom label 0'] = product.model;
+                } else {
+                    row['URL handle'] = cleanedHandle;
+                }
+                row['Option1 value'] = variant.size;
+                row['SKU'] = variant.sku;
+                row['Barcode'] = variant.barcode;
+                row['Price'] = '';
+                row['Charge tax'] = 'TRUE';
+                row['Inventory tracker'] = 'shopify';
+                row['Inventory quantity'] = variant.quantity;
+                row['Continue selling when out of stock'] = 'DENY';
+                row['Requires shipping'] = 'TRUE';
+                row['Fulfillment service'] = 'manual';
+                row['Gift card'] = 'FALSE';
+                csvRows.push(row);
+            });
+        });
+
+        var headerLine = headers.map(function(h) { return '"' + h.replace(/"/g, '""') + '"'; }).join(',');
+        var lines = [headerLine];
+        csvRows.forEach(function(row) {
+            var values = headers.map(function(h) {
+                var val = row[h] !== undefined ? String(row[h]) : '';
+                return '"' + val.replace(/"/g, '""') + '"';
+            });
+            lines.push(values.join(','));
+        });
+
+        return lines.join('\n');
     }
 };
