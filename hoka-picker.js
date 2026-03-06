@@ -157,7 +157,7 @@ function hokaPickerSelectNone() {
 }
 
 function hokaPickerSelectDefaults() {
-    var knownModels = (typeof InventoryTracker !== 'undefined') ? InventoryTracker.getKnownModels() : new Set();
+    var knownModels = (typeof InventoryTracker !== 'undefined') ? InventoryTracker.getKnownModels('hoka') : new Set();
     var checkboxes = document.querySelectorAll('#hoka-picker-body input[type="checkbox"]');
     checkboxes.forEach(function(cb) {
         var productName = cb.getAttribute('data-product');
@@ -217,7 +217,7 @@ function saveHokaDefaults() {
         return Promise.all(activatePromises);
     }).then(function() {
         // Update local cache
-        InventoryTracker.invalidateCache();
+        InventoryTracker.invalidateCache('hoka');
 
         if (btn) {
             btn.textContent = '✓ Saved ' + selectedModels.length + ' defaults';
@@ -327,7 +327,7 @@ function showHokaNewProductButton(comparison) {
     if (comparison.newColorways) totalNew += comparison.newColorways.length;
 
     if (totalNew > 0) {
-        btn.textContent = '\u2B07 Download NEW Products CSV (' + totalNew + ' new)';
+        btn.textContent = 'Download NEW Products CSV (' + totalNew + ' new)';
         btn.style.display = 'block';
     } else {
         btn.style.display = 'none';
@@ -383,9 +383,8 @@ function showTrackerReport(comparison) {
     }
     html += '</div>';
 
-    // ========== NEW PRODUCTS section (entirely new models) ==========
+    // ========== NEW PRODUCTS section ==========
     if (comparison.newProducts.length > 0) {
-        // Group new products by model name for cleaner display
         var byModel = {};
         for (var p = 0; p < comparison.newProducts.length; p++) {
             var prod = comparison.newProducts[p];
@@ -396,8 +395,8 @@ function showTrackerReport(comparison) {
 
         html += '<div class="tracker-section tracker-new-products">';
         html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'newproducts\')">';
-        html += '<span>\uD83C\uDD95 New Products Not On Shopify (' + comparison.newProducts.length + ' colorways)</span>';
-        html += '<span class="tracker-toggle" id="tracker-toggle-newproducts">\u25BC</span>';
+        html += '<span>New Products Not On Shopify (' + comparison.newProducts.length + ' colorways)</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-newproducts">&#9660;</span>';
         html += '</div>';
         html += '<div class="tracker-section-body" id="tracker-body-newproducts">';
 
@@ -426,9 +425,8 @@ function showTrackerReport(comparison) {
         html += '</div></div>';
     }
 
-    // ========== NEW COLORWAYS section (new colors of known products) ==========
+    // ========== NEW COLORWAYS section ==========
     if (comparison.newColorways.length > 0) {
-        // Group by model
         var cwByModel = {};
         for (var c = 0; c < comparison.newColorways.length; c++) {
             var cw = comparison.newColorways[c];
@@ -439,8 +437,8 @@ function showTrackerReport(comparison) {
 
         html += '<div class="tracker-section tracker-added">';
         html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'newcolors\')">';
-        html += '<span>\uD83C\uDFA8 New Colorways of Existing Products (' + comparison.newColorways.length + ')</span>';
-        html += '<span class="tracker-toggle" id="tracker-toggle-newcolors">\u25BC</span>';
+        html += '<span>New Colorways of Existing Products (' + comparison.newColorways.length + ')</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-newcolors">&#9660;</span>';
         html += '</div>';
         html += '<div class="tracker-section-body" id="tracker-body-newcolors">';
 
@@ -473,8 +471,8 @@ function showTrackerReport(comparison) {
     if (comparison.removedColorways.length > 0) {
         html += '<div class="tracker-section tracker-removed">';
         html += '<div class="tracker-section-header" onclick="toggleTrackerSection(\'removed\')">';
-        html += '<span>\u274C Removed From ATS (' + comparison.removedColorways.length + ') \u2014 zeroed out in CSV</span>';
-        html += '<span class="tracker-toggle" id="tracker-toggle-removed">\u25BC</span>';
+        html += '<span>Removed From ATS (' + comparison.removedColorways.length + ') — zeroed out in CSV</span>';
+        html += '<span class="tracker-toggle" id="tracker-toggle-removed">&#9660;</span>';
         html += '</div>';
         html += '<div class="tracker-section-body" id="tracker-body-removed">';
         for (var j = 0; j < comparison.removedColorways.length; j++) {
@@ -483,7 +481,7 @@ function showTrackerReport(comparison) {
             html += '<div class="tracker-item tracker-item-removed">';
             html += '<span class="tracker-item-badge tracker-badge-removed">GONE</span>';
             html += '<span class="tracker-item-name">' + (rItem.title || rItem.handle) + '</span>';
-            html += '<span class="tracker-item-detail">' + varCount + ' sizes \u2192 0</span>';
+            html += '<span class="tracker-item-detail">' + varCount + ' sizes → 0</span>';
             html += '</div>';
         }
         html += '</div></div>';
@@ -544,7 +542,7 @@ function confirmNewItems(sectionId) {
     // Figure out which models are actually new
     var newModels = [];
     modelNames.forEach(function(name) {
-        if (!InventoryTracker.isKnownModel(name)) {
+        if (!InventoryTracker.isKnownModel(name, 'hoka')) {
             newModels.push(name);
         }
     });
@@ -556,7 +554,7 @@ function confirmNewItems(sectionId) {
 
     Promise.all(promises).then(function() {
         if (btn) {
-            btn.textContent = '\u2713 Saved ' + colorwayData.length + ' colorways';
+            btn.textContent = '✓ Saved ' + colorwayData.length + ' colorways';
             btn.className = 'tracker-confirm-btn tracker-confirmed';
         }
 
@@ -591,10 +589,10 @@ function toggleTrackerSection(sectionId) {
 
     if (body.style.display === 'none') {
         body.style.display = 'block';
-        toggle.textContent = '\u25BC';
+        toggle.textContent = '▼';
     } else {
         body.style.display = 'none';
-        toggle.textContent = '\u25B6';
+        toggle.textContent = '▶';
     }
 }
 
@@ -615,13 +613,13 @@ function initTrackerStatus() {
         if (!badge) return;
 
         if (status.connected && status.hasData) {
-            badge.innerHTML = '\uD83D\uDFE2 Tracking active \u2014 ' + status.modelCount + ' models, ' + status.productCount + ' colorways in database';
+            badge.innerHTML = '🟢 Tracking active — ' + status.modelCount + ' models, ' + status.productCount + ' colorways in database';
             badge.className = 'tracker-badge tracker-badge-active';
         } else if (status.connected && !status.hasData) {
-            badge.innerHTML = '\uD83D\uDFE1 Tracker connected \u2014 no data yet (run seed script)';
+            badge.innerHTML = '🟡 Tracker connected — no data yet (run seed script)';
             badge.className = 'tracker-badge tracker-badge-empty';
         } else {
-            badge.innerHTML = '\uD83D\uDD34 Tracker offline \u2014 ' + (status.error || 'check Firebase config');
+            badge.innerHTML = '🔴 Tracker offline — ' + (status.error || 'check Firebase config');
             badge.className = 'tracker-badge tracker-badge-error';
         }
         badge.style.display = 'block';
