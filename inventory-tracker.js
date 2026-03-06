@@ -1,20 +1,28 @@
 // ========== INVENTORY TRACKER (FIRESTORE) ==========
 // Source of truth for what's currently on Shopify
-// Tracks both product models and individual colorways
-// Nothing gets saved until user confirms it's on Shopify
+// Tracks both product models and individual colorways per brand
+// FIXED: Per-brand caching (was global, causing cross-brand data leaks)
 
 var InventoryTracker = {
 
-    _knownModels: null,
-    _knownColorways: null,
-    _loaded: false,
+    // Per-brand cache: { brandName: { models: Set, colorways: Map, loaded: true } }
+    _cache: {},
+    _lastLoadedBrand: null,
+
+    _getCache: function(brand) {
+        if (!this._cache[brand]) {
+            this._cache[brand] = { models: null, colorways: null, loaded: false };
+        }
+        return this._cache[brand];
+    },
 
     // ========== LOAD FROM FIRESTORE ==========
-
     load: function(brand) {
         var self = this;
-        if (self._loaded) {
-            return Promise.resolve({ models: self._knownModels, colorways: self._knownColorways });
+        var cache = this._getCache(brand);
+
+        if (cache.loaded) {
+            return Promise.resolve({ models: cache.models, colorways: cache.colorways });
         }
 
         var modelsPromise = db.collection('inventory-tracker').doc(brand).collection('models')
@@ -34,37 +42,50 @@ var InventoryTracker = {
             }).catch(function() { return new Map(); });
 
         return Promise.all([modelsPromise, colorwaysPromise]).then(function(results) {
-            self._knownModels = results[0];
-            self._knownColorways = results[1];
-            self._loaded = true;
-            console.log('Firestore: ' + self._knownModels.size + ' models, ' + self._knownColorways.size + ' colorways');
-            return { models: self._knownModels, colorways: self._knownColorways };
+            cache.models = results[0];
+            cache.colorways = results[1];
+            cache.loaded = true;
+            self._lastLoadedBrand = brand;
+            console.log('[' + brand + '] Firestore: ' + cache.models.size + ' models, ' + cache.colorways.size + ' colorways');
+            return { models: cache.models, colorways: cache.colorways };
         });
     },
 
-    invalidateCache: function() {
-        this._knownModels = null;
-        this._knownColorways = null;
-        this._loaded = false;
+    invalidateCache: function(brand) {
+        if (brand) {
+            this._cache[brand] = { models: null, colorways: null, loaded: false };
+        } else {
+            this._cache = {};
+        }
     },
 
-    // ========== CHECKS ==========
-
-    isKnownModel: function(modelName) {
-        return this._knownModels ? this._knownModels.has(modelName) : false;
+    // ========== CHECKS (per-brand, defaults to last loaded) ==========
+    isKnownModel: function(modelName, brand) {
+        var cache = this._getCache(brand || this._lastLoadedBrand || '_default');
+        return cache.models ? cache.models.has(modelName) : false;
     },
 
-    isKnownColorway: function(handle) {
-        return this._knownColorways ? this._knownColorways.has(handle) : false;
+    isKnownColorway: function(handle, brand) {
+        var cache = this._getCache(brand || this._lastLoadedBrand || '_default');
+        return cache.colorways ? cache.colorways.has(handle) : false;
     },
 
-    getKnownModels: function() { return this._knownModels || new Set(); },
-    getKnownColorways: function() { return this._knownColorways || new Map(); },
+    getKnownModels: function(brand) {
+        var cache = this._getCache(brand || this._lastLoadedBrand || '_default');
+        return cache.models || new Set();
+    },
+
+    getKnownColorways: function(brand) {
+        var cache = this._getCache(brand || this._lastLoadedBrand || '_default');
+        return cache.colorways || new Map();
+    },
 
     // ========== COMPARE ATS VS FIRESTORE ==========
-
-    compare: function(inventoryData) {
+    compare: function(inventoryData, brand) {
         var self = this;
+        // If no brand specified, use the last brand that was loaded
+        if (!brand) brand = this._lastLoadedBrand || '_default';
+        var cache = this._getCache(brand);
         var currentHandles = new Map();
 
         for (var i = 0; i < inventoryData.length; i++) {
@@ -81,11 +102,14 @@ var InventoryTracker = {
             };
         }
 
+        var knownColorways = cache.colorways || new Map();
+        var knownModels = cache.models || new Set();
+
         // Separate new handles into new PRODUCTS vs new COLORWAYS
-        var newProducts = [];   // Model not in DB at all
-        var newColorways = [];  // Model known, but this color isn't
+        var newProducts = [];
+        var newColorways = [];
         currentHandles.forEach(function(product, handle) {
-            if (!self.isKnownColorway(handle)) {
+            if (!knownColorways.has(handle)) {
                 // Try to identify the model name from the title
                 var modelName = null;
                 if (product.title && typeof HokaConverter !== 'undefined' && HokaConverter.identifyProduct) {
@@ -100,24 +124,20 @@ var InventoryTracker = {
                     modelName: modelName
                 };
 
-                if (modelName && self.isKnownModel(modelName)) {
-                    // Model exists on Shopify — this is just a new color
+                if (modelName && knownModels.has(modelName)) {
                     newColorways.push(entry);
                 } else {
-                    // Model NOT in DB — this is a new product entirely
                     newProducts.push(entry);
                 }
             }
         });
 
         var removedColorways = [];
-        if (self._knownColorways) {
-            self._knownColorways.forEach(function(data, handle) {
-                if (!currentHandles.has(handle)) {
-                    removedColorways.push({ handle: handle, title: data.title || handle, variants: data.variants || {} });
-                }
-            });
-        }
+        knownColorways.forEach(function(data, handle) {
+            if (!currentHandles.has(handle)) {
+                removedColorways.push({ handle: handle, title: data.title || handle, variants: data.variants || {} });
+            }
+        });
 
         return {
             newProducts: newProducts,
@@ -126,7 +146,7 @@ var InventoryTracker = {
             currentHandles: currentHandles,
             summary: {
                 totalInATS: currentHandles.size,
-                totalInDB: self._knownColorways ? self._knownColorways.size : 0,
+                totalInDB: knownColorways.size,
                 newProducts: newProducts.length,
                 newColorways: newColorways.length,
                 removedColorways: removedColorways.length,
@@ -136,9 +156,9 @@ var InventoryTracker = {
     },
 
     // ========== CONFIRM ON SHOPIFY ==========
-
     confirmModels: function(brand, modelNames) {
         var self = this;
+        var cache = this._getCache(brand);
         var now = new Date().toISOString();
         var promises = [];
         for (var i = 0; i < modelNames.length; i++) {
@@ -148,15 +168,16 @@ var InventoryTracker = {
                         name: name, active: true, firstSeen: now, lastSeen: now
                     }, { merge: true })
                 );
-                if (self._knownModels) self._knownModels.add(name);
+                if (cache.models) cache.models.add(name);
             })(modelNames[i]);
         }
-        console.log('Confirming ' + modelNames.length + ' models on Shopify');
+        console.log('[' + brand + '] Confirming ' + modelNames.length + ' models');
         return Promise.all(promises);
     },
 
     confirmColorways: function(brand, colorwayData) {
         var self = this;
+        var cache = this._getCache(brand);
         var now = new Date().toISOString();
         var promises = [];
         for (var i = 0; i < colorwayData.length; i++) {
@@ -166,18 +187,19 @@ var InventoryTracker = {
                         title: cw.title, variants: cw.variants || {}, active: true, firstSeen: now, lastSeen: now
                     }, { merge: true })
                 );
-                if (self._knownColorways) {
-                    self._knownColorways.set(cw.handle, { title: cw.title, variants: cw.variants || {}, active: true });
+                if (cache.colorways) {
+                    cache.colorways.set(cw.handle, { title: cw.title, variants: cw.variants || {}, active: true });
                 }
             })(colorwayData[i]);
         }
-        console.log('Confirming ' + colorwayData.length + ' colorways on Shopify');
+        console.log('[' + brand + '] Confirming ' + colorwayData.length + ' colorways');
         return Promise.all(promises);
     },
 
     // Update quantities for existing colorways (runs each generate)
     updateExistingColorways: function(brand, inventoryData) {
         var self = this;
+        var cache = this._getCache(brand);
         var now = new Date().toISOString();
         var byHandle = new Map();
 
@@ -192,9 +214,10 @@ var InventoryTracker = {
             };
         }
 
+        var knownColorways = cache.colorways || new Map();
         var promises = [];
         byHandle.forEach(function(data, handle) {
-            if (self.isKnownColorway(handle)) {
+            if (knownColorways.has(handle)) {
                 promises.push(
                     db.collection('inventory-tracker').doc(brand).collection('products').doc(handle).update({
                         variants: data.variants, lastSeen: now
@@ -203,12 +226,11 @@ var InventoryTracker = {
             }
         });
 
-        if (promises.length > 0) console.log('Updating ' + promises.length + ' existing colorways');
+        if (promises.length > 0) console.log('[' + brand + '] Updating ' + promises.length + ' existing colorways');
         return Promise.all(promises);
     },
 
     // ========== ZEROED ROWS FOR REMOVED COLORWAYS ==========
-
     generateRemovedRows: function(removedColorways) {
         var rows = [];
         for (var i = 0; i < removedColorways.length; i++) {
@@ -219,7 +241,7 @@ var InventoryTracker = {
                 return (parseFloat(a) || 0) - (parseFloat(b) || 0);
             });
 
-            if (sizes.length === 0) continue; // Skip seeded entries with no variant data
+            if (sizes.length === 0) continue;
 
             for (var j = 0; j < sizes.length; j++) {
                 var variant = variants[sizes[j]];
@@ -244,7 +266,6 @@ var InventoryTracker = {
     },
 
     // ========== STATUS ==========
-
     checkStatus: function(brand) {
         return db.collection('inventory-tracker').doc(brand).collection('products')
             .where('active', '==', true).get()
