@@ -433,6 +433,8 @@ const BrandConverter = {
         if (hasAnyInventory) {
             downloadSection.style.display = 'block';
             this.updateUnifiedInfo();
+            // Show/hide combined NEW products button
+            updateCombinedNewProductsButton();
         } else {
             downloadSection.style.display = 'none';
         }
@@ -1282,6 +1284,97 @@ function downloadUnifiedReset() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// ========== COMBINED NEW PRODUCTS CSV ==========
+function updateCombinedNewProductsButton() {
+    var btn = document.getElementById('combined-new-products-btn');
+    if (!btn) return;
+
+    var totalNew = 0;
+    var brandComparisons = {
+        hoka: window._hokaTrackerComparison || window._hokaComparison,
+        on: window._onTrackerComparison,
+        asics: window._asicsTrackerComparison,
+        brooks: window._brooksTrackerComparison,
+        puma: window._pumaTrackerComparison,
+        saucony: window._sauconyTrackerComparison
+    };
+
+    for (var brand in brandComparisons) {
+        var comp = brandComparisons[brand];
+        if (!comp) continue;
+        if (comp.newProducts) totalNew += comp.newProducts.length;
+        if (comp.newColorways) totalNew += comp.newColorways.length;
+    }
+
+    if (totalNew > 0) {
+        btn.textContent = 'Download ALL New Products CSV (' + totalNew + ' new across all brands)';
+        btn.style.display = 'block';
+    } else {
+        btn.style.display = 'none';
+    }
+}
+
+function downloadCombinedNewProducts() {
+    var brandConfigs = [
+        { name: 'hoka', comparison: window._hokaTrackerComparison || window._hokaComparison, converter: typeof HokaConverter !== 'undefined' ? HokaConverter : null, method: 'generateNewProductCSV' },
+        { name: 'on', comparison: window._onTrackerComparison, converter: typeof OnConverter !== 'undefined' ? OnConverter : null, method: 'generateNewProductCSV' },
+        { name: 'asics', comparison: window._asicsTrackerComparison, converter: typeof AsicsConverter !== 'undefined' ? AsicsConverter : null, method: 'generateNewProductCSV' },
+        { name: 'brooks', comparison: window._brooksTrackerComparison, converter: typeof BrooksConverter !== 'undefined' ? BrooksConverter : null, method: 'generateNewProductCSV' },
+        { name: 'puma', comparison: window._pumaTrackerComparison, converter: typeof PumaConverter !== 'undefined' ? PumaConverter : null, method: 'generateNewProductCSV' },
+        { name: 'saucony', comparison: window._sauconyTrackerComparison, converter: typeof SauconyConverter !== 'undefined' ? SauconyConverter : null, method: 'generateNewProductCSV' }
+    ];
+
+    var allCsvLines = [];
+    var headerLine = null;
+    var totalProducts = 0;
+    var brandsIncluded = [];
+
+    brandConfigs.forEach(function(config) {
+        if (!config.comparison || !config.converter || !config.converter[config.method]) return;
+        var csv = config.converter[config.method](config.comparison);
+        if (!csv) return;
+
+        var lines = csv.split('\n');
+        if (lines.length < 2) return;
+
+        // First brand sets the header
+        if (!headerLine) {
+            headerLine = lines[0];
+        }
+
+        // Add data rows (skip header)
+        for (var i = 1; i < lines.length; i++) {
+            if (lines[i].trim()) {
+                allCsvLines.push(lines[i]);
+                totalProducts++;
+            }
+        }
+
+        brandsIncluded.push(config.name.toUpperCase());
+    });
+
+    if (!headerLine || allCsvLines.length === 0) {
+        alert('No new products detected across any brand.');
+        return;
+    }
+
+    var combinedCsv = headerLine + '\n' + allCsvLines.join('\n');
+
+    var date = getFormattedDate();
+    var filename = 'ALL-new-products-' + date + '.csv';
+
+    var blob = new Blob([combinedCsv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    console.log('Downloaded combined NEW products: ' + totalProducts + ' rows from ' + brandsIncluded.join(', '));
 }
 
 // Initialize on page load
