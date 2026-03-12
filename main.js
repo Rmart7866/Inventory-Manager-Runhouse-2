@@ -1,79 +1,51 @@
-// Main Unified Converter Controller - COMPLETE WITH TRACKING & DATES & ASICS HANDLE REPLACEMENT
-// Helper function to get formatted date
+// ========== RUN HOUSE INVENTORY MANAGER - MAIN CONTROLLER ==========
+// Unified controller for all brands. Config-driven scan/convert/download.
+
 function getFormattedDate() {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-// ========== ASICS HANDLE MAPPING CONFIGURATION ==========
-// Add handle replacements here - format: 'old-handle': 'new-handle'
-const ASICS_HANDLE_MAPPING = {
-    '1013a213-800': 'unisex-asics-novablast-5-la-marathon',
-    // Add more handle mappings here as needed
+// ========== ASICS HANDLE/SIZE POST-PROCESSING ==========
+var ASICS_HANDLE_MAPPING = {
+    '1013a213-800': 'unisex-asics-novablast-5-la-marathon'
 };
-
-// ========== ASICS SIZE CONVERSION MAPPING ==========
-const ASICS_SIZE_MAPPING = {
-    '3.5': 'M3.5/W5',
-    '4': 'M4/W5.5',
-    '4.5': 'M4.5/W6',
-    '5': 'M5/W6.5',
-    '5.5': 'M5.5/W7',
-    '6': 'M6/W7.5',
-    '6.5': 'M6.5/W8',
-    '7': 'M7/W8.5',
-    '7.5': 'M7.5/W9',
-    '8': 'M8/W9.5',
-    '8.5': 'M8.5/W10',
-    '9': 'M9/W10.5',
-    '9.5': 'M9.5/W11',
-    '10': 'M10/W11.5',
-    '10.5': 'M10.5/W12',
-    '11': 'M11/W12.5',
-    '11.5': 'M11.5/W13',
-    '12': 'M12/W13.5',
-    '12.5': 'M12.5/W14',
-    '13': 'M13',
-    '14': 'M14',
-    '15': 'M15'
+var ASICS_SIZE_MAPPING = {
+    '3.5': 'M3.5/W5', '4': 'M4/W5.5', '4.5': 'M4.5/W6', '5': 'M5/W6.5',
+    '5.5': 'M5.5/W7', '6': 'M6/W7.5', '6.5': 'M6.5/W8', '7': 'M7/W8.5',
+    '7.5': 'M7.5/W9', '8': 'M8/W9.5', '8.5': 'M8.5/W10', '9': 'M9/W10.5',
+    '9.5': 'M9.5/W11', '10': 'M10/W11.5', '10.5': 'M10.5/W12', '11': 'M11/W12.5',
+    '11.5': 'M11.5/W13', '12': 'M12/W13.5', '12.5': 'M12.5/W14', '13': 'M13', '14': 'M14', '15': 'M15'
 };
+var ASICS_HANDLES_NEEDING_SIZE_CONVERSION = ['unisex-asics-novablast-5-la-marathon'];
 
-// Handles that need size conversion (only specific products)
-const ASICS_HANDLES_NEEDING_SIZE_CONVERSION = [
-    'unisex-asics-novablast-5-la-marathon',
-];
-
-// Function to replace handles in ASICS data
-function replaceAsicsHandles(inventory) {
-    return inventory.map(row => {
-        const originalHandle = row.Handle;
-        if (ASICS_HANDLE_MAPPING[originalHandle]) {
-            const newHandle = ASICS_HANDLE_MAPPING[originalHandle];
-            console.log(`Replacing ASICS handle: "${originalHandle}" → "${newHandle}"`);
-            return { ...row, Handle: newHandle };
+function applyAsicsPostProcessing(inventory) {
+    return inventory.map(function(row) {
+        var r = Object.assign({}, row);
+        if (ASICS_HANDLE_MAPPING[r.Handle]) r.Handle = ASICS_HANDLE_MAPPING[r.Handle];
+        if (ASICS_HANDLES_NEEDING_SIZE_CONVERSION.indexOf(r.Handle) !== -1 && ASICS_SIZE_MAPPING[r['Option1 Value']]) {
+            r['Option1 Value'] = ASICS_SIZE_MAPPING[r['Option1 Value']];
         }
-        return row;
+        return r;
     });
 }
 
-// Function to convert ASICS sizes to Shopify unisex format (only for specific handles)
-function convertAsicsSizes(inventory) {
-    return inventory.map(row => {
-        const originalSize = row['Option1 Value'];
-        if (ASICS_HANDLES_NEEDING_SIZE_CONVERSION.includes(row.Handle) && ASICS_SIZE_MAPPING[originalSize]) {
-            const newSize = ASICS_SIZE_MAPPING[originalSize];
-            console.log(`Converting ASICS size for ${row.Handle}: "${originalSize}" → "${newSize}"`);
-            return { ...row, 'Option1 Value': newSize };
-        }
-        return row;
-    });
-}
-// ========== END ASICS HANDLE MAPPING ==========
+// ========== BRAND CONFIGURATION ==========
+var BRAND_CONFIG = {
+    hoka:     { displayName: 'HOKA',       converter: function() { return typeof HokaConverter !== 'undefined' ? HokaConverter : null; },     comparisonKey: '_hokaTrackerComparison',     hasPicker: true },
+    on:       { displayName: 'ON Running', converter: function() { return typeof OnConverter !== 'undefined' ? OnConverter : null; },         comparisonKey: '_onTrackerComparison',       hasPicker: true, twoFile: true },
+    asics:    { displayName: 'ASICS',      converter: function() { return typeof AsicsConverter !== 'undefined' ? AsicsConverter : null; },   comparisonKey: '_asicsTrackerComparison',    hasPicker: true, postProcess: applyAsicsPostProcessing },
+    brooks:   { displayName: 'Brooks',     converter: function() { return typeof BrooksConverter !== 'undefined' ? BrooksConverter : null; }, comparisonKey: '_brooksTrackerComparison',   hasPicker: true },
+    puma:     { displayName: 'Puma',       converter: function() { return typeof PumaConverter !== 'undefined' ? PumaConverter : null; },     comparisonKey: '_pumaTrackerComparison',     hasPicker: true },
+    saucony:  { displayName: 'Saucony',    converter: function() { return typeof SauconyConverter !== 'undefined' ? SauconyConverter : null; },comparisonKey: '_sauconyTrackerComparison', hasPicker: true },
+    newbalance:{ displayName: 'New Balance', converter: function() { return typeof NewBalanceConverter !== 'undefined' ? NewBalanceConverter : null; }, comparisonKey: null, hasPicker: false }
+};
 
-const BrandConverter = {
+// Brand display order
+var BRAND_ORDER = ['hoka', 'on', 'asics', 'brooks', 'puma', 'saucony', 'newbalance'];
+
+// ========== MAIN CONTROLLER ==========
+var BrandConverter = {
     brands: {
         saucony: { file: null, inventory: [], csv: '', scanned: false },
         hoka: { file: null, inventory: [], csv: '', scanned: false },
@@ -83,79 +55,57 @@ const BrandConverter = {
         brooks: { file: null, inventory: [], csv: '', scanned: false },
         on: { menFile: null, womenFile: null, inventory: [], csv: '', scanned: false }
     },
-    
-    init() {
-        ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks'].forEach(brand => {
-            this.setupBrandDropzone(brand);
+
+    init: function() {
+        var self = this;
+        // Setup dropzones for single-file brands
+        ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks'].forEach(function(brand) {
+            self._setupDropzone(brand);
         });
-        this.setupOnDropzones();
+        // ON has two dropzones
+        this._setupOnDropzones();
     },
-    
-    setupBrandDropzone(brand) {
-        const dropZone = document.getElementById(`${brand}-dropzone`);
-        const fileInput = document.getElementById(`${brand}-file`);
-        
-        dropZone.addEventListener('click', () => fileInput.click());
-        
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
+
+    _setupDropzone: function(brand) {
+        var self = this;
+        var dropZone = document.getElementById(brand + '-dropzone');
+        var fileInput = document.getElementById(brand + '-file');
+        if (!dropZone || !fileInput) return;
+
+        dropZone.addEventListener('click', function() { fileInput.click(); });
+        dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault(); dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) self.handleFile(brand, e.dataTransfer.files[0]);
         });
-        
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-        
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) {
-                this.handleFile(brand, e.dataTransfer.files[0]);
-            }
-        });
-        
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.handleFile(brand, e.target.files[0]);
-            }
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) self.handleFile(brand, e.target.files[0]);
         });
     },
-    
-    setupOnDropzones() {
-        // Setup Men's dropzone
-        const menDropZone = document.getElementById('on-men-dropzone');
-        const menFileInput = document.getElementById('on-men-file');
-        
-        menDropZone.addEventListener('click', () => menFileInput.click());
-        menDropZone.addEventListener('dragover', (e) => { e.preventDefault(); menDropZone.classList.add('dragover'); });
-        menDropZone.addEventListener('dragleave', () => { menDropZone.classList.remove('dragover'); });
-        menDropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            menDropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) this.handleOnFile('men', e.dataTransfer.files[0]);
-        });
-        menFileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) this.handleOnFile('men', e.target.files[0]);
-        });
-        
-        // Setup Women's dropzone
-        const womenDropZone = document.getElementById('on-women-dropzone');
-        const womenFileInput = document.getElementById('on-women-file');
-        
-        womenDropZone.addEventListener('click', () => womenFileInput.click());
-        womenDropZone.addEventListener('dragover', (e) => { e.preventDefault(); womenDropZone.classList.add('dragover'); });
-        womenDropZone.addEventListener('dragleave', () => { womenDropZone.classList.remove('dragover'); });
-        womenDropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            womenDropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length > 0) this.handleOnFile('women', e.dataTransfer.files[0]);
-        });
-        womenFileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) this.handleOnFile('women', e.target.files[0]);
+
+    _setupOnDropzones: function() {
+        var self = this;
+        ['men', 'women'].forEach(function(gender) {
+            var dropZone = document.getElementById('on-' + gender + '-dropzone');
+            var fileInput = document.getElementById('on-' + gender + '-file');
+            if (!dropZone || !fileInput) return;
+
+            dropZone.addEventListener('click', function() { fileInput.click(); });
+            dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault(); dropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) self.handleOnFile(gender, e.dataTransfer.files[0]);
+            });
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) self.handleOnFile(gender, e.target.files[0]);
+            });
         });
     },
-    
-    handleOnFile(gender, file) {
+
+    // ========== ON FILE HANDLING ==========
+    handleOnFile: function(gender, file) {
         if (gender === 'men') {
             this.brands.on.menFile = file;
             document.getElementById('on-men-filename').textContent = file.name;
@@ -167,381 +117,236 @@ const BrandConverter = {
             document.getElementById('on-women-uploaded').style.display = 'flex';
             document.getElementById('on-women-dropzone').style.display = 'none';
         }
-        
         this.hideStatus('on');
 
-        // ========== ON: SCAN + PICKER (like HOKA flow) ==========
-        // Scan as soon as at least ONE file is uploaded; re-scan if second file added
         if (this.brands.on.menFile || this.brands.on.womenFile) {
-            this.brands.on.scanned = false;
-            document.getElementById('on-convert').style.display = 'none';
-            this.showStatus('on', 'Scanning files for products...', 'success');
-
-            var self = this;
-            var menFile = this.brands.on.menFile;
-            var womenFile = this.brands.on.womenFile;
-
-            // Load Firestore known products for ON (if available), then scan
-            var loadModels = Promise.resolve();
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                loadModels = InventoryTracker.load('on').then(function(data) {
-                    OnConverter._knownProducts = data.models;
-                    console.log('Loaded ' + data.models.size + ' known ON models for picker defaults');
-                }).catch(function(err) {
-                    console.warn('Could not load Firestore ON models, all will be checked by default:', err);
-                    OnConverter._knownProducts = null;
-                });
-            }
-
-            loadModels.then(function() {
-                return OnConverter.scanFiles(menFile, womenFile);
-            }).then(function(products) {
-                // Show the product picker UI
-                if (typeof showOnPicker === 'function') {
-                    showOnPicker(products);
-                }
-
-                self.brands.on.scanned = true;
-                document.getElementById('on-convert').style.display = 'block';
-                var fileCount = (menFile ? 1 : 0) + (womenFile ? 1 : 0);
-                self.showStatus('on', 'Found ' + products.length + ' product models in ' + fileCount + ' file(s). Select which to include, then click Generate.', 'success');
-            }).catch(function(err) {
-                self.showStatus('on', 'Error scanning files: ' + err.message, 'error');
-                console.error('ON scan error:', err);
-            });
+            this._scanBrand('on');
         }
     },
-    
-    handleFile(brand, file) {
+
+    // ========== GENERIC FILE HANDLING ==========
+    handleFile: function(brand, file) {
         this.brands[brand].file = file;
-        document.getElementById(`${brand}-filename`).textContent = file.name;
-        document.getElementById(`${brand}-uploaded`).style.display = 'flex';
-        document.getElementById(`${brand}-dropzone`).style.display = 'none';
+        document.getElementById(brand + '-filename').textContent = file.name;
+        document.getElementById(brand + '-uploaded').style.display = 'flex';
+        document.getElementById(brand + '-dropzone').style.display = 'none';
         this.hideStatus(brand);
 
-        // HOKA: load Firestore data, then scan the file and show the product picker
-        if (brand === 'hoka') {
-            this.brands.hoka.scanned = false;
-            document.getElementById('hoka-convert').style.display = 'none';
-            this.showStatus('hoka', 'Loading database...', 'success');
-
-            var loadModels = Promise.resolve();
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                loadModels = InventoryTracker.load('hoka').then(function(data) {
-                    HokaConverter._knownProducts = data.models;
-                    console.log('Loaded ' + data.models.size + ' known models for picker defaults');
-                }).catch(function(err) {
-                    console.warn('Could not load Firestore models, using hardcoded defaults:', err);
-                    HokaConverter._knownProducts = null;
-                });
-            }
-
-            loadModels.then(function() {
-                BrandConverter.showStatus('hoka', 'Scanning file for products...', 'success');
-                return HokaConverter.scanFile(file);
-            }).then(function(products) {
-                buildHokaProductPicker(products);
-                BrandConverter.brands.hoka.scanned = true;
-                document.getElementById('hoka-convert').style.display = 'block';
-                BrandConverter.showStatus('hoka', 'Found ' + products.length + ' products in file. Select which to include, then click Generate.', 'success');
-            }).catch(function(err) {
-                BrandConverter.showStatus('hoka', 'Error scanning file: ' + err.message, 'error');
-                console.error('HOKA scan error:', err);
-            });
-
-        // ASICS: scan file and show picker (same pattern as HOKA)
-        } else if (brand === 'asics') {
-            this.brands.asics.scanned = false;
-            document.getElementById('asics-convert').style.display = 'none';
-            this.showStatus('asics', 'Scanning file for products...', 'success');
-
-            var loadAsicsModels = Promise.resolve();
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                loadAsicsModels = InventoryTracker.load('asics').then(function(data) {
-                    AsicsConverter._knownProducts = data.models;
-                    console.log('Loaded ' + data.models.size + ' known ASICS models for picker defaults');
-                }).catch(function(err) {
-                    console.warn('Could not load Firestore ASICS models, all checked by default:', err);
-                    AsicsConverter._knownProducts = null;
-                });
-            }
-
-            loadAsicsModels.then(function() {
-                return AsicsConverter.scanFile(file);
-            }).then(function(products) {
-                if (typeof showAsicsPicker === 'function') {
-                    showAsicsPicker(products);
-                }
-                BrandConverter.brands.asics.scanned = true;
-                document.getElementById('asics-convert').style.display = 'block';
-                BrandConverter.showStatus('asics', 'Found ' + products.length + ' product models. Select which to include, then click Generate.', 'success');
-            }).catch(function(err) {
-                BrandConverter.showStatus('asics', 'Error scanning file: ' + err.message, 'error');
-                console.error('ASICS scan error:', err);
-            });
-
-        // BROOKS: scan file and show picker
-        } else if (brand === 'brooks') {
-            this.brands.brooks.scanned = false;
-            document.getElementById('brooks-convert').style.display = 'none';
-            this.showStatus('brooks', 'Scanning file for products...', 'success');
-
-            var loadBrooksModels = Promise.resolve();
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                loadBrooksModels = InventoryTracker.load('brooks').then(function(data) {
-                    BrooksConverter._knownProducts = data.models;
-                    console.log('Loaded ' + data.models.size + ' known Brooks models for picker defaults');
-                }).catch(function(err) {
-                    console.warn('Could not load Firestore Brooks models:', err);
-                    BrooksConverter._knownProducts = null;
-                });
-            }
-
-            loadBrooksModels.then(function() {
-                return BrooksConverter.scanFile(file);
-            }).then(function(products) {
-                if (typeof showBrooksPicker === 'function') {
-                    showBrooksPicker(products);
-                }
-                BrandConverter.brands.brooks.scanned = true;
-                document.getElementById('brooks-convert').style.display = 'block';
-                BrandConverter.showStatus('brooks', 'Found ' + products.length + ' product models. Select which to include, then click Generate.', 'success');
-            }).catch(function(err) {
-                BrandConverter.showStatus('brooks', 'Error scanning file: ' + err.message, 'error');
-                console.error('Brooks scan error:', err);
-            });
-
-        // SAUCONY: scan file and show picker
-        } else if (brand === 'saucony') {
-            this.brands.saucony.scanned = false;
-            document.getElementById('saucony-convert').style.display = 'none';
-            this.showStatus('saucony', 'Scanning file for products...', 'success');
-
-            var loadSauconyModels = Promise.resolve();
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                loadSauconyModels = InventoryTracker.load('saucony').then(function(data) {
-                    SauconyConverter._knownProducts = data.models;
-                    console.log('Loaded ' + data.models.size + ' known Saucony models');
-                }).catch(function(err) {
-                    console.warn('Could not load Firestore Saucony models:', err);
-                    SauconyConverter._knownProducts = null;
-                });
-            }
-
-            loadSauconyModels.then(function() {
-                return SauconyConverter.scanFile(file);
-            }).then(function(products) {
-                if (typeof showSauconyPicker === 'function') showSauconyPicker(products);
-                BrandConverter.brands.saucony.scanned = true;
-                document.getElementById('saucony-convert').style.display = 'block';
-                BrandConverter.showStatus('saucony', 'Found ' + products.length + ' products. Select which to include, then click Generate.', 'success');
-            }).catch(function(err) {
-                BrandConverter.showStatus('saucony', 'Error scanning file: ' + err.message, 'error');
-                console.error('Saucony scan error:', err);
-            });
-
-        // PUMA: scan file and show picker
-        } else if (brand === 'puma') {
-            this.brands.puma.scanned = false;
-            document.getElementById('puma-convert').style.display = 'none';
-            this.showStatus('puma', 'Scanning file for running products...', 'success');
-
-            var loadPumaModels = Promise.resolve();
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                loadPumaModels = InventoryTracker.load('puma').then(function(data) {
-                    PumaConverter._knownProducts = data.models;
-                    console.log('Loaded ' + data.models.size + ' known Puma models');
-                }).catch(function(err) {
-                    console.warn('Could not load Firestore Puma models:', err);
-                    PumaConverter._knownProducts = null;
-                });
-            }
-
-            loadPumaModels.then(function() {
-                return PumaConverter.scanFile(file);
-            }).then(function(products) {
-                if (typeof showPumaPicker === 'function') showPumaPicker(products);
-                BrandConverter.brands.puma.scanned = true;
-                document.getElementById('puma-convert').style.display = 'block';
-                BrandConverter.showStatus('puma', 'Found ' + products.length + ' running products. Select which to include, then click Generate.', 'success');
-            }).catch(function(err) {
-                BrandConverter.showStatus('puma', 'Error scanning file: ' + err.message, 'error');
-                console.error('Puma scan error:', err);
-            });
-
+        var config = BRAND_CONFIG[brand];
+        if (config && config.hasPicker) {
+            this._scanBrand(brand);
         } else {
-            document.getElementById(`${brand}-convert`).style.display = 'block';
+            // No picker (New Balance) - show convert button directly
+            var convertEl = document.getElementById(brand + '-convert');
+            if (convertEl) convertEl.style.display = 'block';
         }
     },
-    
-    showStatus(brand, message, type) {
-        const statusDiv = document.getElementById(`${brand}-status`);
-        statusDiv.textContent = message;
-        statusDiv.className = 'status ' + type;
-        statusDiv.style.display = 'block';
+
+    // ========== GENERIC SCAN FLOW ==========
+    _scanBrand: function(brand) {
+        var self = this;
+        var config = BRAND_CONFIG[brand];
+        var converter = config.converter();
+        if (!converter) return;
+
+        this.brands[brand].scanned = false;
+        var convertEl = document.getElementById(brand + '-convert');
+        if (convertEl) convertEl.style.display = 'none';
+        this.showStatus(brand, 'Scanning file for products...', 'info');
+
+        // Step 1: Load Firestore known products
+        var loadModels = Promise.resolve();
+        if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+            loadModels = InventoryTracker.load(brand).then(function(data) {
+                converter._knownProducts = data.models;
+                console.log('[' + brand + '] Loaded ' + data.models.size + ' known models');
+            }).catch(function(err) {
+                console.warn('[' + brand + '] Could not load Firestore models:', err);
+                converter._knownProducts = null;
+            });
+        }
+
+        // Step 2: Scan file(s)
+        loadModels.then(function() {
+            if (config.twoFile) {
+                return converter.scanFiles(self.brands.on.menFile, self.brands.on.womenFile);
+            } else {
+                return converter.scanFile(self.brands[brand].file);
+            }
+        }).then(function(products) {
+            // Step 3: Show picker
+            if (typeof BrandPicker !== 'undefined' && BrandPicker.configs[brand]) {
+                BrandPicker.show(brand, products);
+            }
+            self.brands[brand].scanned = true;
+            if (convertEl) convertEl.style.display = 'block';
+            self.showStatus(brand, 'Found ' + products.length + ' products. Select which to include, then click Generate.', 'success');
+        }).catch(function(err) {
+            self.showStatus(brand, 'Error scanning: ' + err.message, 'error');
+            console.error('[' + brand + '] Scan error:', err);
+        });
     },
-    
-    hideStatus(brand) {
-        document.getElementById(`${brand}-status`).style.display = 'none';
+
+    // ========== STATUS ==========
+    showStatus: function(brand, message, type) {
+        var el = document.getElementById(brand + '-status');
+        if (!el) return;
+        el.textContent = message;
+        el.className = 'status ' + type;
+        el.style.display = 'block';
     },
-    
-    updateDownloadSection() {
-        const downloadSection = document.getElementById('download-section');
-        const individualDownloads = document.getElementById('individual-downloads');
-        const unifiedInfo = document.getElementById('unified-info');
-        
+
+    hideStatus: function(brand) {
+        var el = document.getElementById(brand + '-status');
+        if (el) el.style.display = 'none';
+    },
+
+    getBrandDisplayName: function(brand) {
+        return BRAND_CONFIG[brand] ? BRAND_CONFIG[brand].displayName : brand;
+    },
+
+    // ========== DOWNLOAD SECTION ==========
+    updateDownloadSection: function() {
+        var downloadSection = document.getElementById('download-section');
+        var individualDownloads = document.getElementById('individual-downloads');
+        if (!downloadSection || !individualDownloads) return;
+
         individualDownloads.innerHTML = '';
-        
-        let hasAnyInventory = false;
-        let totalVariants = 0;
-        
-        ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks', 'on'].forEach(brand => {
-            if (this.brands[brand].inventory.length > 0) {
-                hasAnyInventory = true;
-                totalVariants += this.brands[brand].inventory.length;
-                
-                const container = document.createElement('div');
+        var hasAny = false;
+        var self = this;
+
+        BRAND_ORDER.forEach(function(brand) {
+            if (self.brands[brand].inventory.length > 0) {
+                hasAny = true;
+                var container = document.createElement('div');
                 container.className = 'brand-download-row';
-                
-                const checkbox = document.createElement('input');
+
+                var checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.id = `select-${brand}`;
+                checkbox.id = 'select-' + brand;
                 checkbox.className = 'brand-checkbox';
                 checkbox.checked = true;
                 checkbox.style.width = '20px';
                 checkbox.style.height = '20px';
                 checkbox.style.cursor = 'pointer';
-                checkbox.onchange = () => this.updateUnifiedInfo();
-                
-                const btn = document.createElement('button');
-                btn.className = `download-btn ${brand}`;
-                btn.innerHTML = `${this.getBrandDisplayName(brand)} <span style="color: #6c757d; font-weight: 400;">(${this.brands[brand].inventory.length} variants)</span>`;
-                btn.onclick = () => this.downloadBrandInventory(brand);
-                
-                const resetBtn = document.createElement('button');
-                resetBtn.className = `download-btn reset-btn`;
-                resetBtn.innerHTML = `Reset to 0`;
-                resetBtn.onclick = () => this.downloadBrandReset(brand);
-                
+                checkbox.onchange = function() { self.updateUnifiedInfo(); };
+
+                var btn = document.createElement('button');
+                btn.className = 'download-btn ' + brand;
+                btn.innerHTML = self.getBrandDisplayName(brand) + ' <span style="color:#6c757d;font-weight:400;">(' + self.brands[brand].inventory.length + ' variants)</span>';
+                btn.onclick = function() { self.downloadBrandInventory(brand); };
+
+                var resetBtn = document.createElement('button');
+                resetBtn.className = 'download-btn reset-btn';
+                resetBtn.innerHTML = 'Reset to 0';
+                resetBtn.onclick = function() { self.downloadBrandReset(brand); };
+
                 container.appendChild(checkbox);
                 container.appendChild(btn);
                 container.appendChild(resetBtn);
                 individualDownloads.appendChild(container);
             }
         });
-        
-        if (hasAnyInventory) {
+
+        if (hasAny) {
             downloadSection.style.display = 'block';
             this.updateUnifiedInfo();
-            // Show/hide combined NEW products button
             updateCombinedNewProductsButton();
         } else {
             downloadSection.style.display = 'none';
         }
     },
-    
-    updateUnifiedInfo() {
-        const unifiedInfo = document.getElementById('unified-info');
-        let selectedVariants = 0;
-        let selectedBrands = [];
-        
-        ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks', 'on'].forEach(brand => {
-            const checkbox = document.getElementById(`select-${brand}`);
-            if (checkbox && checkbox.checked && this.brands[brand].inventory.length > 0) {
-                selectedVariants += this.brands[brand].inventory.length;
-                selectedBrands.push(this.getBrandDisplayName(brand));
+
+    updateUnifiedInfo: function() {
+        var unifiedInfo = document.getElementById('unified-info');
+        if (!unifiedInfo) return;
+        var selectedVariants = 0;
+        var selectedBrands = [];
+        var self = this;
+
+        BRAND_ORDER.forEach(function(brand) {
+            var cb = document.getElementById('select-' + brand);
+            if (cb && cb.checked && self.brands[brand].inventory.length > 0) {
+                selectedVariants += self.brands[brand].inventory.length;
+                selectedBrands.push(self.getBrandDisplayName(brand));
             }
         });
-        
+
         if (selectedBrands.length === 0) {
             unifiedInfo.textContent = 'Select brands above to combine';
             unifiedInfo.style.color = '#6c757d';
         } else {
-            unifiedInfo.textContent = `Ready to combine ${selectedVariants} variants from ${selectedBrands.join(', ')}`;
+            unifiedInfo.textContent = 'Ready to combine ' + selectedVariants + ' variants from ' + selectedBrands.join(', ');
             unifiedInfo.style.color = '#28a745';
         }
     },
-    
-    getBrandDisplayName(brand) {
-        const names = {
-            saucony: 'Saucony',
-            hoka: 'HOKA',
-            puma: 'Puma',
-            newbalance: 'New Balance',
-            asics: 'ASICS',
-            brooks: 'Brooks',
-            on: 'ON Running'
-        };
-        return names[brand] || brand;
-    },
-    
-    downloadBrandInventory(brand) {
-        const date = getFormattedDate();
-        const filename = `${brand}-inventory-${date}.csv`;
-        const csvData = this.brands[brand].csv;
-        
-        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    },
-    
-    downloadBrandReset(brand) {
-        const date = getFormattedDate();
-        const filename = `${brand}-reset-${date}.csv`;
-        
-        const resetInventory = this.brands[brand].inventory.map(row => ({
-            ...row,
-            'On hand (new)': '0'
-        }));
-        
-        const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
-                       '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
-                       '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
-                       '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
-        
-        const csvRows = [inventoryHeaders.join(',')];
-        
-        resetInventory.forEach(row => {
-            const csvRow = [
+
+    // ========== INVENTORY CSV GENERATION (shared) ==========
+    _generateInventoryCSV: function(inventoryData) {
+        var headers = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"',
+            '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"',
+            '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"',
+            '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
+
+        var rows = [headers.join(',')];
+        inventoryData.forEach(function(row) {
+            rows.push([
                 row.Handle,
-                `"${(row.Title || '').replace(/"/g, '""')}"`,
-                row['Option1 Name'],
-                row['Option1 Value'],
-                row['Option2 Name'] || '',
-                row['Option2 Value'] || '',
-                row['Option3 Name'] || '',
-                row['Option3 Value'] || '',
-                row.SKU,
-                row.Barcode || '',
-                '', '',
-                row.Location,
-                '', '', '', '', '', '',
-                '0'
-            ];
-            csvRows.push(csvRow.join(','));
+                '"' + (row.Title || '').replace(/"/g, '""') + '"',
+                row['Option1 Name'] || '', row['Option1 Value'] || '',
+                row['Option2 Name'] || '', row['Option2 Value'] || '',
+                row['Option3 Name'] || '', row['Option3 Value'] || '',
+                row.SKU || '', row.Barcode || '',
+                row['HS Code'] || '', row.COO || '',
+                row.Location || 'Needham', row['Bin name'] || '',
+                '', '', '', '', '',
+                row['On hand (new)'] || '0'
+            ].join(','));
         });
-        
-        const csvData = csvRows.join('\n');
-        
-        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
+        return rows.join('\n');
+    },
+
+    downloadBrandInventory: function(brand) {
+        var blob = new Blob([this.brands[brand].csv], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = brand + '-inventory-' + getFormattedDate() + '.csv';
         link.click();
-        document.body.removeChild(link);
+        showToast(this.getBrandDisplayName(brand) + ' inventory downloaded');
+    },
+
+    downloadBrandReset: function(brand) {
+        var resetData = this.brands[brand].inventory.map(function(row) {
+            return Object.assign({}, row, { 'On hand (new)': '0' });
+        });
+        var csv = this._generateInventoryCSV(resetData);
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = brand + '-reset-' + getFormattedDate() + '.csv';
+        link.click();
+        showToast(this.getBrandDisplayName(brand) + ' reset CSV downloaded');
     }
 };
 
-// Clear file function
+// ========== TOAST NOTIFICATION ==========
+function showToast(message) {
+    var existing = document.getElementById('toast-notification');
+    if (existing) existing.remove();
+
+    var toast = document.createElement('div');
+    toast.id = 'toast-notification';
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;padding:14px 24px;border-radius:8px;font-size:14px;font-weight:500;z-index:10000;opacity:0;transition:opacity 0.3s ease;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+    document.body.appendChild(toast);
+    requestAnimationFrame(function() { toast.style.opacity = '1'; });
+    setTimeout(function() {
+        toast.style.opacity = '0';
+        setTimeout(function() { toast.remove(); }, 300);
+    }, 3000);
+}
+
+// ========== CLEAR FILE ==========
 function clearFile(brand) {
     if (brand === 'on') {
         BrandConverter.brands.on.menFile = null;
@@ -549,7 +354,7 @@ function clearFile(brand) {
         BrandConverter.brands.on.inventory = [];
         BrandConverter.brands.on.csv = '';
         BrandConverter.brands.on.scanned = false;
-        
+
         document.getElementById('on-men-file').value = '';
         document.getElementById('on-women-file').value = '';
         document.getElementById('on-men-uploaded').style.display = 'none';
@@ -559,740 +364,205 @@ function clearFile(brand) {
         document.getElementById('on-convert').style.display = 'none';
         BrandConverter.hideStatus('on');
 
-        // Hide ON picker and tracker
-        var pickerContainer = document.getElementById('on-picker-container');
-        if (pickerContainer) pickerContainer.style.display = 'none';
-        var trackerReport = document.getElementById('on-tracker-report');
-        if (trackerReport) trackerReport.style.display = 'none';
-        if (typeof hideOnNewProductButton === 'function') hideOnNewProductButton();
-        var productCsvBtn = document.getElementById('on-product-csv-btn');
-        if (productCsvBtn) productCsvBtn.style.display = 'none';
+        var onPicker = document.getElementById('on-picker-container');
+        if (onPicker) onPicker.style.display = 'none';
+        var onTracker = document.getElementById('on-tracker-report');
+        if (onTracker) onTracker.style.display = 'none';
     } else {
         BrandConverter.brands[brand].file = null;
         BrandConverter.brands[brand].inventory = [];
         BrandConverter.brands[brand].csv = '';
-        
-        document.getElementById(`${brand}-file`).value = '';
-        document.getElementById(`${brand}-uploaded`).style.display = 'none';
-        document.getElementById(`${brand}-convert`).style.display = 'none';
-        document.getElementById(`${brand}-dropzone`).style.display = 'flex';
+        if (BrandConverter.brands[brand].scanned !== undefined) BrandConverter.brands[brand].scanned = false;
+
+        var fileInput = document.getElementById(brand + '-file');
+        if (fileInput) fileInput.value = '';
+        var uploaded = document.getElementById(brand + '-uploaded');
+        if (uploaded) uploaded.style.display = 'none';
+        var convertEl = document.getElementById(brand + '-convert');
+        if (convertEl) convertEl.style.display = 'none';
+        var dropzone = document.getElementById(brand + '-dropzone');
+        if (dropzone) dropzone.style.display = 'flex';
         BrandConverter.hideStatus(brand);
 
-        if (brand === 'hoka') {
-            document.getElementById('hoka-product-picker').style.display = 'none';
-            BrandConverter.brands.hoka.scanned = false;
-            if (typeof hideHokaProductCSVButton === 'function') hideHokaProductCSVButton();
-        }
-
-        if (brand === 'asics') {
-            BrandConverter.brands.asics.scanned = false;
-            var asicsPickerContainer = document.getElementById('asics-picker-container');
-            if (asicsPickerContainer) asicsPickerContainer.style.display = 'none';
-            var asicsTrackerReport = document.getElementById('asics-tracker-report');
-            if (asicsTrackerReport) asicsTrackerReport.style.display = 'none';
-            var asicsProductBtn = document.getElementById('asics-product-csv-btn');
-            if (asicsProductBtn) asicsProductBtn.style.display = 'none';
-            var asicsNewProductBtn = document.getElementById('asics-new-product-csv-btn');
-            if (asicsNewProductBtn) asicsNewProductBtn.style.display = 'none';
-        }
-
-        if (brand === 'brooks') {
-            BrandConverter.brands.brooks.scanned = false;
-            var brooksPickerContainer = document.getElementById('brooks-picker-container');
-            if (brooksPickerContainer) brooksPickerContainer.style.display = 'none';
-            var brooksTrackerReport = document.getElementById('brooks-tracker-report');
-            if (brooksTrackerReport) brooksTrackerReport.style.display = 'none';
-            var brooksProductBtn = document.getElementById('brooks-product-csv-btn');
-            if (brooksProductBtn) brooksProductBtn.style.display = 'none';
-            var brooksNewProductBtn = document.getElementById('brooks-new-product-csv-btn');
-            if (brooksNewProductBtn) brooksNewProductBtn.style.display = 'none';
-        }
-
-        if (brand === 'puma') {
-            BrandConverter.brands.puma.scanned = false;
-            var pumaPickerContainer = document.getElementById('puma-picker-container');
-            if (pumaPickerContainer) pumaPickerContainer.style.display = 'none';
-            var pumaTrackerReport = document.getElementById('puma-tracker-report');
-            if (pumaTrackerReport) pumaTrackerReport.style.display = 'none';
-            var pumaProductBtn = document.getElementById('puma-product-csv-btn');
-            if (pumaProductBtn) pumaProductBtn.style.display = 'none';
-            var pumaNewProductBtn = document.getElementById('puma-new-product-csv-btn');
-            if (pumaNewProductBtn) pumaNewProductBtn.style.display = 'none';
-        }
-
-        if (brand === 'saucony') {
-            BrandConverter.brands.saucony.scanned = false;
-            var sauconyPickerContainer = document.getElementById('saucony-picker-container');
-            if (sauconyPickerContainer) sauconyPickerContainer.style.display = 'none';
-            var sauconyTrackerReport = document.getElementById('saucony-tracker-report');
-            if (sauconyTrackerReport) sauconyTrackerReport.style.display = 'none';
-            var sauconyProductBtn = document.getElementById('saucony-product-csv-btn');
-            if (sauconyProductBtn) sauconyProductBtn.style.display = 'none';
-            var sauconyNewProductBtn = document.getElementById('saucony-new-product-csv-btn');
-            if (sauconyNewProductBtn) sauconyNewProductBtn.style.display = 'none';
-        }
+        // Hide picker, tracker, buttons
+        var picker = document.getElementById(brand + '-picker-container');
+        if (picker) picker.style.display = 'none';
+        var tracker = document.getElementById(brand + '-tracker-report');
+        if (tracker) tracker.style.display = 'none';
+        var prodBtn = document.getElementById(brand + '-product-csv-btn');
+        if (prodBtn) prodBtn.style.display = 'none';
+        var newBtn = document.getElementById(brand + '-new-product-csv-btn');
+        if (newBtn) newBtn.style.display = 'none';
     }
-    
+
     BrandConverter.updateDownloadSection();
 }
 
-// Convert brand function
+// ========== GENERIC CONVERT FLOW ==========
 async function convertBrand(brand) {
-    const file = BrandConverter.brands[brand].file;
-    
-    // ========== ON RUNNING: Use OnConverter (like HOKA flow) ==========
-    if (brand === 'on') {
-        if (!BrandConverter.brands.on.menFile && !BrandConverter.brands.on.womenFile) {
-            BrandConverter.showStatus('on', 'Please upload at least one file!', 'error');
+    var config = BRAND_CONFIG[brand];
+    if (!config) return;
+
+    var converter = config.converter();
+    var brandData = BrandConverter.brands[brand];
+
+    // Validate file uploaded
+    if (config.twoFile) {
+        if (!brandData.menFile && !brandData.womenFile) {
+            BrandConverter.showStatus(brand, 'Please upload at least one file!', 'error');
             return;
         }
-
-        // Check that scan is done
-        if (!BrandConverter.brands.on.scanned) {
-            BrandConverter.showStatus('on', 'Files are still being scanned, please wait...', 'error');
-            return;
-        }
-
-        // Check that products are selected (from picker)
-        if (OnConverter.selectedProducts.size === 0) {
-            BrandConverter.showStatus('on', 'Please select at least one product to include!', 'error');
-            return;
-        }
-        
-        BrandConverter.showStatus('on', 'Processing with OnConverter...', 'success');
-        
-        try {
-            // Use OnConverter.convert() which respects selectedProducts and applies handle mapping
-            var inventory = await OnConverter.convert(
-                BrandConverter.brands.on.menFile,
-                BrandConverter.brands.on.womenFile
-            );
-            
-            BrandConverter.brands.on.inventory = inventory;
-
-            // Show the product CSV download button
-            var productCsvBtn = document.getElementById('on-product-csv-btn');
-            if (productCsvBtn) productCsvBtn.style.display = 'block';
-
-            // ========== ON Inventory Tracker (like HOKA) ==========
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                try {
-                    BrandConverter.showStatus('on', 'Loading Shopify database for ON...', 'success');
-
-                    // Load what's known to be on Shopify for ON
-                    await InventoryTracker.load('on');
-
-                    // Compare current inventory against Firestore
-                    var comparison = InventoryTracker.compare(inventory);
-
-                    // Store comparison for tracker report / new product CSV
-                    window._onTrackerComparison = comparison;
-
-                    // Append removed colorways at 0 quantity
-                    if (comparison.removedColorways && comparison.removedColorways.length > 0) {
-                        var removedRows = InventoryTracker.generateRemovedRows(comparison.removedColorways);
-                        inventory = inventory.concat(removedRows);
-                        BrandConverter.brands.on.inventory = inventory;
-                        OnConverter.inventoryData = inventory;
-                    }
-
-                    // Update existing colorways with latest quantities
-                    await InventoryTracker.updateExistingColorways('on', inventory);
-
-                    // Show tracker report in UI
-                    if (typeof showOnTrackerReport === 'function') {
-                        showOnTrackerReport(comparison);
-                    }
-
-                    var statusMsg = 'Processed ' + inventory.length + ' variants';
-                    if (comparison.removedColorways && comparison.removedColorways.length > 0) {
-                        statusMsg += ' (includes ' + comparison.removedColorways.length + ' removed colorways at 0)';
-                    }
-                    if (comparison.newProducts && comparison.newProducts.length > 0) {
-                        statusMsg += ' | ' + comparison.newProducts.length + ' new products detected';
-                    }
-                    if (comparison.newColorways && comparison.newColorways.length > 0) {
-                        statusMsg += ' | ' + comparison.newColorways.length + ' new colorways detected';
-                    }
-                    BrandConverter.showStatus('on', statusMsg, 'success');
-                } catch (trackerError) {
-                    console.warn('ON inventory tracker error (continuing without tracking):', trackerError);
-                    BrandConverter.showStatus('on', 'Processed ' + inventory.length + ' variants (tracker unavailable)', 'success');
-                }
-            } else {
-                BrandConverter.showStatus('on', 'Processed ' + inventory.length + ' variants', 'success');
-            }
-
-            // Generate the CSV from OnConverter
-            BrandConverter.brands.on.csv = OnConverter.generateInventoryCSV();
-
-            BrandConverter.updateDownloadSection();
-        } catch (error) {
-            BrandConverter.showStatus('on', 'Error: ' + error.message, 'error');
-            console.error('ON conversion error:', error);
-        }
-        return;
-    }
-    
-    // ========== Regular single-file handling for other brands ==========
-    if (!file) {
+    } else if (!brandData.file) {
         BrandConverter.showStatus(brand, 'Please select a file first!', 'error');
         return;
     }
 
-    // HOKA: check scan + selection, then use HokaConverter with tracker
-    if (brand === 'hoka') {
-        if (!BrandConverter.brands.hoka.scanned) {
-            BrandConverter.showStatus('hoka', 'File is still being scanned, please wait...', 'error');
+    // Validate scan + selection for picker brands
+    if (config.hasPicker) {
+        if (!brandData.scanned) {
+            BrandConverter.showStatus(brand, 'File is still being scanned, please wait...', 'error');
             return;
         }
-        if (HokaConverter.selectedProducts.size === 0) {
-            BrandConverter.showStatus('hoka', 'Please select at least one product to include!', 'error');
+        if (converter && converter.selectedProducts && converter.selectedProducts.size === 0) {
+            BrandConverter.showStatus(brand, 'Please select at least one product!', 'error');
             return;
         }
-
-        BrandConverter.showStatus('hoka', 'Processing with HokaConverter...', 'success');
-
-        try {
-            var hokaInventory = await HokaConverter.convert(file);
-            BrandConverter.brands.hoka.inventory = hokaInventory;
-
-            if (typeof showHokaProductCSVButton === 'function') showHokaProductCSVButton();
-
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                try {
-                    BrandConverter.showStatus('hoka', 'Loading Shopify database for HOKA...', 'success');
-                    await InventoryTracker.load('hoka');
-                    var hokaComparison = InventoryTracker.compare(hokaInventory);
-                    window._hokaTrackerComparison = hokaComparison;
-
-                    if (hokaComparison.removedColorways && hokaComparison.removedColorways.length > 0) {
-                        var removedRows = InventoryTracker.generateRemovedRows(hokaComparison.removedColorways);
-                        hokaInventory = hokaInventory.concat(removedRows);
-                        BrandConverter.brands.hoka.inventory = hokaInventory;
-                        HokaConverter.inventoryData = hokaInventory;
-                    }
-
-                    await InventoryTracker.updateExistingColorways('hoka', hokaInventory);
-
-                    if (typeof showTrackerReport === 'function') showTrackerReport(hokaComparison);
-
-                    var hMsg = 'Processed ' + hokaInventory.length + ' variants';
-                    if (hokaComparison.removedColorways && hokaComparison.removedColorways.length > 0) hMsg += ' (includes ' + hokaComparison.removedColorways.length + ' removed at 0)';
-                    if (hokaComparison.newProducts && hokaComparison.newProducts.length > 0) hMsg += ' | ' + hokaComparison.newProducts.length + ' new products';
-                    if (hokaComparison.newColorways && hokaComparison.newColorways.length > 0) hMsg += ' | ' + hokaComparison.newColorways.length + ' new colorways';
-                    BrandConverter.showStatus('hoka', hMsg, 'success');
-                } catch (trackerError) {
-                    console.warn('HOKA tracker error (continuing):', trackerError);
-                    BrandConverter.showStatus('hoka', 'Processed ' + hokaInventory.length + ' variants (tracker unavailable)', 'success');
-                }
-            } else {
-                BrandConverter.showStatus('hoka', 'Processed ' + hokaInventory.length + ' variants', 'success');
-            }
-
-            BrandConverter.brands.hoka.csv = HokaConverter.generateInventoryCSV();
-            BrandConverter.updateDownloadSection();
-        } catch (hokaError) {
-            BrandConverter.showStatus('hoka', 'Error: ' + hokaError.message, 'error');
-            console.error('HOKA conversion error:', hokaError);
-        }
-        return;
     }
 
-    // ASICS: check scan + selection, then use AsicsConverter with tracker
-    if (brand === 'asics') {
-        if (!BrandConverter.brands.asics.scanned) {
-            BrandConverter.showStatus('asics', 'File is still being scanned, please wait...', 'error');
-            return;
-        }
-        if (AsicsConverter.selectedProducts.size === 0) {
-            BrandConverter.showStatus('asics', 'Please select at least one product!', 'error');
-            return;
-        }
+    // Disable generate button
+    var generateBtn = document.querySelector('#' + brand + '-convert .convert-btn');
+    if (generateBtn) { generateBtn.disabled = true; generateBtn.textContent = 'Processing...'; }
 
-        BrandConverter.showStatus('asics', 'Processing with AsicsConverter...', 'success');
+    BrandConverter.showStatus(brand, 'Processing...', 'info');
 
-        try {
-            var asicsInventory = await AsicsConverter.convert(file);
-            BrandConverter.brands.asics.inventory = asicsInventory;
-
-            var asicsProductBtn = document.getElementById('asics-product-csv-btn');
-            if (asicsProductBtn) asicsProductBtn.style.display = 'block';
-
-            // Inventory Tracker
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                try {
-                    BrandConverter.showStatus('asics', 'Loading Shopify database for ASICS...', 'success');
-                    await InventoryTracker.load('asics');
-                    var asicsComparison = InventoryTracker.compare(asicsInventory);
-                    window._asicsTrackerComparison = asicsComparison;
-
-                    if (asicsComparison.removedColorways && asicsComparison.removedColorways.length > 0) {
-                        var removedRows = InventoryTracker.generateRemovedRows(asicsComparison.removedColorways);
-                        asicsInventory = asicsInventory.concat(removedRows);
-                        BrandConverter.brands.asics.inventory = asicsInventory;
-                        AsicsConverter.inventoryData = asicsInventory;
-                    }
-
-                    await InventoryTracker.updateExistingColorways('asics', asicsInventory);
-
-                    if (typeof showAsicsTrackerReport === 'function') {
-                        showAsicsTrackerReport(asicsComparison);
-                    }
-
-                    var aMsg = 'Processed ' + asicsInventory.length + ' variants';
-                    if (asicsComparison.removedColorways && asicsComparison.removedColorways.length > 0) {
-                        aMsg += ' (includes ' + asicsComparison.removedColorways.length + ' removed at 0)';
-                    }
-                    if (asicsComparison.newProducts && asicsComparison.newProducts.length > 0) {
-                        aMsg += ' | ' + asicsComparison.newProducts.length + ' new products';
-                    }
-                    if (asicsComparison.newColorways && asicsComparison.newColorways.length > 0) {
-                        aMsg += ' | ' + asicsComparison.newColorways.length + ' new colorways';
-                    }
-                    BrandConverter.showStatus('asics', aMsg, 'success');
-                } catch (trackerError) {
-                    console.warn('ASICS tracker error (continuing):', trackerError);
-                    BrandConverter.showStatus('asics', 'Processed ' + asicsInventory.length + ' variants (tracker unavailable)', 'success');
-                }
-            } else {
-                BrandConverter.showStatus('asics', 'Processed ' + asicsInventory.length + ' variants', 'success');
-            }
-
-            BrandConverter.brands.asics.csv = AsicsConverter.generateInventoryCSV();
-            BrandConverter.updateDownloadSection();
-        } catch (asicsError) {
-            BrandConverter.showStatus('asics', 'Error: ' + asicsError.message, 'error');
-            console.error('ASICS conversion error:', asicsError);
-        }
-        return;
-    }
-
-    // BROOKS: check scan + selection, then use BrooksConverter with tracker
-    if (brand === 'brooks') {
-        if (!BrandConverter.brands.brooks.scanned) {
-            BrandConverter.showStatus('brooks', 'File is still being scanned, please wait...', 'error');
-            return;
-        }
-        if (BrooksConverter.selectedProducts.size === 0) {
-            BrandConverter.showStatus('brooks', 'Please select at least one product!', 'error');
-            return;
-        }
-
-        BrandConverter.showStatus('brooks', 'Processing with BrooksConverter...', 'success');
-
-        try {
-            var brooksInventory = await BrooksConverter.convert(file);
-            BrandConverter.brands.brooks.inventory = brooksInventory;
-
-            var brooksProductBtn = document.getElementById('brooks-product-csv-btn');
-            if (brooksProductBtn) brooksProductBtn.style.display = 'block';
-
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                try {
-                    BrandConverter.showStatus('brooks', 'Loading Shopify database for Brooks...', 'success');
-                    await InventoryTracker.load('brooks');
-                    var brooksComparison = InventoryTracker.compare(brooksInventory);
-                    window._brooksTrackerComparison = brooksComparison;
-
-                    if (brooksComparison.removedColorways && brooksComparison.removedColorways.length > 0) {
-                        var removedRows = InventoryTracker.generateRemovedRows(brooksComparison.removedColorways);
-                        brooksInventory = brooksInventory.concat(removedRows);
-                        BrandConverter.brands.brooks.inventory = brooksInventory;
-                        BrooksConverter.inventoryData = brooksInventory;
-                    }
-
-                    await InventoryTracker.updateExistingColorways('brooks', brooksInventory);
-
-                    if (typeof showBrooksTrackerReport === 'function') {
-                        showBrooksTrackerReport(brooksComparison);
-                    }
-
-                    var bMsg = 'Processed ' + brooksInventory.length + ' variants';
-                    if (brooksComparison.removedColorways && brooksComparison.removedColorways.length > 0) {
-                        bMsg += ' (includes ' + brooksComparison.removedColorways.length + ' removed at 0)';
-                    }
-                    if (brooksComparison.newProducts && brooksComparison.newProducts.length > 0) {
-                        bMsg += ' | ' + brooksComparison.newProducts.length + ' new products';
-                    }
-                    if (brooksComparison.newColorways && brooksComparison.newColorways.length > 0) {
-                        bMsg += ' | ' + brooksComparison.newColorways.length + ' new colorways';
-                    }
-                    BrandConverter.showStatus('brooks', bMsg, 'success');
-                } catch (trackerError) {
-                    console.warn('Brooks tracker error (continuing):', trackerError);
-                    BrandConverter.showStatus('brooks', 'Processed ' + brooksInventory.length + ' variants (tracker unavailable)', 'success');
-                }
-            } else {
-                BrandConverter.showStatus('brooks', 'Processed ' + brooksInventory.length + ' variants', 'success');
-            }
-
-            BrandConverter.brands.brooks.csv = BrooksConverter.generateInventoryCSV();
-            BrandConverter.updateDownloadSection();
-        } catch (brooksError) {
-            BrandConverter.showStatus('brooks', 'Error: ' + brooksError.message, 'error');
-            console.error('Brooks conversion error:', brooksError);
-        }
-        return;
-    }
-
-    // PUMA: check scan + selection, then use PumaConverter with tracker
-    if (brand === 'puma') {
-        if (!BrandConverter.brands.puma.scanned) {
-            BrandConverter.showStatus('puma', 'File is still being scanned, please wait...', 'error');
-            return;
-        }
-        if (PumaConverter.selectedProducts.size === 0) {
-            BrandConverter.showStatus('puma', 'Please select at least one product!', 'error');
-            return;
-        }
-
-        BrandConverter.showStatus('puma', 'Processing with PumaConverter...', 'success');
-
-        try {
-            var pumaInventory = await PumaConverter.convert(file);
-            BrandConverter.brands.puma.inventory = pumaInventory;
-
-            var pumaProductBtn = document.getElementById('puma-product-csv-btn');
-            if (pumaProductBtn) pumaProductBtn.style.display = 'block';
-
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                try {
-                    BrandConverter.showStatus('puma', 'Loading Shopify database for Puma...', 'success');
-                    await InventoryTracker.load('puma');
-                    var pumaComparison = InventoryTracker.compare(pumaInventory);
-                    window._pumaTrackerComparison = pumaComparison;
-
-                    if (pumaComparison.removedColorways && pumaComparison.removedColorways.length > 0) {
-                        var removedRows = InventoryTracker.generateRemovedRows(pumaComparison.removedColorways);
-                        pumaInventory = pumaInventory.concat(removedRows);
-                        BrandConverter.brands.puma.inventory = pumaInventory;
-                        PumaConverter.inventoryData = pumaInventory;
-                    }
-
-                    await InventoryTracker.updateExistingColorways('puma', pumaInventory);
-
-                    if (typeof showPumaTrackerReport === 'function') showPumaTrackerReport(pumaComparison);
-
-                    var pMsg = 'Processed ' + pumaInventory.length + ' variants';
-                    if (pumaComparison.removedColorways && pumaComparison.removedColorways.length > 0) pMsg += ' (includes ' + pumaComparison.removedColorways.length + ' removed at 0)';
-                    if (pumaComparison.newProducts && pumaComparison.newProducts.length > 0) pMsg += ' | ' + pumaComparison.newProducts.length + ' new products';
-                    if (pumaComparison.newColorways && pumaComparison.newColorways.length > 0) pMsg += ' | ' + pumaComparison.newColorways.length + ' new colorways';
-                    BrandConverter.showStatus('puma', pMsg, 'success');
-                } catch (trackerError) {
-                    console.warn('Puma tracker error (continuing):', trackerError);
-                    BrandConverter.showStatus('puma', 'Processed ' + pumaInventory.length + ' variants (tracker unavailable)', 'success');
-                }
-            } else {
-                BrandConverter.showStatus('puma', 'Processed ' + pumaInventory.length + ' variants', 'success');
-            }
-
-            BrandConverter.brands.puma.csv = PumaConverter.generateInventoryCSV();
-            BrandConverter.updateDownloadSection();
-        } catch (pumaError) {
-            BrandConverter.showStatus('puma', 'Error: ' + pumaError.message, 'error');
-            console.error('Puma conversion error:', pumaError);
-        }
-        return;
-    }
-
-    // SAUCONY: check scan + selection, then use SauconyConverter with tracker
-    if (brand === 'saucony') {
-        if (!BrandConverter.brands.saucony.scanned) {
-            BrandConverter.showStatus('saucony', 'File is still being scanned, please wait...', 'error');
-            return;
-        }
-        if (SauconyConverter.selectedProducts.size === 0) {
-            BrandConverter.showStatus('saucony', 'Please select at least one product!', 'error');
-            return;
-        }
-
-        BrandConverter.showStatus('saucony', 'Processing with SauconyConverter...', 'success');
-
-        try {
-            var sauconyInventory = await SauconyConverter.convert(file);
-            BrandConverter.brands.saucony.inventory = sauconyInventory;
-
-            var sauconyProductBtn = document.getElementById('saucony-product-csv-btn');
-            if (sauconyProductBtn) sauconyProductBtn.style.display = 'block';
-
-            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                try {
-                    BrandConverter.showStatus('saucony', 'Loading Shopify database for Saucony...', 'success');
-                    await InventoryTracker.load('saucony');
-                    var sauconyComparison = InventoryTracker.compare(sauconyInventory);
-                    window._sauconyTrackerComparison = sauconyComparison;
-
-                    if (sauconyComparison.removedColorways && sauconyComparison.removedColorways.length > 0) {
-                        var removedRows = InventoryTracker.generateRemovedRows(sauconyComparison.removedColorways);
-                        sauconyInventory = sauconyInventory.concat(removedRows);
-                        BrandConverter.brands.saucony.inventory = sauconyInventory;
-                        SauconyConverter.inventoryData = sauconyInventory;
-                    }
-
-                    await InventoryTracker.updateExistingColorways('saucony', sauconyInventory);
-                    if (typeof showSauconyTrackerReport === 'function') showSauconyTrackerReport(sauconyComparison);
-
-                    var sMsg = 'Processed ' + sauconyInventory.length + ' variants';
-                    if (sauconyComparison.removedColorways && sauconyComparison.removedColorways.length > 0) sMsg += ' (includes ' + sauconyComparison.removedColorways.length + ' removed at 0)';
-                    if (sauconyComparison.newProducts && sauconyComparison.newProducts.length > 0) sMsg += ' | ' + sauconyComparison.newProducts.length + ' new products';
-                    if (sauconyComparison.newColorways && sauconyComparison.newColorways.length > 0) sMsg += ' | ' + sauconyComparison.newColorways.length + ' new colorways';
-                    BrandConverter.showStatus('saucony', sMsg, 'success');
-                } catch (trackerError) {
-                    console.warn('Saucony tracker error:', trackerError);
-                    BrandConverter.showStatus('saucony', 'Processed ' + sauconyInventory.length + ' variants (tracker unavailable)', 'success');
-                }
-            } else {
-                BrandConverter.showStatus('saucony', 'Processed ' + sauconyInventory.length + ' variants', 'success');
-            }
-
-            BrandConverter.brands.saucony.csv = SauconyConverter.generateInventoryCSV();
-            BrandConverter.updateDownloadSection();
-        } catch (sauconyError) {
-            BrandConverter.showStatus('saucony', 'Error: ' + sauconyError.message, 'error');
-            console.error('Saucony conversion error:', sauconyError);
-        }
-        return;
-    }
-    
-    BrandConverter.showStatus(brand, 'Processing...', 'success');
-    
     try {
-        let inventory;
-        
-        // Check if this is a CSV-only brand (none currently)
-        if (BrandConverter.brands[brand] && BrandConverter.brands[brand].csvOnly) {
-            const text = await file.text();
-            const parsed = Papa.parse(text, { header: true });
-            inventory = parsed.data.filter(row => row.Handle && row.Handle.trim() !== '');
-            
-            // ========== APPLY HANDLE REPLACEMENT FOR ASICS ==========
-            if (brand === 'asics') {
-                console.log(`Processing ASICS file with ${inventory.length} variants`);
-                
-                const replacementCount = inventory.filter(row => ASICS_HANDLE_MAPPING[row.Handle]).length;
-                
-                if (replacementCount > 0) {
-                    console.log(`Found ${replacementCount} handles to replace in ASICS file`);
-                    inventory = replaceAsicsHandles(inventory);
-                }
-                
-                console.log(`Converting ASICS sizes to Shopify format`);
-                inventory = convertAsicsSizes(inventory);
-                
-                BrandConverter.showStatus(brand, `Processed ${inventory.length} variants (${replacementCount} handles replaced, sizes converted to Shopify format)`, 'success');
-            }
-            
-            BrandConverter.brands[brand].inventory = inventory;
-            
-            // Regenerate CSV with potentially replaced handles
-            const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
-                           '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
-                           '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
-                           '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
-            
-            const csvRows = [inventoryHeaders.join(',')];
-            
-            inventory.forEach(row => {
-                const csvRow = [
-                    row.Handle,
-                    `"${(row.Title || '').replace(/"/g, '""')}"`,
-                    row['Option1 Name'],
-                    row['Option1 Value'],
-                    row['Option2 Name'] || '',
-                    row['Option2 Value'] || '',
-                    row['Option3 Name'] || '',
-                    row['Option3 Value'] || '',
-                    row.SKU,
-                    row.Barcode || '',
-                    row['HS Code'] || '',
-                    row.COO || '',
-                    row.Location || '',
-                    row['Bin name'] || '',
-                    '', '', '', '', '', '',
-                    row['On hand (new)']
-                ];
-                csvRows.push(csvRow.join(','));
-            });
-            
-            BrandConverter.brands[brand].csv = csvRows.join('\n');
-        } else {
-            // Use brand-specific converters
-            switch(brand) {
-                case 'newbalance':
-                    inventory = await NewBalanceConverter.convert(file);
-                    BrandConverter.brands[brand].inventory = inventory;
-                    BrandConverter.brands[brand].csv = NewBalanceConverter.generateInventoryCSV();
-                    break;
-            }
-            BrandConverter.showStatus(brand, `Processed ${inventory.length} variants`, 'success');
+        // Step 1: Convert
+        var inventory;
+        if (config.twoFile) {
+            inventory = await converter.convert(brandData.menFile, brandData.womenFile);
+        } else if (converter) {
+            inventory = await converter.convert(brandData.file);
         }
-        
+
+        brandData.inventory = inventory;
+
+        // Show product CSV button
+        if (typeof BrandPicker !== 'undefined') BrandPicker.showProductCSVButton(brand);
+
+        // Step 2: Tracker comparison (if available)
+        if (config.comparisonKey && typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+            try {
+                BrandConverter.showStatus(brand, 'Comparing against Shopify database...', 'info');
+                await InventoryTracker.load(brand);
+                var comparison = InventoryTracker.compare(inventory);
+                window[config.comparisonKey] = comparison;
+
+                // Append removed colorways at 0
+                if (comparison.removedColorways && comparison.removedColorways.length > 0) {
+                    var removedRows = InventoryTracker.generateRemovedRows(comparison.removedColorways);
+                    inventory = inventory.concat(removedRows);
+                    brandData.inventory = inventory;
+                    if (converter) converter.inventoryData = inventory;
+                }
+
+                await InventoryTracker.updateExistingColorways(brand, inventory);
+
+                // Show tracker report
+                if (typeof BrandPicker !== 'undefined') {
+                    BrandPicker.showTrackerReport(brand, comparison);
+                }
+
+                // Build status message
+                var msg = 'Processed ' + inventory.length + ' variants';
+                if (comparison.removedColorways && comparison.removedColorways.length > 0) msg += ' (' + comparison.removedColorways.length + ' removed at 0)';
+                if (comparison.newProducts && comparison.newProducts.length > 0) msg += ' | ' + comparison.newProducts.length + ' new products';
+                if (comparison.newColorways && comparison.newColorways.length > 0) msg += ' | ' + comparison.newColorways.length + ' new colorways';
+                BrandConverter.showStatus(brand, msg, 'success');
+            } catch (trackerError) {
+                console.warn('[' + brand + '] Tracker error:', trackerError);
+                BrandConverter.showStatus(brand, 'Processed ' + inventory.length + ' variants (tracker unavailable)', 'success');
+            }
+        } else {
+            BrandConverter.showStatus(brand, 'Processed ' + inventory.length + ' variants', 'success');
+        }
+
+        // Step 3: Generate CSV
+        if (converter && converter.generateInventoryCSV) {
+            brandData.csv = converter.generateInventoryCSV();
+        } else {
+            brandData.csv = BrandConverter._generateInventoryCSV(inventory);
+        }
+
         BrandConverter.updateDownloadSection();
     } catch (error) {
         BrandConverter.showStatus(brand, 'Error: ' + error.message, 'error');
-        console.error('Conversion error:', error);
+        console.error('[' + brand + '] Conversion error:', error);
+    } finally {
+        // Re-enable generate button
+        if (generateBtn) { generateBtn.disabled = false; generateBtn.textContent = 'Generate Inventory'; }
     }
 }
 
-// Download unified inventory - Only selected brands (WITH TRACKING & DATE)
+// ========== UNIFIED DOWNLOAD ==========
 function downloadUnified() {
-    const allInventory = [];
-    let selectedBrands = [];
-    
-    ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks', 'on'].forEach(brand => {
-        const checkbox = document.getElementById(`select-${brand}`);
-        if (checkbox && checkbox.checked && BrandConverter.brands[brand].inventory.length > 0) {
-            let brandInventory = [...BrandConverter.brands[brand].inventory];
-            if (brand === 'asics') {
-                brandInventory = replaceAsicsHandles(brandInventory);
-                brandInventory = convertAsicsSizes(brandInventory);
-            }
-            allInventory.push(...brandInventory);
-            selectedBrands.push(BrandConverter.getBrandDisplayName(brand));
+    var allInventory = [];
+
+    BRAND_ORDER.forEach(function(brand) {
+        var cb = document.getElementById('select-' + brand);
+        if (cb && cb.checked && BrandConverter.brands[brand].inventory.length > 0) {
+            var inv = BrandConverter.brands[brand].inventory.slice();
+            var config = BRAND_CONFIG[brand];
+            if (config && config.postProcess) inv = config.postProcess(inv);
+            allInventory = allInventory.concat(inv);
         }
     });
-    
-    if (allInventory.length === 0) {
-        alert('Please select at least one brand to download!');
-        return;
-    }
-    
-    const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
-                   '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
-                   '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
-                   '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
-    
-    const csvRows = [inventoryHeaders.join(',')];
-    
-    allInventory.forEach(row => {
-        const csvRow = [
-            row.Handle,
-            `"${(row.Title || '').replace(/"/g, '""')}"`,
-            row['Option1 Name'],
-            row['Option1 Value'],
-            row['Option2 Name'] || '',
-            row['Option2 Value'] || '',
-            row['Option3 Name'] || '',
-            row['Option3 Value'] || '',
-            row.SKU,
-            row.Barcode || '',
-            '', '',
-            row.Location,
-            '', '', '', '', '', '',
-            row['On hand (new)']
-        ];
-        csvRows.push(csvRow.join(','));
-    });
-    
-    const csvData = csvRows.join('\n');
-    
-    const date = getFormattedDate();
-    const filename = `combined-inventory-${date}.csv`;
-    
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+
+    if (allInventory.length === 0) { alert('Please select at least one brand!'); return; }
+
+    var csv = BrandConverter._generateInventoryCSV(allInventory);
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'combined-inventory-' + getFormattedDate() + '.csv';
     link.click();
-    document.body.removeChild(link);
-    
-    if (document.getElementById('tracking-actions')) {
-        document.getElementById('tracking-actions').style.display = 'block';
-    }
+    showToast('Combined inventory downloaded (' + allInventory.length + ' variants)');
 }
 
-// Download unified reset inventory - All quantities set to 0
 function downloadUnifiedReset() {
-    const allInventory = [];
-    let selectedBrands = [];
-    
-    ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks', 'on'].forEach(brand => {
-        const checkbox = document.getElementById(`select-${brand}`);
-        if (checkbox && checkbox.checked && BrandConverter.brands[brand].inventory.length > 0) {
-            let brandInventory = [...BrandConverter.brands[brand].inventory];
-            if (brand === 'asics') {
-                brandInventory = replaceAsicsHandles(brandInventory);
-                brandInventory = convertAsicsSizes(brandInventory);
-            }
-            allInventory.push(...brandInventory);
-            selectedBrands.push(BrandConverter.getBrandDisplayName(brand));
+    var allInventory = [];
+
+    BRAND_ORDER.forEach(function(brand) {
+        var cb = document.getElementById('select-' + brand);
+        if (cb && cb.checked && BrandConverter.brands[brand].inventory.length > 0) {
+            var inv = BrandConverter.brands[brand].inventory.slice();
+            var config = BRAND_CONFIG[brand];
+            if (config && config.postProcess) inv = config.postProcess(inv);
+            allInventory = allInventory.concat(inv);
         }
     });
-    
-    if (allInventory.length === 0) {
-        alert('Please select at least one brand to download!');
-        return;
-    }
-    
-    const resetInventory = allInventory.map(row => ({
-        ...row,
-        'On hand (new)': '0'
-    }));
-    
-    const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
-                   '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
-                   '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
-                   '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
-    
-    const csvRows = [inventoryHeaders.join(',')];
-    
-    resetInventory.forEach(row => {
-        const csvRow = [
-            row.Handle,
-            `"${(row.Title || '').replace(/"/g, '""')}"`,
-            row['Option1 Name'],
-            row['Option1 Value'],
-            row['Option2 Name'] || '',
-            row['Option2 Value'] || '',
-            row['Option3 Name'] || '',
-            row['Option3 Value'] || '',
-            row.SKU,
-            row.Barcode || '',
-            '', '',
-            row.Location,
-            '', '', '', '', '', '',
-            '0'
-        ];
-        csvRows.push(csvRow.join(','));
-    });
-    
-    const csvData = csvRows.join('\n');
-    
-    const date = getFormattedDate();
-    const filename = `combined-reset-${date}.csv`;
-    
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+
+    if (allInventory.length === 0) { alert('Please select at least one brand!'); return; }
+
+    var resetData = allInventory.map(function(row) { return Object.assign({}, row, { 'On hand (new)': '0' }); });
+    var csv = BrandConverter._generateInventoryCSV(resetData);
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'combined-reset-' + getFormattedDate() + '.csv';
     link.click();
-    document.body.removeChild(link);
+    showToast('Combined reset CSV downloaded');
 }
 
-// ========== COMBINED NEW PRODUCTS CSV ==========
+// ========== COMBINED NEW PRODUCTS ==========
 function updateCombinedNewProductsButton() {
     var btn = document.getElementById('combined-new-products-btn');
     if (!btn) return;
 
     var totalNew = 0;
-    var brandComparisons = {
-        hoka: window._hokaTrackerComparison,
-        on: window._onTrackerComparison,
-        asics: window._asicsTrackerComparison,
-        brooks: window._brooksTrackerComparison,
-        puma: window._pumaTrackerComparison,
-        saucony: window._sauconyTrackerComparison
-    };
-
-    for (var brand in brandComparisons) {
-        var comp = brandComparisons[brand];
+    for (var brand in BRAND_CONFIG) {
+        var key = BRAND_CONFIG[brand].comparisonKey;
+        if (!key) continue;
+        var comp = window[key];
         if (!comp) continue;
         if (comp.newProducts) totalNew += comp.newProducts.length;
         if (comp.newColorways) totalNew += comp.newColorways.length;
@@ -1307,67 +577,49 @@ function updateCombinedNewProductsButton() {
 }
 
 function downloadCombinedNewProducts() {
-    var brandConfigs = [
-        { name: 'hoka', comparison: window._hokaTrackerComparison, converter: typeof HokaConverter !== 'undefined' ? HokaConverter : null, method: 'generateNewProductCSV' },
-        { name: 'on', comparison: window._onTrackerComparison, converter: typeof OnConverter !== 'undefined' ? OnConverter : null, method: 'generateNewProductCSV' },
-        { name: 'asics', comparison: window._asicsTrackerComparison, converter: typeof AsicsConverter !== 'undefined' ? AsicsConverter : null, method: 'generateNewProductCSV' },
-        { name: 'brooks', comparison: window._brooksTrackerComparison, converter: typeof BrooksConverter !== 'undefined' ? BrooksConverter : null, method: 'generateNewProductCSV' },
-        { name: 'puma', comparison: window._pumaTrackerComparison, converter: typeof PumaConverter !== 'undefined' ? PumaConverter : null, method: 'generateNewProductCSV' },
-        { name: 'saucony', comparison: window._sauconyTrackerComparison, converter: typeof SauconyConverter !== 'undefined' ? SauconyConverter : null, method: 'generateNewProductCSV' }
-    ];
-
     var allCsvLines = [];
     var headerLine = null;
-    var totalProducts = 0;
     var brandsIncluded = [];
 
-    brandConfigs.forEach(function(config) {
-        if (!config.comparison || !config.converter || !config.converter[config.method]) return;
-        var csv = config.converter[config.method](config.comparison);
-        if (!csv) return;
+    for (var brand in BRAND_CONFIG) {
+        var config = BRAND_CONFIG[brand];
+        if (!config.comparisonKey) continue;
+        var comp = window[config.comparisonKey];
+        var converter = config.converter();
+        if (!comp || !converter || !converter.generateNewProductCSV) continue;
+
+        var csv = converter.generateNewProductCSV(comp);
+        if (!csv) continue;
 
         var lines = csv.split('\n');
-        if (lines.length < 2) return;
+        if (lines.length < 2) continue;
 
-        // First brand sets the header
-        if (!headerLine) {
-            headerLine = lines[0];
-        }
+        if (!headerLine) headerLine = lines[0];
 
-        // Add data rows (skip header)
         for (var i = 1; i < lines.length; i++) {
-            if (lines[i].trim()) {
-                allCsvLines.push(lines[i]);
-                totalProducts++;
-            }
+            if (lines[i].trim()) allCsvLines.push(lines[i]);
         }
-
-        brandsIncluded.push(config.name.toUpperCase());
-    });
-
-    if (!headerLine || allCsvLines.length === 0) {
-        alert('No new products detected across any brand.');
-        return;
+        brandsIncluded.push(config.displayName);
     }
 
-    var combinedCsv = headerLine + '\n' + allCsvLines.join('\n');
+    if (!headerLine || allCsvLines.length === 0) { alert('No new products detected.'); return; }
 
-    var date = getFormattedDate();
-    var filename = 'ALL-new-products-' + date + '.csv';
-
-    var blob = new Blob([combinedCsv], { type: 'text/csv;charset=utf-8;' });
+    var combined = headerLine + '\n' + allCsvLines.join('\n');
+    var blob = new Blob([combined], { type: 'text/csv;charset=utf-8;' });
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+    link.download = 'ALL-new-products-' + getFormattedDate() + '.csv';
     link.click();
-    document.body.removeChild(link);
-
-    console.log('Downloaded combined NEW products: ' + totalProducts + ' rows from ' + brandsIncluded.join(', '));
+    showToast('Combined new products: ' + allCsvLines.length + ' rows from ' + brandsIncluded.join(', '));
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
+// ========== INSTRUCTIONS TOGGLE ==========
+function toggleInstructions(brand) {
+    var panel = document.getElementById(brand + '-instructions');
+    if (panel) panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+}
+
+// ========== INIT ==========
+document.addEventListener('DOMContentLoaded', function() {
     BrandConverter.init();
 });
