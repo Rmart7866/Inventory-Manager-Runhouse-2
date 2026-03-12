@@ -740,7 +740,7 @@ async function convertBrand(brand) {
         return;
     }
 
-    // HOKA: check that products are selected
+    // HOKA: check scan + selection, then use HokaConverter with tracker
     if (brand === 'hoka') {
         if (!BrandConverter.brands.hoka.scanned) {
             BrandConverter.showStatus('hoka', 'File is still being scanned, please wait...', 'error');
@@ -750,6 +750,53 @@ async function convertBrand(brand) {
             BrandConverter.showStatus('hoka', 'Please select at least one product to include!', 'error');
             return;
         }
+
+        BrandConverter.showStatus('hoka', 'Processing with HokaConverter...', 'success');
+
+        try {
+            var hokaInventory = await HokaConverter.convert(file);
+            BrandConverter.brands.hoka.inventory = hokaInventory;
+
+            if (typeof showHokaProductCSVButton === 'function') showHokaProductCSVButton();
+
+            if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
+                try {
+                    BrandConverter.showStatus('hoka', 'Loading Shopify database for HOKA...', 'success');
+                    await InventoryTracker.load('hoka');
+                    var hokaComparison = InventoryTracker.compare(hokaInventory);
+                    window._hokaTrackerComparison = hokaComparison;
+
+                    if (hokaComparison.removedColorways && hokaComparison.removedColorways.length > 0) {
+                        var removedRows = InventoryTracker.generateRemovedRows(hokaComparison.removedColorways);
+                        hokaInventory = hokaInventory.concat(removedRows);
+                        BrandConverter.brands.hoka.inventory = hokaInventory;
+                        HokaConverter.inventoryData = hokaInventory;
+                    }
+
+                    await InventoryTracker.updateExistingColorways('hoka', hokaInventory);
+
+                    if (typeof showTrackerReport === 'function') showTrackerReport(hokaComparison);
+
+                    var hMsg = 'Processed ' + hokaInventory.length + ' variants';
+                    if (hokaComparison.removedColorways && hokaComparison.removedColorways.length > 0) hMsg += ' (includes ' + hokaComparison.removedColorways.length + ' removed at 0)';
+                    if (hokaComparison.newProducts && hokaComparison.newProducts.length > 0) hMsg += ' | ' + hokaComparison.newProducts.length + ' new products';
+                    if (hokaComparison.newColorways && hokaComparison.newColorways.length > 0) hMsg += ' | ' + hokaComparison.newColorways.length + ' new colorways';
+                    BrandConverter.showStatus('hoka', hMsg, 'success');
+                } catch (trackerError) {
+                    console.warn('HOKA tracker error (continuing):', trackerError);
+                    BrandConverter.showStatus('hoka', 'Processed ' + hokaInventory.length + ' variants (tracker unavailable)', 'success');
+                }
+            } else {
+                BrandConverter.showStatus('hoka', 'Processed ' + hokaInventory.length + ' variants', 'success');
+            }
+
+            BrandConverter.brands.hoka.csv = HokaConverter.generateInventoryCSV();
+            BrandConverter.updateDownloadSection();
+        } catch (hokaError) {
+            BrandConverter.showStatus('hoka', 'Error: ' + hokaError.message, 'error');
+            console.error('HOKA conversion error:', hokaError);
+        }
+        return;
     }
 
     // ASICS: check scan + selection, then use AsicsConverter with tracker
@@ -1072,63 +1119,6 @@ async function convertBrand(brand) {
         } else {
             // Use brand-specific converters
             switch(brand) {
-                case 'saucony':
-                    inventory = await SauconyConverter.convert(file);
-                    BrandConverter.brands[brand].inventory = inventory;
-                    BrandConverter.brands[brand].csv = SauconyConverter.generateInventoryCSV();
-                    break;
-                case 'hoka':
-                    inventory = await HokaConverter.convert(file);
-                    BrandConverter.brands[brand].inventory = inventory;
-
-                    if (typeof showHokaProductCSVButton === 'function') showHokaProductCSVButton();
-
-                    // Inventory Tracker
-                    if (typeof InventoryTracker !== 'undefined' && typeof db !== 'undefined') {
-                        try {
-                            BrandConverter.showStatus('hoka', 'Loading Shopify database...', 'success');
-
-                            await InventoryTracker.load('hoka');
-                            var comparison = InventoryTracker.compare(inventory);
-                            window._hokaComparison = comparison;
-
-                            if (comparison.removedColorways.length > 0) {
-                                var removedRows = InventoryTracker.generateRemovedRows(comparison.removedColorways);
-                                inventory = inventory.concat(removedRows);
-                                BrandConverter.brands[brand].inventory = inventory;
-                                HokaConverter.inventoryData = inventory;
-                            }
-
-                            await InventoryTracker.updateExistingColorways('hoka', inventory);
-
-                            if (typeof showTrackerReport === 'function') {
-                                showTrackerReport(comparison);
-                            }
-
-                            var statusMsg = 'Processed ' + inventory.length + ' variants';
-                            if (comparison.removedColorways.length > 0) {
-                                statusMsg += ' (includes ' + comparison.removedColorways.length + ' removed colorways at 0)';
-                            }
-                            if (comparison.newProducts.length > 0) {
-                                statusMsg += ' | ' + comparison.newProducts.length + ' new products detected';
-                            }
-                            if (comparison.newColorways.length > 0) {
-                                statusMsg += ' | ' + comparison.newColorways.length + ' new colorways detected';
-                            }
-                            BrandConverter.showStatus('hoka', statusMsg, 'success');
-                        } catch (trackerError) {
-                            console.warn('Inventory tracker error (continuing without tracking):', trackerError);
-                            BrandConverter.showStatus('hoka', 'Processed ' + inventory.length + ' variants (tracker unavailable)', 'success');
-                        }
-                    }
-
-                    BrandConverter.brands[brand].csv = HokaConverter.generateInventoryCSV();
-                    break;
-                case 'puma':
-                    inventory = await PumaConverter.convert(file);
-                    BrandConverter.brands[brand].inventory = inventory;
-                    BrandConverter.brands[brand].csv = PumaConverter.generateInventoryCSV();
-                    break;
                 case 'newbalance':
                     inventory = await NewBalanceConverter.convert(file);
                     BrandConverter.brands[brand].inventory = inventory;
@@ -1293,7 +1283,7 @@ function updateCombinedNewProductsButton() {
 
     var totalNew = 0;
     var brandComparisons = {
-        hoka: window._hokaTrackerComparison || window._hokaComparison,
+        hoka: window._hokaTrackerComparison,
         on: window._onTrackerComparison,
         asics: window._asicsTrackerComparison,
         brooks: window._brooksTrackerComparison,
@@ -1318,7 +1308,7 @@ function updateCombinedNewProductsButton() {
 
 function downloadCombinedNewProducts() {
     var brandConfigs = [
-        { name: 'hoka', comparison: window._hokaTrackerComparison || window._hokaComparison, converter: typeof HokaConverter !== 'undefined' ? HokaConverter : null, method: 'generateNewProductCSV' },
+        { name: 'hoka', comparison: window._hokaTrackerComparison, converter: typeof HokaConverter !== 'undefined' ? HokaConverter : null, method: 'generateNewProductCSV' },
         { name: 'on', comparison: window._onTrackerComparison, converter: typeof OnConverter !== 'undefined' ? OnConverter : null, method: 'generateNewProductCSV' },
         { name: 'asics', comparison: window._asicsTrackerComparison, converter: typeof AsicsConverter !== 'undefined' ? AsicsConverter : null, method: 'generateNewProductCSV' },
         { name: 'brooks', comparison: window._brooksTrackerComparison, converter: typeof BrooksConverter !== 'undefined' ? BrooksConverter : null, method: 'generateNewProductCSV' },
