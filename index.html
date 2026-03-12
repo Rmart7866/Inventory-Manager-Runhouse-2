@@ -1068,25 +1068,8 @@
                         <button class="clear-btn" onclick="clearFile('hoka')">Clear</button>
                     </div>
 
-                    <!-- HOKA Product Picker (shown after file scan) -->
-                    <div class="product-picker" id="hoka-product-picker">
-                        <div class="product-picker-header">
-                            <h4>Select Products to Include</h4>
-                            <div class="product-picker-actions">
-                                <button class="picker-action-btn" onclick="hokaPickerSelectAll()">Select All</button>
-                                <button class="picker-action-btn" onclick="hokaPickerSelectNone()">Select None</button>
-                                <button class="picker-action-btn" onclick="hokaPickerSelectDefaults()">Defaults</button>
-                                <button class="picker-save-defaults-btn" id="hoka-save-defaults-btn" onclick="saveHokaDefaults()">Save as Defaults</button>
-                            </div>
-                        </div>
-                        <div class="product-picker-summary" id="hoka-picker-summary">
-                            <span id="hoka-picker-count">0 products selected</span>
-                            <span id="hoka-picker-rows">0 rows</span>
-                        </div>
-                        <div class="product-picker-body" id="hoka-picker-body">
-                            <!-- Populated dynamically by scanFile -->
-                        </div>
-                    </div>
+                    <!-- HOKA Product Picker (dynamically populated by brand-picker.js) -->
+                    <div id="hoka-picker-container" style="display: none; margin: 0 32px 16px 32px;"></div>
 
                     <div class="convert-section" id="hoka-convert">
                         <button class="convert-btn" onclick="convertBrand('hoka')">Generate Inventory</button>
@@ -1242,7 +1225,7 @@ https://b2b.asics.com/orders/100555134/products/1011C127?colorCode=001&deliveryD
                         <button class="clear-btn" onclick="clearFile('asics')">Clear</button>
                     </div>
 
-                    <!-- ASICS Picker (populated by asics-picker.js) -->
+                    <!-- ASICS Picker (populated by brand-picker.js) -->
                     <div id="asics-picker-container" style="display: none; margin: 0 32px 16px 32px;"></div>
 
                     <div class="convert-section" id="asics-convert">
@@ -1494,20 +1477,15 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
     </script>
 
     <script src="saucony-converter.js"></script>
-    <script src="saucony-picker.js"></script>
     <script src="hoka-converter.js"></script>
-    <script src="hoka-picker.js"></script>
     <script src="firebase-config.js"></script>
     <script src="inventory-tracker.js"></script>
     <script src="puma-converter.js"></script>
-    <script src="puma-picker.js"></script>
     <script src="newbalance-converter.js"></script>
     <script src="on-converter.js"></script>
-    <script src="on-picker.js"></script>
     <script src="asics-converter.js"></script>
-    <script src="asics-picker.js"></script>
     <script src="brooks-converter.js"></script>
-    <script src="brooks-picker.js"></script>
+    <!-- Unified picker for all brands (replaces 6 individual picker files) -->
     <script src="brand-picker.js"></script>
     <!-- INVENTORY COMPARISON SCRIPTS -->
     <script>
