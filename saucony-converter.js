@@ -1,5 +1,6 @@
 // Saucony Converter - Updated with scan/picker/tracker flow
 // Reads B2B Excel files with size columns, handles gender/width/unisex sizing
+// Width column 7: M=Regular, W=Wide, XW=Extra Wide
 
 
 var SauconyConverter = {
@@ -196,7 +197,9 @@ var SauconyConverter = {
 
         if (this.existingHandles[lookupKey]) {
             var base = this.existingHandles[lookupKey];
-            return width === 'W' ? base + '-wide' : base;
+            if (width === 'W')  return base + '-wide';
+            if (width === 'XW') return base + '-extra-wide';
+            return base;
         }
 
         // New product: generate handle with gender suffix
@@ -206,7 +209,9 @@ var SauconyConverter = {
         if (genderType === 'men' || genderType === 'women') {
             withGender = baseHandle + '-' + genderType;
         }
-        return width === 'W' ? withGender + '-wide' : withGender;
+        if (width === 'W')  return withGender + '-wide';
+        if (width === 'XW') return withGender + '-extra-wide';
+        return withGender;
     },
 
     // ========== PARSE EXCEL ==========
@@ -235,13 +240,15 @@ var SauconyConverter = {
                 var gender = (row[4] || '').toString().trim();
                 var width = (row[7] || 'M').toString().trim().toUpperCase();
                 if (!productName) return;
-                if (width !== 'M' && width !== 'W') return;
+                // FIX: accept M, W, and XW
+                if (width !== 'M' && width !== 'W' && width !== 'XW') return;
 
                 var genderType = self.getGenderType(gender, productName);
                 var genderPrefix = self.getGenderPrefix(genderType);
                 var formattedProduct = self.formatProductName(productName);
                 var modelUpper = formattedProduct.toUpperCase();
-                var widthSuffix = width === 'W' ? ' (Wide)' : '';
+                var widthLabel = width === 'W' ? 'Wide' : width === 'XW' ? 'Extra Wide' : '';
+                var widthSuffix = widthLabel ? ' (' + widthLabel + ')' : '';
                 var modelKey = genderPrefix + ' ' + modelUpper + widthSuffix;
 
                 // Sum quantities
@@ -261,7 +268,7 @@ var SauconyConverter = {
                         modelKey: modelKey,
                         gender: genderPrefix,
                         genderType: genderType,
-                        width: width === 'W' ? 'Wide' : '',
+                        width: widthLabel,
                         category: self.getCategory(modelUpper),
                         colorways: new Map(),
                         totalRows: 0,
@@ -276,7 +283,7 @@ var SauconyConverter = {
                 if (!modelData.colorways.has(handle)) {
                     modelData.colorways.set(handle, {
                         handle: handle,
-                        title: genderPrefix + ' Saucony ' + formattedProduct + ' - ' + self.formatColorName(color) + (width === 'W' ? ' Wide' : ''),
+                        title: genderPrefix + ' Saucony ' + formattedProduct + ' - ' + self.formatColorName(color) + (widthLabel ? ' ' + widthLabel : ''),
                         color: color,
                         rows: 0,
                         inventory: 0
@@ -329,13 +336,15 @@ var SauconyConverter = {
                 var gender = (row[4] || '').toString().trim();
                 var width = (row[7] || 'M').toString().trim().toUpperCase();
                 if (!productName) return;
-                if (width !== 'M' && width !== 'W') return;
+                // FIX: accept M, W, and XW
+                if (width !== 'M' && width !== 'W' && width !== 'XW') return;
 
                 var genderType = self.getGenderType(gender, productName);
                 var genderPrefix = self.getGenderPrefix(genderType);
                 var formattedProduct = self.formatProductName(productName);
                 var modelUpper = formattedProduct.toUpperCase();
-                var widthSuffix = width === 'W' ? ' (Wide)' : '';
+                var widthLabel = width === 'W' ? 'Wide' : width === 'XW' ? 'Extra Wide' : '';
+                var widthSuffix = widthLabel ? ' (' + widthLabel + ')' : '';
                 var modelKey = genderPrefix + ' ' + modelUpper + widthSuffix;
 
                 // Filter by picker selection
@@ -343,7 +352,7 @@ var SauconyConverter = {
 
                 var handle = self.getProductHandle(productName, color, genderType, width);
                 var formattedColor = self.formatColorName(color);
-                var productTitle = genderPrefix + ' Saucony ' + formattedProduct + ' - ' + formattedColor + (width === 'W' ? ' Wide' : '');
+                var productTitle = genderPrefix + ' Saucony ' + formattedProduct + ' - ' + formattedColor + (widthLabel ? ' ' + widthLabel : '');
                 var sizeColumns = self.getSizeColumns(genderType);
 
                 for (var s = 0; s < sizeColumns.length; s++) {
@@ -379,7 +388,7 @@ var SauconyConverter = {
                         genderType: genderType,
                         model: modelUpper,
                         color: formattedColor,
-                        width: width === 'W' ? 'Wide' : '',
+                        width: widthLabel,
                         category: self.getCategory(modelUpper),
                         sku: sku,
                         size: sizeInfo.size,

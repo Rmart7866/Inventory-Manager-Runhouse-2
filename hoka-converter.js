@@ -3,9 +3,6 @@ const HokaConverter = {
     inventoryData: [],
     brandName: 'hoka',
 
-    // ========== HOKA EXISTING HANDLES ==========
-    // Key format: "styleNumber-colorCode" (e.g., "1162030-BBLC")
-    // Value: existing Shopify handle to preserve SEO
     existingHandles: {
         '1123074-ADW': 'men-s-solimar-asteroid-white',
         '1123074-BWHT': 'solimar-black-white',
@@ -546,14 +543,71 @@ const HokaConverter = {
         '1177331-BBLC': 'women-s-solimar-black-black',
         '1177331-BWHT': 'women-s-solimar-black-white'
     },
+
+    // ========== WIDTH DETECTION ==========
+    // Men's:    B=Narrow, D=Regular(no suffix), 2E/EE=Wide, 4E/EEEE=Extra Wide, 6E/EEEEEE=Extra Extra Wide
+    // Women's:  2A/AA=Narrow, B=Regular(no suffix), D=Wide, 2E/EE=Extra Wide, 4E/EEEE=Extra Extra Wide
+    detectWidth: function(sizeInfo, variantSKU, productName, isWomen) {
+        var sizeStr = (sizeInfo || '').toString().toUpperCase();
+        var skuUpper = (variantSKU || '').toString().toUpperCase();
+        var nameUpper = (productName || '').toString().toUpperCase();
+
+        // Product name takes highest priority (scraper encodes X-WIDE / WIDE in name)
+        if (nameUpper.includes('X-WIDE') || nameUpper.includes('XWIDE') || nameUpper.includes('EXTRA WIDE')) {
+            return 'Extra Wide';
+        }
+        if (nameUpper.includes(' WIDE')) {
+            return 'Wide';
+        }
+
+        // Helper: does sizeStr OR skuUpper match this regex?
+        var has = function(re) { return re.test(sizeStr) || re.test(skuUpper); };
+
+        if (isWomen) {
+            // Women: 2A/AA < B(std) < D < 2E/EE < 4E/EEEE
+            if (has(/\b(4E|EEEE)\b/) || sizeStr.includes('EEEE') || skuUpper.includes('EEEE')) return 'Extra Wide';
+            if (has(/\b(2E|EE)\b/)   || sizeStr.includes('2E')   || skuUpper.includes('2E'))   return 'Extra Wide'; // women 2E = extra wide
+            if (has(/\bD\b/)         || sizeStr.endsWith('D'))                                   return 'Wide';      // women D = wide
+            if (has(/\b(2A|AA)\b/)   || sizeStr.endsWith('2A'))                                  return 'Narrow';
+            // B = standard, no suffix
+        } else {
+            // Men: B < D(std) < 2E/EE < 4E/EEEE < 6E/EEEEEE
+            if (has(/\b(6E|EEEEEE)\b/) || sizeStr.includes('EEEEEE') || skuUpper.includes('EEEEEE')) return 'Extra Extra Wide';
+            if (has(/\b(4E|EEEE)\b/)   || sizeStr.includes('EEEE')   || skuUpper.includes('EEEE'))   return 'Extra Wide';
+            if (has(/\b(2E|EE)\b/)     || sizeStr.includes('2E')     || skuUpper.includes('2E'))     return 'Wide';
+            if (has(/\bB\b/))                                                                          return 'Narrow';
+            // D = standard, no suffix
+        }
+        return 'Regular';
+    },
+
+    // ========== WIDTH LABEL -> HANDLE SUFFIX ==========
+    widthSuffix: function(width) {
+        switch (width) {
+            case 'Narrow':           return '-narrow';
+            case 'Wide':             return '-wide';
+            case 'Extra Wide':       return '-extra-wide';
+            case 'Extra Extra Wide': return '-extra-extra-wide';
+            default:                 return '';
+        }
+    },
+
+    // ========== WIDTH LABEL -> WIDTH CODE (for getProductHandle) ==========
+    widthToCode: function(width) {
+        switch (width) {
+            case 'Narrow':           return 'B';
+            case 'Wide':             return 'EE';
+            case 'Extra Wide':       return 'EEEE';
+            case 'Extra Extra Wide': return 'EEEEEE';
+            default:                 return '';
+        }
+    },
+
     isAvailableNow: function(availableDateStr) {
         if (!availableDateStr) return true;
         try {
             var parts = availableDateStr.toString().split('/').map(function(num) { return parseInt(num); });
-            var month = parts[0];
-            var day = parts[1];
-            var year = parts[2];
-            var availableDate = new Date(year, month - 1, day);
+            var availableDate = new Date(parts[2], parts[0] - 1, parts[1]);
             var today = new Date();
             today.setHours(0, 0, 0, 0);
             return availableDate <= today;
@@ -564,226 +618,50 @@ const HokaConverter = {
     },
 
     productInfo: {
-        'Mach 6': {
-            description: 'Behold the lightest, most responsive Mach to date.',
-            specs: { stack: '37/32mm', drop: '5mm', weight: '8.1 oz' },
-            category: 'neutral daily trainer'
-        },
-        'Mach 7': {
-            description: 'The lightest, most responsive Mach yet.',
-            specs: { stack: '37/32mm', drop: '5mm', weight: '8.1 oz' },
-            category: 'neutral daily trainer'
-        },
-        'Mach X 3': {
-            description: 'A plated daily trainer that brings the heat to speedwork.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '10.2 oz' },
-            category: 'plated performance trainer'
-        },
-        'Skyward X': {
-            description: 'Pushing soft and smooth to the extreme with a convex carbon fiber plate.',
-            specs: { stack: '48/43mm', drop: '5mm', weight: '11.3 oz' },
-            category: 'max cushion trainer'
-        },
-        'Clifton 10': {
-            description: 'A trusted trainer for daily maintenance miles.',
-            specs: { stack: '42/34mm', drop: '8mm', weight: '9.7 oz' },
-            category: 'neutral cushioned trainer'
-        },
-        'Bondi 9': {
-            description: 'One of the hardest working shoes in the HOKA lineup.',
-            specs: { stack: '43/38mm', drop: '5mm', weight: '10.5 oz' },
-            category: 'max cushion trainer'
-        },
-        'Arahi 8': {
-            description: 'Anything but your average stability shoe with H-frame technology.',
-            specs: { stack: '39/31mm', drop: '8mm', weight: '9.8 oz' },
-            category: 'stability trainer'
-        },
-        'Skyflow': {
-            description: 'Designed to elevate your daily running practice.',
-            specs: { stack: '40/35mm', drop: '5mm', weight: '10 oz' },
-            category: 'neutral daily trainer'
-        },
-        'Gaviota 5': {
-            description: 'Maximum stability meets plush comfort.',
-            specs: { stack: '40/35mm', drop: '5mm', weight: '10.3 oz' },
-            category: 'max stability trainer'
-        },
-        'Gaviota 6': {
-            description: 'Maximum stability meets plush comfort with enhanced H-Frame technology.',
-            specs: { stack: '40/35mm', drop: '5mm', weight: '10.3 oz' },
-            category: 'max stability trainer'
-        },
-        'Transport': {
-            description: 'The perfect everyday shoe from trail to town.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '11.5 oz' },
-            category: 'lifestyle/casual'
-        },
-        'Transport Chukka': {
-            description: 'Elevated style meets everyday comfort.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '12 oz' },
-            category: 'lifestyle/casual'
-        },
-        'Transport GTX': {
-            description: 'Weather-ready versatility with GORE-TEX protection.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '12.5 oz' },
-            category: 'lifestyle/casual'
-        },
-        'Transport Hike': {
-            description: 'Trail-ready comfort with enhanced support and traction.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '12.5 oz' },
-            category: 'lifestyle/hiking'
-        },
-        'Transport Mid': {
-            description: 'Ankle support meets everyday comfort.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '13 oz' },
-            category: 'lifestyle/casual'
-        },
-        'Solimar': {
-            description: 'A lightweight, responsive trainer for faster-paced runs.',
-            specs: { stack: '30/25mm', drop: '5mm', weight: '7.2 oz' },
-            category: 'lightweight performance trainer'
-        },
-        'Speedgoat 6': {
-            description: 'Trail icon with unmatched traction on technical terrain.',
-            specs: { stack: '33/29mm', drop: '4mm', weight: '9.7 oz' },
-            category: 'trail running'
-        },
-        'Speedgoat 7': {
-            description: 'The ultimate trail shoe with enhanced traction and improved durability.',
-            specs: { stack: '33/29mm', drop: '4mm', weight: '9.7 oz' },
-            category: 'trail running'
-        },
-        'Speedgoat 6 GTX': {
-            description: 'Waterproof trail running with GORE-TEX protection and Vibram Megagrip outsole.',
-            specs: { stack: '33/29mm', drop: '4mm', weight: '10.8 oz' },
-            category: 'waterproof trail running'
-        },
-        'Speedgoat 6 Mid GTX': {
-            description: 'Mid-cut waterproof trail shoe with ankle protection and aggressive traction.',
-            specs: { stack: '33/29mm', drop: '4mm', weight: '12.1 oz' },
-            category: 'waterproof trail running'
-        },
-        'Bondi SR': {
-            description: 'Slip-resistant version of the iconic Bondi, designed for professionals on their feet all day.',
-            specs: { stack: '43/38mm', drop: '5mm', weight: '11.2 oz' },
-            category: 'work/slip-resistant'
-        },
-        'Arahi SR': {
-            description: 'Slip-resistant stability shoe for all-day comfort and support on the job.',
-            specs: { stack: '39/31mm', drop: '8mm', weight: '10.5 oz' },
-            category: 'work/slip-resistant'
-        },
-        'Challenger 8': {
-            description: 'Versatile road-to-trail shoe with a responsive midsole and durable outsole.',
-            specs: { stack: '33/29mm', drop: '4mm', weight: '9.3 oz' },
-            category: 'road-to-trail'
-        },
-        'Challenger 8 GTX': {
-            description: 'Waterproof road-to-trail shoe with GORE-TEX protection.',
-            specs: { stack: '33/29mm', drop: '4mm', weight: '10.2 oz' },
-            category: 'waterproof road-to-trail'
-        },
-        'Solimar 2': {
-            description: 'Updated lightweight trainer for faster-paced runs with improved responsiveness.',
-            specs: { stack: '30/25mm', drop: '5mm', weight: '7.2 oz' },
-            category: 'lightweight performance trainer'
-        },
-        'Clifton 9 GTX': {
-            description: 'Waterproof daily trainer with GORE-TEX protection and signature Clifton cushioning.',
-            specs: { stack: '39/31mm', drop: '8mm', weight: '10.5 oz' },
-            category: 'waterproof daily trainer'
-        },
-        'Stinson 7': {
-            description: 'Maximum cushion trail shoe for long adventures on moderate terrain.',
-            specs: { stack: '40/35mm', drop: '5mm', weight: '11.5 oz' },
-            category: 'max cushion trail'
-        },
-        'Mafate X': {
-            description: 'Premium trail running shoe with plated midsole for aggressive terrain.',
-            specs: { stack: '35/30mm', drop: '5mm', weight: '10.5 oz' },
-            category: 'premium trail'
-        },
-        'Mafate 5': {
-            description: 'Legendary trail shoe built for rugged terrain with maximum protection.',
-            specs: { stack: '35/30mm', drop: '5mm', weight: '11.2 oz' },
-            category: 'premium trail'
-        },
-        'Tecton X 3': {
-            description: 'Carbon-plated trail racing shoe for competitive trail runners.',
-            specs: { stack: '32/27mm', drop: '5mm', weight: '8.9 oz' },
-            category: 'trail racing'
-        },
-        'Skyward Laceless': {
-            description: 'Easy on/off max cushion shoe with laceless design and plush comfort.',
-            specs: { stack: '48/43mm', drop: '5mm', weight: '11.5 oz' },
-            category: 'max cushion laceless'
-        },
-        'Skyward X 2': {
-            description: 'Next generation max cushion plated trainer with enhanced suspension system.',
-            specs: { stack: '48/43mm', drop: '5mm', weight: '11.3 oz' },
-            category: 'max cushion trainer'
-        },
-        'Transport 2': {
-            description: 'Updated everyday lifestyle shoe for seamless trail-to-town transitions.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '11.5 oz' },
-            category: 'lifestyle/casual'
-        },
-        'Transport Chukka GTX': {
-            description: 'Waterproof mid-height casual shoe with GORE-TEX and HOKA cushioning.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '13 oz' },
-            category: 'lifestyle/casual'
-        },
-        'Transport Hike GTX': {
-            description: 'Waterproof hiking shoe with enhanced traction and HOKA cushioning.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '13 oz' },
-            category: 'lifestyle/hiking'
-        },
-        'Cielo X1 2.0': {
-            description: 'Elite carbon-plated super shoe for road racing. Second generation Cielo X1.',
-            specs: { stack: '39/36mm', drop: '3mm', weight: '6.2 oz' },
-            category: 'elite carbon road racer'
-        },
-        'Cielo X1 3.0': {
-            description: 'Third generation elite carbon road racer with refined geometry.',
-            specs: { stack: '39/36mm', drop: '3mm', weight: '6.2 oz' },
-            category: 'elite carbon road racer'
-        },
-        'Cielo X MD': {
-            description: 'Carbon-plated middle distance racing spike for track competition.',
-            specs: { stack: '25/20mm', drop: '5mm', weight: '5.0 oz' },
-            category: 'track racing spike'
-        },
-        'Cielo X 3 MD': {
-            description: 'Third generation middle distance racing spike with carbon plate.',
-            specs: { stack: '25/20mm', drop: '5mm', weight: '5.0 oz' },
-            category: 'track racing spike'
-        },
-        'Cielo X 3 LD': {
-            description: 'Third generation long distance racing spike with carbon plate.',
-            specs: { stack: '25/20mm', drop: '5mm', weight: '5.2 oz' },
-            category: 'track racing spike'
-        },
-        'Rocket X 3': {
-            description: 'Carbon-plated road racing shoe for race day performance.',
-            specs: { stack: '38/33mm', drop: '5mm', weight: '7.5 oz' },
-            category: 'carbon road racer'
-        },
-        'Zinal 3': {
-            description: 'Lightweight trail racing shoe for fast and technical terrain.',
-            specs: { stack: '28/24mm', drop: '4mm', weight: '8.5 oz' },
-            category: 'trail racing'
-        }
+        'Mach 6': { description: 'Behold the lightest, most responsive Mach to date.', specs: { stack: '37/32mm', drop: '5mm', weight: '8.1 oz' }, category: 'neutral daily trainer' },
+        'Mach 7': { description: 'The lightest, most responsive Mach yet.', specs: { stack: '37/32mm', drop: '5mm', weight: '8.1 oz' }, category: 'neutral daily trainer' },
+        'Mach X 3': { description: 'A plated daily trainer that brings the heat to speedwork.', specs: { stack: '38/33mm', drop: '5mm', weight: '10.2 oz' }, category: 'plated performance trainer' },
+        'Skyward X': { description: 'Pushing soft and smooth to the extreme with a convex carbon fiber plate.', specs: { stack: '48/43mm', drop: '5mm', weight: '11.3 oz' }, category: 'max cushion trainer' },
+        'Clifton 10': { description: 'A trusted trainer for daily maintenance miles.', specs: { stack: '42/34mm', drop: '8mm', weight: '9.7 oz' }, category: 'neutral cushioned trainer' },
+        'Bondi 9': { description: 'One of the hardest working shoes in the HOKA lineup.', specs: { stack: '43/38mm', drop: '5mm', weight: '10.5 oz' }, category: 'max cushion trainer' },
+        'Arahi 8': { description: 'Anything but your average stability shoe with H-frame technology.', specs: { stack: '39/31mm', drop: '8mm', weight: '9.8 oz' }, category: 'stability trainer' },
+        'Skyflow': { description: 'Designed to elevate your daily running practice.', specs: { stack: '40/35mm', drop: '5mm', weight: '10 oz' }, category: 'neutral daily trainer' },
+        'Gaviota 5': { description: 'Maximum stability meets plush comfort.', specs: { stack: '40/35mm', drop: '5mm', weight: '10.3 oz' }, category: 'max stability trainer' },
+        'Gaviota 6': { description: 'Maximum stability meets plush comfort with enhanced H-Frame technology.', specs: { stack: '40/35mm', drop: '5mm', weight: '10.3 oz' }, category: 'max stability trainer' },
+        'Transport': { description: 'The perfect everyday shoe from trail to town.', specs: { stack: '38/33mm', drop: '5mm', weight: '11.5 oz' }, category: 'lifestyle/casual' },
+        'Transport Chukka': { description: 'Elevated style meets everyday comfort.', specs: { stack: '38/33mm', drop: '5mm', weight: '12 oz' }, category: 'lifestyle/casual' },
+        'Transport GTX': { description: 'Weather-ready versatility with GORE-TEX protection.', specs: { stack: '38/33mm', drop: '5mm', weight: '12.5 oz' }, category: 'lifestyle/casual' },
+        'Transport Hike': { description: 'Trail-ready comfort with enhanced support and traction.', specs: { stack: '38/33mm', drop: '5mm', weight: '12.5 oz' }, category: 'lifestyle/hiking' },
+        'Transport Mid': { description: 'Ankle support meets everyday comfort.', specs: { stack: '38/33mm', drop: '5mm', weight: '13 oz' }, category: 'lifestyle/casual' },
+        'Solimar': { description: 'A lightweight, responsive trainer for faster-paced runs.', specs: { stack: '30/25mm', drop: '5mm', weight: '7.2 oz' }, category: 'lightweight performance trainer' },
+        'Speedgoat 6': { description: 'Trail icon with unmatched traction on technical terrain.', specs: { stack: '33/29mm', drop: '4mm', weight: '9.7 oz' }, category: 'trail running' },
+        'Speedgoat 7': { description: 'The ultimate trail shoe with enhanced traction and improved durability.', specs: { stack: '33/29mm', drop: '4mm', weight: '9.7 oz' }, category: 'trail running' },
+        'Speedgoat 6 GTX': { description: 'Waterproof trail running with GORE-TEX protection and Vibram Megagrip outsole.', specs: { stack: '33/29mm', drop: '4mm', weight: '10.8 oz' }, category: 'waterproof trail running' },
+        'Speedgoat 6 Mid GTX': { description: 'Mid-cut waterproof trail shoe with ankle protection and aggressive traction.', specs: { stack: '33/29mm', drop: '4mm', weight: '12.1 oz' }, category: 'waterproof trail running' },
+        'Bondi SR': { description: 'Slip-resistant version of the iconic Bondi, designed for professionals on their feet all day.', specs: { stack: '43/38mm', drop: '5mm', weight: '11.2 oz' }, category: 'work/slip-resistant' },
+        'Arahi SR': { description: 'Slip-resistant stability shoe for all-day comfort and support on the job.', specs: { stack: '39/31mm', drop: '8mm', weight: '10.5 oz' }, category: 'work/slip-resistant' },
+        'Challenger 8': { description: 'Versatile road-to-trail shoe with a responsive midsole and durable outsole.', specs: { stack: '33/29mm', drop: '4mm', weight: '9.3 oz' }, category: 'road-to-trail' },
+        'Challenger 8 GTX': { description: 'Waterproof road-to-trail shoe with GORE-TEX protection.', specs: { stack: '33/29mm', drop: '4mm', weight: '10.2 oz' }, category: 'waterproof road-to-trail' },
+        'Solimar 2': { description: 'Updated lightweight trainer for faster-paced runs with improved responsiveness.', specs: { stack: '30/25mm', drop: '5mm', weight: '7.2 oz' }, category: 'lightweight performance trainer' },
+        'Clifton 9 GTX': { description: 'Waterproof daily trainer with GORE-TEX protection and signature Clifton cushioning.', specs: { stack: '39/31mm', drop: '8mm', weight: '10.5 oz' }, category: 'waterproof daily trainer' },
+        'Stinson 7': { description: 'Maximum cushion trail shoe for long adventures on moderate terrain.', specs: { stack: '40/35mm', drop: '5mm', weight: '11.5 oz' }, category: 'max cushion trail' },
+        'Mafate X': { description: 'Premium trail running shoe with plated midsole for aggressive terrain.', specs: { stack: '35/30mm', drop: '5mm', weight: '10.5 oz' }, category: 'premium trail' },
+        'Mafate 5': { description: 'Legendary trail shoe built for rugged terrain with maximum protection.', specs: { stack: '35/30mm', drop: '5mm', weight: '11.2 oz' }, category: 'premium trail' },
+        'Tecton X 3': { description: 'Carbon-plated trail racing shoe for competitive trail runners.', specs: { stack: '32/27mm', drop: '5mm', weight: '8.9 oz' }, category: 'trail racing' },
+        'Skyward Laceless': { description: 'Easy on/off max cushion shoe with laceless design and plush comfort.', specs: { stack: '48/43mm', drop: '5mm', weight: '11.5 oz' }, category: 'max cushion laceless' },
+        'Skyward X 2': { description: 'Next generation max cushion plated trainer with enhanced suspension system.', specs: { stack: '48/43mm', drop: '5mm', weight: '11.3 oz' }, category: 'max cushion trainer' },
+        'Transport 2': { description: 'Updated everyday lifestyle shoe for seamless trail-to-town transitions.', specs: { stack: '38/33mm', drop: '5mm', weight: '11.5 oz' }, category: 'lifestyle/casual' },
+        'Transport Chukka GTX': { description: 'Waterproof mid-height casual shoe with GORE-TEX and HOKA cushioning.', specs: { stack: '38/33mm', drop: '5mm', weight: '13 oz' }, category: 'lifestyle/casual' },
+        'Transport Hike GTX': { description: 'Waterproof hiking shoe with enhanced traction and HOKA cushioning.', specs: { stack: '38/33mm', drop: '5mm', weight: '13 oz' }, category: 'lifestyle/hiking' },
+        'Cielo X1 2.0': { description: 'Elite carbon-plated super shoe for road racing. Second generation Cielo X1.', specs: { stack: '39/36mm', drop: '3mm', weight: '6.2 oz' }, category: 'elite carbon road racer' },
+        'Cielo X1 3.0': { description: 'Third generation elite carbon road racer with refined geometry.', specs: { stack: '39/36mm', drop: '3mm', weight: '6.2 oz' }, category: 'elite carbon road racer' },
+        'Rocket X 3': { description: 'Carbon-plated road racing shoe for race day performance.', specs: { stack: '38/33mm', drop: '5mm', weight: '7.5 oz' }, category: 'carbon road racer' },
+        'Zinal 3': { description: 'Lightweight trail racing shoe for fast and technical terrain.', specs: { stack: '28/24mm', drop: '4mm', weight: '8.5 oz' }, category: 'trail racing' }
     },
 
-    // Default products - loaded from Firestore at runtime via _knownProducts
-    // Falls back to empty (nothing pre-checked) if Firestore unavailable
     defaultProducts: [],
-
-    // Set of currently selected products (populated by product picker)
     selectedProducts: new Set(),
 
-    // Product category assignments for grouping in the picker
     productCategories: {
         'Road Running': ['Mach 6', 'Mach 7', 'Mach X 3', 'Skyward X', 'Skyward X 2', 'Skyward Laceless',
                          'Clifton 10', 'Clifton 9 GTX', 'Bondi 9', 'Bondi SR', 'Arahi 8', 'Arahi 7', 'Arahi SR',
@@ -810,144 +688,75 @@ const HokaConverter = {
                         'Trail Run Crew Sock']
     },
 
-    // Identify ANY HOKA product from its ATS name — returns a clean product name
-    // This handles ALL products, not just the default 40
     identifyProduct: function(productName) {
         if (!productName) return null;
-
-        // First try the known product matcher (handles versioning logic)
         var known = this.getMatchingProduct(productName);
         if (known) return known;
-
-        // Generic fallback: strip gender prefix and WIDE/X-WIDE, then title-case
         var nameLower = productName.toString().trim().toLowerCase();
         nameLower = nameLower.replace(/^[mwuy]\s+/, '');
         nameLower = nameLower.replace(/\s+(?:x-wide|xwide)$/i, '').replace(/\s+wide$/i, '').trim();
-
-        // Title case it
         var titleCased = nameLower.replace(/\b\w/g, function(c) { return c.toUpperCase(); });
-        // Fix common patterns: GTX, SR, ATR, MD, LD, XC
-        titleCased = titleCased.replace(/\bGtx\b/g, 'GTX')
-                               .replace(/\bSr\b/g, 'SR')
-                               .replace(/\bAtr\b/g, 'ATR')
-                               .replace(/\bMd\b/g, 'MD')
-                               .replace(/\bLd\b/g, 'LD')
-                               .replace(/\bXc\b/g, 'XC')
-                               .replace(/\bBp\b/g, 'BP')
-                               .replace(/\bTc\b/g, 'TC')
-                               .replace(/\bPk\b/g, 'Pk')
+        titleCased = titleCased.replace(/\bGtx\b/g, 'GTX').replace(/\bSr\b/g, 'SR').replace(/\bAtr\b/g, 'ATR')
+                               .replace(/\bMd\b/g, 'MD').replace(/\bLd\b/g, 'LD').replace(/\bXc\b/g, 'XC')
+                               .replace(/\bBp\b/g, 'BP').replace(/\bTc\b/g, 'TC').replace(/\bPk\b/g, 'Pk')
                                .replace(/\bOra\b/g, 'Ora');
         return titleCased;
     },
 
-    // Scan file and return all products with stats (for the product picker)
     scanFile: function(file) {
         var self = this;
-
         return new Promise(function(resolve, reject) {
             try {
                 var reader = new FileReader();
-
                 reader.onload = function(e) {
                     try {
                         var data = [];
-
-                        if (file.name.toLowerCase().endsWith('.xlsx') ||
-                            file.name.toLowerCase().endsWith('.xls')) {
-                            var arrayBuffer = e.target.result;
-                            var workbook = XLSX.read(arrayBuffer);
+                        if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+                            var workbook = XLSX.read(e.target.result);
                             var worksheet = workbook.Sheets[workbook.SheetNames[0]];
                             data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                         } else {
-                            var text = e.target.result;
-                            var parseResult = Papa.parse(text, {
-                                delimiter: '\t',
-                                header: false,
-                                skipEmptyLines: true,
-                                dynamicTyping: true
-                            });
+                            var parseResult = Papa.parse(e.target.result, { delimiter: '\t', header: false, skipEmptyLines: true, dynamicTyping: true });
                             data = parseResult.data;
                         }
-
-                        // Skip header row
                         var startIdx = 0;
                         if (data.length > 0 && (data[0][0] === 'Division' || data[0][5] === 'Style Name' || data[0][5] === 'Product Name')) {
                             startIdx = 1;
                         }
-
-                        // Scan all rows and group by product
-                        var productMap = {}; // productName -> { rows, inventory, isDefault }
-                        // Use Firestore known products if available, otherwise fall back to hardcoded defaults
+                        var productMap = {};
                         var knownSet = self._knownProducts || null;
-
                         for (var i = startIdx; i < data.length; i++) {
                             var row = data[i];
                             if (!row || row.length < 10) continue;
-
-                            var productName = row[5];
                             var division = row[0];
-
-                            // Skip youth/kids
                             if (division && (division.toString().trim().toLowerCase() === 'youth' ||
-                                           division.toString().trim().toLowerCase() === 'kids' ||
-                                           division.toString().trim().toUpperCase() === 'Y')) {
-                                continue;
-                            }
-
-                            var identified = self.identifyProduct(productName);
+                                            division.toString().trim().toLowerCase() === 'kids' ||
+                                            division.toString().trim().toUpperCase() === 'Y')) continue;
+                            var identified = self.identifyProduct(row[5]);
                             if (!identified) continue;
-
                             if (!productMap[identified]) {
-                                var isKnown;
-                                if (knownSet) {
-                                    isKnown = knownSet.has(identified);
-                                } else {
-                                    isKnown = self.defaultProducts.indexOf(identified) !== -1;
-                                }
-                                productMap[identified] = {
-                                    name: identified,
-                                    rows: 0,
-                                    inventory: 0,
-                                    isDefault: isKnown
-                                };
+                                var isKnown = knownSet ? knownSet.has(identified) : self.defaultProducts.indexOf(identified) !== -1;
+                                productMap[identified] = { name: identified, rows: 0, inventory: 0, isDefault: isKnown };
                             }
-
                             productMap[identified].rows++;
                             var qty = parseInt(row[12]) || 0;
-                            if (qty > 0) {
-                                productMap[identified].inventory += qty;
-                            }
+                            if (qty > 0) productMap[identified].inventory += qty;
                         }
-
-                        // Convert to sorted array
                         var products = Object.values(productMap).sort(function(a, b) {
-                            // Defaults first, then alphabetical
                             if (a.isDefault && !b.isDefault) return -1;
                             if (!a.isDefault && b.isDefault) return 1;
                             return a.name.localeCompare(b.name);
                         });
-
                         resolve(products);
-
-                    } catch (error) {
-                        console.error('HOKA scan error:', error);
-                        reject(error);
-                    }
+                    } catch (error) { reject(error); }
                 };
-
-                reader.onerror = function() {
-                    reject(new Error('Failed to read file'));
-                };
-
+                reader.onerror = function() { reject(new Error('Failed to read file')); };
                 if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
                     reader.readAsArrayBuffer(file);
                 } else {
                     reader.readAsText(file);
                 }
-
-            } catch (error) {
-                reject(error);
-            }
+            } catch (error) { reject(error); }
         });
     },
 
@@ -955,10 +764,7 @@ const HokaConverter = {
         if (!productName) return null;
         var nameLower = productName.toLowerCase();
         nameLower = nameLower.replace(/^[mwuy]\s+/, '');
-
-        // Strip WIDE/X-WIDE suffix for matching (but not from GTX WIDE -> must keep GTX)
         var nameBase = nameLower.replace(/\s+(?:x-wide|xwide)$/i, '').replace(/\s+wide$/i, '').trim();
-
         if (nameBase.includes('arahi')) {
             if (nameBase.includes('arahi sr')) return 'Arahi SR';
             if (nameBase.includes('arahi 8') || nameBase.includes('arahi8')) return 'Arahi 8';
@@ -972,7 +778,7 @@ const HokaConverter = {
         if (nameBase.includes('mach')) {
             if (nameBase.includes('mach x') || nameBase.includes('machx')) {
                 if (nameBase.includes('mach x 3') || nameBase.includes('machx3') || nameBase.includes('mach x3')) return 'Mach X 3';
-                return null; // Reject Mach X 2 etc.
+                return null;
             }
             if (nameBase.includes('mach 7') || nameBase.includes('mach7')) return 'Mach 7';
             if (nameBase.includes('mach 6') || nameBase.includes('mach6')) return 'Mach 6';
@@ -980,7 +786,6 @@ const HokaConverter = {
         }
         if (nameBase.includes('speedgoat')) {
             if (nameBase.includes('speedgoat 7') || nameBase.includes('speedgoat7')) return 'Speedgoat 7';
-            // Speedgoat 6 variants — check most specific first
             if (nameBase.includes('speedgoat 6 mid gtx') || nameBase.includes('speedgoat6 mid gtx')) return 'Speedgoat 6 Mid GTX';
             if (nameBase.includes('speedgoat 6 gtx') || nameBase.includes('speedgoat6 gtx')) return 'Speedgoat 6 GTX';
             if (nameBase.includes('speedgoat 6') || nameBase.includes('speedgoat6')) return 'Speedgoat 6';
@@ -1003,7 +808,6 @@ const HokaConverter = {
             return null;
         }
         if (nameBase.includes('transport')) {
-            // Most specific first
             if (nameBase.includes('chukka') && nameBase.includes('gtx')) return 'Transport Chukka GTX';
             if (nameBase.includes('chukka')) return 'Transport Chukka';
             if (nameBase.includes('hike') && nameBase.includes('gtx')) return 'Transport Hike GTX';
@@ -1022,7 +826,7 @@ const HokaConverter = {
         if (nameBase.includes('cielo')) {
             if (nameBase.includes('cielo x1 3.0') || nameBase.includes('cielo x1 3')) return 'Cielo X1 3.0';
             if (nameBase.includes('cielo x1 2.0') || nameBase.includes('cielo x1 2')) return 'Cielo X1 2.0';
-            if (nameBase.includes('cielo x1')) return 'Cielo X1 3.0'; // default to newest
+            if (nameBase.includes('cielo x1')) return 'Cielo X1 3.0';
             if (nameBase.includes('cielo x 3 md')) return 'Cielo X 3 MD';
             if (nameBase.includes('cielo x 3 ld')) return 'Cielo X 3 LD';
             if (nameBase.includes('cielo x md')) return 'Cielo X MD';
@@ -1041,14 +845,12 @@ const HokaConverter = {
         }
         if (nameBase.includes('solimar')) {
             if (nameBase.includes('solimar 2') || nameBase.includes('solimar2')) return 'Solimar 2';
-            if (nameBase === 'solimar') return 'Solimar';
             return 'Solimar';
         }
         if (nameBase.includes('skyflow')) return 'Skyflow';
         if (nameBase.includes('stinson 7') || nameBase.includes('stinson7')) return 'Stinson 7';
         if (nameBase.includes('tecton x 3') || nameBase.includes('tecton x3')) return 'Tecton X 3';
         if (nameBase.includes('zinal 3') || nameBase.includes('zinal3')) return 'Zinal 3';
-
         return null;
     },
 
@@ -1058,8 +860,7 @@ const HokaConverter = {
         if (divStr.toLowerCase() === "women's" || divStr.toLowerCase() === "womens" || divStr === "W") return "Women's";
         if (divStr.toLowerCase() === "men's" || divStr.toLowerCase() === "mens" || divStr === "M") return "Men's";
         if (divStr.toLowerCase() === "youth" || divStr.toLowerCase() === "kids") return 'Youth';
-        if (divStr.toLowerCase() === "unisex" || divStr === "U" || divStr === '') return 'Unisex';
-        return divStr;
+        return 'Unisex';
     },
 
     formatGenderForHandle: function(gender) {
@@ -1071,60 +872,34 @@ const HokaConverter = {
     },
 
     // ========== SMART HANDLE GENERATION ==========
-    // Step 1: Check if existing handle exists for this style+color combo
-    // Step 2: If not, generate a new uniform handle: hoka-{gender}-{model}-{colorway}[-wide]
-    getProductHandle: function(lookupKey, matchingProduct, colorway, gender, width) {
-        // STEP 1: Check existing handles
+    getProductHandle: function(lookupKey, matchingProduct, colorway, gender, widthLabel) {
         if (this.existingHandles[lookupKey]) {
             return this.existingHandles[lookupKey];
         }
-
-        // STEP 2: NEW PRODUCT - Generate uniform format
-        // Format: hoka-{gender}-{model}-{colorway}[-wide]
         var genderPrefix = this.formatGenderForHandle(gender);
-
         var baseHandle = ('hoka-' + genderPrefix + '-' + matchingProduct + '-' + colorway)
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-+|-+$/g, '');
-
-        // Add width suffix
-        if (width === 'EE' || width === 'EEEE') {
-            return baseHandle + '-wide';
-        }
-
-        return baseHandle;
+        return baseHandle + this.widthSuffix(widthLabel);
     },
 
     convert: function(file) {
         var self = this;
-
         return new Promise(function(resolve, reject) {
             try {
                 var reader = new FileReader();
-
                 reader.onload = function(e) {
                     try {
                         var data = [];
-
-                        if (file.name.toLowerCase().endsWith('.xlsx') ||
-                            file.name.toLowerCase().endsWith('.xls')) {
-                            var arrayBuffer = e.target.result;
-                            var workbook = XLSX.read(arrayBuffer);
+                        if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+                            var workbook = XLSX.read(e.target.result);
                             var worksheet = workbook.Sheets[workbook.SheetNames[0]];
                             data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                         } else {
-                            var text = e.target.result;
-                            var parseResult = Papa.parse(text, {
-                                delimiter: '\t',
-                                header: false,
-                                skipEmptyLines: true,
-                                dynamicTyping: true
-                            });
+                            var parseResult = Papa.parse(e.target.result, { delimiter: '\t', header: false, skipEmptyLines: true, dynamicTyping: true });
                             data = parseResult.data;
                         }
-
-                        // Skip header row if it exists
                         var startIdx = 0;
                         if (data.length > 0 && (data[0][0] === 'Division' || data[0][5] === 'Style Name' || data[0][5] === 'Product Name')) {
                             startIdx = 1;
@@ -1132,15 +907,11 @@ const HokaConverter = {
 
                         var filteredProducts = data.slice(startIdx).filter(function(row) {
                             if (!row || row.length < 10) return false;
-                            var productName = row[5];
                             var division = row[0];
                             if (division && (division.toString().trim().toLowerCase() === 'youth' ||
-                                           division.toString().trim().toLowerCase() === 'kids' ||
-                                           division.toString().trim().toUpperCase() === 'Y')) {
-                                return false;
-                            }
-                            // Use identifyProduct + selectedProducts instead of isAllowedProduct
-                            var identified = self.identifyProduct(productName);
+                                            division.toString().trim().toLowerCase() === 'kids' ||
+                                            division.toString().trim().toUpperCase() === 'Y')) return false;
+                            var identified = self.identifyProduct(row[5]);
                             return identified && self.selectedProducts.has(identified);
                         });
 
@@ -1148,7 +919,6 @@ const HokaConverter = {
 
                         for (var i = 0; i < filteredProducts.length; i++) {
                             var product = filteredProducts[i];
-
                             var division = product[0];
                             var productName = product[5];
                             var colorway = product[6];
@@ -1160,87 +930,44 @@ const HokaConverter = {
                             var quantity = product[12];
                             var retail = product[14];
 
-                            // Future-dated products get 0 quantity but are still included
                             var isFutureDate = !self.isAvailableNow(availableDate);
-
                             var matchingProduct = self.identifyProduct(productName);
                             if (!matchingProduct || !self.selectedProducts.has(matchingProduct)) continue;
 
-                            // Detect gender: use product name prefix, fall back to Division
+                            // Determine gender from product name prefix
                             var formattedGender;
                             var namePrefix = productName.toString().trim().charAt(0).toUpperCase();
-                            if (namePrefix === 'U') {
-                                formattedGender = 'Unisex';
-                            } else if (namePrefix === 'M') {
-                                formattedGender = "Men's";
-                            } else if (namePrefix === 'W') {
-                                formattedGender = "Women's";
-                            } else {
-                                formattedGender = self.formatGender(division);
-                            }
+                            if (namePrefix === 'U') formattedGender = 'Unisex';
+                            else if (namePrefix === 'M') formattedGender = "Men's";
+                            else if (namePrefix === 'W') formattedGender = "Women's";
+                            else formattedGender = self.formatGender(division);
 
+                            // Clean up size string
                             var size = sizeInfo ? sizeInfo.toString().replace(/[A-Z]/g, '') : '';
                             if (size) {
                                 size = size.replace(/^0/, '');
-                                // For unisex dual-sizing (e.g. "05.5/07"), keep the first size (men's)
-                                if (size.includes('/')) {
-                                    size = size.split('/')[0];
-                                }
-                                // Remove leading zero again after split
+                                if (size.includes('/')) size = size.split('/')[0];
                                 size = size.replace(/^0/, '');
-                                if (!size.includes('.')) {
-                                    size = size + '.0';
-                                }
+                                if (!size.includes('.')) size = size + '.0';
                             }
 
-                            var width = 'Regular';
-                            if (variantSKU && sizeInfo) {
-                                var skuUpper = variantSKU.toUpperCase();
-                                var isWomen = formattedGender === "Women's";
-                                var sizeStr = sizeInfo.toString().toUpperCase();
-                                var nameUpper = productName ? productName.toUpperCase() : '';
-
-                                if (nameUpper.includes('X-WIDE') || nameUpper.includes('XWIDE')) {
-                                    width = 'Extra Wide';
-                                } else if (nameUpper.includes(' WIDE')) {
-                                    width = 'Wide';
-                                } else if (isWomen) {
-                                    if (sizeStr.includes('EE') || sizeStr.includes('2E')) {
-                                        width = 'Extra Wide';
-                                    } else if (sizeStr.endsWith('D') || sizeStr.includes('D ')) {
-                                        width = 'Wide';
-                                    } else if (skuUpper.includes('EE') || skuUpper.includes('2E')) {
-                                        width = 'Extra Wide';
-                                    } else if (skuUpper.match(/\d+\.?\d*D$/i) || skuUpper.includes('-D-') || skuUpper.endsWith('-D')) {
-                                        width = 'Wide';
-                                    }
-                                } else {
-                                    if (sizeStr.includes('EEEE') || skuUpper.includes('EEEE')) {
-                                        width = 'Extra Wide';
-                                    } else if (sizeStr.includes('EE') || sizeStr.includes('2E') || skuUpper.includes('EE') || skuUpper.includes('2E')) {
-                                        width = 'Wide';
-                                    }
-                                }
-                            }
+                            // ========== CORRECTED WIDTH DETECTION ==========
+                            var isWomen = formattedGender === "Women's";
+                            var width = self.detectWidth(sizeInfo, variantSKU, productName, isWomen);
 
                             var variantKey = formattedGender + '-' + matchingProduct + '-' + colorway + '-' + size + '-' + width;
 
                             var actualQuantity = 0;
                             if (isFutureDate) {
-                                actualQuantity = 0; // Future-dated: include in CSV but with 0 inventory
+                                actualQuantity = 0;
                             } else if (typeof quantity === 'string') {
-                                if (quantity.includes('+')) {
-                                    actualQuantity = parseInt(quantity.replace('+', '')) || 100;
-                                } else {
-                                    actualQuantity = parseInt(quantity) || 0;
-                                }
+                                actualQuantity = quantity.includes('+') ? (parseInt(quantity.replace('+', '')) || 100) : (parseInt(quantity) || 0);
                             } else if (typeof quantity === 'number') {
                                 actualQuantity = quantity;
                             }
 
                             if (processedVariants.has(variantKey)) {
-                                var existing = processedVariants.get(variantKey);
-                                existing.quantity += actualQuantity;
+                                processedVariants.get(variantKey).quantity += actualQuantity;
                                 continue;
                             }
 
@@ -1261,45 +988,29 @@ const HokaConverter = {
                         }
 
                         var sortedVariants = Array.from(processedVariants.entries()).sort(function(a, b) {
-                            var dataA = a[1];
-                            var dataB = b[1];
-                            if (dataA.matchingProduct !== dataB.matchingProduct) return dataA.matchingProduct.localeCompare(dataB.matchingProduct);
-                            if (dataA.gender !== dataB.gender) {
-                                if (dataA.gender === "Men's") return -1;
-                                if (dataB.gender === "Men's") return 1;
-                                return dataA.gender.localeCompare(dataB.gender);
+                            var dA = a[1], dB = b[1];
+                            if (dA.matchingProduct !== dB.matchingProduct) return dA.matchingProduct.localeCompare(dB.matchingProduct);
+                            if (dA.gender !== dB.gender) {
+                                if (dA.gender === "Men's") return -1;
+                                if (dB.gender === "Men's") return 1;
+                                return dA.gender.localeCompare(dB.gender);
                             }
-                            if (dataA.colorway !== dataB.colorway) return dataA.colorway.localeCompare(dataB.colorway);
-                            if (dataA.width !== dataB.width) {
-                                if (dataA.width === 'Regular') return -1;
-                                if (dataB.width === 'Regular') return 1;
-                                return dataA.width.localeCompare(dataB.width);
+                            if (dA.colorway !== dB.colorway) return dA.colorway.localeCompare(dB.colorway);
+                            if (dA.width !== dB.width) {
+                                if (dA.width === 'Regular') return -1;
+                                if (dB.width === 'Regular') return 1;
+                                return dA.width.localeCompare(dB.width);
                             }
-                            return (parseFloat(dataA.size) || 0) - (parseFloat(dataB.size) || 0);
+                            return (parseFloat(dA.size) || 0) - (parseFloat(dB.size) || 0);
                         });
 
                         var shopifyInventory = [];
-
                         for (var j = 0; j < sortedVariants.length; j++) {
                             var variantData = sortedVariants[j][1];
-
                             var productTitle = 'HOKA ' + variantData.gender + ' ' + variantData.matchingProduct + ' - ' + variantData.colorway;
-
-                            // Build lookup key: styleNumber-colorCode from variantSKU
                             var skuParts = variantData.variantSKU.split('-');
                             var lookupKey = skuParts[0] + '-' + skuParts[1];
-
-                            // Determine width code for handle generation
-                            var widthCode = '';
-                            if (variantData.width === 'Wide') {
-                                widthCode = 'EE';
-                            } else if (variantData.width === 'Extra Wide') {
-                                widthCode = 'EEEE';
-                            }
-
-                            // Use smart handle generation
-                            var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, widthCode);
-
+                            var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, variantData.width);
                             var hasWidth = variantData.width !== 'Regular';
                             var finalTitle = productTitle + (hasWidth ? ' (' + variantData.width + ')' : '');
 
@@ -1329,69 +1040,163 @@ const HokaConverter = {
                         }
 
                         self.inventoryData = shopifyInventory;
-                        self.productVariantData = sortedVariants; // Store rich data for product CSV
+                        self.productVariantData = sortedVariants;
                         resolve(shopifyInventory);
-
-                    } catch (error) {
-                        console.error('HOKA conversion error:', error);
-                        reject(error);
-                    }
+                    } catch (error) { console.error('HOKA conversion error:', error); reject(error); }
                 };
-
-                reader.onerror = function() {
-                    reject(new Error('Failed to read file'));
-                };
-
+                reader.onerror = function() { reject(new Error('Failed to read file')); };
                 if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
                     reader.readAsArrayBuffer(file);
                 } else {
                     reader.readAsText(file);
                 }
-
-            } catch (error) {
-                console.error('HOKA conversion error:', error);
-                reject(error);
-            }
+            } catch (error) { console.error('HOKA conversion error:', error); reject(error); }
         });
     },
 
     generateInventoryCSV: function() {
         if (typeof Papa !== 'undefined') {
-            return Papa.unparse(this.inventoryData, {
-                quotes: true,
-                quoteChar: '"',
-                delimiter: ','
-            });
+            return Papa.unparse(this.inventoryData, { quotes: true, quoteChar: '"', delimiter: ',' });
         }
-
         var inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"',
                        '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"',
                        '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"',
                        '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
-
         var csvRows = [inventoryHeaders.join(',')];
-
         this.inventoryData.forEach(function(row) {
-            var csvRow = [
-                row.Handle,
-                '"' + row.Title.replace(/"/g, '""') + '"',
-                row['Option1 Name'],
-                row['Option1 Value'],
-                row['Option2 Name'] || '',
-                row['Option2 Value'] || '',
-                row['Option3 Name'] || '',
-                row['Option3 Value'] || '',
-                row.SKU,
-                row.Barcode || '',
-                '', '',
-                row.Location,
-                '', '', '', '', '', '',
+            csvRows.push([
+                row.Handle, '"' + row.Title.replace(/"/g, '""') + '"',
+                row['Option1 Name'], row['Option1 Value'],
+                row['Option2 Name'] || '', row['Option2 Value'] || '',
+                row['Option3 Name'] || '', row['Option3 Value'] || '',
+                row.SKU, row.Barcode || '', '', '', row.Location, '', '', '', '', '', '',
                 row['On hand (new)']
-            ];
-            csvRows.push(csvRow.join(','));
+            ].join(','));
+        });
+        return csvRows.join('\n');
+    },
+
+    productVariantData: [],
+
+    _buildProductCSVRows: function(productGroups) {
+        var self = this;
+        var headers = [
+            'Title', 'URL handle', 'Description', 'Vendor', 'Product category', 'Type', 'Tags',
+            'Published on online store', 'Status', 'SKU', 'Barcode',
+            'Option1 name', 'Option1 value', 'Option1 Linked To',
+            'Option2 name', 'Option2 value', 'Option2 Linked To',
+            'Option3 name', 'Option3 value', 'Option3 Linked To',
+            'Price', 'Compare-at price', 'Cost per item', 'Charge tax', 'Tax code',
+            'Unit price total measure', 'Unit price total measure unit',
+            'Unit price base measure', 'Unit price base measure unit',
+            'Inventory tracker', 'Inventory quantity', 'Continue selling when out of stock',
+            'Weight value (grams)', 'Weight unit for display', 'Requires shipping', 'Fulfillment service',
+            'Product image URL', 'Image position', 'Image alt text', 'Variant image URL', 'Gift card',
+            'SEO title', 'SEO description', 'Color (product.metafields.shopify.color-pattern)',
+            'Google Shopping / Google product category', 'Google Shopping / Gender', 'Google Shopping / Age group',
+            'Google Shopping / Manufacturer part number (MPN)', 'Google Shopping / Ad group name',
+            'Google Shopping / Ads labels', 'Google Shopping / Condition', 'Google Shopping / Custom product',
+            'Google Shopping / Custom label 0', 'Google Shopping / Custom label 1',
+            'Google Shopping / Custom label 2', 'Google Shopping / Custom label 3', 'Google Shopping / Custom label 4'
+        ];
+
+        var csvRows = [];
+        productGroups.forEach(function(product) {
+            var info = self.productInfo[product.matchingProduct] || {};
+            var description = self.buildProductDescription(product.matchingProduct, info);
+            var gGender = 'Unisex';
+            if (product.gender === "Men's") gGender = 'Male';
+            else if (product.gender === "Women's") gGender = 'Female';
+            var tags = ['HOKA', product.matchingProduct];
+            if (product.gender !== 'Unisex') tags.push(product.gender.replace("'s", ''));
+            if (info.category) tags.push(info.category);
+            if (product.width && product.width !== 'Regular') tags.push(product.width);
+            var price = '';
+            var rawPrice = product.retail || (product.variants.length > 0 ? product.variants[0].retail : '');
+            if (rawPrice) {
+                var p = parseFloat(String(rawPrice).replace(/[$,\s]/g, ''));
+                if (!isNaN(p)) price = p.toFixed(2);
+            }
+            var productType = product.gender === "Men's" ? "Men's Shoes" : product.gender === "Women's" ? "Women's Shoes" : "Unisex Shoes";
+            if (info.category && (info.category.includes('sock') || info.category.includes('accessor'))) productType = 'Accessories';
+
+            product.variants.forEach(function(variant, idx) {
+                var row = {};
+                if (idx === 0) {
+                    row['Title'] = product.title;
+                    row['URL handle'] = product.handle;
+                    row['Description'] = description;
+                    row['Vendor'] = 'HOKA';
+                    row['Product category'] = 'Apparel & Accessories > Shoes';
+                    row['Type'] = productType;
+                    row['Tags'] = tags.join(', ');
+                    row['Published on online store'] = 'FALSE';
+                    row['Status'] = 'Draft';
+                    row['Option1 name'] = 'Size';
+                    row['SEO title'] = product.title;
+                    row['SEO description'] = (info.description || product.title).substring(0, 320);
+                    row['Google Shopping / Google product category'] = 'Apparel & Accessories > Shoes';
+                    row['Google Shopping / Gender'] = gGender;
+                    row['Google Shopping / Age group'] = 'Adult (13+ years old)';
+                    row['Google Shopping / Condition'] = 'New';
+                    row['Google Shopping / Custom product'] = 'FALSE';
+                    row['Google Shopping / Custom label 0'] = product.matchingProduct;
+                } else {
+                    row['URL handle'] = product.handle;
+                }
+                row['Option1 value'] = variant.size;
+                row['SKU'] = variant.sku;
+                row['Barcode'] = variant.upc;
+                row['Price'] = price;
+                row['Charge tax'] = 'TRUE';
+                row['Inventory tracker'] = 'shopify';
+                row['Inventory quantity'] = variant.quantity;
+                row['Continue selling when out of stock'] = 'DENY';
+                row['Weight value (grams)'] = '';
+                row['Weight unit for display'] = '';
+                row['Requires shipping'] = 'TRUE';
+                row['Fulfillment service'] = 'manual';
+                row['Gift card'] = 'FALSE';
+                csvRows.push(row);
+            });
         });
 
-        return csvRows.join('\n');
+        var headerLine = headers.map(function(h) { return '"' + h.replace(/"/g, '""') + '"'; }).join(',');
+        var lines = [headerLine];
+        csvRows.forEach(function(row) {
+            lines.push(headers.map(function(h) {
+                return '"' + (row[h] !== undefined ? String(row[h]) : '').replace(/"/g, '""') + '"';
+            }).join(','));
+        });
+        return lines.join('\n');
+    },
+
+    _buildProductGroups: function(variantDataArray, handleFilter) {
+        var self = this;
+        var productGroups = new Map();
+        for (var k = 0; k < variantDataArray.length; k++) {
+            var variantData = variantDataArray[k][1];
+            var skuParts = variantData.variantSKU.split('-');
+            var lookupKey = skuParts[0] + '-' + skuParts[1];
+            var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, variantData.width);
+            if (handleFilter && !handleFilter.has(handle)) continue;
+            var productTitle = 'HOKA ' + variantData.gender + ' ' + variantData.matchingProduct + ' - ' + variantData.colorway;
+            var hasWidth = variantData.width !== 'Regular';
+            var finalTitle = productTitle + (hasWidth ? ' (' + variantData.width + ')' : '');
+            if (!productGroups.has(handle)) {
+                productGroups.set(handle, {
+                    handle: handle, title: finalTitle,
+                    matchingProduct: variantData.matchingProduct,
+                    gender: variantData.gender, colorway: variantData.colorway,
+                    retail: variantData.retail, width: variantData.width, variants: []
+                });
+            }
+            productGroups.get(handle).variants.push({
+                size: variantData.size, sku: variantData.variantSKU,
+                upc: variantData.upc || '', quantity: variantData.quantity, retail: variantData.retail
+            });
+        }
+        return productGroups;
     },
 
     // ========== SHOPIFY PRODUCT CSV GENERATION ==========
@@ -1432,8 +1237,7 @@ const HokaConverter = {
             'Google Shopping / Custom label 4'
         ];
 
-        // Group variants by handle (product)
-        var productGroups = new Map(); // handle -> { firstVariant, variants[] }
+        var productGroups = new Map();
 
         for (var j = 0; j < this.productVariantData.length; j++) {
             var variantData = this.productVariantData[j][1];
@@ -1442,11 +1246,7 @@ const HokaConverter = {
             var skuParts = variantData.variantSKU.split('-');
             var lookupKey = skuParts[0] + '-' + skuParts[1];
 
-            var widthCode = '';
-            if (variantData.width === 'Wide') widthCode = 'EE';
-            else if (variantData.width === 'Extra Wide') widthCode = 'EEEE';
-
-            var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, widthCode);
+            var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, variantData.width);
 
             var hasWidth = variantData.width !== 'Regular';
             var finalTitle = productTitle + (hasWidth ? ' (' + variantData.width + ')' : '');
@@ -1473,25 +1273,21 @@ const HokaConverter = {
             });
         }
 
-        // Build CSV rows
         var csvRows = [];
 
         productGroups.forEach(function(product) {
             var info = self.productInfo[product.matchingProduct] || {};
             var description = self.buildProductDescription(product.matchingProduct, info);
 
-            // Google Shopping gender
             var gGender = 'Unisex';
             if (product.gender === "Men's") gGender = 'Male';
             else if (product.gender === "Women's") gGender = 'Female';
 
-            // Tags
             var tags = ['HOKA', product.matchingProduct];
             if (product.gender !== 'Unisex') tags.push(product.gender.replace("'s", ''));
             if (info.category) tags.push(info.category);
             if (product.width && product.width !== 'Regular') tags.push(product.width);
 
-            // Price from retail (MSRP) - strip $ and any whitespace
             var price = '';
             if (product.retail) {
                 var priceStr = String(product.retail).replace(/[$,\s]/g, '');
@@ -1506,7 +1302,6 @@ const HokaConverter = {
                 else price = price.toFixed(2);
             }
 
-            // Type based on gender
             var productType = "Unisex Shoes";
             if (info.category) {
                 var cat = info.category.toLowerCase();
@@ -1526,7 +1321,6 @@ const HokaConverter = {
                 var row = {};
 
                 if (idx === 0) {
-                    // First variant = product-level row
                     row['Title'] = product.title;
                     row['URL handle'] = product.handle;
                     row['Description'] = description;
@@ -1546,7 +1340,6 @@ const HokaConverter = {
                     row['Google Shopping / Custom product'] = 'FALSE';
                     row['Google Shopping / Custom label 0'] = product.matchingProduct;
                 } else {
-                    // Subsequent variants - only handle + variant data
                     row['URL handle'] = product.handle;
                 }
 
@@ -1568,15 +1361,13 @@ const HokaConverter = {
             });
         });
 
-        // Generate CSV string
-        var headerLine = headers.map(function(h) { return '"' + h.replace(/"/g, '""') + '"'; }).join(',');
+        var headerLine = headers.map(function(h) { return '"' + h.replace(/"/g, '\\"') + '"'; }).join(',');
         var lines = [headerLine];
 
         csvRows.forEach(function(row) {
             var values = headers.map(function(h) {
                 var val = row[h] !== undefined ? String(row[h]) : '';
-                // Quote all values
-                return '"' + val.replace(/"/g, '""') + '"';
+                return '"' + val.replace(/"/g, '\\"') + '"';
             });
             lines.push(values.join(','));
         });
@@ -1598,7 +1389,7 @@ const HokaConverter = {
             html += '</ul>';
         }
 
-  return html;
+        return html;
     },
 
     // ========== NEW PRODUCT CSV (ONLY NEW COLORWAYS/PRODUCTS) ==========
@@ -1606,7 +1397,6 @@ const HokaConverter = {
         if (!comparison) return null;
         var self = this;
 
-        // Collect handles of new products + new colorways
         var newHandles = new Set();
         if (comparison.newProducts) {
             for (var i = 0; i < comparison.newProducts.length; i++) {
@@ -1650,7 +1440,6 @@ const HokaConverter = {
             'Google Shopping / Custom label 4'
         ];
 
-        // Group variants by handle — only new ones
         var productGroups = new Map();
 
         for (var k = 0; k < this.productVariantData.length; k++) {
@@ -1659,11 +1448,7 @@ const HokaConverter = {
             var skuParts = variantData.variantSKU.split('-');
             var lookupKey = skuParts[0] + '-' + skuParts[1];
 
-            var widthCode = '';
-            if (variantData.width === 'Wide') widthCode = 'EE';
-            else if (variantData.width === 'Extra Wide') widthCode = 'EEEE';
-
-            var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, widthCode);
+            var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, variantData.width);
 
             if (!newHandles.has(handle)) continue;
 
@@ -1777,13 +1562,13 @@ const HokaConverter = {
             });
         });
 
-        var headerLine = headers.map(function(h) { return '"' + h.replace(/"/g, '""') + '"'; }).join(',');
+        var headerLine = headers.map(function(h) { return '"' + h.replace(/"/g, '\\"') + '"'; }).join(',');
         var lines = [headerLine];
 
         csvRows.forEach(function(row) {
             var values = headers.map(function(h) {
                 var val = row[h] !== undefined ? String(row[h]) : '';
-                return '"' + val.replace(/"/g, '""') + '"';
+                return '"' + val.replace(/"/g, '\\"') + '"';
             });
             lines.push(values.join(','));
         });

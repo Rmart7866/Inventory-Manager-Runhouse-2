@@ -1,5 +1,8 @@
 // Puma Converter - Processes B2B Excel/CSV files
 // Includes all running shoe categories: Road, Trail, Racing, Track & Field
+// Width detection from Style Name: WIDE/2E/4E, gender-aware interpretation
+// Men:   WIDE/2E = Wide, 4E = Extra Wide
+// Women: WIDE/2E = Extra Wide (women's "wide" maps up one step), 4E = Extra Extra Wide
 
 var PumaConverter = {
     inventoryData: [],
@@ -74,21 +77,56 @@ var PumaConverter = {
         return '';
     },
 
+    // ========== DETECT WIDTH FROM STYLE NAME (GENDER-AWARE) ==========
+    // Men's:   WIDE/2E = Wide, 4E/EXTRA WIDE = Extra Wide
+    // Women's: WIDE/2E = Extra Wide (one step up), 4E/EXTRA WIDE = Extra Extra Wide
+    detectWidth: function(styleName, isWomen) {
+        if (!styleName) return '';
+        var n = styleName.toUpperCase();
+
+        var has4E = /\b4E\b/.test(n) || n.indexOf('EXTRA WIDE') !== -1;
+        var has2E = /\b2E\b/.test(n);
+        var hasWide = /\bWIDE\b/.test(n);
+
+        if (isWomen) {
+            if (has4E) return 'Extra Extra Wide';
+            if (has2E || hasWide) return 'Extra Wide';
+        } else {
+            if (has4E) return 'Extra Wide';
+            if (has2E || hasWide) return 'Wide';
+        }
+        return '';
+    },
+
+    // ========== WIDTH HANDLE SUFFIX ==========
+    widthHandleSuffix: function(widthLabel) {
+        switch (widthLabel) {
+            case 'Narrow':            return '-narrow';
+            case 'Wide':              return '-wide';
+            case 'Extra Wide':        return '-extra-wide';
+            case 'Extra Extra Wide':  return '-extra-extra-wide';
+            default:                  return '';
+        }
+    },
+
     // ========== CLEAN MODEL NAME ==========
-    // Strip gender prefix, WNS suffix, normalize
+    // Strip gender prefix, WNS suffix, width tokens, normalize
     cleanModelName: function(styleName) {
         if (!styleName) return '';
         var clean = styleName.trim()
             .replace(/^(MENS|WOMENS|UNISEX|JUNIORS)\s+/i, '')
             .replace(/\s+WN[S]?\s*$/i, '')
             .replace(/\s+WN\s+S\s*$/i, '')
+            // Strip width tokens from model name
+            .replace(/\s+EXTRA\s+WIDE\s*/gi, '')
+            .replace(/\s+WIDE\s*/gi, '')
+            .replace(/\s+4E\s*/gi, '')
+            .replace(/\s+2E\s*/gi, '')
             .trim();
         return clean.toUpperCase();
     },
 
     // ========== NORMALIZE MODEL (collapse collabs into base) ==========
-    // "DEVIATE NITRO 4 PUMA X HYROX" -> "DEVIATE NITRO 4"
-    // "DEVIATE NITRO 4 WIDE" stays as-is
     _collabSuffixes: [
         'PUMA X HYROX', '- PUMA X HYROX', 'HYROX AH25', 'HYROX',
         'DIGITOKYO', 'SAYSKY', 'MARATHON SERIES',
@@ -101,9 +139,7 @@ var PumaConverter = {
     normalizeModel: function(modelName) {
         if (!modelName) return modelName;
         var n = modelName.trim();
-        // Remove leading collab prefixes
         n = n.replace(/^AMF1\s+/i, '');
-        // Remove collab suffixes (longest first)
         var suffixes = this._collabSuffixes.slice().sort(function(a, b) { return b.length - a.length; });
         for (var i = 0; i < suffixes.length; i++) {
             var re = new RegExp('\\s+' + suffixes[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$', 'i');
@@ -174,22 +210,26 @@ var PumaConverter = {
                 if (category === null) return;
 
                 var gender = self.formatGender(fields.gender);
+                var isWomen = gender === "Women's";
+                var width = self.detectWidth(fields.styleName, isWomen);
                 var rawModelName = self.cleanModelName(fields.styleName);
                 var modelName = self.normalizeModel(rawModelName);
                 var genderPrefix = gender ? (gender + ' ') : '';
-                var modelKey = genderPrefix + modelName;
+                var widthSuffix = width ? ' (' + width + ')' : '';
+                var modelKey = genderPrefix + modelName + widthSuffix;
 
                 var qty = parseInt(fields.quantity) || 0;
 
-                // Use raw model name in colorway handle/title for specificity
                 var colorHandle = (genderPrefix + rawModelName + '-' + (fields.colorName || ''))
                     .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                if (width) colorHandle += self.widthHandleSuffix(width);
 
                 if (!productsByModel.has(modelKey)) {
                     productsByModel.set(modelKey, {
                         model: modelName,
                         modelKey: modelKey,
                         gender: gender,
+                        width: width,
                         category: category,
                         colorways: new Map(),
                         totalRows: 0,
@@ -204,8 +244,9 @@ var PumaConverter = {
                 if (!modelData.colorways.has(colorHandle)) {
                     modelData.colorways.set(colorHandle, {
                         handle: colorHandle,
-                        title: (gender ? gender + ' ' : '') + 'Puma ' + rawModelName + ' - ' + (fields.colorName || ''),
+                        title: (gender ? gender + ' ' : '') + 'Puma ' + rawModelName + (width ? ' (' + width + ')' : '') + ' - ' + (fields.colorName || ''),
                         color: fields.colorName || '',
+                        width: width,
                         rows: 0,
                         inventory: 0
                     });
@@ -222,6 +263,7 @@ var PumaConverter = {
                     name: data.modelKey,
                     model: data.model,
                     gender: data.gender,
+                    width: data.width,
                     category: data.category,
                     colorways: Array.from(data.colorways.values()),
                     rowCount: data.totalRows,
@@ -256,30 +298,35 @@ var PumaConverter = {
                 if (category === null) return;
 
                 var gender = self.formatGender(fields.gender);
+                var isWomen = gender === "Women's";
+                var width = self.detectWidth(fields.styleName, isWomen);
                 var rawModelName = self.cleanModelName(fields.styleName);
                 var modelName = self.normalizeModel(rawModelName);
                 var genderPrefix = gender ? (gender + ' ') : '';
-                var modelKey = genderPrefix + modelName;
+                var widthSuffix = width ? ' (' + width + ')' : '';
+                var modelKey = genderPrefix + modelName + widthSuffix;
 
-                // Filter by picker selection (uses normalized model key)
+                // Filter by picker selection (uses model key including width)
                 if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) return;
 
                 var qty = parseInt(fields.quantity) || 0;
                 var size = fields.size ? fields.size.toString().trim() : '';
                 var color = (fields.colorName || '').trim();
 
-                // Deduplicate by raw model+color+size (keeps collab variants distinct)
-                var variantKey = genderPrefix + rawModelName + '|' + color + '|' + size;
+                // Deduplicate by raw model+color+size+width
+                var variantKey = genderPrefix + rawModelName + '|' + color + '|' + size + '|' + width;
                 if (processedVariants.has(variantKey)) {
                     processedVariants.get(variantKey).quantity += qty;
                     return;
                 }
 
-                // Handle uses raw model name so collabs get unique handles
+                // Handle: raw model name + color + width suffix
                 var handle = (genderPrefix + rawModelName + '-' + color)
                     .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                if (width) handle += self.widthHandleSuffix(width);
 
-                var title = (gender ? gender + ' ' : '') + 'Puma ' + rawModelName + ' - ' + color;
+                var widthDisplay = width ? ' (' + width + ')' : '';
+                var title = (gender ? gender + ' ' : '') + 'Puma ' + rawModelName + widthDisplay + ' - ' + color;
                 var sku = fields.sku || (fields.styleNumber + '-' + fields.colorCode + '-' + size);
 
                 var variant = {
@@ -288,6 +335,7 @@ var PumaConverter = {
                     gender: gender,
                     model: modelName,
                     color: color,
+                    width: width,
                     category: category,
                     size: size,
                     sku: sku,
@@ -302,6 +350,7 @@ var PumaConverter = {
             var sorted = Array.from(processedVariants.values()).sort(function(a, b) {
                 if (a.model !== b.model) return a.model.localeCompare(b.model);
                 if (a.gender !== b.gender) return a.gender.localeCompare(b.gender);
+                if (a.width !== b.width) return (a.width || '').localeCompare(b.width || '');
                 if (a.color !== b.color) return a.color.localeCompare(b.color);
                 return (parseFloat(a.size) || 0) - (parseFloat(b.size) || 0);
             });
@@ -380,7 +429,7 @@ var PumaConverter = {
         if (!cleanedTitle) return '';
         return cleanedTitle
             .toLowerCase()
-            .replace(/['']/g, '')
+            .replace(/[''()]/g, '')
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-|-$/g, '');
     },
@@ -442,6 +491,7 @@ var PumaConverter = {
                     model: v.model,
                     gender: v.gender,
                     color: v.color,
+                    width: v.width,
                     category: v.category,
                     variants: []
                 });
@@ -466,6 +516,7 @@ var PumaConverter = {
 
             var tags = ['Puma', product.model];
             if (product.gender) tags.push(product.gender.replace("'s", ''));
+            if (product.width) tags.push(product.width);
             if (product.category) tags.push(product.category);
 
             var productType = "Unisex Shoes";

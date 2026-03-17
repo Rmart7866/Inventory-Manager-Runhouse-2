@@ -1,6 +1,8 @@
 // Brooks Converter - Processes pre-formatted scraper CSVs
 // Gender derived from style code: 110xxx = Men, 120xxx = Women
-// Width derived from handle suffix: -d (standard men), -2e (wide), -4e (extra wide), -2a (narrow)
+// Width derived from handle suffix: gender-aware interpretation
+// Men:   B=Narrow, D=Regular, 2E=Wide, 4E=Extra Wide
+// Women: 2A=Narrow, B=Regular, D=Wide, 2E=Extra Wide, 4E=Extra Extra Wide
 
 var BrooksConverter = {
     inventoryData: [],
@@ -32,23 +34,49 @@ var BrooksConverter = {
         return '';
     },
 
-    // ========== DERIVE WIDTH FROM HANDLE ==========
-    getWidth: function(handle) {
-        // Width suffix appears before the style code
-        // -2a- = narrow, -d- = standard men / wide women, -2e- = wide, -4e- = extra wide
-        // No width suffix + 120xxx = standard women (B width)
-        // No width suffix + 110xxx = standard men (D width)
-        var match = handle.match(/-(2a|2e|4e|d|narrow)-\d{9}$/);
-        if (match) {
-            switch (match[1]) {
-                case '2a': return 'Narrow';
-                case 'd': return ''; // D is standard for men
-                case '2e': return 'Wide';
-                case '4e': return 'Extra Wide';
+    // ========== DERIVE WIDTH FROM HANDLE (GENDER-AWARE) ==========
+    // Men's width spec:
+    //   B       = Narrow          -> -narrow
+    //   D       = Regular         -> (no suffix)
+    //   2E/EE   = Wide            -> -wide
+    //   4E/EEEE = Extra Wide      -> -extra-wide
+    //
+    // Women's width spec:
+    //   2A/AA   = Narrow          -> -narrow
+    //   B       = Regular         -> (no suffix)
+    //   D       = Wide            -> -wide
+    //   2E/EE   = Extra Wide      -> -extra-wide
+    //   4E/EEEE = Extra Extra Wide -> -extra-extra-wide
+    getWidth: function(handle, isWomen) {
+        // Width suffix appears before the 9-digit style code
+        var match = handle.match(/-(2a|2e|4e|d|b|narrow)-\d{9}$/i);
+        if (!match) {
+            // No width suffix = standard width (D men / B women) = Regular
+            return '';
+        }
+
+        var code = match[1].toLowerCase();
+
+        if (isWomen) {
+            switch (code) {
+                case '2a':     return 'Narrow';
+                case 'b':      return '';                  // B = Regular for women
+                case 'd':      return 'Wide';
+                case '2e':     return 'Extra Wide';
+                case '4e':     return 'Extra Extra Wide';
                 case 'narrow': return 'Narrow';
+                default:       return '';
+            }
+        } else {
+            switch (code) {
+                case 'b':      return 'Narrow';
+                case 'd':      return '';                  // D = Regular for men
+                case '2e':     return 'Wide';
+                case '4e':     return 'Extra Wide';
+                case 'narrow': return 'Narrow';
+                default:       return '';
             }
         }
-        return '';
     },
 
     // ========== PARSE TITLE ==========
@@ -58,7 +86,8 @@ var BrooksConverter = {
         title = title.replace(/^"|"$/g, '').trim();
 
         var gender = this.getGender(handle || '');
-        var width = this.getWidth(handle || '');
+        var isWomen = gender === "Women's";
+        var width = this.getWidth(handle || '', isWomen);
         var model = '';
         var color = '';
 
@@ -270,8 +299,7 @@ var BrooksConverter = {
     },
 
     // ========== CLEAN TITLE (for product CSV) ==========
-    // "Glycerin 22 - Black/Grey/White" + gender "Men's" + width "Wide"
-    // -> "Brooks Men's Glycerin 22 (Wide) - Black/Grey/White"
+    // Rebuilds title as: "Brooks Men's Ghost 17 (Wide) - Black/White"
     cleanTitle: function(title, gender, width) {
         if (!title) return title;
         title = title.replace(/^"|"$/g, '').trim();
@@ -288,7 +316,7 @@ var BrooksConverter = {
         if (gender) parts.push(gender);
         parts.push(model);
         if (width) parts[parts.length - 1] = parts[parts.length - 1] + ' (' + width + ')';
-        
+
         var result = parts.join(' ');
         if (color) result += ' - ' + color;
         return result;
