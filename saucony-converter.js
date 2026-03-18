@@ -503,7 +503,7 @@ var SauconyConverter = {
             else if (product.genderType === 'women') gGender = 'Female';
 
             var cleanedTitle = self.cleanTitle(product.title);
-            var cleanedHandle = self.cleanHandle(cleanedTitle);
+            var cleanedHandle = product.handle; // use inventory handle directly — must match Shopify
 
             var tags = ['Saucony', product.model];
             if (product.genderType !== 'unisex') tags.push(product.gender.replace("'s", ''));
