@@ -69,13 +69,6 @@ var OnConverter = {
         'ON-3MF30223651-ROC': 'on-mens-cloudsurfer-trail-2-roc',
         'ON-3MF30430106-BLA': 'on-mens-cloudsurfer-max-1-bla',
         'ON-3MF30760117-GLA': 'on-mens-cloudflow-5-gla',
-        'ON-3MG10050656-OLI': 'on-mens-cloudmonster-3-olive-eclipse',
-        'ON-3MG10050726-ECL': 'on-mens-cloudmonster-3-eclipse-frost',
-        'ON-3MG10053388-ECL': 'on-mens-cloudmonster-3-eclipse-ivory',
-        'ON-3MG10054726-ICE': 'on-mens-cloudmonster-3-iceberg-ivory',
-        'ON-3MG10054857-ROC': 'on-mens-cloudmonster-3-rock-silver',
-        'ON-3MG10054859-LIM': 'on-mens-cloudmonster-3-limelight-seedling',
-        'ON-3MG10054887-TWI': 'on-mens-cloudmonster-3-twilight-white',
         'ON-3MG10070813-WHI': 'on-mens-runner-cloudrunner-3-whi',
         'ON-3MG10071043-BLA': 'on-mens-runner-cloudrunner-3-bla',
         'ON-3MG10071430-BLA': 'on-mens-runner-cloudrunner-3-bla',
@@ -88,8 +81,6 @@ var OnConverter = {
         'ON-3MG10430299-BLA': 'on-mens-cloud-6-wide-bla',
         'ON-3MG10431043-BLA': 'on-mens-cloud-6-wide-bla',
         'ON-3MG10431200-WHI': 'on-mens-cloud-6-wide-whi',
-        'ON-3MG10934859-LIM': 'on-mens-cloudmonster-3-wide-limelight-seedling',
-        'ON-3MG10934887-TWI': 'on-mens-cloudmonster-3-wide-twilight-white',
         'ON-3WE10113373-NIM': 'on-womens-cloudmonster-2-nim',
         'ON-3WE10133161-SIL': 'on-womens-cloudrunner-2-sil',
         'ON-3WE10140929-IRO': 'on-womens-cloudrunner-2-waterproof-iro',
@@ -145,13 +136,6 @@ var OnConverter = {
         'ON-3WF30224726-ICE': 'on-womens-cloudsurfer-max-1-ice',
         'ON-3WF30224733-SAI': 'on-womens-cloudsurfer-max-1-sai',
         'ON-3WF30510117-GLA': 'on-womens-cloudflow-5-gla',
-        'ON-3WG10030664-WHI': 'on-womens-cloudmonster-3-white-frost',
-        'ON-3WG10033388-ECL': 'on-womens-cloudmonster-3-eclipse-ivory',
-        'ON-3WG10034096-CIN': 'on-womens-cloudmonster-3-cinder-ivory',
-        'ON-3WG10034590-SAK': 'on-womens-cloudmonster-3-sakura-ivory',
-        'ON-3WG10034859-LIM': 'on-womens-cloudmonster-3-limelight-seedling',
-        'ON-3WG10034861-TRU': 'on-womens-cloudmonster-3-truffle-ivory',
-        'ON-3WG10034888-NEB': 'on-womens-cloudmonster-3-nebula-ivory',
         'ON-3WG10050924-WHI': 'on-womens-runner-cloudrunner-3-whi',
         'ON-3WG10051043-BLA': 'on-womens-runner-cloudrunner-3-bla',
         'ON-3WG10051421-FRO': 'on-womens-runner-cloudrunner-3-fro',
@@ -164,8 +148,6 @@ var OnConverter = {
         'ON-3WG10360755-PEA': 'on-womens-cloud-6-wide-pea',
         'ON-3WG10361043-BLA': 'on-womens-cloud-6-wide-bla',
         'ON-3WG10361200-WHI': 'on-womens-cloud-6-wide-whi',
-        'ON-3WG10834859-LIM': 'on-womens-cloudmonster-3-wide-limelight-seedling',
-        'ON-3WG10834888-NEB': 'on-womens-cloudmonster-3-wide-nebula-ivory',
     },
 
     // Extract SKU base: ON-3WF10060755-PEA-5 -> ON-3WF10060755-PEA
@@ -261,7 +243,10 @@ var OnConverter = {
                     var skuBase = self.getSkuBase(sku);
                     var handle = self.getProductHandle(skuBase, row.Title, titleInfo.gender, titleInfo.color, titleInfo.model);
                     var qty = parseInt(row['On hand (new)'] || '0') || 0;
-                    var modelKey = titleInfo.model || 'Unknown';
+                    // Use clean model name (strip pipe category prefixes)
+                    var cleanModel = titleInfo.model;
+                    var cleanedTitle = self.cleanTitle(row.Title || '');
+                    var modelKey = cleanModel || 'Unknown';
 
                     if (!productsByModel.has(modelKey)) {
                         productsByModel.set(modelKey, {
@@ -281,7 +266,7 @@ var OnConverter = {
                     if (!modelData.colorways.has(handle)) {
                         modelData.colorways.set(handle, {
                             handle: handle,
-                            title: row.Title || '',
+                            title: cleanedTitle,
                             color: titleInfo.color,
                             rows: 0,
                             inventory: 0
@@ -362,9 +347,10 @@ var OnConverter = {
                     var opt2Name  = isExisting ? (row['Option2 Name']  || '') : '';
                     var opt2Value = isExisting ? (row['Option2 Value'] || '') : '';
 
+                    var cleanedRowTitle = self.cleanTitle(row.Title || '');
                     var inventoryRow = {
                         'Handle': handle,
-                        'Title': row.Title || '',
+                        'Title': cleanedRowTitle,
                         'Option1 Name': row['Option1 Name'] || 'Size',
                         'Option1 Value': row['Option1 Value'] || '',
                         'Option2 Name': opt2Name,
@@ -381,7 +367,7 @@ var OnConverter = {
 
                     productVariantData.push([inventoryRow, {
                         handle: handle,
-                        title: row.Title || '',
+                        title: cleanedRowTitle,
                         gender: titleInfo.gender,
                         model: titleInfo.model,
                         color: titleInfo.color,
