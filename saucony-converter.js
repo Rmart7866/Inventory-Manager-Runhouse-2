@@ -155,9 +155,10 @@ var SauconyConverter = {
         'Triumph 23 GTX|Shadow Aloe|women': 'triumph-23-gtx-shadow-aloe',
         // Ride 19
         'Ride 19|Cobalt Slime|men': 'ride-19-cobalt-slime',
-        'Ride 19|White Black|men': 'ride-19-white-black',
-        'Ride 19|Ivory Gum|women': 'ride-19-ivory-gum',
-        'Ride 19|White Silk|women': 'ride-19-white-silk'
+        'Ride 19|White Black|men': 'ride-19-white-black-men',
+        'Ride 19|Ivory Gum|women': 'ride-19-ivory-gum-women',
+        'Ride 19|White Silk|women': 'ride-19-white-silk',
+        'Ride 19|White Silk|women|W': 'ride-19-white-silk-women-wide'
     },
 
     // ========== HELPERS ==========
@@ -236,6 +237,10 @@ var SauconyConverter = {
         var formattedColor = this.formatColorName(colorName);
         var lookupKey = formattedProduct + '|' + formattedColor + '|' + genderType;
 
+        // Check for width-specific override first
+        if (width && this.existingHandles[lookupKey + '|' + width]) {
+            return this.existingHandles[lookupKey + '|' + width];
+        }
         if (this.existingHandles[lookupKey]) {
             var base = this.existingHandles[lookupKey];
             if (width === 'W')  return base + '-wide';
