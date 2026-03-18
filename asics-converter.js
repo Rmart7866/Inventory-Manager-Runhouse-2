@@ -1,9 +1,71 @@
 // ASICS Converter - Processes pre-formatted scraper CSVs
 // Simpler than HOKA/ON since the scraper already outputs Shopify-format CSV
+// Option2 (Color) is intentionally blanked in inventory CSV output —
+// Shopify matches variants by Handle + Option1 (Size) only; Color is redundant
+// since each colorway has its own unique handle.
 
 
 
 var AsicsConverter = {
+    // ========== EXISTING SHOPIFY HANDLES (have Color as Option2) ==========
+    existingHandles: new Set([
+        '1012b899-402',
+        '1012b899-403',
+        '1012b899-500',
+        '1012b899-501',
+        '1012b899-502',
+        '1012b899-503',
+        '1012b899-700',
+        '1012b908-600',
+        '1012b911-600',
+        '1012b916-001',
+        '1012b916-002',
+        '1012b916-003',
+        '1012b916-004',
+        '1012b916-020',
+        '1012b916-100',
+        '1012b916-101',
+        '1012b916-102',
+        '1012b916-250',
+        '1012b916-300',
+        '1012b916-400',
+        '1012b916-401',
+        '1012b916-402',
+        '1012b916-403',
+        '1012b916-500',
+        '1012b916-501',
+        '1012b916-700',
+        '1012b917-001-d',
+        '1012b917-002-d',
+        '1012b917-022-d',
+        '1012b917-100-d',
+        '1012b917-101-d',
+        '1012b917-251-d',
+        '1012b917-400-d',
+        '1012b917-700-d',
+        '1013a142-100',
+        '1013a142-300',
+        '1013a142-400',
+        '1013a142-401',
+        '1013a142-402',
+        '1013a142-500',
+        '1013a142-501',
+        '1013a162-101',
+        '1013a162-300',
+        '1013a162-400',
+        '1013a162-600',
+        '1013a170-001',
+        '1013a170-100',
+        '1013a170-101',
+        '1013a170-300',
+        '1013a170-400',
+        '1013a170-500',
+        '1013a183-100',
+        '1013a183-101',
+        '1013a183-300',
+        '1013a185-300',
+    ]),
+
     inventoryData: [],
     productVariantData: [],
     selectedProducts: new Set(),
@@ -29,7 +91,6 @@ var AsicsConverter = {
     parseTitle: function(title) {
         if (!title) return { gender: '', model: '', color: '' };
 
-        // Strip quotes
         title = title.replace(/^"|"$/g, '').trim();
 
         var gender = '';
@@ -49,7 +110,6 @@ var AsicsConverter = {
             model = title.replace(/^(Men's|Women's|Unisex's?|Mens|Womens)\s+/i, '').trim();
         }
 
-        // Normalize model to uppercase for consistent matching
         model = model.toUpperCase();
 
         return { gender: gender, model: model, color: color };
@@ -78,7 +138,6 @@ var AsicsConverter = {
 
                 self._rawRows = allRows;
 
-                // Group by gender + model (so Men's and Women's show separately)
                 var productsByModel = new Map();
 
                 allRows.forEach(function(row) {
@@ -104,7 +163,6 @@ var AsicsConverter = {
                     modelData.totalRows++;
                     modelData.totalInventory += qty;
 
-                    // Track unique colorways by handle
                     if (!modelData.colorways.has(handle)) {
                         modelData.colorways.set(handle, {
                             handle: handle,
@@ -164,7 +222,6 @@ var AsicsConverter = {
                     var genderPrefix = titleInfo.gender ? (titleInfo.gender + ' ') : '';
                     var modelKey = genderPrefix + (titleInfo.model || 'Unknown');
 
-                    // Filter by picker selection (uses gender+model key)
                     if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) {
                         return;
                     }
@@ -172,15 +229,26 @@ var AsicsConverter = {
                     var handle = row.Handle.trim();
                     var qty = row['On hand (new)'] || '0';
 
+                    // Existing handles = products in Shopify with Color as Option2.
+                    // New products (handle not in set) get blank Option2.
+                    var isExisting = self.existingHandles.has(handle);
+                    var opt2Name  = isExisting ? (row['Option2 Name']  || '') : '';
+                    var opt2Value = isExisting ? (row['Option2 Value'] || '') : '';
+
+                    // For new products, generate clean unified handle
+                    if (!isExisting) {
+                        handle = self.cleanHandle(self.cleanTitle(row.Title || ''));
+                    }
+
                     var inventoryRow = {
                         'Handle': handle,
                         'Title': row.Title || '',
                         'Option1 Name': row['Option1 Name'] || 'Size',
                         'Option1 Value': row['Option1 Value'] || '',
-                        'Option2 Name': row['Option2 Name'] || '',
-                        'Option2 Value': row['Option2 Value'] || '',
-                        'Option3 Name': row['Option3 Name'] || '',
-                        'Option3 Value': row['Option3 Value'] || '',
+                        'Option2 Name': opt2Name,
+                        'Option2 Value': opt2Value,
+                        'Option3 Name': '',
+                        'Option3 Value': '',
                         'SKU': row.SKU || '',
                         'Barcode': row.Barcode || '',
                         'HS Code': row['HS Code'] || '',
@@ -230,8 +298,8 @@ var AsicsConverter = {
                 row['Option1 Value'] || '',
                 row['Option2 Name'] || '',
                 row['Option2 Value'] || '',
-                row['Option3 Name'] || '',
-                row['Option3 Value'] || '',
+                '',
+                '',
                 row.SKU || '',
                 row.Barcode || '',
                 row['HS Code'] || '',
@@ -249,10 +317,7 @@ var AsicsConverter = {
 
     // ========== CLEAN TITLE (for product CSV) ==========
     cleanTitle: function(title) {
-        // ASICS titles from scraper: "Men's NOVABLAST 5 - BLACK/WHITE"
-        // Add ASICS prefix: "ASICS Men's NOVABLAST 5 - BLACK/WHITE"
         if (!title) return title;
-        // Strip quotes
         title = title.replace(/^"|"$/g, '').trim();
         if (title.indexOf('ASICS') === -1) {
             return 'ASICS ' + title;
@@ -261,16 +326,14 @@ var AsicsConverter = {
     },
 
     // ========== CLEAN HANDLE (for product CSV) ==========
-    // Generate unified Shopify handle from cleaned title
-    // "ASICS Men's NOVABLAST 5 - BLACK/WHITE" -> "asics-mens-novablast-5-black-white"
     cleanHandle: function(cleanedTitle) {
         if (!cleanedTitle) return '';
         return cleanedTitle
             .toLowerCase()
-            .replace(/unisex's/g, 'unisex')  // Unisex's -> unisex
-            .replace(/[']/g, '')              // Men's -> Mens
-            .replace(/[^a-z0-9]+/g, '-')      // non-alphanumeric -> dash
-            .replace(/^-|-$/g, '');            // trim leading/trailing dashes
+            .replace(/unisex's/g, 'unisex')
+            .replace(/[']/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
     },
 
     // ========== GENERATE NEW PRODUCT CSV ==========
