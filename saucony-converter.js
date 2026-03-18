@@ -116,7 +116,48 @@ var SauconyConverter = {
         'Triumph 23|White Shadow|men': 'triumph-23-white-shadow',
         'Triumph 23 GTX|Sage|men': 'triumph-23-gtx-sage',
         'Triumph 23 GTX|Shadow Black|men': 'triumph-23-gtx-shadow-black',
-        'Triumph 23 GTX|Stone Violet|women': 'triumph-23-gtx-stone-violet'
+        'Triumph 23 GTX|Stone Violet|women': 'triumph-23-gtx-stone-violet',
+        // Endorphin Speed 5
+        'Endorphin Speed 5|Black Vo2|men': 'endorphin-speed-5-black-vo2',
+        'Endorphin Speed 5|Black White|men': 'endorphin-speed-5-black-white',
+        'Endorphin Speed 5|Carbon Iceberg|men': 'endorphin-speed-5-carbon-iceberg',
+        'Endorphin Speed 5|Citron Lapis|men': 'endorphin-speed-5-citron-lapis',
+        'Endorphin Speed 5|White Gum|men': 'endorphin-speed-5-white-gum',
+        'Endorphin Speed 5|Black White|women': 'endorphin-speed-5-black-white',
+        'Endorphin Speed 5|Coral Salmon|women': 'endorphin-speed-5-coral-salmon',
+        'Endorphin Speed 5|Ice Melt|women': 'endorphin-speed-5-ice-melt',
+        'Endorphin Speed 5|White Crocus|women': 'endorphin-speed-5-white-crocus',
+        'Endorphin Speed 5|White Gum|women': 'endorphin-speed-5-white-gum',
+        'Endorphin Speed 5|White Mutant|women': 'endorphin-speed-5-white-mutant',
+        // Endorphin Elite 2
+        'Endorphin Elite 2|Shock Black|unisex': 'endorphin-elite-2-shock-black',
+        // Triumph 23 - men
+        'Triumph 23|Black White|men': 'triumph-23-black-white',
+        'Triumph 23|Grey Shadow|men': 'triumph-23-grey-shadow',
+        'Triumph 23|Iceburg Carbon|men': 'triumph-23-iceburg-carbon',
+        'Triumph 23|Lapis Silver|men': 'triumph-23-lapis-silver',
+        'Triumph 23|Navy Red|men': 'triumph-23-navy-red',
+        'Triumph 23|Quartz Gum|men': 'triumph-23-quartz-gum',
+        'Triumph 23|Shadow Vizi|men': 'triumph-23-shadow-vizi',
+        'Triumph 23|White Azurite|men': 'triumph-23-white-azurite',
+        'Triumph 23|White Cloud|men': 'triumph-23-white-cloud',
+        // Triumph 23 - women
+        'Triumph 23|Arctic White|women': 'triumph-23-arctic-white',
+        'Triumph 23|Aster|women': 'triumph-23-aster',
+        'Triumph 23|Black White|women': 'triumph-23-black-white',
+        'Triumph 23|Cameo Quartz|women': 'triumph-23-cameo-quartz',
+        'Triumph 23|Iceberg Aloe|women': 'triumph-23-iceberg-aloe',
+        'Triumph 23|Navy Cameo|women': 'triumph-23-navy-cameo',
+        'Triumph 23|Vapor Arctic|women': 'triumph-23-vapor-arctic',
+        'Triumph 23|White Arctic|women': 'triumph-23-white-arctic',
+        'Triumph 23|White Wistful|women': 'triumph-23-white-wistful',
+        // Triumph 23 GTX - women
+        'Triumph 23 GTX|Shadow Aloe|women': 'triumph-23-gtx-shadow-aloe',
+        // Ride 19
+        'Ride 19|Cobalt Slime|men': 'ride-19-cobalt-slime',
+        'Ride 19|White Black|men': 'ride-19-white-black',
+        'Ride 19|Ivory Gum|women': 'ride-19-ivory-gum',
+        'Ride 19|White Silk|women': 'ride-19-white-silk'
     },
 
     // ========== HELPERS ==========
