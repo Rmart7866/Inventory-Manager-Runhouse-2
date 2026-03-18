@@ -354,13 +354,21 @@ var OnConverter = {
 
                     var qty = row['On hand (new)'] || '0';
 
+                    // Existing products in Shopify were created with Color as Option2,
+                    // so we need to pass it through for variant matching.
+                    // New products (no existing handle) are created without Color as an
+                    // option, so Option2 stays blank for those.
+                    var isExisting = !!self.existingHandles[skuBase];
+                    var opt2Name  = isExisting ? (row['Option2 Name']  || '') : '';
+                    var opt2Value = isExisting ? (row['Option2 Value'] || '') : '';
+
                     var inventoryRow = {
                         'Handle': handle,
                         'Title': row.Title || '',
                         'Option1 Name': row['Option1 Name'] || 'Size',
                         'Option1 Value': row['Option1 Value'] || '',
-                        'Option2 Name': '',
-                        'Option2 Value': '',
+                        'Option2 Name': opt2Name,
+                        'Option2 Value': opt2Value,
                         'Option3 Name': '',
                         'Option3 Value': '',
                         'SKU': sku,
@@ -408,8 +416,8 @@ var OnConverter = {
                 '"' + (row.Title || '').replace(/"/g, '""') + '"',
                 row['Option1 Name'] || 'Size',
                 row['Option1 Value'] || '',
-                '',
-                '',
+                row['Option2 Name'] || '',
+                row['Option2 Value'] || '',
                 '',
                 '',
                 row.SKU || '',
