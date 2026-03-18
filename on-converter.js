@@ -1,5 +1,7 @@
 // ON Running Converter - Processes scraper CSVs with existing handle preservation
 // Modeled after hoka-converter.js flow
+// Option2 (Color) is intentionally blanked in inventory CSV output —
+// Shopify matches variants by Handle + Option1 (Size) only.
 
 var OnConverter = {
     inventoryData: [],
@@ -9,8 +11,6 @@ var OnConverter = {
     _knownProducts: null,
 
     // ========== EXISTING HANDLES MAP ==========
-    // Maps SKU base (without size) to existing Shopify handle
-    // Key: ON-3WF10060755-PEA  Value: on-womens-cloud-|-cloud-6-pea
     existingHandles: {
         'ON-3MF10061043-BLA': 'on-mens-cloud-|-cloud-6-wp-bla',
         'ON-3MF10062231-OLI': 'on-mens-cloud-|-cloud-6-wp-oli',
@@ -235,7 +235,6 @@ var OnConverter = {
             return this.existingHandles[skuBase];
         }
 
-        // Generate new unified handle: on-[gender]-[model]-[color]
         var genderSlug = 'unisex';
         if (/women/i.test(gender)) genderSlug = 'womens';
         else if (/men/i.test(gender)) genderSlug = 'mens';
@@ -248,7 +247,6 @@ var OnConverter = {
     },
 
     // Parse title: "ON Women's Cloud | Cloud 6 - Pearl White"
-    // Returns { gender, model, color, category }
     parseTitle: function(title) {
         if (!title) return { gender: '', model: '', color: '', category: '' };
 
@@ -302,7 +300,6 @@ var OnConverter = {
                     allRows = allRows.concat(rows);
                 });
 
-                // Group by model
                 var productsByModel = new Map();
 
                 allRows.forEach(function(row) {
@@ -311,7 +308,6 @@ var OnConverter = {
                     var skuBase = self.getSkuBase(sku);
                     var handle = self.getProductHandle(skuBase, row.Title, titleInfo.gender, titleInfo.color, titleInfo.model);
                     var qty = parseInt(row['On hand (new)'] || '0') || 0;
-
                     var modelKey = titleInfo.model || 'Unknown';
 
                     if (!productsByModel.has(modelKey)) {
@@ -399,7 +395,6 @@ var OnConverter = {
                     var handle = self.getProductHandle(skuBase, row.Title, titleInfo.gender, titleInfo.color, titleInfo.model);
                     var modelKey = titleInfo.model || 'Unknown';
 
-                    // Filter by picker selection
                     if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) {
                         return;
                     }
@@ -411,10 +406,10 @@ var OnConverter = {
                         'Title': row.Title || '',
                         'Option1 Name': row['Option1 Name'] || 'Size',
                         'Option1 Value': row['Option1 Value'] || '',
-                        'Option2 Name': row['Option2 Name'] || '',
-                        'Option2 Value': row['Option2 Value'] || '',
-                        'Option3 Name': row['Option3 Name'] || '',
-                        'Option3 Value': row['Option3 Value'] || '',
+                        'Option2 Name': '',
+                        'Option2 Value': '',
+                        'Option3 Name': '',
+                        'Option3 Value': '',
                         'SKU': sku,
                         'Barcode': row['Barcode'] || '',
                         'Location': row['Location'] || 'Needham',
@@ -458,12 +453,12 @@ var OnConverter = {
             var csvRow = [
                 row.Handle,
                 '"' + (row.Title || '').replace(/"/g, '""') + '"',
-                row['Option1 Name'] || '',
+                row['Option1 Name'] || 'Size',
                 row['Option1 Value'] || '',
-                row['Option2 Name'] || '',
-                row['Option2 Value'] || '',
-                row['Option3 Name'] || '',
-                row['Option3 Value'] || '',
+                '',
+                '',
+                '',
+                '',
                 row.SKU || '',
                 row.Barcode || '',
                 '', '',
@@ -477,14 +472,10 @@ var OnConverter = {
         return csvRows.join('\n');
     },
 
-    // Generate new product CSV for Shopify product creation
     // Clean title: strip pipe-separated categories for Shopify display
-    // "ON Women's PTR | X | Cloud X 4 - Ivory Heron" -> "ON Women's Cloud X 4 - Ivory Heron"
-    // "ON Women's Runner | Cloudrunner 3 - Black Black" -> "ON Women's Cloudrunner 3 - Black Black"
     cleanTitle: function(title) {
         if (!title || title.indexOf('|') === -1) return title;
 
-        // Find the gender prefix: "ON Women's " or "ON Men's "
         var prefix = '';
         var rest = title;
         var genderMatch = title.match(/^(ON\s+(?:Women's|Men's|Unisex)\s+)/i);
@@ -493,7 +484,6 @@ var OnConverter = {
             rest = title.substring(prefix.length);
         }
 
-        // Find the last pipe - everything after it is the model + color
         var lastPipeIdx = rest.lastIndexOf('|');
         if (lastPipeIdx !== -1) {
             var modelAndColor = rest.substring(lastPipeIdx + 1).trim();
@@ -503,10 +493,8 @@ var OnConverter = {
         return title;
     },
 
-    // Clean handle: strip pipe-separated category segments for Shopify URL
-    // "on-womens-ptr-|-x-|-cloud-x-4-ivo" -> "on-womens-cloud-x-4-ivory-heron"
+    // Clean handle: generate from cleaned title
     cleanHandle: function(handle, cleanedTitle) {
-        // Generate handle from the cleaned title instead
         if (!cleanedTitle) return handle;
         return cleanedTitle
             .toLowerCase()
@@ -593,7 +581,6 @@ var OnConverter = {
             if (product.gender === "Men's") gGender = 'Male';
             else if (product.gender === "Women's") gGender = 'Female';
 
-            // Clean title: strip pipe categories for Shopify display
             var cleanedTitle = self.cleanTitle(product.title);
             var cleanedHandle = self.cleanHandle(product.handle, cleanedTitle);
 
