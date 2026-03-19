@@ -197,9 +197,10 @@ var ProductEnrichment = {
         overlay.id = 'enrichment-overlay';
         overlay.innerHTML = self._buildModalHTML(brand, models, defaultPrice, savedDefaults);
         document.body.appendChild(overlay);
+        document.body.classList.add('enrich-open');
 
         // Bind events
-        document.getElementById('enrich-cancel').onclick = function() { overlay.remove(); };
+        document.getElementById('enrich-cancel').onclick = function() { overlay.remove(); document.body.classList.remove('enrich-open'); };
         document.getElementById('enrich-confirm').onclick = async function() {
             await self._handleConfirm(brand, models, defaultPrice, overlay, onConfirm);
         };
@@ -335,6 +336,7 @@ var ProductEnrichment = {
         }
 
         overlay.remove();
+        document.body.classList.remove('enrich-open');
         onConfirm(enrichmentMap);
     },
 
@@ -419,8 +421,9 @@ function parseCSVLineEnrich(line) {
         #enrichment-overlay {
             position: fixed; inset: 0; background: rgba(0,0,0,.55);
             display: flex; align-items: center; justify-content: center;
-            z-index: 10000; padding: 20px;
+            z-index: 10000; padding: 20px; overflow: hidden;
         }
+        body.enrich-open { overflow: hidden; }
         .enrich-modal {
             background: #fff; border-radius: 16px; width: 100%; max-width: 740px;
             max-height: 90vh; display: flex; flex-direction: column;
