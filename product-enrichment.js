@@ -140,20 +140,8 @@ var ProductEnrichment = {
 
     // Auto-generate description for a model
     autoDescription: function(brand, modelName) {
-        var upper = modelName.toUpperCase();
-        var category = 'running';
-        for (var key in this.modelCategories) {
-            if (upper.indexOf(key) !== -1) { category = this.modelCategories[key]; break; }
-        }
-        var vendor = (this.brandDefaults[brand] || {}).vendor || brand;
-        var widthNote = '';
-        if (upper.indexOf('WIDE') !== -1 || upper.indexOf('2E') !== -1 || upper.indexOf('4E') !== -1) {
-            widthNote = ' in wide width options';
-        }
-        return '<p>The ' + vendor + ' ' + modelName + ' is a premium ' + category + ' shoe'
-            + widthNote + ' available at The Run House. '
-            + 'Engineered for everyday runners who demand comfort and performance, '
-            + 'the ' + modelName + ' delivers a smooth, responsive ride mile after mile.</p>';
+        // Returns empty string — user types their own description
+        return '';
     },
 
     autoSEOTitle: function(brand, modelName, gender) {
@@ -250,10 +238,12 @@ var ProductEnrichment = {
         var modelCards = models.map(function(m) {
             var saved = savedDefaults[m.modelKey] || {};
             var price = saved.price || defaultPrice;
-            var desc = saved.description || self.autoDescription(brand, m.modelName);
+            var rawDesc = saved.description || '';
+            // Strip outer <p> tags for display — user sees plain text, we re-wrap on save
+            var desc = rawDesc.replace(/^<p>([\s\S]*)<\/p>$/i, '$1').trim();
             var tags = saved.tags || (vendor + ', ' + m.modelName);
             var seoTitle = saved.seoTitle || self.autoSEOTitle(brand, m.modelName, '');
-            var seoDesc = saved.seoDesc || desc.replace(/<[^>]+>/g, '').substring(0, 160);
+            var seoDesc = saved.seoDesc || '';
 
             var colorwayRows = m.colorways.map(function(c) {
                 return '<div class="enrich-cw-row">'
@@ -281,7 +271,7 @@ var ProductEnrichment = {
                 + '<div class="enrich-advanced" id="enrich-adv-' + m.modelKey + '" style="display:none">'
                 + '<div class="enrich-field-row"><label>SEO Title</label><input class="enrich-input enrich-seo-title" data-model="' + m.modelKey + '" type="text" value="' + seoTitle.replace(/"/g, '&quot;') + '" placeholder="e.g. Saucony Guide 19 | Stability Running Shoe"></div>'
                 + '<div class="enrich-field-row"><label>SEO Desc</label><input class="enrich-input enrich-seo-desc" data-model="' + m.modelKey + '" type="text" value="' + seoDesc.replace(/"/g, '&quot;') + '" placeholder="160 char description for search engines..."></div>'
-                + '<div class="enrich-field-row enrich-field-desc"><label>Description</label><textarea class="enrich-textarea enrich-description" data-model="' + m.modelKey + '" placeholder="Enter product description HTML...">' + desc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>'
+                + '<div class="enrich-field-row enrich-field-desc"><label>Description</label><textarea class="enrich-textarea enrich-description" data-model="' + m.modelKey + '" placeholder="Describe this shoe — features, feel, who it's for. Plain text is fine.">' + desc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>'
                 + '</div>'
                 + '</div>'
                 + '</div>';
@@ -328,7 +318,9 @@ var ProductEnrichment = {
             var seoTitle = (document.querySelector('.enrich-seo-title[data-model="' + key + '"]') || {}).value || '';
             var seoDesc = (document.querySelector('.enrich-seo-desc[data-model="' + key + '"]') || {}).value || '';
             var descEl = document.querySelector('.enrich-description[data-model="' + key + '"]');
-            var desc = descEl ? descEl.value.replace(/&lt;/g, '<').replace(/&gt;/g, '>') : '';
+            var descRaw = descEl ? descEl.value.trim() : '';
+            // If user typed plain text (no HTML tags), wrap in <p>
+            var desc = descRaw && !/<[a-z]/i.test(descRaw) ? '<p>' + descRaw + '</p>' : descRaw;
 
             enrichmentMap[key] = { price: price, tags: tags, description: desc, seoTitle: seoTitle, seoDesc: seoDesc };
             await self.saveModelDefault(brand, key, enrichmentMap[key]);
@@ -477,23 +469,23 @@ function parseCSVLineEnrich(line) {
         .enrich-price-wrap2 .enrich-price { padding-left: 20px; width: 100px; }
         .enrich-advanced-toggle { font-size: 11px; font-weight: 600; color: #2563eb; cursor: pointer; padding: 2px 0 4px; display: inline-block; user-select: none; }
         .enrich-advanced-toggle:hover { text-decoration: underline; }
-        .enrich-advanced { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; border-top: 1px solid #f4f4f5; margin-top: 4px; }
+        .enrich-advanced { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid #e4e4e7; margin-top: 6px; }
         .enrich-field-row { display: flex; align-items: flex-start; gap: 10px; }
         .enrich-field-row label {
             font-size: 10px; font-weight: 700; color: #71717a; text-transform: uppercase;
             letter-spacing: .4px; padding-top: 8px; width: 80px; flex-shrink: 0;
         }
         .enrich-input {
-            flex: 1; padding: 7px 10px; border: 1px solid #e4e4e7; border-radius: 7px;
+            flex: 1; padding: 9px 12px; border: 1px solid #e4e4e7; border-radius: 7px;
             font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s;
             background: #fff;
         }
         .enrich-input:focus { border-color: #18181b; }
         .enrich-input-sm { width: 90px; flex: none; padding: 5px 8px; font-size: 13px; }
         .enrich-textarea {
-            flex: 1; padding: 7px 10px; border: 1px solid #e4e4e7; border-radius: 7px;
-            font-size: 12px; font-family: 'SF Mono', monospace; outline: none;
-            transition: border-color .15s; resize: vertical; min-height: 72px; background: #fff;
+            flex: 1; padding: 10px 12px; border: 1px solid #e4e4e7; border-radius: 7px;
+            font-size: 13px; font-family: inherit; outline: none;
+            transition: border-color .15s; resize: vertical; min-height: 100px; background: #fff; line-height: 1.6;
         }
         .enrich-textarea:focus { border-color: #18181b; }
 
