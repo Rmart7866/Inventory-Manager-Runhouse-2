@@ -212,7 +212,7 @@ var ProductEnrichment = {
             });
         });
 
-        // Expand/collapse colorway list
+        // Expand/collapse colorway list + advanced fields
         overlay.addEventListener('click', function(e) {
             if (e.target.classList.contains('enrich-toggle')) {
                 var key = e.target.dataset.model;
@@ -221,6 +221,15 @@ var ProductEnrichment = {
                     var visible = list.style.display !== 'none';
                     list.style.display = visible ? 'none' : 'block';
                     e.target.textContent = visible ? '▶ Show colorways' : '▼ Hide colorways';
+                }
+            }
+            if (e.target.classList.contains('enrich-advanced-toggle')) {
+                var key = e.target.dataset.model;
+                var adv = document.getElementById('enrich-adv-' + key);
+                if (adv) {
+                    var visible = adv.style.display !== 'none';
+                    adv.style.display = visible ? 'none' : 'block';
+                    e.target.textContent = visible ? '+ SEO & Description' : '− SEO & Description';
                 }
             }
             // Track manual price edits
@@ -264,25 +273,15 @@ var ProductEnrichment = {
                 + colorwayRows
                 + '</div>'
                 + '<div class="enrich-fields">'
-                + '<div class="enrich-field-row">'
-                + '<label>Price</label>'
-                + '<input class="enrich-input enrich-price" data-model="' + m.modelKey + '" data-default="true" type="text" value="' + price + '" placeholder="0.00">'
+                + '<div class="enrich-row2">'
+                + '<div class="enrich-field2"><label>Price</label><div class="enrich-price-wrap2"><span class="enrich-dollar">$</span><input class="enrich-input enrich-price" data-model="' + m.modelKey + '" data-default="true" type="text" value="' + price + '" placeholder="0.00"></div></div>'
+                + '<div class="enrich-field2 enrich-field2-wide"><label>Tags</label><input class="enrich-input enrich-tags" data-model="' + m.modelKey + '" type="text" value="' + tags.replace(/"/g, '&quot;') + '" placeholder="Saucony, Guide 19, Stability..."></div>'
                 + '</div>'
-                + '<div class="enrich-field-row">'
-                + '<label>Tags</label>'
-                + '<input class="enrich-input enrich-tags" data-model="' + m.modelKey + '" type="text" value="' + tags.replace(/"/g, '&quot;') + '">'
-                + '</div>'
-                + '<div class="enrich-field-row">'
-                + '<label>SEO Title</label>'
-                + '<input class="enrich-input enrich-seo-title" data-model="' + m.modelKey + '" type="text" value="' + seoTitle.replace(/"/g, '&quot;') + '">'
-                + '</div>'
-                + '<div class="enrich-field-row">'
-                + '<label>SEO Description</label>'
-                + '<input class="enrich-input enrich-seo-desc" data-model="' + m.modelKey + '" type="text" value="' + seoDesc.replace(/"/g, '&quot;') + '">'
-                + '</div>'
-                + '<div class="enrich-field-row enrich-field-desc">'
-                + '<label>Description (HTML)</label>'
-                + '<textarea class="enrich-textarea enrich-description" data-model="' + m.modelKey + '">' + desc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea>'
+                + '<div class="enrich-advanced-toggle" data-model="' + m.modelKey + '">+ SEO &amp; Description</div>'
+                + '<div class="enrich-advanced" id="enrich-adv-' + m.modelKey + '" style="display:none">'
+                + '<div class="enrich-field-row"><label>SEO Title</label><input class="enrich-input enrich-seo-title" data-model="' + m.modelKey + '" type="text" value="' + seoTitle.replace(/"/g, '&quot;') + '" placeholder="e.g. Saucony Guide 19 | Stability Running Shoe"></div>'
+                + '<div class="enrich-field-row"><label>SEO Desc</label><input class="enrich-input enrich-seo-desc" data-model="' + m.modelKey + '" type="text" value="' + seoDesc.replace(/"/g, '&quot;') + '" placeholder="160 char description for search engines..."></div>'
+                + '<div class="enrich-field-row enrich-field-desc"><label>Description</label><textarea class="enrich-textarea enrich-description" data-model="' + m.modelKey + '" placeholder="Enter product description HTML...">' + desc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>'
                 + '</div>'
                 + '</div>'
                 + '</div>';
@@ -468,11 +467,21 @@ function parseCSVLineEnrich(line) {
         .enrich-cw-title { color: #3f3f46; }
         .enrich-cw-meta { color: #a1a1aa; font-size: 11px; }
 
-        .enrich-fields { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+        .enrich-fields { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+        .enrich-row2 { display: flex; gap: 10px; align-items: flex-start; }
+        .enrich-field2 { display: flex; flex-direction: column; gap: 4px; }
+        .enrich-field2 label { font-size: 10px; font-weight: 700; color: #71717a; text-transform: uppercase; letter-spacing: .4px; }
+        .enrich-field2-wide { flex: 1; }
+        .enrich-price-wrap2 { position: relative; width: 100px; }
+        .enrich-dollar { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #71717a; font-weight: 600; pointer-events: none; }
+        .enrich-price-wrap2 .enrich-price { padding-left: 20px; width: 100px; }
+        .enrich-advanced-toggle { font-size: 11px; font-weight: 600; color: #2563eb; cursor: pointer; padding: 2px 0 4px; display: inline-block; user-select: none; }
+        .enrich-advanced-toggle:hover { text-decoration: underline; }
+        .enrich-advanced { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; border-top: 1px solid #f4f4f5; margin-top: 4px; }
         .enrich-field-row { display: flex; align-items: flex-start; gap: 10px; }
         .enrich-field-row label {
-            font-size: 11px; font-weight: 700; color: #71717a; text-transform: uppercase;
-            letter-spacing: .4px; padding-top: 8px; width: 100px; flex-shrink: 0;
+            font-size: 10px; font-weight: 700; color: #71717a; text-transform: uppercase;
+            letter-spacing: .4px; padding-top: 8px; width: 80px; flex-shrink: 0;
         }
         .enrich-input {
             flex: 1; padding: 7px 10px; border: 1px solid #e4e4e7; border-radius: 7px;
