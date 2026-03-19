@@ -426,7 +426,7 @@ function parseCSVLineEnrich(line) {
         body.enrich-open { overflow: hidden; }
         .enrich-modal {
             background: #fff; border-radius: 16px; width: 100%; max-width: 740px;
-            max-height: 90vh; display: flex; flex-direction: column;
+            height: 90vh; max-height: 90vh; display: flex; flex-direction: column;
             box-shadow: 0 24px 60px rgba(0,0,0,.25); overflow: hidden;
         }
         .enrich-header {
