@@ -502,3 +502,87 @@ function parseCSVLineEnrich(line) {
     `;
     document.head.appendChild(style);
 })();
+
+// ========== BRAND → CONVERTER MAP ==========
+var ENRICHMENT_BRAND_MAP = {
+    saucony:  { getConverter: function() { return SauconyConverter; },  compKey: '_sauconyTrackerComparison' },
+    hoka:     { getConverter: function() { return HokaConverter; },     compKey: '_hokaTrackerComparison' },
+    brooks:   { getConverter: function() { return BrooksConverter; },   compKey: '_brooksTrackerComparison' },
+    asics:    { getConverter: function() { return AsicsConverter; },    compKey: '_asicsTrackerComparison' },
+    puma:     { getConverter: function() { return PumaConverter; },     compKey: '_pumaTrackerComparison' },
+    on:       { getConverter: function() { return OnConverter; },       compKey: '_onTrackerComparison' },
+};
+
+// ========== GENERIC ENRICHED DOWNLOAD ==========
+function downloadNewProductCSVWithEnrichment(brand) {
+    var cfg = ENRICHMENT_BRAND_MAP[brand];
+    if (!cfg) return;
+    var converter = cfg.getConverter();
+    var comparison = window[cfg.compKey];
+    if (!converter || !comparison) { alert('Run inventory first!'); return; }
+
+    ProductEnrichment.open(brand, converter, comparison, function(enrichmentMap) {
+        var csv = converter.generateNewProductCSV(comparison);
+        if (!csv) { alert('No new products to download.'); return; }
+        csv = ProductEnrichment.applyToCSV(csv, brand, converter, enrichmentMap);
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = brand + '-NEW-products-' + getFormattedDate() + '.csv';
+        link.click();
+        if (typeof showToast === 'function') showToast((BRAND_CONFIG[brand] || {}).displayName || brand + ' new products downloaded');
+    });
+}
+
+// ========== OVERRIDE DOWNLOAD FUNCTIONS ==========
+function downloadSauconyNewProductCSV()  { downloadNewProductCSVWithEnrichment('saucony'); }
+function downloadHokaNewProductCSV()     { downloadNewProductCSVWithEnrichment('hoka'); }
+function downloadBrooksNewProductCSV()   { downloadNewProductCSVWithEnrichment('brooks'); }
+function downloadAsicsNewProductCSV()    { downloadNewProductCSVWithEnrichment('asics'); }
+function downloadPumaNewProductCSV()     { downloadNewProductCSVWithEnrichment('puma'); }
+function downloadOnNewProductCSV()       { downloadNewProductCSVWithEnrichment('on'); }
+
+// ========== COMBINED NEW PRODUCTS (patched) ==========
+function downloadCombinedNewProducts() {
+    var brandsWithNew = [];
+    for (var brand in ENRICHMENT_BRAND_MAP) {
+        var cfg = ENRICHMENT_BRAND_MAP[brand];
+        var converter = cfg.getConverter();
+        var comparison = window[cfg.compKey];
+        if (!converter || !comparison) continue;
+        var hasNew = (comparison.newProducts && comparison.newProducts.length > 0)
+                  || (comparison.newColorways && comparison.newColorways.length > 0);
+        if (hasNew) brandsWithNew.push(brand);
+    }
+    if (brandsWithNew.length === 0) { alert('No new products detected.'); return; }
+
+    var allLines = [], headerLine = null, idx = 0;
+    function processNext() {
+        if (idx >= brandsWithNew.length) {
+            if (!headerLine || allLines.length === 0) { alert('No new products.'); return; }
+            var csv = headerLine + '\n' + allLines.join('\n');
+            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'ALL-new-products-' + getFormattedDate() + '.csv';
+            link.click();
+            if (typeof showToast === 'function') showToast('Combined new products: ' + allLines.length + ' rows');
+            return;
+        }
+        var b = brandsWithNew[idx++];
+        var bcfg = ENRICHMENT_BRAND_MAP[b];
+        var conv = bcfg.getConverter();
+        var comp = window[bcfg.compKey];
+        ProductEnrichment.open(b, conv, comp, function(enrichmentMap) {
+            var csv = conv.generateNewProductCSV(comp);
+            if (csv) {
+                csv = ProductEnrichment.applyToCSV(csv, b, conv, enrichmentMap);
+                var lines = csv.split('\n');
+                if (!headerLine) headerLine = lines[0];
+                for (var i = 1; i < lines.length; i++) { if (lines[i].trim()) allLines.push(lines[i]); }
+            }
+            processNext();
+        });
+    }
+    processNext();
+}
