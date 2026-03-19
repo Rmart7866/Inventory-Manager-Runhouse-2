@@ -39,6 +39,10 @@ var ProductEnrichment = {
         'DEVIATE NITRO': 'performance', 'VELOCITY NITRO': 'neutral', 'MAGNIFY NITRO': 'neutral max cushion',
     },
 
+    // In-memory cache — persists for the page session
+    _modelCache: {},
+    _brandCache: {},
+
     // ========== FIRESTORE ==========
     _col: function(brand) {
         return db.collection('product-defaults').doc(brand).collection('models');
@@ -48,34 +52,52 @@ var ProductEnrichment = {
     },
 
     loadBrandDefault: async function(brand) {
+        if (this._brandCache[brand] !== undefined) return this._brandCache[brand];
         try {
             var snap = await this._brandDoc(brand).get();
             if (snap.exists && snap.data().defaultPrice) {
                 this.brandDefaults[brand].price = snap.data().defaultPrice;
             }
         } catch(e) { /* use hardcoded default */ }
-        return this.brandDefaults[brand].price;
+        this._brandCache[brand] = this.brandDefaults[brand].price;
+        return this._brandCache[brand];
     },
 
     saveBrandDefault: async function(brand, price) {
         this.brandDefaults[brand].price = price;
-        await this._brandDoc(brand).set({ defaultPrice: price, updatedAt: new Date().toISOString() }, { merge: true });
+        this._brandCache[brand] = price;
+        try {
+            await this._brandDoc(brand).set({ defaultPrice: price, updatedAt: new Date().toISOString() }, { merge: true });
+        } catch(e) { console.warn('[Enrichment] Could not save brand default:', e); }
     },
 
     loadModelDefault: async function(brand, modelKey) {
+        var cacheKey = brand + '|' + modelKey;
+        if (this._modelCache[cacheKey] !== undefined) return this._modelCache[cacheKey];
         try {
             var snap = await this._col(brand).doc(modelKey).get();
-            if (snap.exists) return snap.data();
+            var data = snap.exists ? snap.data() : null;
+            this._modelCache[cacheKey] = data;
+            return data;
         } catch(e) {}
         return null;
     },
 
     saveModelDefault: async function(brand, modelKey, data) {
+        var cacheKey = brand + '|' + modelKey;
+        var existing = this._modelCache[cacheKey];
+        // Skip write if nothing changed
+        var changed = !existing
+            || existing.price !== data.price
+            || existing.tags !== data.tags
+            || existing.description !== data.description
+            || existing.seoTitle !== data.seoTitle
+            || existing.seoDesc !== data.seoDesc;
+        if (!changed) return;
+        var toSave = Object.assign({}, data, { updatedAt: new Date().toISOString() });
+        this._modelCache[cacheKey] = toSave;
         try {
-            await this._col(brand).doc(modelKey).set(
-                Object.assign({}, data, { updatedAt: new Date().toISOString() }),
-                { merge: true }
-            );
+            await this._col(brand).doc(modelKey).set(toSave, { merge: true });
         } catch(e) { console.warn('[Enrichment] Could not save model default:', e); }
     },
 
@@ -173,12 +195,14 @@ var ProductEnrichment = {
         // Load brand default price
         var defaultPrice = await this.loadBrandDefault(brand);
 
-        // Load saved model defaults from Firestore
+        // Load saved model defaults in parallel
         var savedDefaults = {};
-        for (var i = 0; i < models.length; i++) {
-            var saved = await this.loadModelDefault(brand, models[i].modelKey);
-            if (saved) savedDefaults[models[i].modelKey] = saved;
-        }
+        var modelSnaps = await Promise.all(
+            models.map(function(m) { return self.loadModelDefault(brand, m.modelKey); })
+        );
+        models.forEach(function(m, i) {
+            if (modelSnaps[i]) savedDefaults[m.modelKey] = modelSnaps[i];
+        });
 
         // Build modal HTML
         var overlay = document.createElement('div');

@@ -20,7 +20,8 @@ var B2BLinkManager = {
         return db.collection('b2b-links').doc(brand).collection('links');
     },
 
-    getLinks: async function(brand) {
+    getLinks: async function(brand, forceRefresh) {
+        if (!forceRefresh && this.cache[brand] !== null) return this.cache[brand];
         var snap = await this.collection(brand).orderBy('addedAt', 'asc').get();
         var links = [];
         snap.forEach(function(doc) {
@@ -42,16 +43,19 @@ var B2BLinkManager = {
             addedAt: new Date().toISOString(),
             zeroedAt: null,
         });
+        await this.getLinks(brand, true); // refresh cache
         await this.renderBrand(brand);
     },
 
     deleteLink: async function(brand, id) {
         await this.collection(brand).doc(id).delete();
+        await this.getLinks(brand, true);
         await this.renderBrand(brand);
     },
 
     restoreLink: async function(brand, id) {
         await this.collection(brand).doc(id).update({ active: true, zeroedAt: null });
+        await this.getLinks(brand, true);
         await this.renderBrand(brand);
     },
 
@@ -102,7 +106,7 @@ var B2BLinkManager = {
 
     // ========== RENDER ==========
     renderBrand: async function(brand) {
-        var links = await this.getLinks(brand);
+        var links = await this.getLinks(brand); // uses cache if available
         var activeLinks = links.filter(function(l) { return l.active; });
         var archivedLinks = links.filter(function(l) { return !l.active; });
 
