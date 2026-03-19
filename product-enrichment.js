@@ -271,7 +271,7 @@ var ProductEnrichment = {
                 + '<div class="enrich-advanced" id="enrich-adv-' + m.modelKey + '" style="display:none">'
                 + '<div class="enrich-field-row"><label>SEO Title</label><input class="enrich-input enrich-seo-title" data-model="' + m.modelKey + '" type="text" value="' + seoTitle.replace(/"/g, '&quot;') + '" placeholder="e.g. Saucony Guide 19 | Stability Running Shoe"></div>'
                 + '<div class="enrich-field-row"><label>SEO Desc</label><input class="enrich-input enrich-seo-desc" data-model="' + m.modelKey + '" type="text" value="' + seoDesc.replace(/"/g, '&quot;') + '" placeholder="160 char description for search engines..."></div>'
-                + '<div class="enrich-field-row enrich-field-desc"><label>Description</label><textarea class="enrich-textarea enrich-description" data-model="' + m.modelKey + '" placeholder="Describe this shoe — features, feel, who it's for. Plain text is fine.">' + desc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>'
+                + '<div class="enrich-field-row enrich-field-desc"><label>Description</label><textarea class="enrich-textarea enrich-description" data-model="' + m.modelKey + '" placeholder="Describe this shoe — features, feel, who it&#39;s for. Plain text is fine.">' + desc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>'
                 + '</div>'
                 + '</div>'
                 + '</div>';
