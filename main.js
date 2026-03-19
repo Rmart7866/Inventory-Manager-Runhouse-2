@@ -467,6 +467,18 @@ async function convertBrand(brand) {
 
                 await InventoryTracker.updateExistingColorways(brand, inventory);
 
+                // ===== B2B LINK PHASE-OUT CHECK (ASICS + Brooks only) =====
+                if ((brand === 'asics' || brand === 'brooks') && typeof B2BLinkManager !== 'undefined') {
+                    try {
+                        var phased = await B2BLinkManager.checkPhaseOuts(brand, inventory);
+                        if (phased && phased.length > 0) {
+                            console.log('[B2BLinks] ' + brand + ' phased out: ' + phased.join(', '));
+                        }
+                    } catch (linkErr) {
+                        console.warn('[B2BLinks] Phase-out check failed:', linkErr);
+                    }
+                }
+
                 // Show tracker report
                 if (typeof BrandPicker !== 'undefined') {
                     BrandPicker.showTrackerReport(brand, comparison);

@@ -231,7 +231,7 @@
         .compare-dl-btn-blue { background: #2563eb; }
         .compare-dl-btn-amber { background: #d97706; }
 
-        /* ===== DYNAMIC DOWNLOAD ELEMENTS (created by main.js) ===== */
+        /* ===== DYNAMIC DOWNLOAD ELEMENTS ===== */
         .brand-download-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
         .brand-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #18181b; }
         .download-btn { flex: 1; background: #fff; border: 1px solid #d4d4d8; border-radius: 8px; padding: 12px 16px; cursor: pointer; font-weight: 600; font-size: 13px; text-align: center; font-family: inherit; transition: all .15s; }
@@ -339,6 +339,7 @@
 
             <!-- ===== BRAND CARDS ===== -->
             <div class="brand-grid">
+
                 <!-- Saucony -->
                 <div class="brand-card" data-brand="saucony">
                     <div class="bh bh-saucony">SAUCONY</div>
@@ -499,28 +500,7 @@
                         </ol>
                         <div class="copy-section">
                             <h5>ASICS Product Links:</h5>
-                            <div class="link-list" id="asics-links">
-https://b2b.asics.com/orders/100522727/products/1013A142?colorCode=401&deliveryDate=2025-11-18
-https://b2b.asics.com/orders/100530815/products/1011C083?colorCode=100
-https://b2b.asics.com/orders/100530815/products/1013A162?colorCode=600
-https://b2b.asics.com/orders/100530815/products/1013A170?colorCode=100&deliveryDate=2025-11-28
-https://b2b.asics.com/orders/100505730/products/1012B765?colorCode=002&deliveryDate=2025-10-07
-https://b2b.asics.com/orders/100505730/products/1011B958?colorCode=001&deliveryDate=2025-10-06
-https://b2b.asics.com/orders/100505730/products/1011C052?colorCode=001&deliveryDate=2025-10-06
-https://b2b.asics.com/orders/100505730/products/1011B960?colorCode=002&deliveryDate=2025-10-06
-https://b2b.asics.com/orders/100505775/products/1011C056?colorCode=001&deliveryDate=2025-10-07
-https://b2b.asics.com/orders/100505775/products/1012B843?colorCode=001&deliveryDate=2025-10-06
-https://b2b.asics.com/orders/100505775/products/1011B974?colorCode=002&deliveryDate=2025-10-06
-https://b2b.asics.com/orders/100505775/products/1012B765?colorCode=002&deliveryDate=2025-10-07
-https://b2b.asics.com/orders/100505775/products/1012B753?colorCode=001&deliveryDate=2025-10-07
-https://b2b.asics.com/orders/100505775/products/1012B772?colorCode=002&deliveryDate=2025-10-06
-https://b2b.asics.com/orders/100505775/products/1012B838?colorCode=001&deliveryDate=2025-10-06
-https://b2b.asics.com/orders/100505875/products/1011C138?colorCode=300&deliveryDate=2025-10-08
-https://b2b.asics.com/orders/100505875/products/1012B911?colorCode=600&deliveryDate=2025-10-08
-https://b2b.asics.com/orders/100505875/products/1011C025?colorCode=300&deliveryDate=2025-10-08
-https://b2b.asics.com/orders/100555134/products/1011C127?colorCode=001&deliveryDate=2026-01-19
-                            </div>
-                            <button class="copy-btn" onclick="copyLinks('asics')">Copy All Links</button>
+                            <div id="asics-link-manager">Loading...</div>
                         </div>
                     </div>
                     <div class="dropzone" id="asics-dropzone">
@@ -562,26 +542,7 @@ https://b2b.asics.com/orders/100555134/products/1011C127?colorCode=001&deliveryD
                         </ol>
                         <div class="copy-section">
                             <h5>Brooks Product Links:</h5>
-                            <div class="link-list" id="brooks-links">
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120468/120468048/9284_41941)?preset=now&sortField=Default&sortDirection=Desc&withRelatedVariants=true&collapse=false
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110479/110479091/9284_41941)?preset=now&sortField=Default&sortDirection=Desc&withRelatedVariants=true&collapse=false
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120443/120443032/9284_41941)?preset=now&sortField=Default&sortDirection=Desc&withRelatedVariants=true&collapse=false
-https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110454/110454410/9284_41941)?q=&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110454/110454044/9284_41941)?preset=now&sortField=Default&sortDirection=Desc&withRelatedVariants=true&collapse=false
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120431/120431070/9284_41941)
-https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110442/110442297/9284_41941)?q=ghost%2017&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110464/110464417/9284_41941)
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120457/120457043/9284_41941)
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110445/110445002/9284_41941)
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120434/120434110/9284_41941)
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/110446/110446078/9284_41941)
-https://fasttrack.brooksrunning.com/home(overlay:cs/brooks/120435/120435090/9284_41941)
-https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120426/120426137/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110437/110437346/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/110438/110438033/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/120427044/9284_41941)?q=Adrenaline%20GTS%2024&f=&start=0&num=25&preset=now&sortField=Default&sortDirection=Desc&collapse=false
-                            </div>
-                            <button class="copy-btn" onclick="copyLinks('brooks')">Copy All Links</button>
+                            <div id="brooks-link-manager">Loading...</div>
                         </div>
                     </div>
                     <div class="dropzone" id="brooks-dropzone">
@@ -650,6 +611,7 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
                     <div class="bp-badge" id="on-tracker-badge"></div>
                     <div class="tracker-report" id="on-tracker-report"></div>
                 </div>
+
             </div>
 
             <!-- ===== DOWNLOAD SECTION ===== -->
@@ -666,6 +628,7 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
                     <div class="uni-info" id="unified-info"></div>
                 </div>
             </div>
+
         </div>
     </div>
 
@@ -689,14 +652,6 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
             const vis = panel.style.display === 'block';
             document.querySelectorAll('.instruct').forEach(p => p.style.display = 'none');
             if (!vis) panel.style.display = 'block';
-        }
-        function copyLinks(brand) {
-            const text = document.getElementById(`${brand}-links`).textContent.trim();
-            navigator.clipboard.writeText(text).then(() => {
-                const btn = event.target; const orig = btn.textContent;
-                btn.textContent = 'Copied!'; btn.classList.add('copied');
-                setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
-            });
         }
         function clearOnFile(gender) {
             if (gender === 'men') {
@@ -738,6 +693,7 @@ https://fasttrack.brooksrunning.com/browse/search(overlay:cs/brooks/120427/12042
     <script src="asics-converter.js"></script>
     <script src="brooks-converter.js"></script>
     <script src="brand-picker.js"></script>
+    <script src="b2b-links.js"></script>
 
     <!-- INVENTORY COMPARISON -->
     <script>
