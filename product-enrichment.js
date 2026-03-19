@@ -439,7 +439,7 @@ function parseCSVLineEnrich(line) {
         .enrich-brand-price-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
         .enrich-brand-price-wrap label { font-size: 11px; font-weight: 600; opacity: .85; }
 
-        .enrich-body { overflow-y: auto; padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+        .enrich-body { overflow-y: auto; padding: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
         .enrich-body::-webkit-scrollbar { width: 5px; }
         .enrich-body::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
 
