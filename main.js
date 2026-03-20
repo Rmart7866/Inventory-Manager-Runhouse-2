@@ -166,8 +166,11 @@ var BrandConverter = {
             });
         }
 
-        // Step 2: Scan file(s)
-        loadModels.then(function() {
+        // Step 2: Pre-load picker defaults + scan
+        var loadDefaults = (typeof BrandPicker !== 'undefined' && BrandPicker.loadPickerDefaults)
+            ? BrandPicker.loadPickerDefaults(brand) : Promise.resolve();
+
+        loadModels.then(function() { return loadDefaults; }).then(function() {
             if (config.twoFile) {
                 return converter.scanFiles(self.brands.on.menFile, self.brands.on.womenFile);
             } else {

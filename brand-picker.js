@@ -5,6 +5,7 @@ var BrandPicker = {
 
     configs: {},
     scannedProducts: {},
+    _defaultsCache: {},
 
     register: function(brand, config) {
         this.configs[brand] = config;
@@ -22,6 +23,9 @@ var BrandPicker = {
 
         var cbClass = config.checkboxClass;
         var knownProducts = config.converter._knownProducts || null;
+
+        // Load saved picker defaults if available
+        var savedDefaults = BrandPicker._defaultsCache[brand] || null;
 
         // Sort alphabetically
         var sorted = products.slice().sort(function(a, b) { return a.name.localeCompare(b.name); });
@@ -52,6 +56,8 @@ var BrandPicker = {
             var isChecked = knownProducts ? knownProducts.has(modelKey) : true;
             var isNew = knownProducts && !knownProducts.has(modelKey);
             if (product.isDefault !== undefined) { isChecked = product.isDefault; isNew = !product.isDefault; }
+            // Saved picker defaults override everything
+            if (savedDefaults) { isChecked = savedDefaults.indexOf(product.name) !== -1; }
 
             var colorCount = product.colorways ? product.colorways.length : 0;
             var rows = product.rowCount || product.rows || 0;
@@ -126,13 +132,22 @@ var BrandPicker = {
 
     selectDefaults: function(brand) {
         var config = this.configs[brand];
-        var knownProducts = config.converter._knownProducts;
-        if (brand === 'hoka' && typeof InventoryTracker !== 'undefined') knownProducts = InventoryTracker.getKnownModels('hoka');
+        var savedDefaults = this._defaultsCache[brand];
 
-        document.querySelectorAll('.' + config.checkboxClass).forEach(function(cb) {
-            var key = cb.getAttribute('data-model-base') || cb.getAttribute('data-model');
-            cb.checked = knownProducts ? knownProducts.has(key) : true;
-        });
+        if (savedDefaults) {
+            // Use saved picker defaults
+            document.querySelectorAll('.' + config.checkboxClass).forEach(function(cb) {
+                cb.checked = savedDefaults.indexOf(cb.getAttribute('data-model')) !== -1;
+            });
+        } else {
+            // Fall back to inventory tracker known products
+            var knownProducts = config.converter._knownProducts;
+            if (brand === 'hoka' && typeof InventoryTracker !== 'undefined') knownProducts = InventoryTracker.getKnownModels('hoka');
+            document.querySelectorAll('.' + config.checkboxClass).forEach(function(cb) {
+                var key = cb.getAttribute('data-model-base') || cb.getAttribute('data-model');
+                cb.checked = knownProducts ? knownProducts.has(key) : true;
+            });
+        }
         this._updateSelection(brand); this._updateSummary(brand);
     },
 
@@ -170,6 +185,7 @@ var BrandPicker = {
                 setTimeout(function() { btn.textContent = 'Save Defaults'; btn.classList.remove('bp-saved'); }, 3000);
             }).catch(function(err) { btn.textContent = 'Error'; btn.disabled = false; });
         } else {
+            BrandPicker._defaultsCache[brand] = selected; // update cache immediately
             db.collection('picker-defaults').doc(brand).set({ models: selected, updatedAt: new Date().toISOString() })
             .then(function() {
                 btn.textContent = '✓ Saved'; btn.classList.add('bp-saved'); btn.disabled = false;
@@ -179,6 +195,19 @@ var BrandPicker = {
                 setTimeout(function() { btn.textContent = 'Save Defaults'; }, 2000);
             });
         }
+    },
+
+    // ========== LOAD PICKER DEFAULTS FROM FIRESTORE ==========
+    loadPickerDefaults: function(brand) {
+        if (typeof db === 'undefined') return Promise.resolve();
+        if (this._defaultsCache[brand]) return Promise.resolve();
+        var self = this;
+        return db.collection('picker-defaults').doc(brand).get().then(function(snap) {
+            if (snap.exists && snap.data().models) {
+                self._defaultsCache[brand] = snap.data().models;
+                console.log('[' + brand + '] Loaded ' + snap.data().models.length + ' picker defaults');
+            }
+        }).catch(function() {});
     },
 
     // ========== TRACKER REPORT ==========
