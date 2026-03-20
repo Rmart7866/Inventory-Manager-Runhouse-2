@@ -620,11 +620,11 @@
                 <div class="dl-grid" id="individual-downloads"></div>
                 <div class="unified-bar">
                     <h2>Combined</h2>
+                    <button class="uni-btn uni-btn-green" onclick="downloadUnified()" style="margin-bottom:12px;">Download Inventory CSV</button>
                     <div style="display:flex;gap:10px;margin-bottom:12px;">
-                        <button class="uni-btn" onclick="downloadUnified()" style="flex:1;">Download Selected Brands</button>
                         <button class="uni-btn uni-btn-red" onclick="downloadUnifiedReset()" style="flex:1;">Download Reset (All 0s)</button>
+                        <button class="uni-btn" id="combined-new-products-btn" onclick="downloadCombinedNewProducts()" style="display:none;flex:1;">Download ALL New Products CSV</button>
                     </div>
-                    <button class="uni-btn uni-btn-green" id="combined-new-products-btn" onclick="downloadCombinedNewProducts()" style="display:none;width:100%;margin-bottom:12px;">Download ALL New Products CSV</button>
                     <div class="uni-info" id="unified-info"></div>
                 </div>
             </div>
