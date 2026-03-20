@@ -199,10 +199,8 @@ var BrandPicker = {
         var summary = comparison.summary || {};
         var html = '<div class="bp-tracker">';
 
-        // Header
         html += '<div class="bp-tracker-header"><span>Inventory Tracker</span><span class="bp-ts">' + new Date().toLocaleString() + '</span></div>';
 
-        // Stats row
         html += '<div class="bp-stats">';
         html += '<div class="bp-stat"><span class="bp-stat-num">' + (summary.totalInATS || 0) + '</span><span class="bp-stat-lbl">In File</span></div>';
         html += '<div class="bp-stat"><span class="bp-stat-num">' + (summary.totalInDB || 0) + '</span><span class="bp-stat-lbl">Shopify</span></div>';
@@ -212,17 +210,12 @@ var BrandPicker = {
         if (comparison.removedColorways && comparison.removedColorways.length > 0) html += '<div class="bp-stat bp-stat-red"><span class="bp-stat-num">-' + comparison.removedColorways.length + '</span><span class="bp-stat-lbl">Removed</span></div>';
         html += '</div>';
 
-        // New Products section
         if (comparison.newProducts && comparison.newProducts.length > 0) {
             html += this._buildTrackerSection(brand, 'new-products', 'New Products', comparison.newProducts, 'warn', true);
         }
-
-        // New Colorways section
         if (comparison.newColorways && comparison.newColorways.length > 0) {
             html += this._buildTrackerSection(brand, 'new-colorways', 'New Colorways', comparison.newColorways, 'green', true);
         }
-
-        // Removed section
         if (comparison.removedColorways && comparison.removedColorways.length > 0) {
             var prefix = brand + '-tracker';
             html += '<div class="bp-section bp-section-red">';
@@ -430,10 +423,6 @@ function buildHokaProductPicker(products) { BrandPicker.show('hoka', products); 
 function showHokaProductCSVButton() { BrandPicker.showProductCSVButton('hoka'); }
 function hideHokaProductCSVButton() { BrandPicker.hideProductCSVButton('hoka'); }
 function showTrackerReport(comparison) { BrandPicker.showTrackerReport('hoka', comparison); }
-function downloadHokaNewProductCSV() { BrandPicker.downloadNewProductCSV('hoka'); }
-function downloadHokaProductCSV() { BrandPicker.downloadProductCSV('hoka'); }
-function showHokaNewProductButton(c) { var n = 0; if (c && c.newProducts) n += c.newProducts.length; if (c && c.newColorways) n += c.newColorways.length; if (n > 0) BrandPicker._showNewProductButton('hoka', n); else BrandPicker._hideNewProductButton('hoka'); }
-function hideHokaNewProductButton() { BrandPicker._hideNewProductButton('hoka'); }
 function hokaPickerSelectAll() { BrandPicker.selectAll('hoka'); }
 function hokaPickerSelectNone() { BrandPicker.selectNone('hoka'); }
 function hokaPickerSelectDefaults() { BrandPicker.selectDefaults('hoka'); }
@@ -449,35 +438,30 @@ function showOnPicker(products) { BrandPicker.show('on', products); }
 function showOnTrackerReport(comparison) { BrandPicker.showTrackerReport('on', comparison); }
 function showOnNewProductButton() { var c = window._onTrackerComparison; var n = 0; if (c) { n = (c.newProducts ? c.newProducts.length : 0) + (c.newColorways ? c.newColorways.length : 0); } if (n > 0) BrandPicker._showNewProductButton('on', n); }
 function hideOnNewProductButton() { BrandPicker._hideNewProductButton('on'); }
-function downloadOnNewProductCSV() { BrandPicker.downloadNewProductCSV('on'); }
 function downloadOnProductCSV() { BrandPicker.downloadProductCSV('on'); }
 
 function showAsicsPicker(products) { BrandPicker.show('asics', products); }
 function showAsicsTrackerReport(comparison) { BrandPicker.showTrackerReport('asics', comparison); }
 function showAsicsNewProductButton() { var c = window._asicsTrackerComparison; var n = 0; if (c) { n = (c.newProducts ? c.newProducts.length : 0) + (c.newColorways ? c.newColorways.length : 0); } if (n > 0) BrandPicker._showNewProductButton('asics', n); }
 function hideAsicsNewProductButton() { BrandPicker._hideNewProductButton('asics'); }
-function downloadAsicsNewProductCSV() { BrandPicker.downloadNewProductCSV('asics'); }
 function downloadAsicsProductCSV() { BrandPicker.downloadProductCSV('asics'); }
 
 function showBrooksPicker(products) { BrandPicker.show('brooks', products); }
 function showBrooksTrackerReport(comparison) { BrandPicker.showTrackerReport('brooks', comparison); }
 function showBrooksNewProductButton() { var c = window._brooksTrackerComparison; var n = 0; if (c) { n = (c.newProducts ? c.newProducts.length : 0) + (c.newColorways ? c.newColorways.length : 0); } if (n > 0) BrandPicker._showNewProductButton('brooks', n); }
 function hideBrooksNewProductButton() { BrandPicker._hideNewProductButton('brooks'); }
-function downloadBrooksNewProductCSV() { BrandPicker.downloadNewProductCSV('brooks'); }
 function downloadBrooksProductCSV() { BrandPicker.downloadProductCSV('brooks'); }
 
 function showPumaPicker(products) { BrandPicker.show('puma', products); }
 function showPumaTrackerReport(comparison) { BrandPicker.showTrackerReport('puma', comparison); }
 function showPumaNewProductButton() { BrandPicker._showNewProductButton('puma', 0); }
 function hidePumaNewProductButton() { BrandPicker._hideNewProductButton('puma'); }
-function downloadPumaNewProductCSV() { BrandPicker.downloadNewProductCSV('puma'); }
 function downloadPumaProductCSV() { BrandPicker.downloadProductCSV('puma'); }
 
 function showSauconyPicker(products) { BrandPicker.show('saucony', products); }
 function showSauconyTrackerReport(comparison) { BrandPicker.showTrackerReport('saucony', comparison); }
 function showSauconyNewProductButton() { BrandPicker._showNewProductButton('saucony', 0); }
 function hideSauconyNewProductButton() { BrandPicker._hideNewProductButton('saucony'); }
-function downloadSauconyNewProductCSV() { BrandPicker.downloadNewProductCSV('saucony'); }
 function downloadSauconyProductCSV() { BrandPicker.downloadProductCSV('saucony'); }
 
 document.addEventListener('DOMContentLoaded', function() {
