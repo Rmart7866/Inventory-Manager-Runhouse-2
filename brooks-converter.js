@@ -47,8 +47,6 @@ var BrooksConverter = {
         'glycerin-gts-23-spellboundyuccapink-d-120492090': 'glycerin-gts-23-spellboundyuccapink-d-120492453',
         'glycerin-gts-23-whiteharbor-mistmetallic-120492090': 'glycerin-gts-23-whiteharbor-mistmetallic-120492453',
         'glycerin-gts-23-whiteharbor-mistmetallic-d-120492090': 'glycerin-gts-23-whiteharbor-mistmetallic-d-120492453',
-    },
-
         'glycerin-flex-blackwhite-120467628': 'glycerin-flex-blackwhite-120467018',
         'glycerin-flex-coconutchateauportabella-120467628': 'glycerin-flex-coconutchateauportabella-120467018',
         'glycerin-flex-coconutstarfishchateau-d-110478114': 'glycerin-flex-coconutstarfishchateau-d-110478196',
@@ -59,6 +57,8 @@ var BrooksConverter = {
         'glycerin-flex-whiteblackgum-d-110478114': 'glycerin-flex-whiteblackgum-d-110478196',
         'glycerin-flex-whitecyber-pinkargyle-120467628': 'glycerin-flex-whitecyber-pinkargyle-120467018',
         'glycerin-flex-whitegreen-geckophantom-d-110478114': 'glycerin-flex-whitegreen-geckophantom-d-110478196',
+    },
+
     // ========== REMAP HANDLE ==========
     remapHandle: function(handle) {
         return this.handleRemap[handle] || handle;
