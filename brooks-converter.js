@@ -12,13 +12,55 @@ var BrooksConverter = {
     _knownProducts: null,
     _rawRows: null,
 
+    // ========== HANDLE REMAPPING ==========
+    // Brooks occasionally updates style numbers on their portal for existing products.
+    // When that happens the scraper outputs a handle with the new style number,
+    // but the Shopify product was created with the old one. Map new -> old here.
+    handleRemap: {
+        'glycerin-23-blackblackebony-120465133': 'glycerin-23-blackblackebony-120465111',
+        'glycerin-23-blackblackebony-2e-110476096': 'glycerin-23-blackblackebony-2e-110476154',
+        'glycerin-23-blackblackebony-d-120465133': 'glycerin-23-blackblackebony-d-110476154',
+        'glycerin-23-blackebonybiscuit-d-110476096': 'glycerin-23-blackebonybiscuit-d-110476154',
+        'glycerin-23-blackgreywhite-120465133': 'glycerin-23-blackgreywhite-120465111',
+        'glycerin-23-blackgreywhite-2e-110476096': 'glycerin-23-blackgreywhite-2e-110476154',
+        'glycerin-23-blackgreywhite-d-110476096': 'glycerin-23-blackgreywhite-d-120465111',
+        'glycerin-23-bluespellboundstarfish-d-110476096': 'glycerin-23-bluespellboundstarfish-d-110476154',
+        'glycerin-23-coconutbleached-sandgrey-d-110476096': 'glycerin-23-coconutbleached-sandgrey-d-110476154',
+        'glycerin-23-coconutsandskyway-120465133': 'glycerin-23-coconutsandskyway-120465111',
+        'glycerin-23-greyblackened-pearlblack-2e-110476096': 'glycerin-23-greyblackened-pearlblack-2e-110476154',
+        'glycerin-23-greyblackened-pearlblack-4e-110476096': 'glycerin-23-greyblackened-pearlblack-4e-110476154',
+        'glycerin-23-greyblackened-pearlblack-d-110476096': 'glycerin-23-greyblackened-pearlblack-d-110476154',
+        'glycerin-23-skywayblazing-bellpink-120465133': 'glycerin-23-skywayblazing-bellpink-120465111',
+        'glycerin-23-spellboundyuccapink-120465133': 'glycerin-23-spellboundyuccapink-120465111',
+        'glycerin-23-spellboundyuccapink-2e-120465133': 'glycerin-23-spellboundyuccapink-2e-120465111',
+        'glycerin-23-spellboundyuccapink-d-120465133': 'glycerin-23-spellboundyuccapink-d-120465111',
+        'glycerin-23-whiteblackgum-2e-110476096': 'glycerin-23-whiteblackgum-2e-110476154',
+        'glycerin-23-whiteblackgum-d-110476096': 'glycerin-23-whiteblackgum-d-110476154',
+        'glycerin-23-whiteharbor-mistmetallic-120465133': 'glycerin-23-whiteharbor-mistmetallic-120465111',
+        'glycerin-23-whiteharbor-mistmetallic-d-120465133': 'glycerin-23-whiteharbor-mistmetallic-d-120465111',
+        'glycerin-23-whiteoystersilver-120465133': 'glycerin-23-whiteoystersilver-120465111',
+        'glycerin-23-whiteoystersilver-d-120465133': 'glycerin-23-whiteoystersilver-d-120465111',
+        'glycerin-23-whitephantomgreen-gecko-d-110476096': 'glycerin-23-whitephantomgreen-gecko-d-110476154',
+        'glycerin-gts-23-blackgreywhite-d-110503844': 'glycerin-gts-23-blackgreywhite-d-120492453',
+        'glycerin-gts-23-spellboundyuccapink-120492090': 'glycerin-gts-23-spellboundyuccapink-120492453',
+        'glycerin-gts-23-spellboundyuccapink-2e-120492090': 'glycerin-gts-23-spellboundyuccapink-2e-120492453',
+        'glycerin-gts-23-spellboundyuccapink-d-120492090': 'glycerin-gts-23-spellboundyuccapink-d-120492453',
+        'glycerin-gts-23-whiteharbor-mistmetallic-120492090': 'glycerin-gts-23-whiteharbor-mistmetallic-120492453',
+        'glycerin-gts-23-whiteharbor-mistmetallic-d-120492090': 'glycerin-gts-23-whiteharbor-mistmetallic-d-120492453',
+    },
+
+    // ========== REMAP HANDLE ==========
+    remapHandle: function(handle) {
+        return this.handleRemap[handle] || handle;
+    },
+
     // ========== BROOKS CATEGORY MAPPING ==========
     productCategories: {
         'Neutral Running': [
-            'GHOST 17', 'GHOST MAX 3', 'GLYCERIN 22', 'GLYCERIN MAX 2'
+            'GHOST 17', 'GHOST MAX 3', 'GLYCERIN 22', 'GLYCERIN 23', 'GLYCERIN FLEX', 'GLYCERIN MAX 2'
         ],
         'Stability Running': [
-            'GLYCERIN GTS 22', 'ADRENALINE GTS 25', 'ADRENALINE GTS 24 GTX'
+            'GLYCERIN GTS 22', 'GLYCERIN GTS 23', 'ADRENALINE GTS 25', 'ADRENALINE GTS 24 GTX', 'ARIEL GTS 26'
         ]
     },
 
@@ -132,7 +174,7 @@ var BrooksConverter = {
                 var productsByModel = new Map();
 
                 allRows.forEach(function(row) {
-                    var handle = row.Handle.trim();
+                    var handle = self.remapHandle(row.Handle.trim());
                     var titleInfo = self.parseTitle(row.Title || '', handle);
                     var genderPrefix = titleInfo.gender ? (titleInfo.gender + ' ') : '';
                     var modelKey = genderPrefix + (titleInfo.model || 'Unknown');
@@ -210,7 +252,7 @@ var BrooksConverter = {
                 var productVariantData = [];
 
                 allRows.forEach(function(row) {
-                    var handle = row.Handle.trim();
+                    var handle = self.remapHandle(row.Handle.trim());
                     var titleInfo = self.parseTitle(row.Title || '', handle);
                     var genderPrefix = titleInfo.gender ? (titleInfo.gender + ' ') : '';
                     var modelKey = genderPrefix + (titleInfo.model || 'Unknown');
@@ -227,8 +269,8 @@ var BrooksConverter = {
                         'Title': row.Title || '',
                         'Option1 Name': row['Option1 Name'] || 'Size',
                         'Option1 Value': row['Option1 Value'] || '',
-                        'Option2 Name': row['Option2 Name'] || '',
-                        'Option2 Value': row['Option2 Value'] || '',
+                        'Option2 Name': '',
+                        'Option2 Value': '',
                         'Option3 Name': row['Option3 Name'] || '',
                         'Option3 Value': row['Option3 Value'] || '',
                         'SKU': row.SKU || '',
@@ -279,8 +321,8 @@ var BrooksConverter = {
                 '"' + (row.Title || '').replace(/"/g, '""') + '"',
                 row['Option1 Name'] || 'Size',
                 row['Option1 Value'] || '',
-                row['Option2 Name'] || '',
-                row['Option2 Value'] || '',
+                '',
+                '',
                 row['Option3 Name'] || '',
                 row['Option3 Value'] || '',
                 row.SKU || '',
