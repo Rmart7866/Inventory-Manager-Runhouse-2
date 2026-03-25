@@ -12,6 +12,89 @@ var PumaConverter = {
     _knownProducts: null,
     _rawData: null,
 
+    // ========== EXISTING SHOPIFY HANDLES ==========
+    // Maps new unified handle (puma-mens-*) -> existing Shopify handle (mens-*)
+    // Existing products were created before the unified format was adopted.
+    existingHandles: {
+        'puma-mens-deviate-nitro-3-blue-crystal-puma-black': 'mens-deviate-nitro-3-blue-crystal-puma-black',
+        'puma-mens-deviate-nitro-3-cool-light-gray-new-navy': 'mens-deviate-nitro-3-cool-light-gray-new-navy',
+        'puma-mens-deviate-nitro-3-dusky-gray-heat-fire': 'mens-deviate-nitro-3-dusky-gray-heat-fire',
+        'puma-mens-deviate-nitro-3-glowing-red-puma-black': 'mens-deviate-nitro-3-glowing-red-puma-black',
+        'puma-mens-deviate-nitro-3-gray-echo-speed-blue': 'mens-deviate-nitro-3-gray-echo-speed-blue',
+        'puma-mens-deviate-nitro-3-green-glare-puma-black': 'mens-deviate-nitro-3-green-glare-puma-black',
+        'puma-mens-deviate-nitro-3-lapis-lazuli-sunset-glow': 'mens-deviate-nitro-3-lapis-lazuli-sunset-glow',
+        'puma-mens-deviate-nitro-3-mint-melt-speed-blue': 'mens-deviate-nitro-3-mint-melt-speed-blue',
+        'puma-mens-deviate-nitro-3-peaceful-blue-glowing-red': 'mens-deviate-nitro-3-peaceful-blue-glowing-red',
+        'puma-mens-deviate-nitro-3-puma-black': 'mens-deviate-nitro-3-puma-black',
+        'puma-mens-deviate-nitro-3-puma-black-dark-amethyst': 'mens-deviate-nitro-3-puma-black-dark-amethyst',
+        'puma-mens-deviate-nitro-3-puma-black-puma-white': 'mens-deviate-nitro-3-puma-black-puma-white',
+        'puma-mens-deviate-nitro-3-puma-black-sun-stream': 'mens-deviate-nitro-3-puma-black-sun-stream',
+        'puma-mens-deviate-nitro-3-puma-white-feather-gray-puma-silver': 'mens-deviate-nitro-3-puma-white-feather-gray-puma-silver',
+        'puma-mens-deviate-nitro-3-puma-white-mint-melt': 'mens-deviate-nitro-3-puma-white-mint-melt',
+        'puma-mens-deviate-nitro-3-puma-white-speed-blue': 'mens-deviate-nitro-3-puma-white-speed-blue',
+        'puma-mens-deviate-nitro-3-pure-magenta-yellow-alert': 'mens-deviate-nitro-3-pure-magenta-yellow-alert',
+        'puma-mens-deviate-nitro-3-rose-mauve-new-navy': 'mens-deviate-nitro-3-rose-mauve-new-navy',
+        'puma-mens-deviate-nitro-3-yellow-alert-puma-black': 'mens-deviate-nitro-3-yellow-alert-puma-black',
+        'puma-mens-deviate-nitro-4-alpine-snow-warm-white': 'mens-deviate-nitro-4-alpine-snow-warm-white',
+        'puma-mens-deviate-nitro-4-apple-spritz-lux-lime': 'mens-deviate-nitro-4-apple-spritz-lux-lime',
+        'puma-mens-deviate-nitro-4-baltic-sea-blue-fresh-water': 'mens-deviate-nitro-4-baltic-sea-blue-fresh-water',
+        'puma-mens-deviate-nitro-4-buttercream-inky-depths': 'mens-deviate-nitro-4-buttercream-inky-depths',
+        'puma-mens-deviate-nitro-4-cr-me-de-mint-moody-gray': 'mens-deviate-nitro-4-cr-me-de-mint-moody-gray',
+        'puma-mens-deviate-nitro-4-fresh-water-lemon-crush-puma-black-puma-wh': 'mens-deviate-nitro-4-fresh-water-lemon-crush-puma-black-puma-wh',
+        'puma-mens-deviate-nitro-4-intense-mint-light-lavender': 'mens-deviate-nitro-4-intense-mint-light-lavender',
+        'puma-mens-deviate-nitro-4-jasmine-flower-lucite-almost-apricot': 'mens-deviate-nitro-4-jasmine-flower-lucite-almost-apricot',
+        'puma-mens-deviate-nitro-4-light-lavender-inky-depths': 'mens-deviate-nitro-4-light-lavender-inky-depths',
+        'puma-mens-deviate-nitro-4-poison-pink-yellow-alert-bright-aqua': 'mens-deviate-nitro-4-poison-pink-yellow-alert-bright-aqua',
+        'puma-mens-deviate-nitro-4-puma-black-flat-dark-gray-puma-silver': 'mens-deviate-nitro-4-puma-black-flat-dark-gray-puma-silver',
+        'puma-mens-deviate-nitro-4-puma-black-puma-white-puma-silver': 'mens-deviate-nitro-4-puma-black-puma-white-puma-silver',
+        'puma-mens-deviate-nitro-4-puma-black-ultra-red': 'mens-deviate-nitro-4-puma-black-ultra-red',
+        'puma-mens-deviate-nitro-4-puma-white-apple-spritz-lux-lime': 'mens-deviate-nitro-4-puma-white-apple-spritz-lux-lime',
+        'puma-mens-deviate-nitro-4-puma-white-electric-orchid-pure-pink': 'mens-deviate-nitro-4-puma-white-electric-orchid-pure-pink',
+        'puma-mens-deviate-nitro-4-puma-white-feather-gray': 'mens-deviate-nitro-4-puma-white-feather-gray',
+        'puma-mens-deviate-nitro-4-puma-white-puma-black': 'mens-deviate-nitro-4-puma-white-puma-black',
+        'puma-mens-deviate-nitro-4-pure-pink-electric-orchid-deep-plum': 'mens-deviate-nitro-4-pure-pink-electric-orchid-deep-plum',
+        'puma-mens-deviate-nitro-4-sandstone-lucite': 'mens-deviate-nitro-4-sandstone-lucite',
+        'puma-mens-deviate-nitro-4-slate-sky-moody-gray': 'mens-deviate-nitro-4-slate-sky-moody-gray',
+        'puma-mens-deviate-nitro-4-soft-grass-cr-me-de-mint': 'mens-deviate-nitro-4-soft-grass-cr-me-de-mint',
+        'puma-mens-deviate-nitro-4-sunny-lime-puma-black': 'mens-deviate-nitro-4-sunny-lime-puma-black',
+        'puma-mens-deviate-nitro-4-ultra-red-puma-silver': 'mens-deviate-nitro-4-ultra-red-puma-silver',
+        'puma-mens-deviate-nitro-4-vibrant-silver-lux-lime': 'mens-deviate-nitro-4-vibrant-silver-lux-lime',
+        'puma-mens-deviate-nitro-4-zen-blue-moody-gray': 'mens-deviate-nitro-4-zen-blue-moody-gray',
+        'puma-mens-magmax-cool-weather-blue-crystal': 'mens-magmax-cool-weather-blue-crystal',
+        'puma-mens-magmax-dusky-gray-heat-fire': 'mens-magmax-dusky-gray-heat-fire',
+        'puma-mens-magmax-green-moon-yellow-alert': 'mens-magmax-green-moon-yellow-alert',
+        'puma-mens-magmax-lapis-lazuli-nitro-blue': 'mens-magmax-lapis-lazuli-nitro-blue',
+        'puma-mens-magmax-lux-army-warm-white-dusky-gray': 'mens-magmax-lux-army-warm-white-dusky-gray',
+        'puma-mens-magmax-nitro-2-chocolate-fondue-puma-black': 'mens-magmax-nitro-2-chocolate-fondue-puma-black',
+        'puma-mens-magmax-nitro-2-cr-me-de-mint-moody-gray': 'mens-magmax-nitro-2-cr-me-de-mint-moody-gray',
+        'puma-mens-magmax-nitro-2-fresh-water-emerald-ice': 'mens-magmax-nitro-2-fresh-water-emerald-ice',
+        'puma-mens-magmax-nitro-2-inky-depths-ultra-red': 'mens-magmax-nitro-2-inky-depths-ultra-red',
+        'puma-mens-magmax-nitro-2-puma-black-papaya': 'mens-magmax-nitro-2-puma-black-papaya',
+        'puma-mens-magmax-nitro-2-puma-black-puma-white': 'mens-magmax-nitro-2-puma-black-puma-white',
+        'puma-mens-magmax-nitro-2-puma-team-royal-vibrant-blue': 'mens-magmax-nitro-2-puma-team-royal-vibrant-blue',
+        'puma-mens-magmax-nitro-2-puma-white-silver-mist': 'mens-magmax-nitro-2-puma-white-silver-mist',
+        'puma-mens-magmax-nitro-2-rose-latte-jasmine-flower': 'mens-magmax-nitro-2-rose-latte-jasmine-flower',
+        'puma-mens-magmax-nitro-2-sunny-lime-puma-silver': 'mens-magmax-nitro-2-sunny-lime-puma-silver',
+        'puma-mens-magmax-nitro-2-vibrant-silver-lux-lime': 'mens-magmax-nitro-2-vibrant-silver-lux-lime',
+        'puma-mens-magmax-nitro-2-warm-white-puma-black': 'mens-magmax-nitro-2-warm-white-puma-black',
+        'puma-mens-magmax-nitro-2-zen-blue-gray-echo': 'mens-magmax-nitro-2-zen-blue-gray-echo',
+        'puma-mens-magmax-puma-black-galactic-gray': 'mens-magmax-puma-black-galactic-gray',
+        'puma-mens-magmax-puma-black-puma-white': 'mens-magmax-puma-black-puma-white',
+        'puma-mens-magmax-puma-black-puma-white-cool-dark-gray': 'mens-magmax-puma-black-puma-white-cool-dark-gray',
+        'puma-mens-magmax-puma-team-royal-vibrant-blue': 'mens-magmax-puma-team-royal-vibrant-blue',
+        'puma-mens-magmax-puma-white-puma-silver': 'mens-magmax-puma-white-puma-silver',
+        'puma-mens-magmax-puma-white-silver-mist': 'mens-magmax-puma-white-silver-mist',
+        'puma-mens-magmax-speed-blue-mint-melt': 'mens-magmax-speed-blue-mint-melt',
+        'puma-mens-magmax-warm-white-puma-black': 'mens-magmax-warm-white-puma-black',
+        'puma-mens-magnify-nitro-3-alpine-snow-desert-dust': 'mens-magnify-nitro-3-alpine-snow-desert-dust',
+        'puma-mens-magnify-nitro-3-apple-spritz-lux-lime': 'mens-magnify-nitro-3-apple-spritz-lux-lime',
+        'puma-mens-magnify-nitro-3-baltic-sea-blue-puma-black': 'mens-magnify-nitro-3-baltic-sea-blue-puma-black',
+        'puma-mens-magnify-nitro-3-green-terrain-heat-fire': 'mens-magnify-nitro-3-green-terrain-heat-fire',
+        'puma-mens-magnify-nitro-3-mint-melt-puma-black-speed-blue-fizzy-ligh': 'mens-magnify-nitro-3-mint-melt-puma-black-speed-blue-fizzy-ligh',
+        'puma-mens-magnify-nitro-3-puma-black-puma-white': 'mens-magnify-nitro-3-puma-black-puma-white',
+        'puma-mens-magnify-nitro-3-puma-black-speed-blue': 'mens-magnify-nitro-3-puma-black-speed-blue',
+    },
+
     // ========== CATEGORY KEYWORDS ==========
     // Order matters: more specific first
     _racingKeywords: [
@@ -224,6 +307,7 @@ var PumaConverter = {
                 var colorHandle = ('puma-' + genderSlug + '-' + modelName + '-' + (fields.colorName || ''))
                     .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
                 if (width) colorHandle += self.widthHandleSuffix(width);
+                if (self.existingHandles[colorHandle]) colorHandle = self.existingHandles[colorHandle];
 
                 if (!productsByModel.has(modelKey)) {
                     productsByModel.set(modelKey, {
@@ -326,6 +410,7 @@ var PumaConverter = {
                 var handle = ('puma-' + genderSlug + '-' + modelName + '-' + color)
                     .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
                 if (width) handle += self.widthHandleSuffix(width);
+                if (self.existingHandles[handle]) handle = self.existingHandles[handle];
 
                 var widthDisplay = width ? ' (' + width + ')' : '';
                 var title = (gender ? gender + ' ' : '') + 'Puma ' + rawModelName + widthDisplay + ' - ' + color;
