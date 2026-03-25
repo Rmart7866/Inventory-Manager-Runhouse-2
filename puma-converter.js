@@ -220,7 +220,8 @@ var PumaConverter = {
 
                 var qty = parseInt(fields.quantity) || 0;
 
-                var colorHandle = (genderPrefix + rawModelName + '-' + (fields.colorName || ''))
+                var genderSlug = gender === "Men's" ? 'mens' : gender === "Women's" ? 'womens' : 'unisex';
+                var colorHandle = ('puma-' + genderSlug + '-' + modelName + '-' + (fields.colorName || ''))
                     .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
                 if (width) colorHandle += self.widthHandleSuffix(width);
 
@@ -321,7 +322,8 @@ var PumaConverter = {
                 }
 
                 // Handle: raw model name + color + width suffix
-                var handle = (genderPrefix + rawModelName + '-' + color)
+                var genderSlug = gender === "Men's" ? 'mens' : gender === "Women's" ? 'womens' : 'unisex';
+                var handle = ('puma-' + genderSlug + '-' + modelName + '-' + color)
                     .toLowerCase().replace(/['']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
                 if (width) handle += self.widthHandleSuffix(width);
 
@@ -418,11 +420,7 @@ var PumaConverter = {
 
     // ========== CLEAN TITLE / HANDLE (for product CSV) ==========
     cleanTitle: function(title) {
-        if (!title) return title;
-        if (title.indexOf('Puma') === -1 && title.indexOf('PUMA') === -1) {
-            return 'Puma ' + title;
-        }
-        return title;
+        return title || '';
     },
 
     cleanHandle: function(cleanedTitle) {
@@ -512,7 +510,7 @@ var PumaConverter = {
             else if (product.gender === "Women's") gGender = 'Female';
 
             var cleanedTitle = self.cleanTitle(product.title);
-            var cleanedHandle = self.cleanHandle(cleanedTitle);
+            var cleanedHandle = product.handle;
 
             var tags = ['Puma', product.model];
             if (product.gender) tags.push(product.gender.replace("'s", ''));
