@@ -209,6 +209,8 @@
         .uni-btn:hover { opacity: .85; }
         .uni-btn-red { background: #ef4444; }
         .uni-btn-green { background: #16a34a; }
+        .uni-btn-sale { background: #d97706; }
+        .uni-btn-sale-sub { font-size: 12px; font-weight: 500; opacity: .85; display: block; margin-top: 2px; text-transform: none; letter-spacing: 0; }
         .uni-info { margin-top: 12px; padding: 12px 16px; background: #fafafa; border-radius: 8px; font-size: 13px; color: #71717a; text-align: center; font-weight: 500; }
 
         /* ===== COMPARE SECTION ===== */
@@ -625,6 +627,10 @@
                         <button class="uni-btn uni-btn-red" onclick="downloadUnifiedReset()" style="flex:1;">Download Reset (All 0s)</button>
                         <button class="uni-btn" id="combined-new-products-btn" onclick="downloadCombinedNewProducts()" style="display:none;flex:1;">Download ALL New Products CSV</button>
                     </div>
+                    <button class="uni-btn uni-btn-sale" onclick="downloadUnifiedSaleInventory()" style="margin-bottom:12px;">
+                        Download Sale Inventory
+                        <span class="uni-btn-sale-sub">Masks qty ≤ 3 to 0 (excludes Brooks &amp; ON)</span>
+                    </button>
                     <div class="uni-info" id="unified-info"></div>
                 </div>
             </div>
