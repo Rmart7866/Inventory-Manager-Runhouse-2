@@ -44,6 +44,12 @@ var BRAND_CONFIG = {
 // Brand display order
 var BRAND_ORDER = ['hoka', 'on', 'asics', 'brooks', 'puma', 'saucony', 'newbalance'];
 
+// Sale inventory masking: brands that already have masking baked into their
+// scraper output (Brooks, ON). For all other brands, qty <= 3 becomes 0 in
+// the sale inventory download.
+var MASK_EXEMPT_BRANDS = ['brooks', 'on'];
+var SALE_MASK_THRESHOLD = 3;
+
 // ========== MAIN CONTROLLER ==========
 var BrandConverter = {
     brands: {
@@ -566,6 +572,59 @@ function downloadUnifiedReset() {
     link.download = 'combined-reset-' + getFormattedDate() + '.csv';
     link.click();
     showToast('Combined reset CSV downloaded');
+}
+
+// ========== SALE INVENTORY DOWNLOAD ==========
+// Masks qty <= 3 to 0 for all brands except Brooks and ON.
+// Brooks and ON already have masking baked into their scraper output,
+// so we leave their quantities untouched. Other brands get low-stock
+// variants zeroed out to prevent overselling on sale channels.
+function downloadUnifiedSaleInventory() {
+    var allInventory = [];
+    var maskedCount = 0;
+    var maskedBrandSummary = [];
+
+    BRAND_ORDER.forEach(function(brand) {
+        var cb = document.getElementById('select-' + brand);
+        if (cb && cb.checked && BrandConverter.brands[brand].inventory.length > 0) {
+            var inv = BrandConverter.brands[brand].inventory.slice();
+            var config = BRAND_CONFIG[brand];
+            if (config && config.postProcess) inv = config.postProcess(inv);
+
+            // Mask low inventory for non-exempt brands
+            if (MASK_EXEMPT_BRANDS.indexOf(brand) === -1) {
+                var brandMaskedCount = 0;
+                inv = inv.map(function(row) {
+                    var qty = parseInt(row['On hand (new)']) || 0;
+                    if (qty > 0 && qty <= SALE_MASK_THRESHOLD) {
+                        maskedCount++;
+                        brandMaskedCount++;
+                        return Object.assign({}, row, { 'On hand (new)': '0' });
+                    }
+                    return row;
+                });
+                if (brandMaskedCount > 0) {
+                    maskedBrandSummary.push(BrandConverter.getBrandDisplayName(brand) + ': ' + brandMaskedCount);
+                }
+            }
+
+            allInventory = allInventory.concat(inv);
+        }
+    });
+
+    if (allInventory.length === 0) { alert('Please select at least one brand!'); return; }
+
+    var csv = BrandConverter._generateInventoryCSV(allInventory);
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'sale-inventory-' + getFormattedDate() + '.csv';
+    link.click();
+
+    var toastMsg = 'Sale inventory downloaded (' + maskedCount + ' variants masked to 0';
+    if (maskedBrandSummary.length > 0) toastMsg += ' — ' + maskedBrandSummary.join(', ');
+    toastMsg += ')';
+    showToast(toastMsg);
 }
 
 // ========== COMBINED NEW PRODUCTS ==========
