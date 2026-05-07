@@ -2,6 +2,9 @@
 // Source of truth for what's currently on Shopify
 // Tracks both product models and individual colorways per brand
 // FIXED: Per-brand caching (was global, causing cross-brand data leaks)
+// FIXED: compare() now dispatches identifyProduct() per brand instead of
+//        always calling HokaConverter (which mis-identified everything for
+//        Brooks, ON, ASICS, etc. and routed new colorways to newProducts)
 
 var InventoryTracker = {
 
@@ -14,6 +17,24 @@ var InventoryTracker = {
             this._cache[brand] = { models: null, colorways: null, loaded: false };
         }
         return this._cache[brand];
+    },
+
+    // ========== BRAND -> CONVERTER LOOKUP ==========
+    // Used by compare() to call the brand-specific identifyProduct().
+    // A converter that exposes identifyProduct(title, handle) -> modelName
+    // (matching what scanFile stores as modelKey) gets proper new-colorway
+    // detection. Brands without identifyProduct fall back to "everything new
+    // is a new product" which is safe but noisy.
+    _getConverter: function(brand) {
+        switch (brand) {
+            case 'hoka':    return typeof HokaConverter    !== 'undefined' ? HokaConverter    : null;
+            case 'on':      return typeof OnConverter      !== 'undefined' ? OnConverter      : null;
+            case 'asics':   return typeof AsicsConverter   !== 'undefined' ? AsicsConverter   : null;
+            case 'brooks':  return typeof BrooksConverter  !== 'undefined' ? BrooksConverter  : null;
+            case 'puma':    return typeof PumaConverter    !== 'undefined' ? PumaConverter    : null;
+            case 'saucony': return typeof SauconyConverter !== 'undefined' ? SauconyConverter : null;
+            default: return null;
+        }
     },
 
     // ========== LOAD FROM FIRESTORE ==========
@@ -86,6 +107,7 @@ var InventoryTracker = {
         // If no brand specified, use the last brand that was loaded
         if (!brand) brand = this._lastLoadedBrand || '_default';
         var cache = this._getCache(brand);
+        var converter = this._getConverter(brand);
         var currentHandles = new Map();
 
         for (var i = 0; i < inventoryData.length; i++) {
@@ -110,10 +132,13 @@ var InventoryTracker = {
         var newColorways = [];
         currentHandles.forEach(function(product, handle) {
             if (!knownColorways.has(handle)) {
-                // Try to identify the model name from the title
+                // Try to identify the model name from the title using the
+                // brand's own identifier. The converter's identifyProduct
+                // should return whatever string scanFile stores as modelKey
+                // (typically gender + model, e.g. "Men's ADRENALINE GTS 25").
                 var modelName = null;
-                if (product.title && typeof HokaConverter !== 'undefined' && HokaConverter.identifyProduct) {
-                    modelName = HokaConverter.identifyProduct(product.title);
+                if (product.title && converter && typeof converter.identifyProduct === 'function') {
+                    modelName = converter.identifyProduct(product.title, handle);
                 }
 
                 var entry = {
