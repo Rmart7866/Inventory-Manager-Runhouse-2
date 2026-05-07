@@ -311,6 +311,25 @@ var BrooksConverter = {
         return 'Other';
     },
 
+    // ========== IDENTIFY PRODUCT ==========
+    // Called by InventoryTracker.compare() to figure out the model name for a
+    // new colorway, so it can check whether the parent model already exists in
+    // Firestore. Returns a string matching what scanFile() stores as the
+    // picker's modelKey: gender + ' ' + UPPERCASE_MODEL.
+    //
+    // e.g. identifyProduct("Adrenaline GTS 25 - Black/Black/Ebony",
+    //                      "adrenaline-gts-25-blackblackebony-110454044")
+    //   -> "Men's ADRENALINE GTS 25"
+    //
+    // Returning null means "couldn't identify" — caller will treat as new product.
+    identifyProduct: function(title, handle) {
+        if (!title) return null;
+        var info = this.parseTitle(title, handle || '');
+        if (!info.model) return null;
+        var prefix = info.gender ? (info.gender + ' ') : '';
+        return prefix + info.model;
+    },
+
     // ========== CLEAN TITLE (for product CSV + canonical handle) ==========
     // Rebuilds title as: "Brooks Men's Ghost 17 (Wide) - Black/White"
     cleanTitle: function(title, gender, width) {
