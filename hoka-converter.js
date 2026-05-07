@@ -31,7 +31,7 @@ const HokaConverter = {
         '1127929-BBLC': 'men-s-gaviota-5-black-black',
         '1127929-BHFG': 'men-s-gaviota-5-birch-foggy-night',
         '1127929-BTRC': 'men-s-gaviota-5-black-electric-cobalt',
-        '1127929-BWHT': 'gaviota-5-black-white',f
+        '1127929-BWHT': 'gaviota-5-black-white',
         '1127929-BYT': 'men-s-gaviota-5-barley-oat-milk',
         '1127929-DHN': 'gaviota-5-downpour-thunder-cloud',
         '1127929-DLSH': 'men-s-gaviota-5-deep-lagoon-sherbet',
