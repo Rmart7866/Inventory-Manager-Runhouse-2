@@ -268,6 +268,107 @@ var BrooksConverter = {
         return this._remapTargets;
     },
 
+    // ========== GLYCERIN SKU-LEVEL ROUTING (SCOPED) ==========
+    // Narrow fix for one data-shape problem: the inventory feed collapses some
+    // Glycerin colorways into a single genderless "brooks-glycerin-{model}-{color}"
+    // handle that merges multiple genders/widths, while the live store keeps each
+    // gender+width as its own product. A handle->handle map can't split those, so
+    // for these specific models ONLY we resolve per row using the SKU (110/120 =
+    // gender, trailing D/2E/B/etc = width) plus the colorway from the handle.
+    //
+    // IMPORTANT: this is gated to an explicit allowlist. It does NOT apply to
+    // Glycerin Max, Glycerin 22, or any future Glycerin model. Anything not in
+    // glycerinSkuModels falls straight through to the normal resolveHandle path.
+    // If a future generation has the same merged-handle shape, add it here on
+    // purpose and extend glycerinLiveHandles with that generation's live handles.
+    glycerinSkuModels: new Set(['glycerin-23', 'glycerin-gts-23', 'glycerin-flex']),
+
+    // (model | colorslug | widthtoken | genderprefix) -> live Shopify handle.
+    // widthtoken is '' for the width that the live handle omits (women's B).
+    // Sourced from the live Shopify product export; regenerate if live handles change.
+    glycerinLiveHandles: {
+        'glycerin-23|blackblackebony|2e|110': 'glycerin-23-blackblackebony-2e-110476154',
+        'glycerin-23|blackblackebony|d|110': 'glycerin-23-blackblackebony-d-110476154',
+        'glycerin-23|blackblackebony|d|120': 'glycerin-23-blackblackebony-d-120465111',
+        'glycerin-23|blackblackebony||120': 'glycerin-23-blackblackebony-120465111',
+        'glycerin-23|blackebonybiscuit|d|110': 'glycerin-23-blackebonybiscuit-d-110476154',
+        'glycerin-23|blackgreywhite|2e|110': 'glycerin-23-blackgreywhite-2e-110476154',
+        'glycerin-23|blackgreywhite|d|110': 'glycerin-23-blackgreywhite-d-110476154',
+        'glycerin-23|blackgreywhite|d|120': 'glycerin-23-blackgreywhite-d-120465111',
+        'glycerin-23|blackgreywhite||120': 'glycerin-23-blackgreywhite-120465111',
+        'glycerin-23|bluespellboundstarfish|d|110': 'glycerin-23-bluespellboundstarfish-d-110476154',
+        'glycerin-23|coconutbleachedsandgrey|d|110': 'glycerin-23-coconutbleached-sandgrey-d-110476154',
+        'glycerin-23|coconutsandskyway||120': 'glycerin-23-coconutsandskyway-120465111',
+        'glycerin-23|greyblackenedpearlblack|2e|110': 'glycerin-23-greyblackened-pearlblack-2e-110476154',
+        'glycerin-23|greyblackenedpearlblack|4e|110': 'glycerin-23-greyblackened-pearlblack-4e-110476154',
+        'glycerin-23|greyblackenedpearlblack|d|110': 'glycerin-23-greyblackened-pearlblack-d-110476154',
+        'glycerin-23|skywayblazingbellpink||120': 'glycerin-23-skywayblazing-bellpink-120465111',
+        'glycerin-23|spellboundyuccapink|2e|120': 'glycerin-23-spellboundyuccapink-2e-120465111',
+        'glycerin-23|spellboundyuccapink|d|120': 'glycerin-23-spellboundyuccapink-d-120465111',
+        'glycerin-23|spellboundyuccapink||120': 'glycerin-23-spellboundyuccapink-120465111',
+        'glycerin-23|whiteblackgum|2e|110': 'glycerin-23-whiteblackgum-2e-110476154',
+        'glycerin-23|whiteblackgum|d|110': 'glycerin-23-whiteblackgum-d-110476154',
+        'glycerin-23|whiteharbormistmetallic|d|120': 'glycerin-23-whiteharbor-mistmetallic-d-120465111',
+        'glycerin-23|whiteharbormistmetallic||120': 'glycerin-23-whiteharbor-mistmetallic-120465111',
+        'glycerin-23|whiteoystersilver|d|120': 'glycerin-23-whiteoystersilver-d-120465111',
+        'glycerin-23|whiteoystersilver||120': 'glycerin-23-whiteoystersilver-120465111',
+        'glycerin-23|whitephantomcyberpink||120': 'glycerin-23-whitephantomcyber-pink-120465111',
+        'glycerin-23|whitephantomgreengecko|d|110': 'glycerin-23-whitephantomgreen-gecko-d-110476154',
+        'glycerin-flex|blackwhite||120': 'glycerin-flex-blackwhite-120467018',
+        'glycerin-flex|coconutchateauportabella||120': 'glycerin-flex-coconutchateauportabella-120467018',
+        'glycerin-flex|coconutstarfishchateau|d|110': 'glycerin-flex-coconutstarfishchateau-d-110478196',
+        'glycerin-flex|harbormistpoppyseedpink||120': 'glycerin-flex-harbor-mistpoppy-seedpink-120467018',
+        'glycerin-flex|skywaycyberpinkblazingbell||120': 'glycerin-flex-skywaycyber-pinkblazing-bell-120467018',
+        'glycerin-flex|spellboundstarfishcoconut|d|110': 'glycerin-flex-spellboundstarfishcoconut-d-110478196',
+        'glycerin-flex|whiteblackgum|d|110': 'glycerin-flex-whiteblackgum-d-110478196',
+        'glycerin-flex|whiteblackgum||120': 'glycerin-flex-whiteblackgum-120467018',
+        'glycerin-flex|whitecyberpinkargyle||120': 'glycerin-flex-whitecyber-pinkargyle-120467018',
+        'glycerin-flex|whitegreengeckophantom|d|110': 'glycerin-flex-whitegreen-geckophantom-d-110478196',
+        'glycerin-gts-23|blackgreywhite|d|120': 'brooks-womens-glycerin-gts-23-wide-black-grey-white',
+        'glycerin-gts-23|blackgreywhite||120': 'brooks-womens-glycerin-gts-23-black-grey-white',
+        'glycerin-gts-23|spellboundyuccapink|2e|120': 'glycerin-gts-23-spellboundyuccapink-2e-120492453',
+        'glycerin-gts-23|spellboundyuccapink|d|120': 'glycerin-gts-23-spellboundyuccapink-d-120492453',
+        'glycerin-gts-23|spellboundyuccapink||120': 'glycerin-gts-23-spellboundyuccapink-120492453',
+        'glycerin-gts-23|whiteharbormistmetallic|d|120': 'glycerin-gts-23-whiteharbor-mistmetallic-d-120492453',
+        'glycerin-gts-23|whiteharbormistmetallic||120': 'glycerin-gts-23-whiteharbor-mistmetallic-120492453',
+        'glycerin-gts-23|whitephantomcyberpink||120': 'glycerin-gts-23-whitephantomcyber-pink-120492453'
+    },
+
+    // Pull gender prefix (110/120) and width token from a Brooks SKU like
+    // "110476096-090-1050-D" -> { gender: '110', width: 'd' }.
+    skuGenderWidth: function(sku) {
+        if (!sku || sku.indexOf('-') === -1) return { gender: null, width: '' };
+        var parts = sku.split('-');
+        var gender = parts[0].substring(0, 3);
+        if (gender !== '110' && gender !== '120') gender = null;
+        var w = parts[parts.length - 1].toLowerCase();
+        if (['2a', 'b', 'd', '2e', '4e'].indexOf(w) === -1) w = '';
+        return { gender: gender, width: w };
+    },
+
+    // For an allowlisted "brooks-glycerin-..." handle, resolve to the live handle
+    // by colorway + SKU. Returns null when not applicable or no live match (so the
+    // caller falls through: non-allowlisted models and genuinely new colorways are
+    // untouched and continue to mint draft products exactly as before).
+    glycerinSkuHandle: function(rawHandle, sku) {
+        if (!rawHandle || rawHandle.indexOf('brooks-') !== 0) return null;
+        var rest = rawHandle.substring('brooks-'.length);
+        var m = rest.match(/^(glycerin-(?:gts-)?\d+|glycerin-flex)-(.+)$/);
+        if (!m) return null;
+        var model = m[1];
+        if (!this.glycerinSkuModels.has(model)) return null;
+        var color = m[2].replace(/-/g, '');
+        var gw = this.skuGenderWidth(sku);
+        if (!gw.gender) return null;
+        var key = model + '|' + color + '|' + gw.width + '|' + gw.gender;
+        if (this.glycerinLiveHandles[key]) return this.glycerinLiveHandles[key];
+        if (gw.width === 'b') {
+            var alt = model + '|' + color + '||' + gw.gender;
+            if (this.glycerinLiveHandles[alt]) return this.glycerinLiveHandles[alt];
+        }
+        return null;
+    },
+
     // ========== BROOKS CATEGORY MAPPING ==========
     productCategories: {
         'Neutral Running': [
@@ -416,7 +517,10 @@ var BrooksConverter = {
     // remap target counts as existing too, since it is by definition a handle a
     // live product already uses. New products get a clean title-based handle:
     // brooks-{gender}-{model}-{width}-{color}
-    resolveHandle: function(rawHandle, title) {
+    resolveHandle: function(rawHandle, title, sku) {
+        // Scoped Glycerin SKU routing (allowlisted models only); null = not applicable.
+        var glycerin = this.glycerinSkuHandle(rawHandle, sku);
+        if (glycerin) return glycerin;
         var remapped = this.remapHandle(rawHandle);
         if (this.existingHandles.has(remapped) || this.remapTargets().has(remapped)) {
             return remapped;
@@ -444,7 +548,7 @@ var BrooksConverter = {
 
                 allRows.forEach(function(row) {
                     var rawHandle = row.Handle.trim();
-                    var canonicalHandle = self.resolveHandle(rawHandle, row.Title || '');
+                    var canonicalHandle = self.resolveHandle(rawHandle, row.Title || '', row.SKU || '');
                     var titleInfo = self.parseTitle(row.Title || '', self.remapHandle(rawHandle));
                     var genderPrefix = titleInfo.gender ? (titleInfo.gender + ' ') : '';
                     var modelKey = genderPrefix + (titleInfo.model || 'Unknown');
@@ -523,7 +627,7 @@ var BrooksConverter = {
 
                 allRows.forEach(function(row) {
                     var rawHandle = row.Handle.trim();
-                    var canonicalHandle = self.resolveHandle(rawHandle, row.Title || '');
+                    var canonicalHandle = self.resolveHandle(rawHandle, row.Title || '', row.SKU || '');
                     // parseTitle expects the remapped (raw-style) handle so it can
                     // pull gender/width from the style code suffix, even for new
                     // products whose canonical handle is the cleaned form.
