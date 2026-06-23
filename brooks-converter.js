@@ -5,8 +5,9 @@
 // Women: 2A=Narrow, B=Regular, D=Wide, 2E=Extra Wide, 4E=Extra Extra Wide
 //
 // HANDLE STRATEGY (matches ASICS pattern):
-//   - If raw scraper handle is in `existingHandles` -> keep it (Shopify product
-//     was created with that handle; preserves existing convention).
+//   - If raw scraper handle (after remap) is in `existingHandles` OR is a
+//     `handleRemap` target -> keep it (Shopify product already uses that
+//     handle; preserves existing convention).
 //   - Otherwise -> rebuild as `cleanHandle(cleanTitle(...))`, e.g.
 //     "brooks-mens-ghost-18-wide-black-black-ebony". Both inventory CSV and
 //     product CSV use this same canonical handle, so they always agree.
@@ -14,8 +15,9 @@
 var BrooksConverter = {
     // ========== EXISTING SHOPIFY HANDLES ==========
     // Raw scraper-style handles for Brooks products already on Shopify.
-    // Sourced from Shopify export. Any handle NOT in here is treated as new
-    // and gets a cleaned title-based handle (mens/womens prefix, width word).
+    // Sourced from Shopify export. Any handle NOT in here (and not a remap
+    // target) is treated as new and gets a cleaned title-based handle
+    // (mens/womens prefix, width word).
     existingHandles: new Set([
         'adrenaline-gts-24-gtx-alloywhitegold-fusion-110437346',
         'adrenaline-gts-24-gtx-blackwhite-d-110437346',
@@ -172,19 +174,28 @@ var BrooksConverter = {
     scannedProducts: [],
     _knownProducts: null,
     _rawRows: null,
+    _remapTargets: null,
 
     // ========== HANDLE REMAPPING ==========
     // Brooks occasionally updates style numbers on their portal for existing products.
     // When that happens the scraper outputs a handle with the new style number,
     // but the Shopify product was created with the old one. Map new -> old here.
+    //
+    // IMPORTANT: the 110xxx / 120xxx prefix encodes gender (110 = Men, 120 = Women).
+    // A remap MUST keep that prefix consistent between key and value, otherwise the
+    // colorway's stock gets routed to the opposite gender's product and the correct
+    // product is left stale. (Two such flips were found and corrected: see the
+    // blackblackebony-d and blackgreywhite-d lines below.)
     handleRemap: {
         'glycerin-23-blackblackebony-120465133': 'glycerin-23-blackblackebony-120465111',
         'glycerin-23-blackblackebony-2e-110476096': 'glycerin-23-blackblackebony-2e-110476154',
-        'glycerin-23-blackblackebony-d-120465133': 'glycerin-23-blackblackebony-d-110476154',
+        'glycerin-23-blackblackebony-d-110476096': 'glycerin-23-blackblackebony-d-110476154',
+        'glycerin-23-blackblackebony-d-120465133': 'glycerin-23-blackblackebony-d-120465111',
         'glycerin-23-blackebonybiscuit-d-110476096': 'glycerin-23-blackebonybiscuit-d-110476154',
         'glycerin-23-blackgreywhite-120465133': 'glycerin-23-blackgreywhite-120465111',
         'glycerin-23-blackgreywhite-2e-110476096': 'glycerin-23-blackgreywhite-2e-110476154',
-        'glycerin-23-blackgreywhite-d-110476096': 'glycerin-23-blackgreywhite-d-120465111',
+        'glycerin-23-blackgreywhite-d-110476096': 'glycerin-23-blackgreywhite-d-110476154',
+        'glycerin-23-blackgreywhite-d-120465133': 'glycerin-23-blackgreywhite-d-120465111',
         'glycerin-23-bluespellboundstarfish-d-110476096': 'glycerin-23-bluespellboundstarfish-d-110476154',
         'glycerin-23-coconutbleached-sandgrey-d-110476096': 'glycerin-23-coconutbleached-sandgrey-d-110476154',
         'glycerin-23-coconutsandskyway-120465133': 'glycerin-23-coconutsandskyway-120465111',
@@ -201,13 +212,8 @@ var BrooksConverter = {
         'glycerin-23-whiteharbor-mistmetallic-d-120465133': 'glycerin-23-whiteharbor-mistmetallic-d-120465111',
         'glycerin-23-whiteoystersilver-120465133': 'glycerin-23-whiteoystersilver-120465111',
         'glycerin-23-whiteoystersilver-d-120465133': 'glycerin-23-whiteoystersilver-d-120465111',
+        'glycerin-23-whitephantomcyber-pink-120465133': 'glycerin-23-whitephantomcyber-pink-120465111',
         'glycerin-23-whitephantomgreen-gecko-d-110476096': 'glycerin-23-whitephantomgreen-gecko-d-110476154',
-        'glycerin-gts-23-blackgreywhite-d-110503844': 'glycerin-gts-23-blackgreywhite-d-120492453',
-        'glycerin-gts-23-spellboundyuccapink-120492090': 'glycerin-gts-23-spellboundyuccapink-120492453',
-        'glycerin-gts-23-spellboundyuccapink-2e-120492090': 'glycerin-gts-23-spellboundyuccapink-2e-120492453',
-        'glycerin-gts-23-spellboundyuccapink-d-120492090': 'glycerin-gts-23-spellboundyuccapink-d-120492453',
-        'glycerin-gts-23-whiteharbor-mistmetallic-120492090': 'glycerin-gts-23-whiteharbor-mistmetallic-120492453',
-        'glycerin-gts-23-whiteharbor-mistmetallic-d-120492090': 'glycerin-gts-23-whiteharbor-mistmetallic-d-120492453',
         'glycerin-flex-blackwhite-120467628': 'glycerin-flex-blackwhite-120467018',
         'glycerin-flex-coconutchateauportabella-120467628': 'glycerin-flex-coconutchateauportabella-120467018',
         'glycerin-flex-coconutstarfishchateau-d-110478114': 'glycerin-flex-coconutstarfishchateau-d-110478196',
@@ -217,12 +223,49 @@ var BrooksConverter = {
         'glycerin-flex-whiteblackgum-120467628': 'glycerin-flex-whiteblackgum-120467018',
         'glycerin-flex-whiteblackgum-d-110478114': 'glycerin-flex-whiteblackgum-d-110478196',
         'glycerin-flex-whitecyber-pinkargyle-120467628': 'glycerin-flex-whitecyber-pinkargyle-120467018',
-        'glycerin-flex-whitegreen-geckophantom-d-110478114': 'glycerin-flex-whitegreen-geckophantom-d-110478196'
+        'glycerin-flex-whitegreen-geckophantom-d-110478114': 'glycerin-flex-whitegreen-geckophantom-d-110478196',
+        'glycerin-gts-23-spellboundyuccapink-120492090': 'glycerin-gts-23-spellboundyuccapink-120492453',
+        'glycerin-gts-23-spellboundyuccapink-2e-120492090': 'glycerin-gts-23-spellboundyuccapink-2e-120492453',
+        'glycerin-gts-23-spellboundyuccapink-d-120492090': 'glycerin-gts-23-spellboundyuccapink-d-120492453',
+        'glycerin-gts-23-whiteharbor-mistmetallic-120492090': 'glycerin-gts-23-whiteharbor-mistmetallic-120492453',
+        'glycerin-gts-23-whiteharbor-mistmetallic-d-120492090': 'glycerin-gts-23-whiteharbor-mistmetallic-d-120492453'
+
+        // NOTE: glycerin-gts-23-blackgreywhite is intentionally absent. In the feed it
+        // arrives as glycerin-gts-23-blackgreywhite-d-110503844 (110xxx = Men's), but the
+        // live product is the women's descriptive handle brooks-womens-glycerin-gts-23-
+        // black-grey-white. Confirm the correct live handle/gender, then add a line.
+        // NOTE: glycerin-gts-23-whitephantomcyber-pink-120492453 is live but not in the
+        // current feed (only the green-gecko GTS colorway is present). Add once listed.
+        //
+        // This Glycerin 23 / GTS 23 / Flex table was regenerated by matching each feed
+        // handle to its live product on colorway + width + gender (110/120). It corrected
+        // two gender-flipped lines (blackblackebony-d, blackgreywhite-d) and added the
+        // missing same-width counterparts. Regenerate from a full Shopify export when a
+        // new model generation launches.
     },
 
     // ========== REMAP HANDLE ==========
     remapHandle: function(handle) {
         return this.handleRemap[handle] || handle;
+    },
+
+    // ========== REMAP TARGETS (canonical live handles) ==========
+    // Every value in handleRemap is, by definition, a handle that an existing
+    // Shopify product already uses. Build the set of those targets once so
+    // resolveHandle can trust them even when they are not present in the
+    // existingHandles snapshot. This is what was missing: existingHandles was
+    // captured before the Glycerin 23 / GTS 23 / Flex generation launched, so a
+    // correctly-remapped handle was being rejected and rebuilt into a brand-new
+    // "brooks-mens-glycerin-23-..." handle the store does not have, which the
+    // inventory import then silently skipped.
+    remapTargets: function() {
+        if (!this._remapTargets) {
+            this._remapTargets = new Set();
+            for (var k in this.handleRemap) {
+                this._remapTargets.add(this.handleRemap[k]);
+            }
+        }
+        return this._remapTargets;
     },
 
     // ========== BROOKS CATEGORY MAPPING ==========
@@ -369,11 +412,15 @@ var BrooksConverter = {
     // Used by both scanFile() and convert() so picker, inventory CSV, product CSV,
     // and Firestore tracker all see the same value.
     //
-    // Existing Shopify products keep their raw scraper handle (after remap).
-    // New products get a clean title-based handle: brooks-{gender}-{model}-{width}-{color}
+    // Existing Shopify products keep their raw scraper handle (after remap). A
+    // remap target counts as existing too, since it is by definition a handle a
+    // live product already uses. New products get a clean title-based handle:
+    // brooks-{gender}-{model}-{width}-{color}
     resolveHandle: function(rawHandle, title) {
         var remapped = this.remapHandle(rawHandle);
-        if (this.existingHandles.has(remapped)) return remapped;
+        if (this.existingHandles.has(remapped) || this.remapTargets().has(remapped)) {
+            return remapped;
+        }
         var info = this.parseTitle(title || '', remapped);
         var cleanedTitle = this.cleanTitle(title || '', info.gender, info.width);
         return this.cleanHandle(cleanedTitle);
