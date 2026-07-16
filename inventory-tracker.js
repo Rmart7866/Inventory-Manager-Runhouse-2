@@ -68,10 +68,15 @@ var InventoryTracker = {
                 cache.loaded = true;
                 cache.source = 'shopify';
                 self._lastLoadedBrand = brand;
+                if (typeof CatalogUI !== 'undefined') CatalogUI.refreshFreshness();
                 console.log('[' + brand + '] Shopify /catalog: ' + cache.models.size + ' models, ' + cache.colorways.size + ' colorways');
                 return { models: cache.models, colorways: cache.colorways };
             }).catch(function(err) {
                 console.warn('[' + brand + '] /catalog load failed, falling back to Firestore:', err.message);
+                if (typeof CatalogUI !== 'undefined') {
+                    if (/building/i.test(err.message)) CatalogUI.setBuilding();
+                    else CatalogUI.setFallback(err.message);
+                }
                 return self._loadFromFirestore(brand, cache);
             });
         }

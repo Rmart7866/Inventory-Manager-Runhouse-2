@@ -466,12 +466,26 @@ async function convertBrand(brand) {
                 var comparison = InventoryTracker.compare(inventory);
                 window[config.comparisonKey] = comparison;
 
-                // Append removed colorways at 0
+                // Append removed colorways at 0.
+                // Firestore mode: unchanged, auto-append every removal (the
+                // Firestore mirror is small so the blast radius is small).
+                // Live/Shopify mode: the removal set is the full live catalog
+                // minus the feed, which a partial file can blow up to hundreds.
+                // So route it through a per-product review the user approves,
+                // never zero silently. See catalog-ui.js.
                 if (comparison.removedColorways && comparison.removedColorways.length > 0) {
-                    var removedRows = InventoryTracker.generateRemovedRows(comparison.removedColorways);
-                    inventory = inventory.concat(removedRows);
-                    brandData.inventory = inventory;
-                    if (converter) converter.inventoryData = inventory;
+                    var toZero = comparison.removedColorways;
+                    if (InventoryTracker.SOURCE === 'shopify' && typeof CatalogUI !== 'undefined') {
+                        var liveCount = InventoryTracker.getKnownColorways(brand).size;
+                        toZero = await CatalogUI.confirmZeroOut(brand, comparison.removedColorways, liveCount);
+                        comparison.removedColorways = toZero; // keep the report in sync with what was approved
+                    }
+                    if (toZero.length > 0) {
+                        var removedRows = InventoryTracker.generateRemovedRows(toZero);
+                        inventory = inventory.concat(removedRows);
+                        brandData.inventory = inventory;
+                        if (converter) converter.inventoryData = inventory;
+                    }
                 }
 
                 await InventoryTracker.updateExistingColorways(brand, inventory);

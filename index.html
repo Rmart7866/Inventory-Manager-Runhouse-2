@@ -259,6 +259,14 @@
         }
 
         @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+
+        /* Live-catalog mode (body.catalog-live, set by catalog-ui.js only when
+           InventoryTracker.SOURCE === 'shopify'). The confirm-on-Shopify buttons
+           exist to keep the Firestore mirror in sync by hand. When Shopify is the
+           live source there is nothing to confirm, so they are hidden. Not
+           present in firestore mode, so the current tool is unaffected. */
+        body.catalog-live .tracker-confirm-btn,
+        body.catalog-live .bp-confirm-btn { display: none !important; }
     </style>
 </head>
 <body>
@@ -702,6 +710,7 @@
     <script src="brand-picker.js"></script>
     <script src="b2b-links.js"></script>
     <script src="product-enrichment.js"></script>
+    <script src="catalog-ui.js"></script>
 
     <!-- INVENTORY COMPARISON -->
     <script>
