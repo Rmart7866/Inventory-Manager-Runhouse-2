@@ -84,13 +84,40 @@ var CatalogUI = {
         );
     },
 
-    // A plain refresh just clears the in-tab cache so the next load re-pulls the
-    // Worker's KV copy. It does NOT force a server rebuild: that needs the admin
-    // token, which is not in this public bundle by design.
+    // Force a fresh pull from Shopify (for "I just added products"). The Worker
+    // runs the rebuild in the background and rate-limits it with a cooldown, so
+    // this is safe to expose to the browser token. We poll until the new copy
+    // lands, then drop the in-tab caches so it gets used.
     forceRefresh: function() {
-        if (typeof CatalogClient !== 'undefined') { CatalogClient._catalog = null; CatalogClient._fetchedAt = 0; }
-        if (typeof InventoryTracker !== 'undefined') InventoryTracker.invalidateCache();
-        this.setBar('<span>Catalog cache cleared. It re-pulls next time you generate a brand.</span>', 'info');
+        var self = this;
+        self.setBar('<span>Requesting a fresh pull from Shopify...</span>', 'warn');
+        fetch(self.WORKER_URL + '/catalog?fresh=1', { headers: { 'Authorization': 'Bearer ' + self.CATALOG_TOKEN } })
+            .then(function(r) { return r.json().then(function(b) { b.__status = r.status; return b; }); })
+            .then(function(b) {
+                if (b.__status === 429) { self.setBar('<span>' + (b.hint || 'Recently refreshed, try again soon.') + '</span>', 'info'); return; }
+                self.setBar('<span>Refreshing catalog from Shopify, this takes a few minutes. Keep working, it updates automatically.</span>', 'warn');
+                self._pollUntilFresh(0);
+            })
+            .catch(function(e) { self.setBar('<span>Refresh failed: ' + e.message + '</span>', 'error'); });
+    },
+
+    // Poll /catalog/status until the rebuild lands (age drops near zero), then
+    // clear the in-tab caches so the next brand generate uses the new data.
+    _pollUntilFresh: function(tries) {
+        var self = this;
+        if (tries > 30) { self.setBar('<span>Refresh is taking longer than usual, it will finish in the background.</span>', 'warn'); return; }
+        fetch(self.WORKER_URL + '/catalog/status', { headers: { 'Authorization': 'Bearer ' + self.CATALOG_TOKEN } })
+            .then(function(r) { return r.json(); })
+            .then(function(s) {
+                if (s.built && s.ageSeconds != null && s.ageSeconds < 120) {
+                    if (typeof CatalogClient !== 'undefined') { CatalogClient._catalog = null; CatalogClient._fetchedAt = 0; }
+                    if (typeof InventoryTracker !== 'undefined') InventoryTracker.invalidateCache();
+                    self.setBar('<strong>Catalog refreshed.</strong> <span>Re-generate a brand to use the new data.</span>', 'info');
+                    return;
+                }
+                setTimeout(function() { self._pollUntilFresh(tries + 1); }, 20000);
+            })
+            .catch(function() { setTimeout(function() { self._pollUntilFresh(tries + 1); }, 20000); });
     },
 
     setBuilding: function() {

@@ -78,10 +78,25 @@ var CatalogClient = {
         var models = new Set();
         var products = (catalog && catalog.products) || [];
 
+        // Dropship = footwear stocked at the Needham location. When the catalog
+        // is Needham-scoped, only products flagged needham === true belong in the
+        // known set, so non-dropship products (physical-store shoes elsewhere)
+        // can never be flagged as removed and zeroed. When it is NOT scoped (no
+        // Needham location configured yet), we cannot tell dropship from
+        // non-dropship, so we fall back to all footwear and warn loudly. Do not
+        // trust removed-detection in that state.
+        var scoped = !!(catalog && catalog.needhamScoped);
+        if (!scoped) {
+            console.warn('[CatalogClient] Needham scoping is OFF: known set includes ALL ' +
+                toolBrand + ' footwear, not just Needham dropship. Removed/zero detection ' +
+                'is not safe to trust until NEEDHAM_LOCATION_ID is set on the Worker.');
+        }
+
         for (var i = 0; i < products.length; i++) {
             var p = products[i];
             if (p.brand !== catBrand) continue;
             if (!this.LIVE_STATUSES[status[p.handle]]) continue;
+            if (scoped && p.needham !== true) continue; // not stocked at Needham, not dropship
 
             // Store the same shape Firestore stored: title + variants. We do not
             // have per-size variant data in /catalog (it carries SKUs, not sizes),

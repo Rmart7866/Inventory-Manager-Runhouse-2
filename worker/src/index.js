@@ -81,7 +81,10 @@ function rawCatalog(body, request, env, cacheState) {
 // Build the catalog and store it. Shared by the cron and by ?fresh=1.
 async function rebuild(env, scope) {
   const client = createShopifyClient(env);
-  const payload = await buildCatalog(client, { activeOnly: scope === 'active' });
+  const payload = await buildCatalog(client, {
+    activeOnly: scope === 'active',
+    needhamLocationId: env.NEEDHAM_LOCATION_ID || null,
+  });
   const meta = await writeCatalog(env, scope, payload);
   return { payload, meta };
 }
@@ -101,25 +104,61 @@ async function handleCatalog(request, env, ctx) {
       return json({ error: 'limit must be a positive number' }, 400, request, env);
     }
     const client = createShopifyClient(env);
-    const payload = await buildCatalog(client, { limit, activeOnly: scope === 'active' });
+    const payload = await buildCatalog(client, {
+      limit,
+      activeOnly: scope === 'active',
+      needhamLocationId: env.NEEDHAM_LOCATION_ID || null,
+    });
     payload.truncated = true;
     return rawCatalog(JSON.stringify(payload), request, env, 'bypass-limit');
   }
 
-  // fresh=1 rebuilds inline and waits. This is the slow path on purpose, about
-  // 150 seconds and about 170 Shopify requests, and exists for "I just changed
-  // Shopify and need to see it now". It is not what the tool calls on page load.
+  // fresh=1 forces a refresh from Shopify, for "I just added products and want
+  // them now" without waiting for the daily cron. The build is slow (about 7
+  // minutes, since it also pages Needham inventory), so it runs in the BACKGROUND
+  // and the caller polls /catalog/status for the new timestamp. It never blocks
+  // a request for minutes.
   //
-  // It takes the ADMIN_TOKEN, not the browser's CATALOG_TOKEN. Reading the
-  // catalog is a cheap KV lookup, so a bundle-readable token is proportionate
-  // for it. Forcing a rebuild burns the Shopify API budget, so it is not.
+  // Anyone authenticated can trigger it (the browser's CATALOG_TOKEN is enough,
+  // so a refresh button works), but it is rate-limited by a cooldown so it cannot
+  // be spammed into hammering Shopify. If the catalog is younger than the
+  // cooldown we decline and report the age. The ADMIN_TOKEN bypasses the cooldown
+  // for a true force.
   if (fresh) {
-    const admin = requireAdmin(request, env);
-    if (!admin.ok) {
-      return json({ error: 'Forbidden', reason: admin.reason }, 403, request, env);
+    const isAdmin = requireAdmin(request, env).ok;
+    const cooldown = Number(env.REFRESH_COOLDOWN_SECONDS || 600);
+    const meta = await readCatalogMeta(env, scope);
+    const ageSeconds = meta ? Math.max(0, Math.round((Date.now() - Date.parse(meta.generatedAt)) / 1000)) : Infinity;
+
+    if (!isAdmin && ageSeconds < cooldown) {
+      return json(
+        {
+          refreshing: false,
+          reason: 'recently refreshed',
+          ageSeconds,
+          cooldownSeconds: cooldown,
+          hint: `Catalog was refreshed ${ageSeconds}s ago. It also refreshes daily on its own. Try again in ${cooldown - ageSeconds}s.`,
+        },
+        429, request, env, { 'Retry-After': String(cooldown - ageSeconds) }
+      );
     }
-    const { payload } = await rebuild(env, scope);
-    return rawCatalog(JSON.stringify(payload), request, env, 'rebuilt');
+
+    const got = await acquireBuildLock(env, scope);
+    if (got) {
+      ctx.waitUntil(
+        rebuild(env, scope)
+          .catch((err) => console.error('manual refresh rebuild failed:', err?.stack || String(err)))
+          .finally(() => releaseBuildLock(env, scope))
+      );
+    }
+    return json(
+      {
+        refreshing: true,
+        alreadyRunning: !got,
+        hint: 'Refreshing the catalog from Shopify, this takes a few minutes. Poll /catalog/status for the new timestamp.',
+      },
+      202, request, env
+    );
   }
 
   const hit = await readCatalog(env, scope);

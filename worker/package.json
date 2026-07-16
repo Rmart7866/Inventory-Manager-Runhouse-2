@@ -10,7 +10,9 @@
     "tail": "wrangler tail",
     "parity": "node test/parity.mjs",
     "test:auth": "node test/auth.mjs",
-    "test": "node test/auth.mjs && node test/parity.mjs"
+    "test:needham": "node test/needham.mjs",
+    "test:known-set": "node test/known-set.mjs",
+    "test": "node test/auth.mjs && node test/needham.mjs && node test/known-set.mjs && node test/parity.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.61.1"

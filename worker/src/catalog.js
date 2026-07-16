@@ -82,10 +82,60 @@ async function fetchAll(client, limit, activeOnly) {
   return out;
 }
 
+// NEEDHAM SCOPING. Dropshipped products are footwear stocked at the single
+// Needham location. The authoritative signal is "does the product have an
+// inventory level at Needham". Two approaches were measured against the live
+// store:
+//   - Per variant inventoryLevel(locationId:) in the main query: correct, but
+//     cost 242 vs 98 per page, which throttled a full build out to 500s+.
+//   - The product search filter "location_id:X": a no-op, it returns the whole
+//     10k catalog and wrongly includes products with zero Needham levels.
+// So we page the LOCATION's inventory levels instead. That is authoritative
+// (matches the per-variant truth) and cheap: about 4,000 handles, 47s, first
+// page cost 47. The main product query stays plain and fast.
+//
+// Returns a Set of handles stocked at Needham, or null when no location is
+// configured (scoping off). Includes non-footwear handles too, which is
+// harmless: the caller only ever checks footwear handles against it.
+async function fetchNeedhamHandles(client, needhamLocationId) {
+  if (!needhamLocationId) return null;
+  const handles = new Set();
+  let cursor = null;
+  const LEVELS = `
+query($loc: ID!, $cursor: String) {
+  location(id: $loc) {
+    inventoryLevels(first: 250, after: $cursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes { item { variant { product { handle } } } }
+    }
+  }
+}`;
+  for (;;) {
+    const body = await client.graphql(LEVELS, { loc: needhamLocationId, cursor });
+    const conn = body.data.location.inventoryLevels;
+    for (const n of conn.nodes) {
+      const h = n.item?.variant?.product?.handle;
+      if (h) handles.add(h);
+    }
+    const t = throttleOf(body);
+    if (t && t.currentlyAvailable < t.maximumAvailable * 0.2) {
+      await sleep(Math.ceil((t.maximumAvailable * 0.5) / t.restoreRate * 1000));
+    }
+    if (!conn.pageInfo.hasNextPage) break;
+    cursor = conn.pageInfo.endCursor;
+  }
+  return handles;
+}
+
 // buildCatalog(client, { limit, activeOnly }) -> the /catalog payload.
 export async function buildCatalog(client, opts = {}) {
   const limit = opts.limit || Infinity;
   const activeOnly = !!opts.activeOnly;
+  const needhamLocationId = opts.needhamLocationId || null;
+
+  // The authoritative set of handles stocked at Needham (null when scoping off).
+  // Fetched once, cheaply, then cross-referenced per product below.
+  const needhamHandles = await fetchNeedhamHandles(client, needhamLocationId);
 
   const raw = await fetchAll(client, limit, activeOnly);
 
@@ -115,6 +165,12 @@ export async function buildCatalog(client, opts = {}) {
     // are in bySku, are represented here too.
     statusByHandle[n.handle] = n.status;
 
+    // Dropship = stocked at Needham. true/false when scoping is on, null when
+    // off. The catalog still carries ALL footwear (bySku needs every handle for
+    // collision checks); the client uses this flag to scope the DROPSHIP known
+    // set, so non-Needham products are never flagged for zeroing.
+    const needham = needhamHandles ? needhamHandles.has(n.handle) : null;
+
     if (!parsed.ok) { unparsed.push({ title: n.title, sku: firstSku }); continue; }
 
     const cwGroup = groupTagFor(parsed);        // identical to the pipeline tag
@@ -135,6 +191,7 @@ export async function buildCatalog(client, opts = {}) {
       width: parsed.width,
       cwGroup,
       widthTag,
+      needham,
       skus: (n.variants?.nodes || []).map((v) => v.sku).filter(Boolean),
     });
 
@@ -170,15 +227,23 @@ export async function buildCatalog(client, opts = {}) {
   const byStatus = {};
   for (const s of Object.values(statusByHandle)) byStatus[s] = (byStatus[s] || 0) + 1;
 
+  // needhamScoped tells the client whether the `needham` flag is meaningful. When
+  // false, the client must NOT trust removed-detection to be dropship-only.
+  const needhamScoped = !!needhamLocationId;
+  let needhamProducts = null;
+  if (needhamScoped) needhamProducts = products.filter((p) => p.needham === true).length;
+
   return {
     generatedAt: new Date().toISOString(),
     shop: client.SHOP,
     scope: activeOnly ? 'active' : 'all',
+    needhamScoped,
     counts: {
       products: products.length,
       skus: Object.keys(bySku).length,
       models: Object.keys(byModel).length,
       unparsed: unparsed.length,
+      needhamProducts,
       byStatus,
     },
     products,

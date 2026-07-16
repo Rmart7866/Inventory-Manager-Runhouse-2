@@ -37,11 +37,14 @@ binding = "CATALOG"
 id = "e3ec1efab31f41e09cf90f2a58a027a5"
 preview_id = "09877d7c296c4d248542e37b0b09d2c2"
 
-# Rebuild every 20 minutes. The brief's own words: the catalog does not change
-# second to second. Worst-case staleness is one interval, and /catalog/status
-# reports the age so staleness is visible rather than silent.
+# Rebuild once a day, ~4am US Eastern (09:00 UTC), when the store is quiet and no
+# products are being added. Products arrive occasionally, not continuously, so a
+# daily refresh is plenty, and it makes the ~7 minute build cost irrelevant since
+# it runs once, off-hours. Staff can force a refresh on demand from the tool
+# (see the cooldown-gated refresh path in src/index.js) right after adding
+# products, so they never wait for the next daily run.
 [triggers]
-crons = ["*/20 * * * *"]
+crons = ["0 9 * * *"]
 
 [vars]
 # Not secret. The shop domain is public, it is in every storefront URL.
@@ -57,6 +60,14 @@ ALLOWED_ORIGINS = "https://rmart7866.github.io"
 # "bearer" for Stage 1. Must become "access" before any write route ships,
 # which src/auth.js enforces by refusing to serve one.
 AUTH_MODE = "bearer"
+
+# Needham location GID, the single dropship location. Empty until the NEW app
+# (with read_inventory scope) exists. While empty, /catalog behaves exactly as
+# before (no location field in the query, needham flag is null) and the client
+# warns that dropship scoping is OFF. Set it to gid://shopify/Location/XXXX to
+# turn on Needham scoping. The leaked app cannot read locations, so this stays
+# empty until the credential swap.
+NEEDHAM_LOCATION_ID = "gid://shopify/Location/77957136639"
 
 # Access mode only, unused while AUTH_MODE = "bearer". Fill in from the Access
 # application when a Cloudflare zone exists.
