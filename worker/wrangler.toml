@@ -1,0 +1,75 @@
+# wrangler.toml, The Run House Inventory Manager Worker.
+#
+# House style: no em dashes. Use commas, periods, or the word "to".
+
+name = "runhouse-inventory-worker"
+main = "src/index.js"
+compatibility_date = "2026-01-28"
+
+# The workers.dev URL IS the deployment target for Stage 1. Cloudflare Access
+# needs a zone on Cloudflare, therunhouse.com is not on Cloudflare, and we are
+# not moving its DNS for this. So the Worker is published on workers.dev and
+# gated by AUTH_MODE=bearer instead.
+#
+# Be clear about what that means: this URL is reachable by anyone who learns it,
+# and the token that guards it ships inside public JavaScript. It is a read only
+# endpoint, so the exposure is our own catalog, including about 680 unreleased
+# DRAFT products. See src/auth.js.
+#
+# BEFORE STAGE 3 WRITES: this must become AUTH_MODE=access on a Cloudflare zone.
+# That does NOT require moving therunhouse.com. A separate domain, eg
+# runhouse-tools.com at about 10 dollars a year, added to Cloudflare touches none
+# of the existing DNS and unlocks Access. src/auth.js enforces the gate in code.
+workers_dev = true
+
+# Preview URLs are on by default once workers.dev is enabled. They publish an
+# extra per-version hostname for every deploy. Those run the same code and the
+# same bearer check, so they are not a hole, but they are extra public surface
+# with no purpose here. Off.
+preview_urls = false
+
+# The built catalog lives in KV. Building it takes about 170 Shopify requests and
+# 149 seconds (measured, 3,567 footwear products out of a 10,000+ product store),
+# so the cron below builds it and GET /catalog only reads it.
+#
+[[kv_namespaces]]
+binding = "CATALOG"
+id = "e3ec1efab31f41e09cf90f2a58a027a5"
+preview_id = "09877d7c296c4d248542e37b0b09d2c2"
+
+# Rebuild every 20 minutes. The brief's own words: the catalog does not change
+# second to second. Worst-case staleness is one interval, and /catalog/status
+# reports the age so staleness is visible rather than silent.
+[triggers]
+crons = ["*/20 * * * *"]
+
+[vars]
+# Not secret. The shop domain is public, it is in every storefront URL.
+SHOP_URL = "therunhouse.myshopify.com"
+API_VERSION = "2026-01"
+
+# CORS allowlist, comma separated, exact origin match. The tool is served from
+# GitHub Pages, so the Worker is cross-origin and the browser will preflight.
+# Reminder: CORS is a browser rule, not authentication. src/auth.js is the guard,
+# and in bearer mode that guard is a speed bump. Do not read this line as safety.
+ALLOWED_ORIGINS = "https://rmart7866.github.io"
+
+# "bearer" for Stage 1. Must become "access" before any write route ships,
+# which src/auth.js enforces by refusing to serve one.
+AUTH_MODE = "bearer"
+
+# Access mode only, unused while AUTH_MODE = "bearer". Fill in from the Access
+# application when a Cloudflare zone exists.
+# ACCESS_TEAM_DOMAIN = "therunhouse.cloudflareaccess.com"
+# ACCESS_AUD = ""
+
+# Secrets, NOT set here. Set them with:
+#   wrangler secret put CLIENT_ID       Shopify app client id
+#   wrangler secret put CLIENT_SECRET   Shopify app client secret, the real one
+#   wrangler secret put CATALOG_TOKEN   browser token. Public by construction,
+#                                       a secret only in the sense that it is not
+#                                       committed. Rotate it freely, it is cheap.
+#   wrangler secret put ADMIN_TOKEN     gates ?fresh=1. NEVER put this in the
+#                                       browser bundle. This one is a real secret.
+# For local development they live in worker/.dev.vars, which is gitignored and is
+# never uploaded by wrangler.

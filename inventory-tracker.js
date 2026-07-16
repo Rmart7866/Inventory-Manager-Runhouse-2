@@ -37,7 +37,16 @@ var InventoryTracker = {
         }
     },
 
-    // ========== LOAD FROM FIRESTORE ==========
+    // ========== SOURCE OF TRUTH ==========
+    // 'shopify' reads live state from the Worker's /catalog (CatalogClient).
+    // 'firestore' keeps the old hand-maintained mirror. Flip this one constant to
+    // change the source for the whole tool. Kept 'firestore' by default so this
+    // change ships dark: nothing about the live tool changes until it is flipped,
+    // which should happen together with the per-product zero-out warning, not
+    // before, so a first live run cannot silently zero a flood of products.
+    SOURCE: 'firestore',
+
+    // ========== LOAD ==========
     load: function(brand) {
         var self = this;
         var cache = this._getCache(brand);
@@ -46,6 +55,33 @@ var InventoryTracker = {
             return Promise.resolve({ models: cache.models, colorways: cache.colorways });
         }
 
+        // Live path: build knownColorways/knownModels from Shopify via /catalog.
+        // On any failure (Worker down, still building, network) fall back to
+        // Firestore so the tool never breaks, and say so in the console.
+        if (this.SOURCE === 'shopify' && typeof CatalogClient !== 'undefined') {
+            var converter = this._getConverter(brand);
+            var identifyFn = (converter && typeof converter.identifyProduct === 'function')
+                ? converter.identifyProduct.bind(converter) : null;
+            return CatalogClient.forBrand(brand, identifyFn).then(function(sets) {
+                cache.models = sets.models;
+                cache.colorways = sets.colorways;
+                cache.loaded = true;
+                cache.source = 'shopify';
+                self._lastLoadedBrand = brand;
+                console.log('[' + brand + '] Shopify /catalog: ' + cache.models.size + ' models, ' + cache.colorways.size + ' colorways');
+                return { models: cache.models, colorways: cache.colorways };
+            }).catch(function(err) {
+                console.warn('[' + brand + '] /catalog load failed, falling back to Firestore:', err.message);
+                return self._loadFromFirestore(brand, cache);
+            });
+        }
+
+        return this._loadFromFirestore(brand, cache);
+    },
+
+    // ========== LOAD FROM FIRESTORE (fallback / legacy source) ==========
+    _loadFromFirestore: function(brand, cache) {
+        var self = this;
         var modelsPromise = db.collection('inventory-tracker').doc(brand).collection('models')
             .where('active', '==', true).get()
             .then(function(snap) {
@@ -66,6 +102,7 @@ var InventoryTracker = {
             cache.models = results[0];
             cache.colorways = results[1];
             cache.loaded = true;
+            cache.source = 'firestore';
             self._lastLoadedBrand = brand;
             console.log('[' + brand + '] Firestore: ' + cache.models.size + ' models, ' + cache.colorways.size + ' colorways');
             return { models: cache.models, colorways: cache.colorways };

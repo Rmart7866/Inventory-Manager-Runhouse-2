@@ -1,0 +1,31 @@
+# This repo is PUBLIC and is served on GitHub Pages. Anything committed here is
+# readable by anyone on the internet. Secrets must never land in it.
+#
+# Worker secrets live in Cloudflare, set with `wrangler secret put`. The only
+# copies on disk are the local development files below, which are never
+# committed and never uploaded by wrangler.
+
+# Local Worker development secrets. Holds CLIENT_SECRET.
+.dev.vars
+worker/.dev.vars
+.env
+worker/.env
+*.env
+
+# Generated tokens. Holds ADMIN_TOKEN.
+.tokens.local
+worker/.tokens.local
+*.local
+
+# Wrangler state
+.wrangler/
+worker/.wrangler/
+
+node_modules/
+worker/node_modules/
+
+# Generated catalog snapshots, can be large and go stale
+catalog-live.json
+worker/catalog-live.json
+
+.DS_Store

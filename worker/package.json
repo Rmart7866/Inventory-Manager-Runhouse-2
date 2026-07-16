@@ -1,0 +1,18 @@
+{
+  "name": "runhouse-inventory-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker holding the Shopify Admin credential for the Run House Inventory Manager. Stage 1: read-only GET /catalog.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "parity": "node test/parity.mjs",
+    "test:auth": "node test/auth.mjs",
+    "test": "node test/auth.mjs && node test/parity.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.61.1"
+  }
+}
