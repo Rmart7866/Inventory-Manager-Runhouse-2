@@ -17,9 +17,18 @@
 // corners, zinc dark #18181b / blue accent #2563eb.
 
 var CatalogUI = {
-    // Match the existing tool: zinc dark + blue accent, DM Sans, rounded.
-    NAVY: '#18181b',
-    ACCENT: '#2563eb',
+    // Match the tool's dark/blocky theme (index.html CSS vars). Solid, opaque
+    // surfaces with explicit light text so nothing inherits the page's light
+    // --text onto a light card and vanish.
+    SURFACE: '#0b1220',   // opaque card
+    SURFACE_2: '#0e1729', // header / raised rows
+    TEXT: '#e6eef8',
+    MUTED: '#9fb2cc',
+    LINE: '#1c2740',
+    ACCENT: '#34e0ff',    // cyan; needs DARK text on top of it
+    ACCENT_INK: '#04121a',
+    // Back-compat alias (older code referenced NAVY).
+    NAVY: '#0e1729',
 
     // Posture for the zero-out review. 'approve' = nothing preselected, the user
     // opts each product in (safest, guards against a partial feed silently
@@ -49,9 +58,9 @@ var CatalogUI = {
         var bar = document.createElement('div');
         bar.id = 'catalog-status-bar';
         bar.style.cssText =
-            'font-family:inherit;font-size:13px;border-radius:10px;' +
+            'font-family:inherit;font-size:13px;border-radius:0;' +
             'padding:8px 14px;margin:0 0 12px 0;display:flex;align-items:center;gap:12px;' +
-            'background:#eef2f9;color:' + this.NAVY + ';border:1px solid #d5deef;';
+            'background:' + this.SURFACE_2 + ';color:' + this.TEXT + ';border:1px solid ' + this.LINE + ';';
         // Insert at the top of the app content if we can find it.
         var host = document.getElementById('app-content') || document.body;
         host.insertBefore(bar, host.firstChild);
@@ -61,10 +70,12 @@ var CatalogUI = {
         this._ensureBar();
         var bar = document.getElementById('catalog-status-bar');
         if (!bar) return;
-        var bg = tone === 'warn' ? '#fef3e2' : tone === 'error' ? '#fdecec' : '#eef2f9';
-        var bd = tone === 'warn' ? '#f4d29a' : tone === 'error' ? '#f2b8b8' : '#d5deef';
+        var bg = tone === 'warn' ? '#2a2110' : tone === 'error' ? '#2a1414' : this.SURFACE_2;
+        var bd = tone === 'warn' ? '#6b5320' : tone === 'error' ? '#7a2e2e' : this.LINE;
+        var fg = tone === 'warn' ? '#f4d29a' : tone === 'error' ? '#f2b8b8' : this.TEXT;
         bar.style.background = bg;
         bar.style.borderColor = bd;
+        bar.style.color = fg;
         bar.innerHTML = html;
     },
 
@@ -80,8 +91,8 @@ var CatalogUI = {
         this.setBar(
             '<strong>Live Shopify catalog</strong>' +
             '<span>synced ' + when + ' (' + (cat.counts ? cat.counts.products : '?') + ' products)</span>' +
-            '<button onclick="CatalogUI.forceRefresh()" style="margin-left:auto;border:0;border-radius:10px;' +
-            'background:' + this.ACCENT + ';color:#fff;padding:5px 12px;font-size:12px;cursor:pointer;">Refresh</button>',
+            '<button onclick="CatalogUI.forceRefresh()" style="margin-left:auto;border:0;border-radius:0;' +
+            'background:' + this.ACCENT + ';color:' + this.ACCENT_INK + ';font-weight:600;padding:5px 12px;font-size:12px;cursor:pointer;">Refresh</button>',
             mins > 25 ? 'warn' : 'info'
         );
     },
@@ -144,8 +155,8 @@ var CatalogUI = {
         return new Promise(function(resolve) {
             var overlay = document.createElement('div');
             overlay.style.cssText =
-                'position:fixed;inset:0;background:rgba(15,25,45,0.55);z-index:99999;' +
-                'display:flex;align-items:center;justify-content:center;font-family:inherit;';
+                'position:fixed;inset:0;background:rgba(3,6,13,0.78);z-index:99999;' +
+                'display:flex;align-items:center;justify-content:center;font-family:inherit;color:' + self.TEXT + ';';
 
             var scopeLine = 'Comparing your file against <strong>' + liveCount + '</strong> live ' +
                 brandName + ' colorways on Shopify. <strong>' + total + '</strong> are not in your file.';
@@ -153,7 +164,7 @@ var CatalogUI = {
             var guard = '';
             if (frac >= self.ZERO_WARN_FRACTION) {
                 guard =
-                    '<div style="background:#fdecec;border:1px solid #f2b8b8;color:#8a1c1c;padding:10px 12px;' +
+                    '<div style="background:#2a1414;border:1px solid #7a2e2e;color:#f2b8b8;padding:10px 12px;' +
                     'margin:10px 0;font-size:13px;">This would zero <strong>' + Math.round(frac * 100) +
                     '%</strong> of your live ' + brandName + ' inventory. That usually means an incomplete or ' +
                     'failed file. Double-check before zeroing anything.</div>';
@@ -161,27 +172,27 @@ var CatalogUI = {
 
             var rows = removedColorways.map(function(cw, i) {
                 var sizes = cw.variants ? Object.keys(cw.variants).length : 0;
-                return '<label style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid #eee;font-size:13px;cursor:pointer;">' +
+                return '<label style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid ' + self.LINE + ';font-size:13px;cursor:pointer;color:' + self.TEXT + ';">' +
                     '<input type="checkbox" class="cui-zero-cb" data-i="' + i + '"' + (preselect ? ' checked' : '') + '>' +
                     '<span style="flex:1;">' + (cw.title || cw.handle) + '</span>' +
-                    '<span style="color:#888;">' + sizes + ' sizes to 0</span></label>';
+                    '<span style="color:' + self.MUTED + ';">' + sizes + ' sizes to 0</span></label>';
             }).join('');
 
             overlay.innerHTML =
-                '<div style="background:#fff;border-radius:10px;max-width:640px;width:92%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,0.3);">' +
-                  '<div style="background:' + self.NAVY + ';color:#fff;padding:14px 18px;">' +
+                '<div style="background:' + self.SURFACE + ';color:' + self.TEXT + ';border:1px solid ' + self.LINE + ';border-radius:0;max-width:640px;width:92%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,0.6);">' +
+                  '<div style="background:' + self.SURFACE_2 + ';color:' + self.TEXT + ';padding:14px 18px;border-bottom:2px solid ' + self.ACCENT + ';">' +
                     '<div style="font-size:16px;font-weight:600;">Set missing ' + brandName + ' products to 0?</div>' +
-                    '<div style="font-size:13px;opacity:0.9;margin-top:4px;">' + scopeLine + '</div></div>' +
+                    '<div style="font-size:13px;color:' + self.MUTED + ';margin-top:4px;">' + scopeLine + '</div></div>' +
                   '<div style="padding:12px 18px 0;">' + guard +
                     '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
-                      '<button id="cui-all" style="border:1px solid ' + self.ACCENT + ';background:#fff;color:' + self.ACCENT + ';border-radius:10px;padding:4px 10px;font-size:12px;cursor:pointer;">Select all</button>' +
-                      '<button id="cui-none" style="border:1px solid #ccc;background:#fff;color:#555;border-radius:10px;padding:4px 10px;font-size:12px;cursor:pointer;">Select none</button>' +
-                      '<span id="cui-count" style="margin-left:auto;font-size:12px;color:#555;align-self:center;"></span>' +
+                      '<button id="cui-all" style="border:1px solid ' + self.ACCENT + ';background:transparent;color:' + self.ACCENT + ';border-radius:0;padding:4px 10px;font-size:12px;cursor:pointer;">Select all</button>' +
+                      '<button id="cui-none" style="border:1px solid ' + self.LINE + ';background:transparent;color:' + self.MUTED + ';border-radius:0;padding:4px 10px;font-size:12px;cursor:pointer;">Select none</button>' +
+                      '<span id="cui-count" style="margin-left:auto;font-size:12px;color:' + self.MUTED + ';align-self:center;"></span>' +
                     '</div></div>' +
-                  '<div style="overflow-y:auto;border-top:1px solid #eee;">' + rows + '</div>' +
-                  '<div style="padding:14px 18px;display:flex;gap:10px;border-top:1px solid #eee;">' +
-                    '<button id="cui-skip" style="border:1px solid #ccc;background:#fff;color:#333;border-radius:10px;padding:9px 16px;font-size:14px;cursor:pointer;">Skip zeroing</button>' +
-                    '<button id="cui-go" style="margin-left:auto;border:0;background:' + self.ACCENT + ';color:#fff;border-radius:10px;padding:9px 18px;font-size:14px;cursor:pointer;">Zero selected</button>' +
+                  '<div style="overflow-y:auto;border-top:1px solid ' + self.LINE + ';">' + rows + '</div>' +
+                  '<div style="padding:14px 18px;display:flex;gap:10px;border-top:1px solid ' + self.LINE + ';">' +
+                    '<button id="cui-skip" style="border:1px solid ' + self.LINE + ';background:transparent;color:' + self.TEXT + ';border-radius:0;padding:9px 16px;font-size:14px;cursor:pointer;">Skip zeroing</button>' +
+                    '<button id="cui-go" style="margin-left:auto;border:0;background:' + self.ACCENT + ';color:' + self.ACCENT_INK + ';font-weight:600;border-radius:0;padding:9px 18px;font-size:14px;cursor:pointer;">Zero selected</button>' +
                   '</div>' +
                 '</div>';
 
