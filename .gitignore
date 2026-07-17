@@ -29,3 +29,8 @@ catalog-live.json
 worker/catalog-live.json
 
 .DS_Store
+
+# Supplier data files must never be committed to this public repo
+*.xlsx
+*.xls
+*.csv
