@@ -301,7 +301,7 @@
             --surface-2: rgba(12, 18, 30, 0.9);
             --line: rgba(94, 234, 212, 0.10);
             --line-2: rgba(56, 189, 248, 0.22);
-            --text: #e6eef8; --muted: #8ba0bd; --muted-2: #6d84a3;
+            --text: #e6eef8; --muted: #9fb2cc; --muted-2: #8497b3;
             --accent: #34e0ff; --accent-2: #7c8bff; --accent-3: #c98bff;
             --ok: #3ce6b0; --bad: #ff6b8b; --warn: #ffc04d;
             --glow: 0 0 24px rgba(52, 224, 255, 0.30);
@@ -351,17 +351,12 @@
         .section-card-head p, .overview-toggle { color: var(--muted); }
 
         /* Brand header banners: keep brand color but as a glowing gradient bar */
-        /* Blocky brand banners: flat color slab, sharp corners, bright top rule. */
-        .bh { position: relative; letter-spacing: 3px; font-weight: 800; text-transform: uppercase; text-shadow: 0 0 18px rgba(0,0,0,0.5); border-radius: 0; }
-        .bh::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background: rgba(255,255,255,0.85); box-shadow: 0 0 14px rgba(255,255,255,0.5); }
-        .bh-saucony     { background: #ff6a00; color:#0a0a0a; }
-        .bh-hoka        { background: #00d8f0; color:#04121b; }
-        .bh-puma        { background: #ff2d6b; color:#0a0a0a; }
-        .bh-newbalance  { background: #22d37a; color:#04140c; }
-        .bh-asics       { background: #6a5bff; color:#fff; }
-        .bh-brooks      { background: #2f7bff; color:#fff; }
-        .bh-on          { background: #cdd6e4; color:#0a0e15; }
-        .bh-saucony::before,.bh-hoka::before,.bh-newbalance::before,.bh-on::before { background: rgba(0,0,0,0.55); box-shadow: none; }
+        /* Uniform brand banners: one dark slab, cyan top accent, light readable text. */
+        .bh { position: relative; letter-spacing: 3px; font-weight: 800; text-transform: uppercase; border-radius: 0; }
+        .bh::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 14px rgba(52,224,255,0.5); }
+        .bh-saucony, .bh-hoka, .bh-puma, .bh-newbalance, .bh-asics, .bh-brooks, .bh-on {
+            background: #0e1729; color: var(--text);
+        }
 
         .brand-links { background: rgba(255,255,255,0.015); }
         .b-link { background: rgba(255,255,255,0.03); color: var(--muted); border: 1px solid var(--line-2); }
@@ -396,6 +391,11 @@
 
         /* Download tiles */
         .dl-btn, .download-btn { background: rgba(255,255,255,0.03); border: 1px solid var(--line-2); color: var(--text); }
+        /* Brand-colored download tiles were dark-on-dark. Force uniform readable text. */
+        .dl-btn.saucony, .dl-btn.hoka, .dl-btn.puma, .dl-btn.newbalance, .dl-btn.asics, .dl-btn.brooks, .dl-btn.on,
+        .download-btn.saucony, .download-btn.hoka, .download-btn.puma, .download-btn.newbalance, .download-btn.asics, .download-btn.brooks, .download-btn.on {
+            color: var(--text); border-color: var(--line-2);
+        }
         .dl-btn:hover, .download-btn:hover { box-shadow: var(--glow); border-color: var(--accent); }
         .dl-btn.reset-btn, .download-btn.reset-btn { background: linear-gradient(135deg,#ff6b8b,#c62348); color:#fff; border:none; }
         .brand-checkbox, .bp-item input[type=checkbox], .bp-confirm-cb, .brand-checkbox { accent-color: var(--accent); }
@@ -582,62 +582,6 @@
                         <span><strong>Handle</strong> a product's unique Shopify address, how a row finds its product</span>
                         <span><strong>Generate</strong> build the Shopify update file for the products you picked</span>
                         <span><strong>Discontinued</strong> a shoe the supplier dropped, set to 0 so it stops selling</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ===== COMPARE SECTION ===== -->
-            <div class="section-card">
-                <div class="section-card-head">
-                    <h2>Compare Inventories</h2>
-                    <p>Upload yesterday's and today's combined CSVs to find discontinued and new colorways</p>
-                </div>
-                <div class="section-card-body">
-                    <div class="compare-grid">
-                        <div>
-                            <div class="drop-sm" id="yesterday-dropzone">
-                                <h3>Yesterday's CSV</h3>
-                                <p>Drop old inventory here</p>
-                                <input type="file" style="display:none" id="yesterday-file" accept=".csv">
-                            </div>
-                            <div class="snap-up" id="yesterday-uploaded">
-                                <div class="uploaded-info"><strong id="yesterday-filename"></strong></div>
-                                <button class="clear-btn" onclick="clearYesterday()">Clear</button>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="drop-sm" id="today-dropzone">
-                                <h3>Today's CSV</h3>
-                                <p>Drop new inventory here</p>
-                                <input type="file" style="display:none" id="today-file" accept=".csv">
-                            </div>
-                            <div class="snap-up" id="today-uploaded">
-                                <div class="uploaded-info"><strong id="today-filename"></strong></div>
-                                <button class="clear-btn" onclick="clearToday()">Clear</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="compare-report" id="comparison-report"></div>
-
-                    <div class="compare-dl" id="tracking-download-section">
-                        <div class="compare-dl-grid">
-                            <div class="compare-dl-card">
-                                <h3>Discontinued</h3>
-                                <p>Colorways from yesterday not in today. Qty set to 0.</p>
-                                <button class="compare-dl-btn compare-dl-btn-green" id="download-discontinued-btn" onclick="downloadDiscontinued()" disabled>Download</button>
-                            </div>
-                            <div class="compare-dl-card">
-                                <h3>New Colorways</h3>
-                                <p>Colorways in today not in yesterday.</p>
-                                <button class="compare-dl-btn compare-dl-btn-blue" id="download-new-btn" onclick="downloadNew()" disabled>Download</button>
-                            </div>
-                            <div class="compare-dl-card">
-                                <h3>Complete Update</h3>
-                                <p>Today's inventory + discontinued at 0.</p>
-                                <button class="compare-dl-btn compare-dl-btn-amber" id="download-complete-btn" onclick="downloadComplete()" disabled>Download</button>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1024,132 +968,6 @@
     <script src="product-enrichment.js"></script>
     <script src="catalog-ui.js?v=3"></script>
 
-    <!-- INVENTORY COMPARISON -->
-    <script>
-        let yesterdayData = null, todayData = null, comparisonResult = null;
-        document.addEventListener('DOMContentLoaded', function() { setupDropZone('yesterday'); setupDropZone('today'); });
-
-        function setupDropZone(type) {
-            const dz = document.getElementById(`${type}-dropzone`);
-            const fi = document.getElementById(`${type}-file`);
-            dz.addEventListener('click', () => fi.click());
-            dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
-            dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-            dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); if (e.dataTransfer.files[0]?.name.endsWith('.csv')) handleFile(e.dataTransfer.files[0], type); });
-            fi.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0], type); });
-        }
-
-        function handleFile(file, type) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                if (type === 'yesterday') {
-                    yesterdayData = e.target.result;
-                    document.getElementById('yesterday-dropzone').style.display = 'none';
-                    document.getElementById('yesterday-uploaded').style.display = 'flex';
-                    document.getElementById('yesterday-filename').textContent = file.name;
-                } else {
-                    todayData = e.target.result;
-                    document.getElementById('today-dropzone').style.display = 'none';
-                    document.getElementById('today-uploaded').style.display = 'flex';
-                    document.getElementById('today-filename').textContent = file.name;
-                }
-                if (yesterdayData && todayData) runComparison();
-            };
-            reader.readAsText(file);
-        }
-
-        function clearYesterday() { yesterdayData=null; document.getElementById('yesterday-dropzone').style.display='block'; document.getElementById('yesterday-uploaded').style.display='none'; document.getElementById('yesterday-file').value=''; hideResults(); }
-        function clearToday() { todayData=null; document.getElementById('today-dropzone').style.display='block'; document.getElementById('today-uploaded').style.display='none'; document.getElementById('today-file').value=''; hideResults(); }
-        function hideResults() { document.getElementById('comparison-report').style.display='none'; document.getElementById('tracking-download-section').style.display='none'; comparisonResult=null; }
-
-        function runComparison() {
-            try {
-                comparisonResult = compareInventories(yesterdayData, todayData);
-                document.getElementById('comparison-report').textContent = generateReport(comparisonResult);
-                document.getElementById('comparison-report').style.display = 'block';
-                document.getElementById('tracking-download-section').style.display = 'block';
-                document.getElementById('download-discontinued-btn').disabled = comparisonResult.discontinuedColorways.length === 0;
-                document.getElementById('download-new-btn').disabled = comparisonResult.newColorways.length === 0;
-                document.getElementById('download-complete-btn').disabled = false;
-            } catch (err) { alert('Error: ' + err.message); }
-        }
-
-        function downloadDiscontinued() { if (!comparisonResult?.discontinuedColorways.length) return; downloadCSV(generateDiscontinuedCSV(comparisonResult.discontinuedColorways), 'discontinued-colorways.csv'); }
-        function downloadNew() { if (!comparisonResult?.newColorways.length) return; downloadCSV(generateNewColorwaysCSV(comparisonResult.newColorways), 'new-colorways.csv'); }
-        function downloadComplete() { if (!comparisonResult) return; downloadCSV(generateCompleteUpdateCSV(comparisonResult), 'complete-inventory-update.csv'); }
-
-        function downloadCSV(csv, filename) {
-            const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-            const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
-            link.download = filename; link.click();
-        }
-
-        function compareInventories(yCSV, tCSV) {
-            const yesterday = parseShopifyCSV(yCSV), today = parseShopifyCSV(tCSV);
-            const yMap = new Map(), tMap = new Map();
-            yesterday.forEach(v => { if (!yMap.has(v.Handle)) yMap.set(v.Handle,[]); yMap.get(v.Handle).push(v); });
-            today.forEach(v => { if (!tMap.has(v.Handle)) tMap.set(v.Handle,[]); tMap.get(v.Handle).push(v); });
-            const disc = [], newC = [];
-            yMap.forEach((v,h) => { if (!tMap.has(h)) disc.push({handle:h,title:v[0].Title,variants:v}); });
-            tMap.forEach((v,h) => { if (!yMap.has(h)) newC.push({handle:h,title:v[0].Title,variants:v}); });
-            disc.sort((a,b) => a.title.localeCompare(b.title));
-            newC.sort((a,b) => a.title.localeCompare(b.title));
-            return {discontinuedColorways:disc, newColorways:newC, yesterdayColorways:yMap, todayColorways:tMap};
-        }
-
-        function parseShopifyCSV(csv) {
-            const lines = csv.trim().split('\n');
-            const h = lines[0].split(',').map(s => s.trim().replace(/^"|"$/g,''));
-            const hi = h.indexOf('Handle'), ti = h.indexOf('Title'), si = h.indexOf('SKU'),
-                  o1i = h.indexOf('Option1 Value'), bi = h.indexOf('Barcode'), hsi = h.indexOf('HS Code'),
-                  ci = h.indexOf('COO'), li = h.indexOf('Location'), bni = h.indexOf('Bin name');
-            let qi = h.indexOf('On hand (new)'); if (qi===-1) qi = h.indexOf('Variant Inventory Qty');
-            const variants = [];
-            for (let i=1;i<lines.length;i++) {
-                if (!lines[i].trim()) continue;
-                const v = parseCSVLine(lines[i]);
-                const handle = (v[hi]||'').trim().replace(/^"|"$/g,'');
-                if (handle && (v[o1i]||'').trim()) {
-                    variants.push({Handle:handle, Title:(v[ti]||'').trim().replace(/^"|"$/g,''), SKU:(v[si]||'').trim().replace(/^"|"$/g,''), Size:(v[o1i]||'').trim().replace(/^"|"$/g,''), Quantity:parseInt((v[qi]||'0').replace(/"/g,''))||0, Barcode:(v[bi]||'').trim().replace(/^"|"$/g,''), HSCode:(v[hsi]||'').trim().replace(/^"|"$/g,''), COO:(v[ci]||'').trim().replace(/^"|"$/g,''), Location:(v[li]||'').trim().replace(/^"|"$/g,''), BinName:(v[bni]||'').trim().replace(/^"|"$/g,'')});
-                }
-            }
-            return variants;
-        }
-
-        function parseCSVLine(line) {
-            const v=[]; let c='',q=false;
-            for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){c+='"';i++}else q=!q}else if(ch===','&&!q){v.push(c);c=''}else c+=ch}
-            v.push(c); return v;
-        }
-
-        function generateReport(comp) {
-            let r = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  INVENTORY COMPARISON\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-            r += `DISCONTINUED: ${comp.discontinuedColorways.length} colorways, ${comp.discontinuedColorways.reduce((s,c)=>s+c.variants.length,0)} variants\n\n`;
-            comp.discontinuedColorways.forEach(cw => { r += `${cw.title}\n  ${cw.variants.sort((a,b)=>parseFloat(a.Size)-parseFloat(b.Size)).map(v=>`${v.Size}(${v.Quantity})`).join(', ')}\n\n`; });
-            r += `\nNEW: ${comp.newColorways.length} colorways, ${comp.newColorways.reduce((s,c)=>s+c.variants.length,0)} variants\n\n`;
-            comp.newColorways.forEach(cw => { r += `${cw.title}\n  ${cw.variants.sort((a,b)=>parseFloat(a.Size)-parseFloat(b.Size)).map(v=>`${v.Size}(${v.Quantity})`).join(', ')}\n\n`; });
-            return r;
-        }
-
-        function generateDiscontinuedCSV(disc) {
-            let csv='Handle,Title,Body (HTML),Vendor,Product Category,Type,Tags,Published,Option1 Name,Option1 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item,Included / United States,Price / United States,Compare At Price / United States,Included / International,Price / International,Compare At Price / International,Status\n';
-            disc.forEach(cw => { cw.variants.forEach((v,i) => { csv+=`"${v.Handle}","${i===0?v.Title:''}","","","","","","TRUE","${i===0?'Size':''}","${v.Size}","${v.SKU}","0","shopify","0","deny","manual","","","TRUE","TRUE","","","","","FALSE","","","","","","","","","","","","","","lb","","","TRUE","","","FALSE","","","active"\n`; }); });
-            return csv;
-        }
-
-        function generateNewColorwaysCSV(newC) {
-            let csv='Handle,Title,Body (HTML),Vendor,Product Category,Type,Tags,Published,Option1 Name,Option1 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item,Included / United States,Price / United States,Compare At Price / United States,Included / International,Price / International,Compare At Price / International,Status\n';
-            newC.forEach(cw => { cw.variants.forEach((v,i) => { csv+=`"${v.Handle}","${i===0?v.Title:''}","","","","","","TRUE","${i===0?'Size':''}","${v.Size}","${v.SKU}","0","shopify","${v.Quantity}","deny","manual","","","TRUE","TRUE","","","","","FALSE","","","","","","","","","","","","","","lb","","","TRUE","","","FALSE","","","active"\n`; }); });
-            return csv;
-        }
-
-        function generateCompleteUpdateCSV(comp) {
-            let csv='Handle,Title,"Option1 Name","Option1 Value","Option2 Name","Option2 Value","Option3 Name","Option3 Value",SKU,Barcode,"HS Code",COO,Location,"Bin name","Incoming (not editable)","Unavailable (not editable)","Committed (not editable)","Available (not editable)","On hand (current)","On hand (new)"\n';
-            Array.from(comp.todayColorways.entries()).sort((a,b)=>a[1][0].Title.localeCompare(b[1][0].Title)).forEach(([h,vars])=>{vars.forEach((v,i)=>{csv+=`${v.Handle},"${i===0?v.Title:''}",${i===0?'Size':''},${v.Size},,,,,${v.SKU},${v.Barcode||''},${v.HSCode||''},${v.COO||''},${v.Location||''},${v.BinName||''},,,,,,${v.Quantity}\n`;});});
-            comp.discontinuedColorways.forEach(cw=>{cw.variants.forEach((v,i)=>{csv+=`${v.Handle},"${i===0?v.Title:''}",${i===0?'Size':''},${v.Size},,,,,${v.SKU},${v.Barcode||''},${v.HSCode||''},${v.COO||''},${v.Location||''},${v.BinName||''},,,,,,0\n`;});});
-            return csv;
-        }
-    </script>
     <script src="main.js?v=3"></script>
 </body>
 </html>
