@@ -172,10 +172,12 @@ var CatalogUI = {
 
             var rows = removedColorways.map(function(cw, i) {
                 var sizes = cw.variants ? Object.keys(cw.variants).length : 0;
+                var onHand = (cw.needhamOnHand == null) ? null : cw.needhamOnHand;
+                var meta = (onHand != null ? onHand.toLocaleString() + ' on hand · ' : '') + sizes + ' sizes → 0';
                 return '<label style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid ' + self.LINE + ';font-size:13px;cursor:pointer;color:' + self.TEXT + ';">' +
                     '<input type="checkbox" class="cui-zero-cb" data-i="' + i + '"' + (preselect ? ' checked' : '') + '>' +
                     '<span style="flex:1;">' + (cw.title || cw.handle) + '</span>' +
-                    '<span style="color:' + self.MUTED + ';">' + sizes + ' sizes to 0</span></label>';
+                    '<span style="color:' + self.MUTED + ';font-size:11px;white-space:nowrap;">' + meta + '</span></label>';
             }).join('');
 
             overlay.innerHTML =
