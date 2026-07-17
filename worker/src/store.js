@@ -74,3 +74,23 @@ export async function acquireBuildLock(env, scope) {
 export async function releaseBuildLock(env, scope) {
   await env.CATALOG.delete(lockKey(scope));
 }
+
+// On-demand refresh flag. A fetch handler's waitUntil is killed after about 30
+// seconds, so it cannot run the multi-minute build. Instead the refresh request
+// sets this flag, and the frequent cron (which has a 15 minute budget) sees it
+// and does the build. Expires after an hour so a stuck flag self-clears.
+function refreshKey(scope) {
+  return `${KEY_PREFIX}:refresh:${scope}`;
+}
+
+export async function requestRefresh(env, scope) {
+  await env.CATALOG.put(refreshKey(scope), String(Date.now()), { expirationTtl: 3600 });
+}
+
+export async function isRefreshRequested(env, scope) {
+  return !!(await env.CATALOG.get(refreshKey(scope)));
+}
+
+export async function clearRefresh(env, scope) {
+  await env.CATALOG.delete(refreshKey(scope));
+}

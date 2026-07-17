@@ -4,20 +4,22 @@
 // nothing and the tool looks and behaves exactly as before. When it flips to
 // 'shopify', these affordances activate together:
 //
-//   - a freshness bar (the catalog is a snapshot, up to ~20 min old, not "now")
+//   - a freshness bar (the catalog is a snapshot, refreshed daily or on demand)
 //   - a fallback banner (if the Worker was unreachable and we used Firestore)
-//   - a "still building" state (a cold catalog returns 503 for ~150s)
+//   - a "still building" state (a cold catalog is being built)
 //   - the confirm-on-Shopify buttons hidden (there is nothing to confirm when
 //     Shopify itself is the source)
 //   - a per-product zero-out review before any product is set to 0, with the
 //     comparison scope shown and a guard against zeroing an implausible share
 //     of a brand (the partial-feed footgun)
 //
-// House style: no em dashes. 0px corners, Inter, navy #1b3566 / accent #1f6fe0.
+// House style: no em dashes. Matches the existing tool: DM Sans, rounded
+// corners, zinc dark #18181b / blue accent #2563eb.
 
 var CatalogUI = {
-    NAVY: '#1b3566',
-    ACCENT: '#1f6fe0',
+    // Match the existing tool: zinc dark + blue accent, DM Sans, rounded.
+    NAVY: '#18181b',
+    ACCENT: '#2563eb',
 
     // Posture for the zero-out review. 'approve' = nothing preselected, the user
     // opts each product in (safest, guards against a partial feed silently
@@ -47,7 +49,7 @@ var CatalogUI = {
         var bar = document.createElement('div');
         bar.id = 'catalog-status-bar';
         bar.style.cssText =
-            'font-family:Inter,system-ui,sans-serif;font-size:13px;border-radius:0;' +
+            'font-family:inherit;font-size:13px;border-radius:10px;' +
             'padding:8px 14px;margin:0 0 12px 0;display:flex;align-items:center;gap:12px;' +
             'background:#eef2f9;color:' + this.NAVY + ';border:1px solid #d5deef;';
         // Insert at the top of the app content if we can find it.
@@ -78,7 +80,7 @@ var CatalogUI = {
         this.setBar(
             '<strong>Live Shopify catalog</strong>' +
             '<span>synced ' + when + ' (' + (cat.counts ? cat.counts.products : '?') + ' products)</span>' +
-            '<button onclick="CatalogUI.forceRefresh()" style="margin-left:auto;border:0;border-radius:0;' +
+            '<button onclick="CatalogUI.forceRefresh()" style="margin-left:auto;border:0;border-radius:10px;' +
             'background:' + this.ACCENT + ';color:#fff;padding:5px 12px;font-size:12px;cursor:pointer;">Refresh</button>',
             mins > 25 ? 'warn' : 'info'
         );
@@ -143,7 +145,7 @@ var CatalogUI = {
             var overlay = document.createElement('div');
             overlay.style.cssText =
                 'position:fixed;inset:0;background:rgba(15,25,45,0.55);z-index:99999;' +
-                'display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,sans-serif;';
+                'display:flex;align-items:center;justify-content:center;font-family:inherit;';
 
             var scopeLine = 'Comparing your file against <strong>' + liveCount + '</strong> live ' +
                 brandName + ' colorways on Shopify. <strong>' + total + '</strong> are not in your file.';
@@ -166,20 +168,20 @@ var CatalogUI = {
             }).join('');
 
             overlay.innerHTML =
-                '<div style="background:#fff;border-radius:0;max-width:640px;width:92%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,0.3);">' +
+                '<div style="background:#fff;border-radius:10px;max-width:640px;width:92%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,0.3);">' +
                   '<div style="background:' + self.NAVY + ';color:#fff;padding:14px 18px;">' +
                     '<div style="font-size:16px;font-weight:600;">Set missing ' + brandName + ' products to 0?</div>' +
                     '<div style="font-size:13px;opacity:0.9;margin-top:4px;">' + scopeLine + '</div></div>' +
                   '<div style="padding:12px 18px 0;">' + guard +
                     '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
-                      '<button id="cui-all" style="border:1px solid ' + self.ACCENT + ';background:#fff;color:' + self.ACCENT + ';border-radius:0;padding:4px 10px;font-size:12px;cursor:pointer;">Select all</button>' +
-                      '<button id="cui-none" style="border:1px solid #ccc;background:#fff;color:#555;border-radius:0;padding:4px 10px;font-size:12px;cursor:pointer;">Select none</button>' +
+                      '<button id="cui-all" style="border:1px solid ' + self.ACCENT + ';background:#fff;color:' + self.ACCENT + ';border-radius:10px;padding:4px 10px;font-size:12px;cursor:pointer;">Select all</button>' +
+                      '<button id="cui-none" style="border:1px solid #ccc;background:#fff;color:#555;border-radius:10px;padding:4px 10px;font-size:12px;cursor:pointer;">Select none</button>' +
                       '<span id="cui-count" style="margin-left:auto;font-size:12px;color:#555;align-self:center;"></span>' +
                     '</div></div>' +
                   '<div style="overflow-y:auto;border-top:1px solid #eee;">' + rows + '</div>' +
                   '<div style="padding:14px 18px;display:flex;gap:10px;border-top:1px solid #eee;">' +
-                    '<button id="cui-skip" style="border:1px solid #ccc;background:#fff;color:#333;border-radius:0;padding:9px 16px;font-size:14px;cursor:pointer;">Skip zeroing</button>' +
-                    '<button id="cui-go" style="margin-left:auto;border:0;background:' + self.ACCENT + ';color:#fff;border-radius:0;padding:9px 18px;font-size:14px;cursor:pointer;">Zero selected</button>' +
+                    '<button id="cui-skip" style="border:1px solid #ccc;background:#fff;color:#333;border-radius:10px;padding:9px 16px;font-size:14px;cursor:pointer;">Skip zeroing</button>' +
+                    '<button id="cui-go" style="margin-left:auto;border:0;background:' + self.ACCENT + ';color:#fff;border-radius:10px;padding:9px 18px;font-size:14px;cursor:pointer;">Zero selected</button>' +
                   '</div>' +
                 '</div>';
 

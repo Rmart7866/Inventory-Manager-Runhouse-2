@@ -474,8 +474,16 @@ async function convertBrand(brand) {
                 // So route it through a per-product review the user approves,
                 // never zero silently. See catalog-ui.js.
                 if (comparison.removedColorways && comparison.removedColorways.length > 0) {
+                    // Live mode: only consider zeroing products that ACTUALLY have
+                    // Needham inventory. A product already at 0 is a 0 to 0 no-op,
+                    // pure noise, so drop it from the list and the review.
+                    if (InventoryTracker.SOURCE === 'shopify') {
+                        comparison.removedColorways = comparison.removedColorways.filter(function(cw) {
+                            return (cw.needhamOnHand || 0) > 0;
+                        });
+                    }
                     var toZero = comparison.removedColorways;
-                    if (InventoryTracker.SOURCE === 'shopify' && typeof CatalogUI !== 'undefined') {
+                    if (toZero.length > 0 && InventoryTracker.SOURCE === 'shopify' && typeof CatalogUI !== 'undefined') {
                         var liveCount = InventoryTracker.getKnownColorways(brand).size;
                         toZero = await CatalogUI.confirmZeroOut(brand, comparison.removedColorways, liveCount);
                         comparison.removedColorways = toZero; // keep the report in sync with what was approved

@@ -44,7 +44,7 @@ var InventoryTracker = {
     // change ships dark: nothing about the live tool changes until it is flipped,
     // which should happen together with the per-product zero-out warning, not
     // before, so a first live run cannot silently zero a flood of products.
-    SOURCE: 'firestore',
+    SOURCE: 'shopify',
 
     // ========== LOAD ==========
     load: function(brand) {
@@ -202,7 +202,12 @@ var InventoryTracker = {
         var removedColorways = [];
         knownColorways.forEach(function(data, handle) {
             if (!currentHandles.has(handle)) {
-                removedColorways.push({ handle: handle, title: data.title || handle, variants: data.variants || {} });
+                removedColorways.push({
+                    handle: handle,
+                    title: data.title || handle,
+                    variants: data.variants || {},
+                    needhamOnHand: (data.needhamOnHand == null ? null : data.needhamOnHand)
+                });
             }
         });
 

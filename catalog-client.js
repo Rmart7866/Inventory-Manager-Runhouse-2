@@ -98,16 +98,17 @@ var CatalogClient = {
             if (!this.LIVE_STATUSES[status[p.handle]]) continue;
             if (scoped && p.needham !== true) continue; // not stocked at Needham, not dropship
 
-            // Store the same shape Firestore stored: title + variants. We do not
-            // have per-size variant data in /catalog (it carries SKUs, not sizes),
-            // so variants is left empty here. Handle presence is what compare()
-            // needs for new/removed detection; the empty variants only limits the
-            // CSV zero-row builder, which the API zero path does not use.
+            // Title + Needham on-hand total. needhamOnHand lets the tool skip
+            // zeroing anything already at 0 (a 0 to 0 change is noise). Per-size
+            // variants (needed only to build zero rows for the few products that
+            // actually get removed) are fetched on demand, not carried here, so
+            // the daily catalog build stays fast.
             colorways.set(p.handle, {
                 title: p.title,
                 handle: p.handle,
                 skus: p.skus || [],
                 variants: {},
+                needhamOnHand: (p.needhamOnHand == null ? null : p.needhamOnHand),
                 active: true
             });
 

@@ -31,6 +31,7 @@ import { requireAuth, requireAdmin, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
   acquireBuildLock, releaseBuildLock,
+  requestRefresh, isRefreshRequested, clearRefresh,
 } from './store.js';
 
 // CORS is a browser rule, not authentication. It is here so the tool can call us
@@ -113,17 +114,15 @@ async function handleCatalog(request, env, ctx) {
     return rawCatalog(JSON.stringify(payload), request, env, 'bypass-limit');
   }
 
-  // fresh=1 forces a refresh from Shopify, for "I just added products and want
-  // them now" without waiting for the daily cron. The build is slow (about 7
-  // minutes, since it also pages Needham inventory), so it runs in the BACKGROUND
-  // and the caller polls /catalog/status for the new timestamp. It never blocks
-  // a request for minutes.
+  // fresh=1 requests an on-demand refresh, for "I just added products and want
+  // them now" without waiting for the daily rebuild. The build takes a few
+  // minutes, which a fetch handler CANNOT run: its waitUntil is killed after
+  // about 30 seconds. So this only FLAGS a rebuild, and the frequent cron (which
+  // has a 15 minute budget) does the actual build within a few minutes.
   //
-  // Anyone authenticated can trigger it (the browser's CATALOG_TOKEN is enough,
-  // so a refresh button works), but it is rate-limited by a cooldown so it cannot
-  // be spammed into hammering Shopify. If the catalog is younger than the
-  // cooldown we decline and report the age. The ADMIN_TOKEN bypasses the cooldown
-  // for a true force.
+  // Anyone authenticated can request it (the browser's CATALOG_TOKEN is enough,
+  // so a refresh button works), rate-limited by a cooldown so it cannot be
+  // spammed. The ADMIN_TOKEN bypasses the cooldown.
   if (fresh) {
     const isAdmin = requireAdmin(request, env).ok;
     const cooldown = Number(env.REFRESH_COOLDOWN_SECONDS || 600);
@@ -136,26 +135,17 @@ async function handleCatalog(request, env, ctx) {
           refreshing: false,
           reason: 'recently refreshed',
           ageSeconds,
-          cooldownSeconds: cooldown,
           hint: `Catalog was refreshed ${ageSeconds}s ago. It also refreshes daily on its own. Try again in ${cooldown - ageSeconds}s.`,
         },
         429, request, env, { 'Retry-After': String(cooldown - ageSeconds) }
       );
     }
 
-    const got = await acquireBuildLock(env, scope);
-    if (got) {
-      ctx.waitUntil(
-        rebuild(env, scope)
-          .catch((err) => console.error('manual refresh rebuild failed:', err?.stack || String(err)))
-          .finally(() => releaseBuildLock(env, scope))
-      );
-    }
+    await requestRefresh(env, scope);
     return json(
       {
         refreshing: true,
-        alreadyRunning: !got,
-        hint: 'Refreshing the catalog from Shopify, this takes a few minutes. Poll /catalog/status for the new timestamp.',
+        hint: 'Refresh queued. The catalog rebuilds within a few minutes. Poll /catalog/status for the new timestamp.',
       },
       202, request, env
     );
@@ -164,27 +154,19 @@ async function handleCatalog(request, env, ctx) {
   const hit = await readCatalog(env, scope);
   if (hit) return rawCatalog(hit, request, env, 'hit');
 
-  // Cold miss. Do NOT rebuild inline and make this caller wait 150 seconds.
-  // Kick the build off in the background and tell the client to come back.
-  // waitUntil keeps the isolate alive after the response is sent.
-  const got = await acquireBuildLock(env, scope);
-  if (got) {
-    ctx.waitUntil(
-      rebuild(env, scope)
-        .catch((err) => console.error('background rebuild failed:', err?.stack || String(err)))
-        .finally(() => releaseBuildLock(env, scope))
-    );
-  }
+  // Cold miss (KV empty). The build takes minutes, which a fetch handler cannot
+  // run, so flag a rebuild for the cron and tell the caller to come back.
+  await requestRefresh(env, scope);
   return json(
     {
       error: 'Catalog not built yet',
       building: true,
-      hint: 'The catalog is being built now, this takes about 150 seconds. Retry shortly.',
+      hint: 'The catalog is being built, this takes a few minutes. Retry shortly.',
     },
     503,
     request,
     env,
-    { 'Retry-After': '30' }
+    { 'Retry-After': '60' }
   );
 }
 
@@ -244,25 +226,40 @@ export default {
     }
   },
 
-  // Cron trigger. Rebuilds the catalog so GET /catalog is always a warm KV read.
-  // Cron handlers get a far longer wall-clock budget than a request, which is
-  // exactly why the slow build lives here.
+  // Cron trigger. This is where the slow build lives, because a scheduled handler
+  // has a multi-minute budget and a fetch handler's waitUntil does not. Two
+  // schedules invoke this (see wrangler.toml):
+  //   - the daily one always rebuilds (the routine refresh),
+  //   - the frequent one rebuilds only if a refresh was requested (the button),
+  //     so it is a cheap flag check that does nothing most of the time.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(
       (async () => {
+        const scope = 'all';
+        const isDaily = event.cron === '0 9 * * *';
+        const requested = await isRefreshRequested(env, scope);
+        if (!isDaily && !requested) return; // frequent tick, nothing to do
+
+        // A lock keeps the daily tick and a same-minute frequent tick from
+        // building twice at once. TTL clears it if a build dies.
+        const got = await acquireBuildLock(env, scope);
+        if (!got) return;
+
         const started = Date.now();
         try {
-          const { meta } = await rebuild(env, 'all');
+          const { meta } = await rebuild(env, scope);
+          await clearRefresh(env, scope);
           console.log(
-            `cron rebuild ok in ${Math.round((Date.now() - started) / 1000)}s`,
+            `${isDaily ? 'daily' : 'requested'} rebuild ok in ${Math.round((Date.now() - started) / 1000)}s`,
             JSON.stringify(meta.counts),
             `${(meta.sizeBytes / 1048576).toFixed(2)} MB`
           );
         } catch (err) {
-          // Leave the previous catalog in place. A stale catalog is better than
-          // no catalog, and /catalog/status exposes the age so staleness is
-          // visible rather than silent.
-          console.error('cron rebuild FAILED, keeping previous catalog:', err?.stack || String(err));
+          // Leave the previous catalog in place. A stale catalog beats none, and
+          // /catalog/status exposes the age so staleness is visible.
+          console.error('rebuild FAILED, keeping previous catalog:', err?.stack || String(err));
+        } finally {
+          await releaseBuildLock(env, scope);
         }
       })()
     );

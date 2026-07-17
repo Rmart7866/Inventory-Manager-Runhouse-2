@@ -26,6 +26,7 @@ import { parseProduct, brandFor } from './parsers.js';
 import { widthClass } from './group.js';
 import { groupTagFor } from './tag-groups.js';
 import { throttleOf } from './shopify.js';
+import { runBulkQuery, streamJsonl } from './bulk.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -82,62 +83,116 @@ async function fetchAll(client, limit, activeOnly) {
   return out;
 }
 
-// NEEDHAM SCOPING. Dropshipped products are footwear stocked at the single
-// Needham location. The authoritative signal is "does the product have an
-// inventory level at Needham". Two approaches were measured against the live
-// store:
-//   - Per variant inventoryLevel(locationId:) in the main query: correct, but
-//     cost 242 vs 98 per page, which throttled a full build out to 500s+.
-//   - The product search filter "location_id:X": a no-op, it returns the whole
-//     10k catalog and wrongly includes products with zero Needham levels.
-// So we page the LOCATION's inventory levels instead. That is authoritative
-// (matches the per-variant truth) and cheap: about 4,000 handles, 47s, first
-// page cost 47. The main product query stays plain and fast.
+// NEEDHAM SCOPING via Bulk Operations. Dropshipped products are footwear stocked
+// at the single Needham location, and the authoritative signal is a Needham
+// inventory level on the product. Getting that plus the whole catalog by paging
+// is ~250 throttled requests and 7+ minutes, which times out the rebuild. Two
+// dead ends were measured: a per-variant inventoryLevel in the paged query
+// (correct but cost 242 vs 98 per page, 500s+), and the product search filter
+// "location_id:X" (a no-op that returns the whole catalog). So the whole fetch
+// moves to ONE bulk operation: Shopify runs it server-side with no throttle and
+// returns a JSONL file we stream-parse. About 2 to 3 minutes, well inside limits.
 //
-// Returns a Set of handles stocked at Needham, or null when no location is
-// configured (scoping off). Includes non-footwear handles too, which is
-// harmless: the caller only ever checks footwear handles against it.
-async function fetchNeedhamHandles(client, needhamLocationId) {
-  if (!needhamLocationId) return null;
-  const handles = new Set();
-  let cursor = null;
-  const LEVELS = `
-query($loc: ID!, $cursor: String) {
-  location(id: $loc) {
-    inventoryLevels(first: 250, after: $cursor) {
-      pageInfo { hasNextPage endCursor }
-      nodes { item { variant { product { handle } } } }
-    }
+// The bulk query. No `first:` on connections (bulk auto-paginates). Every node
+// with a nested connection selects `id` (bulk requires it). Pulls all products
+// (footwear is filtered while parsing, so typo'd product types are still caught)
+// with variants and each variant's inventory levels across all locations.
+function bulkCatalogQuery(activeOnly) {
+  const filter = activeOnly ? '(query: "status:active")' : '';
+  return `{
+  products ${filter} {
+    edges { node {
+      id handle title vendor productType status tags
+      variants { edges { node {
+        id sku price
+        inventoryItem { id inventoryLevels { edges { node {
+          location { id }
+          quantities(names: ["on_hand"]) { name quantity }
+        } } } }
+      } } }
+    } }
   }
 }`;
-  for (;;) {
-    const body = await client.graphql(LEVELS, { loc: needhamLocationId, cursor });
-    const conn = body.data.location.inventoryLevels;
-    for (const n of conn.nodes) {
-      const h = n.item?.variant?.product?.handle;
-      if (h) handles.add(h);
-    }
-    const t = throttleOf(body);
-    if (t && t.currentlyAvailable < t.maximumAvailable * 0.2) {
-      await sleep(Math.ceil((t.maximumAvailable * 0.5) / t.restoreRate * 1000));
-    }
-    if (!conn.pageInfo.hasNextPage) break;
-    cursor = conn.pageInfo.endCursor;
-  }
-  return handles;
 }
 
-// buildCatalog(client, { limit, activeOnly }) -> the /catalog payload.
+// Reassembler for the flat JSONL. Bulk emits parents before children: a product
+// line (has `handle`), then its variant lines (__parentId = product), then each
+// variant's inventory-level lines (__parentId = variant, has a `location`). We
+// keep only footwear, so the in-memory maps stay small even though the file is
+// ~120 MB. needhamLocationId null means scoping off (needhamOnHandMap stays null).
+// The on-hand map doubles as the presence set: a Needham level, even at 0, puts
+// the handle in the map.
+function makeBulkAssembler(needhamLocationId) {
+  const productsById = new Map();      // footwear product id -> node
+  const variantToProduct = new Map();  // footwear variant id -> product id
+  const needhamOnHand = needhamLocationId ? new Map() : null; // handle -> on-hand total
+
+  const onObject = (o) => {
+    if ('handle' in o) {
+      if (!/shoes$/i.test(o.productType || '')) return; // footwear only
+      productsById.set(o.id, {
+        handle: o.handle, title: o.title, vendor: o.vendor,
+        productType: o.productType, status: o.status, tags: o.tags || [],
+        variants: { nodes: [] },
+      });
+    } else if ('location' in o) {
+      if (!needhamOnHand) return;
+      const pid = variantToProduct.get(o.__parentId);
+      if (!pid) return; // level on a non-footwear variant
+      if (!o.location || o.location.id !== needhamLocationId) return; // other location
+      const handle = productsById.get(pid).handle;
+      const q = (o.quantities || []).find((x) => x.name === 'on_hand');
+      needhamOnHand.set(handle, (needhamOnHand.get(handle) || 0) + (q ? q.quantity : 0));
+    } else {
+      const p = productsById.get(o.__parentId);
+      if (!p) return; // variant of a non-footwear product
+      p.variants.nodes.push({ sku: o.sku, price: o.price });
+      variantToProduct.set(o.id, o.__parentId);
+    }
+  };
+  const result = () => ({ raw: [...productsById.values()], needhamOnHandMap: needhamOnHand });
+  return { onObject, result };
+}
+
+// PURE, for tests: reassemble an array of JSONL objects.
+export function assembleBulkObjects(objects, needhamLocationId) {
+  const a = makeBulkAssembler(needhamLocationId);
+  for (const o of objects) a.onObject(o);
+  return a.result();
+}
+
+// Run the bulk query and stream-parse the result into { raw, needhamOnHandMap },
+// never holding the whole 120 MB file in memory.
+async function fetchCatalogViaBulk(client, activeOnly, needhamLocationId) {
+  const a = makeBulkAssembler(needhamLocationId);
+  const url = await runBulkQuery(client, bulkCatalogQuery(activeOnly));
+  await streamJsonl(url, a.onObject);
+  return a.result();
+}
+
+// buildCatalog(client, opts) -> the /catalog payload. Full builds fetch via one
+// bulk operation; a `limit` (dev peek) uses the quick paginated path with no
+// Needham detail. Either way the pure buildCatalogFrom does the rest.
 export async function buildCatalog(client, opts = {}) {
-  const limit = opts.limit || Infinity;
   const activeOnly = !!opts.activeOnly;
   const needhamLocationId = opts.needhamLocationId || null;
 
-  // The authoritative set of handles stocked at Needham (null when scoping off).
-  // Fetched once, cheaply, then cross-referenced per product below.
-  const needhamHandles = await fetchNeedhamHandles(client, needhamLocationId);
+  let raw, needhamOnHandMap;
+  if (opts.limit) {
+    raw = await fetchAll(client, opts.limit, activeOnly);
+    needhamOnHandMap = null; // bulk is overkill for a truncated dev peek
+  } else {
+    ({ raw, needhamOnHandMap } = await fetchCatalogViaBulk(client, activeOnly, needhamLocationId));
+  }
+  return buildCatalogFrom(raw, needhamOnHandMap, { activeOnly, needhamLocationId, shop: client.SHOP });
+}
 
-  const raw = await fetchAll(client, limit, activeOnly);
+// PURE. Turn fetched product nodes + the Needham on-hand map into the /catalog
+// payload. All the parsing, cw-group tagging, bySku/byModel building is here and
+// unchanged, so the source of the raw nodes (bulk or paged) does not matter.
+export function buildCatalogFrom(raw, needhamOnHandMap, opts = {}) {
+  const activeOnly = !!opts.activeOnly;
+  const needhamLocationId = opts.needhamLocationId || null;
 
   const products = [];        // full rows
   const bySku = {};           // variant SKU -> handle   (exact "already exists" check)
@@ -169,7 +224,10 @@ export async function buildCatalog(client, opts = {}) {
     // off. The catalog still carries ALL footwear (bySku needs every handle for
     // collision checks); the client uses this flag to scope the DROPSHIP known
     // set, so non-Needham products are never flagged for zeroing.
-    const needham = needhamHandles ? needhamHandles.has(n.handle) : null;
+    const hasNeedham = needhamOnHandMap ? needhamOnHandMap.has(n.handle) : false;
+    const needham = needhamOnHandMap ? hasNeedham : null;
+    // Needham on-hand total, so the client can skip zeroing products already at 0.
+    const needhamOnHand = needhamOnHandMap ? (hasNeedham ? needhamOnHandMap.get(n.handle) : 0) : null;
 
     if (!parsed.ok) { unparsed.push({ title: n.title, sku: firstSku }); continue; }
 
@@ -192,6 +250,7 @@ export async function buildCatalog(client, opts = {}) {
       cwGroup,
       widthTag,
       needham,
+      needhamOnHand,
       skus: (n.variants?.nodes || []).map((v) => v.sku).filter(Boolean),
     });
 
@@ -235,7 +294,7 @@ export async function buildCatalog(client, opts = {}) {
 
   return {
     generatedAt: new Date().toISOString(),
-    shop: client.SHOP,
+    shop: opts.shop || '',
     scope: activeOnly ? 'active' : 'all',
     needhamScoped,
     counts: {

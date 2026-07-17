@@ -37,14 +37,17 @@ binding = "CATALOG"
 id = "e3ec1efab31f41e09cf90f2a58a027a5"
 preview_id = "09877d7c296c4d248542e37b0b09d2c2"
 
-# Rebuild once a day, ~4am US Eastern (09:00 UTC), when the store is quiet and no
-# products are being added. Products arrive occasionally, not continuously, so a
-# daily refresh is plenty, and it makes the ~7 minute build cost irrelevant since
-# it runs once, off-hours. Staff can force a refresh on demand from the tool
-# (see the cooldown-gated refresh path in src/index.js) right after adding
-# products, so they never wait for the next daily run.
+# Two schedules, both hitting scheduled() in src/index.js:
+#   "0 9 * * *"   daily at ~4am US Eastern (09:00 UTC): always rebuilds. The
+#                 routine refresh, off-hours when the store is quiet.
+#   "*/5 * * * *" every 5 minutes: rebuilds ONLY if the tool requested a refresh
+#                 (the Refresh button sets a flag). A cheap KV check that does
+#                 nothing on the vast majority of ticks.
+# The build lives in the cron because it takes a few minutes, which a fetch
+# handler's waitUntil is killed before finishing. The frequent tick is what lets
+# a staff refresh land within ~5 minutes instead of waiting for the daily run.
 [triggers]
-crons = ["0 9 * * *"]
+crons = ["0 9 * * *", "*/5 * * * *"]
 
 [vars]
 # Not secret. The shop domain is public, it is in every storefront URL.
@@ -55,7 +58,7 @@ API_VERSION = "2026-01"
 # GitHub Pages, so the Worker is cross-origin and the browser will preflight.
 # Reminder: CORS is a browser rule, not authentication. src/auth.js is the guard,
 # and in bearer mode that guard is a speed bump. Do not read this line as safety.
-ALLOWED_ORIGINS = "https://rmart7866.github.io"
+ALLOWED_ORIGINS = "https://rmart7866.github.io,http://localhost:8000"
 
 # "bearer" for Stage 1. Must become "access" before any write route ships,
 # which src/auth.js enforces by refusing to serve one.

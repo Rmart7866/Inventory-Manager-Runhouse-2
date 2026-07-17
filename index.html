@@ -260,6 +260,28 @@
 
         @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
 
+        /* New-user overview */
+        .overview { background: #fff; border: 1px solid #e4e4e7; border-radius: 14px; margin-bottom: 20px; overflow: hidden; }
+        .overview-head { padding: 16px 24px; border-bottom: 1px solid #f4f4f5; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+        .overview-head h2 { font-size: 16px; font-weight: 700; }
+        .overview-toggle { font-size: 13px; font-weight: 600; color: #71717a; }
+        .overview-body { padding: 24px; }
+        .overview-lead { font-size: 14px; line-height: 1.7; color: #3f3f46; max-width: 860px; }
+        .overview-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 22px 0; }
+        .overview-step { background: #fafafa; border: 1px solid #f4f4f5; border-radius: 12px; padding: 16px; }
+        .overview-num { width: 26px; height: 26px; border-radius: 8px; background: #18181b; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+        .overview-step h3 { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+        .overview-step p { font-size: 12.5px; line-height: 1.6; color: #52525b; }
+        .ov-tag { display: inline-block; padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 700; }
+        .ov-tag-new { background: #fef3c7; color: #92400e; }
+        .overview-note { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; }
+        .overview-note h3 { font-size: 13px; font-weight: 700; color: #1e40af; margin-bottom: 6px; }
+        .overview-note p { font-size: 13px; line-height: 1.7; color: #1e3a5f; }
+        .overview-gloss { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 24px; }
+        .overview-gloss span { font-size: 12.5px; color: #52525b; line-height: 1.5; }
+        .overview-gloss strong { color: #18181b; }
+        @media (max-width: 900px) { .overview-steps { grid-template-columns: repeat(2, 1fr); } .overview-gloss { grid-template-columns: 1fr; } }
+
         /* Live-catalog mode (body.catalog-live, set by catalog-ui.js only when
            InventoryTracker.SOURCE === 'shopify'). The confirm-on-Shopify buttons
            exist to keep the Firestore mirror in sync by hand. When Shopify is the
@@ -288,7 +310,70 @@
 
             <div class="page-header">
                 <h1>Inventory Manager</h1>
-                <p>Upload B2B files, select products, generate Shopify-ready CSVs</p>
+                <p>Turn supplier inventory files into Shopify updates, and see what is new or discontinued.</p>
+            </div>
+
+            <!-- ===== NEW-USER OVERVIEW ===== -->
+            <div class="overview" id="overview">
+                <div class="overview-head" onclick="toggleOverview()">
+                    <h2>New here? How this tool works</h2>
+                    <span class="overview-toggle" id="overview-toggle">Hide</span>
+                </div>
+                <div class="overview-body" id="overview-body">
+                    <p class="overview-lead">
+                        The Run House sells shoes it does not physically stock, they ship from the supplier
+                        (dropship). This tool keeps Shopify in sync with what each supplier currently has, so the
+                        website never sells a shoe that is gone or misses one that is new.
+                    </p>
+
+                    <div class="overview-steps">
+                        <div class="overview-step">
+                            <div class="overview-num">1</div>
+                            <h3>Get the supplier file</h3>
+                            <p>For each brand, download or scrape its current inventory from the B2B portal.
+                            ASICS, Brooks, and ON use the Chrome "Auto Scrape" tool (links are in each card's
+                            Instructions). The others download a file directly.</p>
+                        </div>
+                        <div class="overview-step">
+                            <div class="overview-num">2</div>
+                            <h3>Drop it in the brand card</h3>
+                            <p>Drag the file onto that brand's box. The tool reads it and lists the products it
+                            found, with a <span class="ov-tag ov-tag-new">NEW</span> badge on anything not yet on
+                            our Shopify.</p>
+                        </div>
+                        <div class="overview-step">
+                            <div class="overview-num">3</div>
+                            <h3>Review, then Generate</h3>
+                            <p>Tick the products to include and press <strong>Generate Inventory</strong>. The tool
+                            compares your file against what is live on Shopify and flags three things: new
+                            products, new colorways, and items that vanished from the supplier (which get set
+                            to 0).</p>
+                        </div>
+                        <div class="overview-step">
+                            <div class="overview-num">4</div>
+                            <h3>Download and import</h3>
+                            <p>Use the <strong>Downloads</strong> section to get a Shopify-ready CSV, then import
+                            it in Shopify admin. New products get their own CSV with tags and pricing already
+                            filled in.</p>
+                        </div>
+                    </div>
+
+                    <div class="overview-note">
+                        <h3>What "live" means here</h3>
+                        <p>Instead of guessing from a saved list, the tool reads the <strong>real Shopify
+                        catalog</strong>, refreshed daily (and on demand with the Refresh button up top). It only
+                        ever looks at <strong>dropship inventory at the Needham location</strong>, so shoes stocked
+                        at the physical stores (Falmouth, Scituate, Walpole) are never touched. Before setting
+                        anything to 0, it shows you exactly what will change and asks you to confirm.</p>
+                    </div>
+
+                    <div class="overview-gloss">
+                        <span><strong>Colorway</strong> one color of a shoe model, eg "Clifton 9 Black"</span>
+                        <span><strong>Handle</strong> a product's unique Shopify address, how a row finds its product</span>
+                        <span><strong>Generate</strong> build the Shopify update file for the products you picked</span>
+                        <span><strong>Discontinued</strong> a shoe the supplier dropped, set to 0 so it stops selling</span>
+                    </div>
+                </div>
             </div>
 
             <!-- ===== COMPARE SECTION ===== -->
@@ -667,6 +752,23 @@
             document.querySelectorAll('.instruct').forEach(p => p.style.display = 'none');
             if (!vis) panel.style.display = 'block';
         }
+        function toggleOverview() {
+            const body = document.getElementById('overview-body');
+            const toggle = document.getElementById('overview-toggle');
+            const hidden = body.style.display === 'none';
+            body.style.display = hidden ? 'block' : 'none';
+            toggle.textContent = hidden ? 'Hide' : 'Show';
+            try { localStorage.setItem('overviewHidden', hidden ? '0' : '1'); } catch (e) {}
+        }
+        // Returning users keep it collapsed; first-timers see it open.
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                if (localStorage.getItem('overviewHidden') === '1') {
+                    document.getElementById('overview-body').style.display = 'none';
+                    document.getElementById('overview-toggle').textContent = 'Show';
+                }
+            } catch (e) {}
+        });
         function clearOnFile(gender) {
             if (gender === 'men') {
                 BrandConverter.brands.on.menFile = null;
