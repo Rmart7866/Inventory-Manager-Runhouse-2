@@ -247,12 +247,30 @@ var BrandPicker = {
         }
         if (comparison.removedColorways && comparison.removedColorways.length > 0) {
             var prefix = brand + '-tracker';
+            var removed = comparison.removedColorways;
+            var brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
+            var liveTotal = summary.totalInDB || 0;
+            var frac = liveTotal > 0 ? (removed.length / liveTotal) : 0;
+            var unitsTotal = removed.reduce(function(s, r) { return s + (r.needhamOnHand || 0); }, 0);
+
             html += '<div class="bp-section bp-section-red">';
-            html += '<div class="bp-section-head" onclick="BrandPicker.toggleTrackerSection(\'' + brand + '\',\'removed\')"><span>Removed (' + comparison.removedColorways.length + ') — zeroed out</span><span class="bp-toggle" id="' + prefix + '-toggle-removed">▾</span></div>';
-            html += '<div class="bp-section-body" id="' + prefix + '-body-removed" style="display:none;">';
-            comparison.removedColorways.forEach(function(r) {
+            html += '<div class="bp-section-head" onclick="BrandPicker.toggleTrackerSection(\'' + brand + '\',\'removed\')"><span>Set to 0 (' + removed.length + ') — no longer in your file</span><span class="bp-toggle" id="' + prefix + '-toggle-removed">▾</span></div>';
+            // Shown expanded by default: this is the record of what got zeroed.
+            html += '<div class="bp-section-body" id="' + prefix + '-body-removed" style="display:block;">';
+
+            // Plain-language explanation for anyone who has not used the tool.
+            html += '<div class="bp-explain">These <strong>' + removed.length + '</strong> colorways are live on Shopify with stock (<strong>' + unitsTotal.toLocaleString() + ' units</strong> total) but were <strong>not found anywhere in the file you uploaded</strong>. The tool reads it as the supplier no longer carrying them, so it added rows setting each one to 0. Those zero rows are <strong>already in the inventory CSV below</strong>, so review this list before you upload it to Shopify.</div>';
+
+            // Loud guard when the share is large: almost always a partial or wrong file.
+            if (frac >= 0.4) {
+                html += '<div class="bp-warn-hard">&#9888; This would zero <strong>' + Math.round(frac * 100) + '%</strong> of your live ' + brandName + ' colorways. That usually means a partial or wrong file (for example only one gender, or a single part of a multi-part export). Double-check before uploading.</div>';
+            }
+
+            // Biggest on-hand first, so the highest-impact zeroing is at the top.
+            removed.slice().sort(function(a, b) { return (b.needhamOnHand || 0) - (a.needhamOnHand || 0); }).forEach(function(r) {
                 var vc = Object.keys(r.variants || {}).length;
-                html += '<div class="bp-row"><span class="bp-tag bp-tag-red">GONE</span><span class="bp-row-name">' + (r.title || r.handle) + '</span><span class="bp-row-detail">' + vc + ' sizes → 0</span></div>';
+                var oh = (r.needhamOnHand == null) ? (vc + ' sizes → 0') : (r.needhamOnHand.toLocaleString() + ' units → 0 · ' + vc + ' sizes');
+                html += '<div class="bp-row"><span class="bp-tag bp-tag-red">SET 0</span><span class="bp-row-name">' + (r.title || r.handle) + '</span><span class="bp-row-detail">' + oh + '</span></div>';
             });
             html += '</div></div>';
         }

@@ -463,7 +463,7 @@ async function convertBrand(brand) {
             try {
                 BrandConverter.showStatus(brand, 'Comparing against Shopify database...', 'info');
                 await InventoryTracker.load(brand);
-                var comparison = InventoryTracker.compare(inventory);
+                var comparison = InventoryTracker.compare(inventory, brand);
                 window[config.comparisonKey] = comparison;
 
                 // Append removed colorways at 0.
@@ -474,20 +474,22 @@ async function convertBrand(brand) {
                 // So route it through a per-product review the user approves,
                 // never zero silently. See catalog-ui.js.
                 if (comparison.removedColorways && comparison.removedColorways.length > 0) {
-                    // Live mode: only consider zeroing products that ACTUALLY have
-                    // Needham inventory. A product already at 0 is a 0 to 0 no-op,
-                    // pure noise, so drop it from the list and the review.
+                    // Live mode: only zero products that ACTUALLY have Needham
+                    // inventory. A product already at 0 is a 0 to 0 no-op, pure
+                    // noise, so drop it from the list entirely.
                     if (InventoryTracker.SOURCE === 'shopify') {
                         comparison.removedColorways = comparison.removedColorways.filter(function(cw) {
                             return (cw.needhamOnHand || 0) > 0;
                         });
                     }
+                    // No approval gate. A colorway that is live on Shopify with
+                    // stock but absent from the WHOLE uploaded file is set to 0
+                    // automatically. What got zeroed (with its live on-hand) is
+                    // shown in the tracker report below, which loudly warns when
+                    // the share is large enough to look like a partial/wrong file.
+                    // The zero rows land in the inventory CSV; the report is the
+                    // review step before the user uploads it. See BrandPicker.showTrackerReport.
                     var toZero = comparison.removedColorways;
-                    if (toZero.length > 0 && InventoryTracker.SOURCE === 'shopify' && typeof CatalogUI !== 'undefined') {
-                        var liveCount = InventoryTracker.getKnownColorways(brand).size;
-                        toZero = await CatalogUI.confirmZeroOut(brand, comparison.removedColorways, liveCount);
-                        comparison.removedColorways = toZero; // keep the report in sync with what was approved
-                    }
                     if (toZero.length > 0) {
                         var removedRows = InventoryTracker.generateRemovedRows(toZero);
                         inventory = inventory.concat(removedRows);

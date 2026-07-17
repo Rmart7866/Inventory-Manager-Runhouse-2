@@ -244,11 +244,20 @@ var InventoryTracker = {
         });
 
         var removedColorways = [];
+        var noSkuGuarded = 0;
         knownColorways.forEach(function(data, handle) {
             var isRemoved;
             if (useSku) {
-                var skus = data.skus || [];
-                isRemoved = !skus.some(function(sk) { return sk && feedSkus.has(String(sk).toUpperCase()); });
+                var skus = (data.skus || []).filter(function(sk) { return sk && String(sk).trim(); });
+                // NO-SKU GUARD. Some live products have variants with no SKU on
+                // Shopify (typically staff-duplicated products, where Shopify
+                // blanks the copy's SKUs). With no SKU there is nothing to match
+                // against the feed, so removal-by-SKU is meaningless and would
+                // ALWAYS report "removed", falsely zeroing a real, stocked
+                // product. Skip these entirely; they need SKUs mapped on Shopify
+                // before removal detection can judge them. Never a removal target.
+                if (skus.length === 0) { noSkuGuarded++; return; }
+                isRemoved = !skus.some(function(sk) { return feedSkus.has(String(sk).toUpperCase()); });
             } else {
                 isRemoved = !currentHandles.has(handle);
             }
@@ -261,6 +270,11 @@ var InventoryTracker = {
                 });
             }
         });
+        if (noSkuGuarded > 0) {
+            console.log('[InventoryTracker] No-SKU guard: skipped ' + noSkuGuarded +
+                ' live colorway(s) with no Shopify SKU (unmatchable; not flagged removed). ' +
+                'Map SKUs on Shopify to make them matchable.');
+        }
 
         // Only surface new colorways that carry enough stock to be worth creating.
         // Total units across sizes must clear NEW_MIN_UNITS; thinner drops are hidden.
@@ -289,6 +303,7 @@ var InventoryTracker = {
                 newProducts: newProducts.length,
                 newColorways: newColorways.length,
                 hiddenThinNew: newHiddenThin,
+                noSkuGuarded: noSkuGuarded,
                 removedColorways: removedColorways.length,
                 matchingColorways: currentHandles.size - newProducts.length - newColorways.length - newHiddenThin
             }
