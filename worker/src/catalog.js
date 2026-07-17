@@ -104,7 +104,7 @@ function bulkCatalogQuery(activeOnly) {
     edges { node {
       id handle title vendor productType status tags
       variants { edges { node {
-        id sku price
+        id sku price selectedOptions { name value }
         inventoryItem { id inventoryLevels { edges { node {
           location { id }
           quantities(names: ["on_hand"]) { name quantity }
@@ -115,6 +115,15 @@ function bulkCatalogQuery(activeOnly) {
 }`;
 }
 
+// The Size option value for a variant, so a removed product can be zeroed row by
+// row on Handle + Option1 (Size). Prefer the option literally named Size, fall
+// back to the first option (Option1 is Size for footwear).
+function sizeOf(selectedOptions) {
+  const opts = selectedOptions || [];
+  const size = opts.find((o) => /size/i.test(o.name || ''));
+  return (size && size.value) || (opts[0] && opts[0].value) || '';
+}
+
 // Reassembler for the flat JSONL. Bulk emits parents before children: a product
 // line (has `handle`), then its variant lines (__parentId = product), then each
 // variant's inventory-level lines (__parentId = variant, has a `location`). We
@@ -123,9 +132,11 @@ function bulkCatalogQuery(activeOnly) {
 // The on-hand map doubles as the presence set: a Needham level, even at 0, puts
 // the handle in the map.
 function makeBulkAssembler(needhamLocationId) {
-  const productsById = new Map();      // footwear product id -> node
-  const variantToProduct = new Map();  // footwear variant id -> product id
-  const needhamOnHand = needhamLocationId ? new Map() : null; // handle -> on-hand total
+  const productsById = new Map();  // footwear product id -> node
+  const variantInfo = new Map();   // footwear variant id -> { productId, sku, size }
+  // needham (null when scoping off): per-handle on-hand total and per-size detail.
+  // onHand doubles as the presence set (a Needham level, even 0, adds the handle).
+  const needham = needhamLocationId ? { onHand: new Map(), variants: new Map() } : null;
 
   const onObject = (o) => {
     if ('handle' in o) {
@@ -136,21 +147,29 @@ function makeBulkAssembler(needhamLocationId) {
         variants: { nodes: [] },
       });
     } else if ('location' in o) {
-      if (!needhamOnHand) return;
-      const pid = variantToProduct.get(o.__parentId);
-      if (!pid) return; // level on a non-footwear variant
+      if (!needham) return;
+      const vi = variantInfo.get(o.__parentId);
+      if (!vi) return; // level on a non-footwear variant
       if (!o.location || o.location.id !== needhamLocationId) return; // other location
-      const handle = productsById.get(pid).handle;
+      const p = productsById.get(vi.productId);
+      if (!p) return;
       const q = (o.quantities || []).find((x) => x.name === 'on_hand');
-      needhamOnHand.set(handle, (needhamOnHand.get(handle) || 0) + (q ? q.quantity : 0));
+      const qty = q ? q.quantity : 0;
+      needham.onHand.set(p.handle, (needham.onHand.get(p.handle) || 0) + qty);
+      // Per-size detail for zero rows. If a size repeats (multiple levels), keep
+      // the sku and add the quantity.
+      let vmap = needham.variants.get(p.handle);
+      if (!vmap) { vmap = {}; needham.variants.set(p.handle, vmap); }
+      const key = vi.size || vi.sku;
+      if (key) vmap[key] = { sku: vi.sku || '', quantity: (vmap[key] ? vmap[key].quantity : 0) + qty };
     } else {
       const p = productsById.get(o.__parentId);
       if (!p) return; // variant of a non-footwear product
       p.variants.nodes.push({ sku: o.sku, price: o.price });
-      variantToProduct.set(o.id, o.__parentId);
+      variantInfo.set(o.id, { productId: o.__parentId, sku: o.sku, size: sizeOf(o.selectedOptions) });
     }
   };
-  const result = () => ({ raw: [...productsById.values()], needhamOnHandMap: needhamOnHand });
+  const result = () => ({ raw: [...productsById.values()], needham });
   return { onObject, result };
 }
 
@@ -161,8 +180,8 @@ export function assembleBulkObjects(objects, needhamLocationId) {
   return a.result();
 }
 
-// Run the bulk query and stream-parse the result into { raw, needhamOnHandMap },
-// never holding the whole 120 MB file in memory.
+// Run the bulk query and stream-parse the result into { raw, needham }, never
+// holding the whole 120 MB file in memory.
 async function fetchCatalogViaBulk(client, activeOnly, needhamLocationId) {
   const a = makeBulkAssembler(needhamLocationId);
   const url = await runBulkQuery(client, bulkCatalogQuery(activeOnly));
@@ -177,20 +196,21 @@ export async function buildCatalog(client, opts = {}) {
   const activeOnly = !!opts.activeOnly;
   const needhamLocationId = opts.needhamLocationId || null;
 
-  let raw, needhamOnHandMap;
+  let raw, needham;
   if (opts.limit) {
     raw = await fetchAll(client, opts.limit, activeOnly);
-    needhamOnHandMap = null; // bulk is overkill for a truncated dev peek
+    needham = null; // bulk is overkill for a truncated dev peek
   } else {
-    ({ raw, needhamOnHandMap } = await fetchCatalogViaBulk(client, activeOnly, needhamLocationId));
+    ({ raw, needham } = await fetchCatalogViaBulk(client, activeOnly, needhamLocationId));
   }
-  return buildCatalogFrom(raw, needhamOnHandMap, { activeOnly, needhamLocationId, shop: client.SHOP });
+  return buildCatalogFrom(raw, needham, { activeOnly, needhamLocationId, shop: client.SHOP });
 }
 
-// PURE. Turn fetched product nodes + the Needham on-hand map into the /catalog
-// payload. All the parsing, cw-group tagging, bySku/byModel building is here and
+// PURE. Turn fetched product nodes + the Needham data into the /catalog payload.
+// All the parsing, cw-group tagging, bySku/byModel building is here and
 // unchanged, so the source of the raw nodes (bulk or paged) does not matter.
-export function buildCatalogFrom(raw, needhamOnHandMap, opts = {}) {
+// needham is { onHand: Map, variants: Map } or null when scoping is off.
+export function buildCatalogFrom(raw, needham, opts = {}) {
   const activeOnly = !!opts.activeOnly;
   const needhamLocationId = opts.needhamLocationId || null;
 
@@ -224,10 +244,12 @@ export function buildCatalogFrom(raw, needhamOnHandMap, opts = {}) {
     // off. The catalog still carries ALL footwear (bySku needs every handle for
     // collision checks); the client uses this flag to scope the DROPSHIP known
     // set, so non-Needham products are never flagged for zeroing.
-    const hasNeedham = needhamOnHandMap ? needhamOnHandMap.has(n.handle) : false;
-    const needham = needhamOnHandMap ? hasNeedham : null;
-    // Needham on-hand total, so the client can skip zeroing products already at 0.
-    const needhamOnHand = needhamOnHandMap ? (hasNeedham ? needhamOnHandMap.get(n.handle) : 0) : null;
+    const hasNeedham = needham ? needham.onHand.has(n.handle) : false;
+    const needhamFlag = needham ? hasNeedham : null;
+    // On-hand total (skip zeroing what is already 0) and per-size variants (to
+    // build the zero rows), both for Needham products only.
+    const needhamOnHand = needham ? (hasNeedham ? needham.onHand.get(n.handle) : 0) : null;
+    const needhamVariants = (needham && hasNeedham) ? needham.variants.get(n.handle) : undefined;
 
     if (!parsed.ok) { unparsed.push({ title: n.title, sku: firstSku }); continue; }
 
@@ -249,8 +271,9 @@ export function buildCatalogFrom(raw, needhamOnHandMap, opts = {}) {
       width: parsed.width,
       cwGroup,
       widthTag,
-      needham,
+      needham: needhamFlag,
       needhamOnHand,
+      needhamVariants,
       skus: (n.variants?.nodes || []).map((v) => v.sku).filter(Boolean),
     });
 

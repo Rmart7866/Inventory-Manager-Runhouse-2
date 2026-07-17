@@ -98,16 +98,15 @@ var CatalogClient = {
             if (!this.LIVE_STATUSES[status[p.handle]]) continue;
             if (scoped && p.needham !== true) continue; // not stocked at Needham, not dropship
 
-            // Title + Needham on-hand total. needhamOnHand lets the tool skip
-            // zeroing anything already at 0 (a 0 to 0 change is noise). Per-size
-            // variants (needed only to build zero rows for the few products that
-            // actually get removed) are fetched on demand, not carried here, so
-            // the daily catalog build stays fast.
+            // Title, Needham on-hand total, and per-size variants. needhamOnHand
+            // lets the tool skip zeroing anything already at 0 (a 0 to 0 change is
+            // noise). variants (size -> {sku, quantity}) let generateRemovedRows
+            // build a real zero row per size for a removed product.
             colorways.set(p.handle, {
                 title: p.title,
                 handle: p.handle,
                 skus: p.skus || [],
-                variants: {},
+                variants: p.needhamVariants || {},
                 needhamOnHand: (p.needhamOnHand == null ? null : p.needhamOnHand),
                 active: true
             });
