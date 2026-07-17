@@ -179,10 +179,20 @@ var InventoryTracker = {
         var useSku = (self.SOURCE === 'shopify');
         var feedSkus = null, knownSkus = null;
         if (useSku) {
-            feedSkus = new Set();
-            for (var fi = 0; fi < inventoryData.length; fi++) {
-                var fs = inventoryData[fi].SKU;
-                if (fs) feedSkus.add(String(fs).toUpperCase());
+            // REMOVAL compares against the WHOLE file's SKUs, not the picker
+            // selection. The converter exposes allFeedSkus (every SKU in the
+            // scanned file, regardless of what is checked), so unselected
+            // products are never mistaken for removed and wrongly zeroed. Fall
+            // back to the selected inventory only if a converter does not provide
+            // it (then Select All is required for correct removal detection).
+            if (converter && converter.allFeedSkus && converter.allFeedSkus.size) {
+                feedSkus = converter.allFeedSkus;
+            } else {
+                feedSkus = new Set();
+                for (var fi = 0; fi < inventoryData.length; fi++) {
+                    var fs = inventoryData[fi].SKU;
+                    if (fs) feedSkus.add(String(fs).toUpperCase());
+                }
             }
             knownSkus = new Set();
             knownColorways.forEach(function(data) {

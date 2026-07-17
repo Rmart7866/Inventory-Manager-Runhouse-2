@@ -920,6 +920,15 @@ const HokaConverter = {
                             startIdx = 1;
                         }
 
+                        // Every SKU in the file, regardless of picker selection, so
+                        // removal detection compares against the whole feed. Without
+                        // this, unselected products look "removed" and get zeroed.
+                        self.allFeedSkus = new Set();
+                        for (var _ai = startIdx; _ai < data.length; _ai++) {
+                            var _ar = data[_ai];
+                            if (_ar && _ar[9]) self.allFeedSkus.add(String(_ar[9]).trim().toUpperCase());
+                        }
+
                         var filteredProducts = data.slice(startIdx).filter(function(row) {
                             if (!row || row.length < 10) return false;
                             var division = row[0];
