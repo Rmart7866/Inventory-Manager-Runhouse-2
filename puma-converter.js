@@ -430,6 +430,11 @@ var PumaConverter = {
             var productVariantData = [];
             var processedVariants = new Map();
 
+            // Every SKU in the file, regardless of picker selection, so removal
+            // detection compares against the whole feed. Without this, unselected
+            // products look "removed" and get zeroed.
+            self.allFeedSkus = new Set();
+
             rawData.forEach(function(row) {
                 var fields = self.extractRow(row);
                 var category = self.getCategory(fields.styleName);
@@ -443,6 +448,13 @@ var PumaConverter = {
                 var genderPrefix = gender ? (gender + ' ') : '';
                 var widthSuffix = width ? ' (' + width + ')' : '';
                 var modelKey = genderPrefix + modelName + widthSuffix;
+
+                // Collect the built SKU before the picker filter, so removal detection
+                // sees the whole feed. Matches the exact SKU string built for the
+                // inventory row below.
+                var feedSize = fields.size ? fields.size.toString().trim() : '';
+                var feedSku = fields.sku || (fields.styleNumber + '-' + fields.colorCode + '-' + feedSize);
+                if (feedSku) self.allFeedSkus.add(String(feedSku).trim().toUpperCase());
 
                 // Filter by picker selection (uses model key including width)
                 if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) return;

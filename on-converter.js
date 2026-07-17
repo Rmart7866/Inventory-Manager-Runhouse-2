@@ -326,6 +326,14 @@ var OnConverter = {
                 var inventory = [];
                 var productVariantData = [];
 
+                // Every SKU across both files, regardless of picker selection, so
+                // removal detection compares against the whole feed. Without this,
+                // unselected products look "removed" and get zeroed.
+                self.allFeedSkus = new Set();
+                allRows.forEach(function(row) {
+                    if (row.SKU) self.allFeedSkus.add(String(row.SKU).trim().toUpperCase());
+                });
+
                 allRows.forEach(function(row) {
                     var titleInfo = self.parseTitle(row.Title || '');
                     var sku = row.SKU || '';

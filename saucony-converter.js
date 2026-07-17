@@ -393,6 +393,11 @@ var SauconyConverter = {
             var inventory = [];
             var productVariantData = [];
 
+            // Every SKU in the file, regardless of picker selection, so removal
+            // detection compares against the whole feed. Without this, unselected
+            // products look "removed" and get zeroed.
+            self.allFeedSkus = new Set();
+
             rows.forEach(function(row) {
                 var styleNumber = (row[1] || '').toString().trim();
                 var productName = (row[2] || '').toString().trim();
@@ -410,6 +415,17 @@ var SauconyConverter = {
                 var widthLabel = width === 'W' ? 'Wide' : width === 'XW' ? 'Extra Wide' : '';
                 var widthSuffix = widthLabel ? ' (' + widthLabel + ')' : '';
                 var modelKey = genderPrefix + ' ' + modelUpper + widthSuffix;
+
+                // Collect the built SKU for every size of this product, before the
+                // picker filter, so removal detection sees the whole feed. Matches
+                // the exact SKU string built for inventory rows below.
+                var allSizeCols = self.getSizeColumns(genderType);
+                for (var fs = 0; fs < allSizeCols.length; fs++) {
+                    var fsInfo = allSizeCols[fs];
+                    var fsVal = row[fsInfo.col];
+                    if (fsVal === null || fsVal === undefined) continue;
+                    self.allFeedSkus.add(String(styleNumber + '-' + fsInfo.size.replace(/\//g, '-')).trim().toUpperCase());
+                }
 
                 // Filter by picker selection
                 if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) return;

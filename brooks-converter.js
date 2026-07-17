@@ -474,6 +474,14 @@ var BrooksConverter = {
                 var inventory = [];
                 var productVariantData = [];
 
+                // Every SKU in the file, regardless of picker selection, so removal
+                // detection compares against the whole feed. Without this, unselected
+                // products look "removed" and get zeroed.
+                self.allFeedSkus = new Set();
+                allRows.forEach(function(row) {
+                    if (row.SKU) self.allFeedSkus.add(String(row.SKU).trim().toUpperCase());
+                });
+
                 allRows.forEach(function(row) {
                     var rawHandle = row.Handle.trim();
                     var canonicalHandle = self.resolveHandle(rawHandle, row.Title || '');
