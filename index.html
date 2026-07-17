@@ -351,14 +351,17 @@
         .section-card-head p, .overview-toggle { color: var(--muted); }
 
         /* Brand header banners: keep brand color but as a glowing gradient bar */
-        .bh { position: relative; letter-spacing: 2px; text-shadow: 0 0 20px rgba(0,0,0,0.4); }
-        .bh::after { content:""; position:absolute; left:0; right:0; bottom:0; height:1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); }
-        .bh-saucony { background: linear-gradient(135deg,#ff6a2b,#c2360b); }
-        .bh-hoka { background: linear-gradient(135deg,#12c3e6,#0679a3); }
-        .bh-puma, .bh-newbalance { background: linear-gradient(135deg,#ff3b3b,#a30f0f); }
-        .bh-asics { background: linear-gradient(135deg,#3b82f6,#1533b8); }
-        .bh-brooks { background: linear-gradient(135deg,#2a5a94,#152f52); }
-        .bh-on { background: linear-gradient(135deg,#3a3f4a,#16181f); }
+        /* Blocky brand banners: flat color slab, sharp corners, bright top rule. */
+        .bh { position: relative; letter-spacing: 3px; font-weight: 800; text-transform: uppercase; text-shadow: 0 0 18px rgba(0,0,0,0.5); border-radius: 0; }
+        .bh::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background: rgba(255,255,255,0.85); box-shadow: 0 0 14px rgba(255,255,255,0.5); }
+        .bh-saucony     { background: #ff6a00; color:#0a0a0a; }
+        .bh-hoka        { background: #00d8f0; color:#04121b; }
+        .bh-puma        { background: #ff2d6b; color:#0a0a0a; }
+        .bh-newbalance  { background: #22d37a; color:#04140c; }
+        .bh-asics       { background: #6a5bff; color:#fff; }
+        .bh-brooks      { background: #2f7bff; color:#fff; }
+        .bh-on          { background: #cdd6e4; color:#0a0e15; }
+        .bh-saucony::before,.bh-hoka::before,.bh-newbalance::before,.bh-on::before { background: rgba(0,0,0,0.55); box-shadow: none; }
 
         .brand-links { background: rgba(255,255,255,0.015); }
         .b-link { background: rgba(255,255,255,0.03); color: var(--muted); border: 1px solid var(--line-2); }
@@ -469,6 +472,24 @@
         .pw-input { background: rgba(255,255,255,0.04); border: 1.5px solid var(--line-2); color: var(--text); }
         .pw-input:focus { border-color: var(--accent); box-shadow: var(--ring); }
         .pw-submit { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #04121b; }
+
+        /* BLOCKY: kill every rounded corner, crisp block edges. */
+        .section-card, .brand-card, .overview, .dl-section {
+            border: 1px solid var(--line-2);
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.45), 0 18px 44px -30px rgba(0,0,0,0.95);
+        }
+        .brand-card:hover { box-shadow: 0 0 0 1px var(--accent), var(--glow); }
+        .section-card, .section-card-head, .section-card-body, .brand-card, .overview, .overview-head,
+        .overview-body, .dl-section, .bp-picker, .bp-tracker, .bp-tracker-header, .bp-header, .dropzone,
+        .drop-sm, .uploaded, .snap-up, .gen-btn, .uni-btn, .csv-btn, .dl-btn, .download-btn,
+        .compare-dl-card, .compare-dl-btn, .b-link, .b-link-alt, .copy-btn, .copy-section, .status,
+        .bp-badge, .overview-step, .overview-note, .overview-num, .instruct, .pw-box, .pw-input,
+        .pw-submit, .link-list, .compare-report, .uni-info, .bp-action-btn, .bp-save-btn, .bp-confirm-btn,
+        .ov-tag, .ov-tag-new, .csv-note, .bp-new-tag, .bp-tag, .bp-stat, .bp-item, #catalog-status-bar,
+        input, button, select, textarea { border-radius: 0 !important; }
+        /* sharper, more visible block outlines */
+        .dropzone, .drop-sm { border-width: 2px; }
+        .bh { border-radius: 0 !important; }
 
         /* Scrollbars */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
