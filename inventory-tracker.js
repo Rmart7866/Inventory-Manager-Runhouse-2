@@ -46,6 +46,12 @@ var InventoryTracker = {
     // before, so a first live run cannot silently zero a flood of products.
     SOURCE: 'shopify',
 
+    // A newly-seen colorway is only worth creating if the feed actually carries
+    // enough stock to sell. Below this total (summed across all sizes) it is
+    // dropped from the new list, so a thin one-off drop (a single unit in one
+    // odd size) never becomes a product. Depth rule, not breadth. Tune here.
+    NEW_MIN_UNITS: 6,
+
     // ========== LOAD ==========
     load: function(brand) {
         var self = this;
@@ -256,6 +262,22 @@ var InventoryTracker = {
             }
         });
 
+        // Only surface new colorways that carry enough stock to be worth creating.
+        // Total units across sizes must clear NEW_MIN_UNITS; thinner drops are hidden.
+        var unitsOf = function(entry) {
+            var t = 0, v = entry.variants || {};
+            for (var sz in v) { if (v.hasOwnProperty(sz)) t += (parseInt(v[sz].quantity) || 0); }
+            return t;
+        };
+        var newProdBefore = newProducts.length, newColorBefore = newColorways.length;
+        newProducts = newProducts.filter(function(e) { return unitsOf(e) >= self.NEW_MIN_UNITS; });
+        newColorways = newColorways.filter(function(e) { return unitsOf(e) >= self.NEW_MIN_UNITS; });
+        var newHiddenThin = (newProdBefore - newProducts.length) + (newColorBefore - newColorways.length);
+        if (newHiddenThin > 0) {
+            console.log('[InventoryTracker] Hid ' + newHiddenThin + ' new colorway(s) under ' +
+                self.NEW_MIN_UNITS + ' total units (not worth creating).');
+        }
+
         return {
             newProducts: newProducts,
             newColorways: newColorways,
@@ -266,8 +288,9 @@ var InventoryTracker = {
                 totalInDB: knownColorways.size,
                 newProducts: newProducts.length,
                 newColorways: newColorways.length,
+                hiddenThinNew: newHiddenThin,
                 removedColorways: removedColorways.length,
-                matchingColorways: currentHandles.size - newProducts.length - newColorways.length
+                matchingColorways: currentHandles.size - newProducts.length - newColorways.length - newHiddenThin
             }
         };
     },
