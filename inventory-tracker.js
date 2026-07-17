@@ -169,11 +169,39 @@ var InventoryTracker = {
         var knownColorways = cache.colorways || new Map();
         var knownModels = cache.models || new Set();
 
+        // MATCH BY VARIANT SKU, not handle, in live mode. The converter cannot
+        // reproduce Shopify's exact handle (Shopify handles are inconsistent, some
+        // carry SKU suffixes, some do not), so handle matching flags in-stock,
+        // in-feed products as removed. The variant SKU is identical on both sides
+        // (eg 1176573-FMM-04B in the feed and on Shopify), so it is the reliable
+        // colorway key. A colorway is "present" if ANY of its SKUs matches.
+        // Firestore mode keeps the legacy handle match.
+        var useSku = (self.SOURCE === 'shopify');
+        var feedSkus = null, knownSkus = null;
+        if (useSku) {
+            feedSkus = new Set();
+            for (var fi = 0; fi < inventoryData.length; fi++) {
+                var fs = inventoryData[fi].SKU;
+                if (fs) feedSkus.add(String(fs).toUpperCase());
+            }
+            knownSkus = new Set();
+            knownColorways.forEach(function(data) {
+                (data.skus || []).forEach(function(sk) { if (sk) knownSkus.add(String(sk).toUpperCase()); });
+            });
+        }
+
         // Separate new handles into new PRODUCTS vs new COLORWAYS
         var newProducts = [];
         var newColorways = [];
         currentHandles.forEach(function(product, handle) {
-            if (!knownColorways.has(handle)) {
+            var existing;
+            if (useSku) {
+                var groupSkus = Object.keys(product.variants).map(function(sz) { return product.variants[sz].sku; });
+                existing = groupSkus.some(function(sk) { return sk && knownSkus.has(String(sk).toUpperCase()); });
+            } else {
+                existing = knownColorways.has(handle);
+            }
+            if (!existing) {
                 // Try to identify the model name from the title using the
                 // brand's own identifier. The converter's identifyProduct
                 // should return whatever string scanFile stores as modelKey
@@ -201,7 +229,14 @@ var InventoryTracker = {
 
         var removedColorways = [];
         knownColorways.forEach(function(data, handle) {
-            if (!currentHandles.has(handle)) {
+            var isRemoved;
+            if (useSku) {
+                var skus = data.skus || [];
+                isRemoved = !skus.some(function(sk) { return sk && feedSkus.has(String(sk).toUpperCase()); });
+            } else {
+                isRemoved = !currentHandles.has(handle);
+            }
+            if (isRemoved) {
                 removedColorways.push({
                     handle: handle,
                     title: data.title || handle,

@@ -41,6 +41,12 @@ var CatalogClient = {
     // occupy handles, which the raw catalog can answer separately if needed.
     LIVE_STATUSES: { ACTIVE: true },
 
+    // Dropship is limited to these product types. Running Shoes, Kids' Shoes, and
+    // apparel are out of scope, so they are never flagged for zeroing. The typo'd
+    // types ("Mens's Shoes", "Womens's Shoes") that exist in the store are matched
+    // too, so a data-entry typo does not silently drop a product from scope.
+    DROPSHIP_TYPE_RE: /^(men'?s|mens's|women'?s|womens's|unisex)\s+shoes$/i,
+
     _catalog: null,
     _fetchedAt: 0,
     TTL_MS: 5 * 60 * 1000, // in-tab cache; the Worker itself refreshes every 20 min
@@ -97,6 +103,7 @@ var CatalogClient = {
             if (p.brand !== catBrand) continue;
             if (!this.LIVE_STATUSES[status[p.handle]]) continue;
             if (scoped && p.needham !== true) continue; // not stocked at Needham, not dropship
+            if (scoped && !this.DROPSHIP_TYPE_RE.test(p.productType || '')) continue; // Men's/Women's/Unisex Shoes only
 
             // Title, Needham on-hand total, and per-size variants. needhamOnHand
             // lets the tool skip zeroing anything already at 0 (a 0 to 0 change is
