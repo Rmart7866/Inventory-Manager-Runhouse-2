@@ -104,7 +104,7 @@ var CatalogUI = {
     forceRefresh: function() {
         var self = this;
         self.setBar('<span>Requesting a fresh pull from Shopify...</span>', 'warn');
-        fetch(self.WORKER_URL + '/catalog?fresh=1', { headers: { 'Authorization': 'Bearer ' + self.CATALOG_TOKEN } })
+        fetch(CatalogClient.WORKER_URL + '/catalog?fresh=1', { headers: { 'Authorization': 'Bearer ' + CatalogClient.CATALOG_TOKEN } })
             .then(function(r) { return r.json().then(function(b) { b.__status = r.status; return b; }); })
             .then(function(b) {
                 if (b.__status === 429) { self.setBar('<span>' + (b.hint || 'Recently refreshed, try again soon.') + '</span>', 'info'); return; }
@@ -119,7 +119,7 @@ var CatalogUI = {
     _pollUntilFresh: function(tries) {
         var self = this;
         if (tries > 30) { self.setBar('<span>Refresh is taking longer than usual, it will finish in the background.</span>', 'warn'); return; }
-        fetch(self.WORKER_URL + '/catalog/status', { headers: { 'Authorization': 'Bearer ' + self.CATALOG_TOKEN } })
+        fetch(CatalogClient.WORKER_URL + '/catalog/status', { headers: { 'Authorization': 'Bearer ' + CatalogClient.CATALOG_TOKEN } })
             .then(function(r) { return r.json(); })
             .then(function(s) {
                 if (s.built && s.ageSeconds != null && s.ageSeconds < 120) {
