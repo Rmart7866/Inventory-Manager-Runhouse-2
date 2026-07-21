@@ -64,12 +64,12 @@ ALLOWED_ORIGINS = "https://rmart7866.github.io,http://localhost:8000"
 # which src/auth.js enforces by refusing to serve one.
 AUTH_MODE = "bearer"
 
-# Needham location GID, the single dropship location. Empty until the NEW app
-# (with read_inventory scope) exists. While empty, /catalog behaves exactly as
-# before (no location field in the query, needham flag is null) and the client
-# warns that dropship scoping is OFF. Set it to gid://shopify/Location/XXXX to
-# turn on Needham scoping. The leaked app cannot read locations, so this stays
-# empty until the credential swap.
+# Needham location GID, the single dropship location. Set (scoping is LIVE): the
+# new least-privilege app has read_inventory + read_locations, so /catalog's bulk
+# query pulls each variant's Needham inventory level and the needham flag is real.
+# Verified against the live store: the locations query resolves this GID to
+# "Needham" and on_hand reads return real quantities. Leave EMPTY to disable
+# scoping (no location field in the query, needham flag null, client warns OFF).
 NEEDHAM_LOCATION_ID = "gid://shopify/Location/77957136639"
 
 # Access mode only, unused while AUTH_MODE = "bearer". Fill in from the Access
