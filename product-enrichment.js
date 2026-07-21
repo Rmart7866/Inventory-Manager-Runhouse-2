@@ -195,6 +195,10 @@ var ProductEnrichment = {
         // Load brand default price
         var defaultPrice = await this.loadBrandDefault(brand);
 
+        // Stash the active context so a per-model Download button can rebuild a
+        // single-model CSV from the current field values without re-opening.
+        this._active = { brand: brand, converter: converter, comparison: comparison, models: models };
+
         // Load saved model defaults in parallel
         var savedDefaults = {};
         var modelSnaps = await Promise.all(
@@ -302,6 +306,7 @@ var ProductEnrichment = {
                     + ' <span class="enrich-cw-count">' + m.colorways.length + ' colorway' + (m.colorways.length !== 1 ? 's' : '') + '</span>'
                 + '</div>'
                 + '<button class="enrich-toggle" data-model="' + m.modelKey + '">▶ Show colorways</button>'
+                + '<button class="enrich-model-dl" title="Download just this model as its own CSV" onclick="ProductEnrichment.downloadModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="margin-left:8px;font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;cursor:pointer;">⬇ Download</button>'
                 + '</div>'
                 + '<div class="enrich-colorways" id="enrich-colorways-' + m.modelKey + '" style="display:none">'
                 + colorwayRows
@@ -373,6 +378,84 @@ var ProductEnrichment = {
         overlay.remove();
         document.body.classList.remove('enrich-open');
         onConfirm(enrichmentMap);
+    },
+
+    // Read the current modal field values for ONE model into an enrichment record.
+    _readModelEnrichment: function(modelKey, fallbackPrice) {
+        var val = function(cls) {
+            var el = document.querySelector(cls + '[data-model="' + modelKey + '"]');
+            return el ? el.value : '';
+        };
+        var descRaw = (val('.enrich-description') || '').trim();
+        // If the user typed plain text (no HTML tags), wrap in <p> like confirm does.
+        var desc = descRaw && !/<[a-z]/i.test(descRaw) ? '<p>' + descRaw + '</p>' : descRaw;
+        return {
+            price: val('.enrich-price') || fallbackPrice || '',
+            tags: val('.enrich-tags'),
+            description: desc,
+            seoTitle: val('.enrich-seo-title'),
+            seoDesc: val('.enrich-seo-desc'),
+        };
+    },
+
+    // Download ONE model's new colorways as its own CSV, using whatever is
+    // currently typed in the modal for that model. Leaves the modal open so the
+    // user can download other models too.
+    downloadModel: function(brand, modelKey) {
+        var ctx = this._active;
+        if (!ctx || ctx.brand !== brand) { alert('Open the new-products review first.'); return; }
+        var model = null;
+        for (var i = 0; i < ctx.models.length; i++) {
+            if (ctx.models[i].modelKey === modelKey) { model = ctx.models[i]; break; }
+        }
+        if (!model) return;
+
+        var brandPriceEl = document.getElementById('enrich-brand-price');
+        var fallbackPrice = brandPriceEl ? brandPriceEl.value.trim() : '';
+        var enrichmentMap = {};
+        enrichmentMap[modelKey] = this._readModelEnrichment(modelKey, fallbackPrice);
+        // Persist this model's defaults, best effort (never block the download).
+        try { this.saveModelDefault(brand, modelKey, enrichmentMap[modelKey]); } catch (e) { /* ignore */ }
+
+        // Generate the full new-product CSV, keep only this model's rows (safe to
+        // line-split here: the pre-enrichment CSV has no multi-line fields), then
+        // enrich+inherit the trimmed subset.
+        var full = ctx.converter.generateNewProductCSV(ctx.comparison);
+        if (!full) { alert('No new products to download.'); return; }
+        var handleSet = {};
+        model.colorways.forEach(function(c) { handleSet[c.handle] = true; });
+        var filtered = this._filterCSVByHandles(full, handleSet);
+        var csv = this.applyToCSV(filtered, brand, ctx.converter, enrichmentMap);
+
+        var slug = String(model.modelName || modelKey).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        var name = brand + '-' + slug + '-new-' + (typeof getFormattedDate === 'function' ? getFormattedDate() : 'export') + '.csv';
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = name;
+        link.click();
+        if (typeof showToast === 'function') {
+            showToast(model.modelName + ' downloaded (' + model.colorways.length + ' colorway' + (model.colorways.length !== 1 ? 's' : '') + ')');
+        }
+    },
+
+    // Keep the header row + only the data rows whose 'URL handle' is in handleSet.
+    // Operates on the pre-enrichment CSV (single-line records), so a plain split
+    // is safe here.
+    _filterCSVByHandles: function(csvString, handleSet) {
+        var lines = csvString.split('\n');
+        if (lines.length < 2) return csvString;
+        var header = parseCSVLineEnrich(lines[0]);
+        var hIdx = header.indexOf('URL handle');
+        if (hIdx < 0) return csvString;
+        var out = [lines[0]];
+        for (var i = 1; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            var cols = parseCSVLineEnrich(lines[i]);
+            var handle = (cols[hIdx] || '').replace(/^"|"$/g, '');
+            if (handleSet[handle]) out.push(lines[i]);
+        }
+        return out.join('\n');
     },
 
     // ========== APPLY ENRICHMENT TO CSV ==========
