@@ -397,14 +397,20 @@ var ProductEnrichment = {
                     .trim();
                 var modelKey = cleanModel.toLowerCase().replace(/[^a-z0-9]+/g, '-');
                 handleToModel[v.handle] = modelKey;
-                // Width-specific inheritance, keyed by identifyProduct (matches the
-                // index built in CatalogClient.buildKnownSets).
+                // Inheritance keyed by identifyProduct (matches the index built in
+                // CatalogClient.buildKnownSets). Two records: `w` is width-specific
+                // (its tags carry the correct cw-group + width tag for THIS width),
+                // `m` is model-level (description/type/category/price are the same
+                // across widths). Model-level fields must fall back to `m` so a new
+                // colorway in a width the store does not yet carry still inherits
+                // them, even though there is no width-specific sibling to tag from.
                 if (canInherit && !handleToInherit[v.handle]) {
                     var g = null;
                     try { g = converter.identifyProduct(v.title, v.handle); } catch (e) { /* best effort */ }
                     if (g) {
-                        var rec = CatalogClient.inheritFor(brand, g, v.width || '');
-                        if (rec) handleToInherit[v.handle] = rec;
+                        var recW = CatalogClient.inheritFor(brand, g, v.width || '');
+                        var recM = CatalogClient.inheritForModel(brand, g);
+                        if (recW || recM) handleToInherit[v.handle] = { w: recW, m: recM };
                     }
                 }
             });
@@ -448,8 +454,10 @@ var ProductEnrichment = {
 
             var modelKey = handleToModel[handle];
             var enrich = modelKey ? enrichmentMap[modelKey] : null;
-            var inh = handleToInherit[handle] || null;
-            if (!enrich && !inh) { result.push(lines[i]); continue; }
+            var inhPair = handleToInherit[handle] || null;
+            var inhW = inhPair && inhPair.w;   // width-specific: correct cw-group + width tag
+            var inhM = inhPair && inhPair.m;   // model-level: description/type/category/price
+            if (!enrich && !inhPair) { result.push(lines[i]); continue; }
 
             var q = function (s) { return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"'; };
 
@@ -460,22 +468,29 @@ var ProductEnrichment = {
             var first = !seenHandle[handle];
             seenHandle[handle] = true;
 
-            // Price is per-variant, so stamp it on every row.
-            var price = (enrich && enrich.price) || (inh && inh.price) || '';
+            // Price is per-variant, so stamp it on every row. Model-level.
+            var price = (enrich && enrich.price) || (inhM && inhM.price) || (inhW && inhW.price) || '';
             if (priceIdx >= 0 && price) cols[priceIdx] = q(price);
 
             // Product-level fields: first row of the handle only.
             if (first) {
                 if (descIdx >= 0) {
-                    var desc = (enrich && enrich.description) || (inh && inh.descriptionHtml) || '';
+                    // Description is model-level (same across widths).
+                    var desc = (enrich && enrich.description) || (inhM && inhM.descriptionHtml) || (inhW && inhW.descriptionHtml) || '';
                     if (desc) cols[descIdx] = q(desc);
                 }
                 if (tagsIdx >= 0) {
-                    var tags = mergeTags(inh && inh.tags, enrich && enrich.tags);
+                    // Tags come from the WIDTH-SPECIFIC sibling so the cw-group +
+                    // width tag are right for this colorway. If the store carries
+                    // no sibling in this width, inherit no tags rather than stamp a
+                    // wrong-width cw-group (which would misgroup the product).
+                    var tags = mergeTags(inhW && inhW.tags, enrich && enrich.tags);
                     if (tags) cols[tagsIdx] = q(tags);
                 }
-                if (typeIdx >= 0 && inh && inh.productType) cols[typeIdx] = q(inh.productType);
-                if (catIdx >= 0 && inh && inh.category) cols[catIdx] = q(inh.category);
+                var typeSrc = (inhM && inhM.productType) || (inhW && inhW.productType);
+                var catSrc = (inhM && inhM.category) || (inhW && inhW.category);
+                if (typeIdx >= 0 && typeSrc) cols[typeIdx] = q(typeSrc);
+                if (catIdx >= 0 && catSrc) cols[catIdx] = q(catSrc);
                 if (seoTitleIdx >= 0 && enrich && enrich.seoTitle) cols[seoTitleIdx] = q(enrich.seoTitle);
                 if (seoDescIdx >= 0 && enrich && enrich.seoDesc) cols[seoDescIdx] = q(enrich.seoDesc);
             }
