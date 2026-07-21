@@ -204,6 +204,24 @@ var ProductEnrichment = {
             if (modelSnaps[i]) savedDefaults[m.modelKey] = modelSnaps[i];
         });
 
+        // Attach live-catalog inheritance to each model. Keyed by the SAME string
+        // the converter's identifyProduct returns (that is how CatalogClient keys
+        // the index), so identify a colorway rather than using the genderless
+        // modelName. Model-level fields (price, description) are width-independent.
+        if (typeof CatalogClient !== 'undefined' && typeof CatalogClient.inheritForModel === 'function'
+            && converter && typeof converter.identifyProduct === 'function') {
+            models.forEach(function(m) {
+                var c0 = m.colorways && m.colorways[0];
+                if (!c0) return;
+                var gModel = null;
+                try { gModel = converter.identifyProduct(c0.title, c0.handle); } catch (e) { /* best effort */ }
+                if (gModel) {
+                    m._gModel = gModel; // stash for applyToCSV width-specific lookups
+                    m.inherit = CatalogClient.inheritForModel(brand, gModel);
+                }
+            });
+        }
+
         // Build modal HTML
         var overlay = document.createElement('div');
         overlay.id = 'enrichment-overlay';
@@ -261,7 +279,9 @@ var ProductEnrichment = {
 
         var modelCards = models.map(function(m) {
             var saved = savedDefaults[m.modelKey] || {};
-            var price = saved.price || defaultPrice;
+            // Price defaults to the live sibling's price when carried (colorways
+            // share MSRP), then a saved default, then the brand default.
+            var price = saved.price || (m.inherit && m.inherit.price) || defaultPrice;
             var rawDesc = saved.description || '';
             // Strip outer <p> tags for display — user sees plain text, we re-wrap on save
             var desc = rawDesc.replace(/^<p>([\s\S]*)<\/p>$/i, '$1').trim();
@@ -360,8 +380,13 @@ var ProductEnrichment = {
     applyToCSV: function(csvString, brand, converter, enrichmentMap) {
         if (!csvString || !enrichmentMap || Object.keys(enrichmentMap).length === 0) return csvString;
 
-        // Build handle → modelKey map from productVariantData
+        // Build handle → modelKey map (for the user's enrichment) and
+        // handle → inherited record (from the live catalog) from productVariantData.
         var handleToModel = {};
+        var handleToInherit = {};
+        var canInherit = (typeof CatalogClient !== 'undefined'
+            && typeof CatalogClient.inheritFor === 'function'
+            && converter && typeof converter.identifyProduct === 'function');
         if (converter.productVariantData) {
             converter.productVariantData.forEach(function(entry) {
                 var v = entry[1];
@@ -372,7 +397,33 @@ var ProductEnrichment = {
                     .trim();
                 var modelKey = cleanModel.toLowerCase().replace(/[^a-z0-9]+/g, '-');
                 handleToModel[v.handle] = modelKey;
+                // Width-specific inheritance, keyed by identifyProduct (matches the
+                // index built in CatalogClient.buildKnownSets).
+                if (canInherit && !handleToInherit[v.handle]) {
+                    var g = null;
+                    try { g = converter.identifyProduct(v.title, v.handle); } catch (e) { /* best effort */ }
+                    if (g) {
+                        var rec = CatalogClient.inheritFor(brand, g, v.width || '');
+                        if (rec) handleToInherit[v.handle] = rec;
+                    }
+                }
             });
+        }
+
+        // Union inherited tags (which carry the correct cw-group + width tag for
+        // this colorway) with any tags the user typed. Inherited first, deduped
+        // case-insensitively, so the grouping tag is always present.
+        function mergeTags(inhTags, userTagsStr) {
+            var out = [], seen = {};
+            (inhTags || []).forEach(function (t) {
+                var s = String(t).trim(); var k = s.toLowerCase();
+                if (s && !seen[k]) { seen[k] = 1; out.push(s); }
+            });
+            String(userTagsStr || '').split(',').forEach(function (t) {
+                var s = t.trim(); var k = s.toLowerCase();
+                if (s && !seen[k]) { seen[k] = 1; out.push(s); }
+            });
+            return out.join(', ');
         }
 
         var lines = csvString.split('\n');
@@ -382,9 +433,12 @@ var ProductEnrichment = {
         var priceIdx = headers.indexOf('Price');
         var descIdx = headers.indexOf('Description');
         var tagsIdx = headers.indexOf('Tags');
+        var typeIdx = headers.indexOf('Type');
+        var catIdx = headers.indexOf('Product category');
         var seoTitleIdx = headers.indexOf('SEO title');
         var seoDescIdx = headers.indexOf('SEO description');
 
+        var seenHandle = {};   // product-level fields go on the FIRST row of a handle only
         var result = [lines[0]];
         for (var i = 1; i < lines.length; i++) {
             if (!lines[i].trim()) continue;
@@ -394,21 +448,37 @@ var ProductEnrichment = {
 
             var modelKey = handleToModel[handle];
             var enrich = modelKey ? enrichmentMap[modelKey] : null;
-            if (!enrich) { result.push(lines[i]); continue; }
+            var inh = handleToInherit[handle] || null;
+            if (!enrich && !inh) { result.push(lines[i]); continue; }
 
-            // Pad columns array if needed
-            while (cols.length <= Math.max(priceIdx, descIdx, tagsIdx, seoTitleIdx, seoDescIdx)) {
-                cols.push('""');
+            var q = function (s) { return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"'; };
+
+            // Pad columns so every index we may write exists.
+            var maxIdx = Math.max(priceIdx, descIdx, tagsIdx, typeIdx, catIdx, seoTitleIdx, seoDescIdx);
+            while (cols.length <= maxIdx) cols.push('""');
+
+            var first = !seenHandle[handle];
+            seenHandle[handle] = true;
+
+            // Price is per-variant, so stamp it on every row.
+            var price = (enrich && enrich.price) || (inh && inh.price) || '';
+            if (priceIdx >= 0 && price) cols[priceIdx] = q(price);
+
+            // Product-level fields: first row of the handle only.
+            if (first) {
+                if (descIdx >= 0) {
+                    var desc = (enrich && enrich.description) || (inh && inh.descriptionHtml) || '';
+                    if (desc) cols[descIdx] = q(desc);
+                }
+                if (tagsIdx >= 0) {
+                    var tags = mergeTags(inh && inh.tags, enrich && enrich.tags);
+                    if (tags) cols[tagsIdx] = q(tags);
+                }
+                if (typeIdx >= 0 && inh && inh.productType) cols[typeIdx] = q(inh.productType);
+                if (catIdx >= 0 && inh && inh.category) cols[catIdx] = q(inh.category);
+                if (seoTitleIdx >= 0 && enrich && enrich.seoTitle) cols[seoTitleIdx] = q(enrich.seoTitle);
+                if (seoDescIdx >= 0 && enrich && enrich.seoDesc) cols[seoDescIdx] = q(enrich.seoDesc);
             }
-
-            // Only stamp description/tags/seo on the first row of each product (where they're non-empty or it's the handle row)
-            var isFirstRow = cols[descIdx] !== undefined;
-
-            if (priceIdx >= 0) cols[priceIdx] = '"' + enrich.price + '"';
-            if (descIdx >= 0 && enrich.description) cols[descIdx] = '"' + enrich.description.replace(/"/g, '""') + '"';
-            if (tagsIdx >= 0 && enrich.tags) cols[tagsIdx] = '"' + enrich.tags.replace(/"/g, '""') + '"';
-            if (seoTitleIdx >= 0 && enrich.seoTitle) cols[seoTitleIdx] = '"' + enrich.seoTitle.replace(/"/g, '""') + '"';
-            if (seoDescIdx >= 0 && enrich.seoDesc) cols[seoDescIdx] = '"' + enrich.seoDesc.replace(/"/g, '""') + '"';
 
             result.push(cols.join(','));
         }
@@ -614,3 +684,6 @@ function downloadCombinedNewProducts() {
     }
     processNext();
 }
+// Node test hook only (browser ignores this). Exposes ProductEnrichment so the
+// enrichment/inheritance logic can be unit-tested without a DOM.
+if (typeof module !== 'undefined' && module.exports) module.exports = ProductEnrichment;

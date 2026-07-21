@@ -51,6 +51,44 @@ var CatalogClient = {
     _fetchedAt: 0,
     TTL_MS: 5 * 60 * 1000, // in-tab cache; the Worker itself refreshes every 20 min
 
+    // Per-brand inheritance index: "modelName|widthClass" -> the record a NEW
+    // colorway inherits from its live siblings (cwGroup tag, full tags, type,
+    // price, category, descriptionHtml). Built in buildKnownSets, cached here by
+    // forBrand so product-enrichment can look it up at CSV time.
+    _inheritByBrand: {},
+
+    // Normalize any width string (a catalog widthTag OR a converter width label)
+    // to one class, so the catalog side and the feed side key the index the same.
+    _normWidth: function(w) {
+        var s = String(w || '').toLowerCase();
+        if (/extra|xwide|x-wide|\bxw\b|4e/.test(s)) return 'xwide';
+        if (/\bwide\b|2e/.test(s)) return 'wide';
+        if (/narrow/.test(s)) return 'narrow';
+        return 'standard';
+    },
+
+    // What a new colorway of (modelName, width) inherits from its live siblings,
+    // or null if the model is not carried. modelName MUST be the same string the
+    // converter's identifyProduct returns (that is how the index is keyed).
+    inheritFor: function(toolBrand, modelName, width) {
+        var idx = this._inheritByBrand[toolBrand];
+        if (!idx || !modelName) return null;
+        return idx.get(modelName + '|' + this._normWidth(width)) || null;
+    },
+
+    // Model-level inheritance (price/description/category are identical across
+    // widths), for defaults that do not depend on width. First width found wins.
+    inheritForModel: function(toolBrand, modelName) {
+        var idx = this._inheritByBrand[toolBrand];
+        if (!idx || !modelName) return null;
+        var order = ['standard', 'wide', 'xwide', 'narrow'];
+        for (var i = 0; i < order.length; i++) {
+            var r = idx.get(modelName + '|' + order[i]);
+            if (r) return r;
+        }
+        return null;
+    },
+
     // Fetch and cache the whole catalog once per tab session (or per TTL).
     fetchCatalog: function(force) {
         var self = this;
@@ -82,6 +120,8 @@ var CatalogClient = {
         var status = (catalog && catalog.statusByHandle) || {};
         var colorways = new Map();
         var models = new Set();
+        var inherit = new Map();                       // modelName|widthClass -> inheritance record
+        var byModel = (catalog && catalog.byModel) || {};
         var products = (catalog && catalog.products) || [];
 
         // Dropship = footwear stocked at the Needham location. When the catalog
@@ -121,18 +161,37 @@ var CatalogClient = {
             if (identifyFn) {
                 try {
                     var mk = identifyFn(p.title, p.handle);
-                    if (mk) models.add(mk);
+                    if (mk) {
+                        models.add(mk);
+                        // Index what a new colorway of this model+width inherits.
+                        // First sibling seen wins (all colorways share these).
+                        var rec = byModel[p.brand + '|' + p.cwGroup];
+                        if (rec) {
+                            var ikey = mk + '|' + CatalogClient._normWidth(p.widthTag);
+                            if (!inherit.has(ikey)) inherit.set(ikey, {
+                                cwGroup: rec.cwGroup,
+                                tags: rec.tags || [],
+                                productType: rec.productType || p.productType,
+                                price: rec.price || p.price || '',
+                                category: rec.category || '',
+                                descriptionHtml: rec.descriptionHtml || ''
+                            });
+                        }
+                    }
                 } catch (e) { /* identify is best effort, never fatal */ }
             }
         }
-        return { models: models, colorways: colorways };
+        return { models: models, colorways: colorways, inherit: inherit };
     },
 
-    // Fetch + build for one brand. Returns Promise<{ models, colorways }>.
+    // Fetch + build for one brand. Returns Promise<{ models, colorways, inherit }>.
+    // Caches the inheritance index so product-enrichment can look it up later.
     forBrand: function(toolBrand, identifyFn) {
         var self = this;
         return this.fetchCatalog().then(function(catalog) {
-            return self.buildKnownSets(catalog, toolBrand, identifyFn);
+            var res = self.buildKnownSets(catalog, toolBrand, identifyFn);
+            self._inheritByBrand[toolBrand] = res.inherit || new Map();
+            return res;
         });
     }
 };

@@ -56,6 +56,8 @@ query($cursor: String, $q: String) {
       productType
       status
       tags
+      descriptionHtml
+      category { fullName }
       variants(first: 100) { nodes { sku price } }
     }
   }
@@ -103,6 +105,7 @@ function bulkCatalogQuery(activeOnly) {
   products ${filter} {
     edges { node {
       id handle title vendor productType status tags
+      descriptionHtml category { fullName }
       variants { edges { node {
         id sku price selectedOptions { name value }
         inventoryItem { id inventoryLevels { edges { node {
@@ -144,6 +147,7 @@ function makeBulkAssembler(needhamLocationId) {
       productsById.set(o.id, {
         handle: o.handle, title: o.title, vendor: o.vendor,
         productType: o.productType, status: o.status, tags: o.tags || [],
+        descriptionHtml: o.descriptionHtml || '', category: o.category || null,
         variants: { nodes: [] },
       });
     } else if ('location' in o) {
@@ -289,6 +293,13 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
         widthTag,
         productType: n.productType,
         price,                  // inherit this for a new colorway
+        // Model-level content a new colorway inherits. Every colorway of a model
+        // carries identical description/category/tags (verified against the
+        // store), so the first colorway seen is a faithful sample. First write
+        // wins, matching the other sample fields above.
+        descriptionHtml: n.descriptionHtml || '',
+        category: (n.category && n.category.fullName) || '',
+        tags: n.tags || [],
         sampleHandle: n.handle,
         styleCodes: [],
         colorwayCount: 0,
