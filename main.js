@@ -108,6 +108,41 @@ var BrandConverter = {
                 if (e.target.files.length > 0) self.handleOnFile(gender, e.target.files[0]);
             });
         });
+
+        // Optional ON pricat (UPC) upload — fills in barcodes for new products.
+        var upcZone = document.getElementById('on-upc-dropzone');
+        var upcInput = document.getElementById('on-upc-file');
+        if (upcZone && upcInput) {
+            upcZone.addEventListener('click', function() { upcInput.click(); });
+            upcZone.addEventListener('dragover', function(e) { e.preventDefault(); upcZone.classList.add('dragover'); });
+            upcZone.addEventListener('dragleave', function() { upcZone.classList.remove('dragover'); });
+            upcZone.addEventListener('drop', function(e) {
+                e.preventDefault(); upcZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) self.handleOnUpc(e.dataTransfer.files[0]);
+            });
+            upcInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) self.handleOnUpc(e.target.files[0]);
+            });
+        }
+    },
+
+    // ========== ON PRICAT (UPC) HANDLING ==========
+    handleOnUpc: function(file) {
+        var conv = (typeof OnConverter !== 'undefined') ? OnConverter : null;
+        if (!conv || typeof conv.loadUPCs !== 'function') return;
+        document.getElementById('on-upc-filename').textContent = file.name;
+        document.getElementById('on-upc-count').textContent = 'loading…';
+        document.getElementById('on-upc-uploaded').style.display = 'flex';
+        document.getElementById('on-upc-dropzone').style.display = 'none';
+        conv.loadUPCs(file).then(function(map) {
+            var n = map ? Object.keys(map).length : 0;
+            document.getElementById('on-upc-count').textContent = '· ' + n.toLocaleString() + ' barcodes';
+            // Re-scan if feeds are already loaded, so barcodes flow through.
+            if (BrandConverter.brands.on.menFile || BrandConverter.brands.on.womenFile) BrandConverter._scanBrand('on');
+        }).catch(function(e) {
+            document.getElementById('on-upc-count').textContent = '· failed to read';
+            console.warn('[ON] pricat load failed:', e);
+        });
     },
 
     // ========== ON FILE HANDLING ==========

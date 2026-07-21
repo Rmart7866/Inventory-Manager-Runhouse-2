@@ -172,6 +172,54 @@ var OnConverter = {
         return sku;
     },
 
+    // ===== UPC / BARCODE (ON pricat file) =====
+    // The scraped ON feed has no barcodes. This loads ON's seasonal pricat export
+    // (e.g. pricat-...-FW26.xlsx) and builds an "Item Code|size -> EAN Barcode"
+    // map. During convert, any variant missing a barcode is filled from this map,
+    // joined on the 11-char ON article code embedded in the feed SKU + the size.
+    upcMap: null,
+
+    _normUpcSize: function(s) {
+        var n = parseFloat(s);
+        return isNaN(n) ? String(s == null ? '' : s).trim() : String(n);
+    },
+
+    // Style code from an ON SKU, e.g. "ON-3WF10060755-PEA-5" -> "3WF10060755".
+    _onStyleCode: function(sku) {
+        var m = String(sku || '').toUpperCase().match(/\d[A-Z]{2}\d{6,}/);
+        return m ? m[0] : '';
+    },
+
+    loadUPCs: function(file) {
+        var self = this;
+        return file.arrayBuffer().then(function(buf) {
+            var wb = XLSX.read(buf);
+            var ws = wb.Sheets[wb.SheetNames[0]];
+            var rows = XLSX.utils.sheet_to_json(ws); // objects keyed by header row
+            var map = {};
+            rows.forEach(function(r) {
+                var code = (r['Item Code'] || '').toString().trim().toUpperCase();
+                var ean = (r['EAN Barcode'] || '').toString().trim();
+                var size = (r['US Size'] != null && r['US Size'] !== '' ? r['US Size'] : (r['Size'] || '')).toString().trim();
+                if (!code || !ean || !size) return;
+                if (!/^\d{1,2}(\.5)?$/.test(size)) return; // shoe sizes only, skip apparel (XS/S/M/L)
+                map[code + '|' + self._normUpcSize(size)] = ean;
+            });
+            self.upcMap = map;
+            console.log('[ON] Loaded ' + Object.keys(map).length + ' UPC entries from pricat');
+            return map;
+        });
+    },
+
+    // Barcode for a variant: the feed's own if present, else the pricat lookup.
+    _barcodeFor: function(feedBarcode, sku, size) {
+        if (feedBarcode) return feedBarcode;
+        if (!this.upcMap) return '';
+        var code = this._onStyleCode(sku);
+        if (!code) return '';
+        return this.upcMap[code + '|' + this._normUpcSize(size)] || '';
+    },
+
     // Get handle: check existing map first, generate unified handle if not found
     getProductHandle: function(skuBase, title, gender, colorName, modelName) {
         if (this.existingHandles[skuBase]) {
@@ -366,17 +414,19 @@ var OnConverter = {
                     var opt2Value = isExisting ? (row['Option2 Value'] || '') : '';
 
                     var cleanedRowTitle = self.cleanTitle(row.Title || '');
+                    var size = row['Option1 Value'] || '';
+                    var barcode = self._barcodeFor(row['Barcode'] || '', sku, size);
                     var inventoryRow = {
                         'Handle': handle,
                         'Title': cleanedRowTitle,
                         'Option1 Name': row['Option1 Name'] || 'Size',
-                        'Option1 Value': row['Option1 Value'] || '',
+                        'Option1 Value': size,
                         'Option2 Name': opt2Name,
                         'Option2 Value': opt2Value,
                         'Option3 Name': '',
                         'Option3 Value': '',
                         'SKU': sku,
-                        'Barcode': row['Barcode'] || '',
+                        'Barcode': barcode,
                         'Location': row['Location'] || 'Needham',
                         'On hand (new)': qty
                     };
@@ -392,9 +442,9 @@ var OnConverter = {
                         category: titleInfo.category,
                         sku: sku,
                         skuBase: skuBase,
-                        size: row['Option1 Value'] || '',
+                        size: size,
                         quantity: qty,
-                        barcode: row['Barcode'] || ''
+                        barcode: barcode
                     }]);
                 });
 

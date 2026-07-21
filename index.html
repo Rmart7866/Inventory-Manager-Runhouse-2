@@ -854,6 +854,16 @@
                         <div class="uploaded-info"><strong id="on-women-filename"></strong></div>
                         <button class="clear-btn" onclick="clearOnFile('women')">Clear</button>
                     </div>
+                    <div class="dropzone" id="on-upc-dropzone" style="margin-top:8px;">
+                        <h3>Drop ON Pricat (optional)</h3>
+                        <p>Barcodes for new products</p>
+                        <div class="csv-note">pricat-…-FW26.xlsx — fills in UPCs</div>
+                        <input type="file" class="file-input" id="on-upc-file" accept=".xlsx">
+                    </div>
+                    <div class="uploaded" id="on-upc-uploaded" style="display:none;">
+                        <div class="uploaded-info"><strong id="on-upc-filename"></strong> <span id="on-upc-count"></span></div>
+                        <button class="clear-btn" onclick="clearOnUpc()">Clear</button>
+                    </div>
                     <div class="picker-wrap" id="on-picker-container"></div>
                     <div class="convert-wrap" id="on-convert" style="display:none;">
                         <button class="gen-btn convert-btn" onclick="convertBrand('on')">Combine &amp; Add to Unified</button>
@@ -946,6 +956,15 @@
                 BrandConverter.brands.on.scanned = false;
             }
             BrandConverter.hideStatus('on');
+        }
+
+        function clearOnUpc() {
+            if (typeof OnConverter !== 'undefined') OnConverter.upcMap = null;
+            var f = document.getElementById('on-upc-file'); if (f) f.value = '';
+            document.getElementById('on-upc-uploaded').style.display = 'none';
+            document.getElementById('on-upc-dropzone').style.display = 'flex';
+            document.getElementById('on-upc-count').textContent = '';
+            if (BrandConverter.brands.on.menFile || BrandConverter.brands.on.womenFile) BrandConverter._scanBrand('on');
         }
         document.addEventListener('DOMContentLoaded', function() {
             const input = document.getElementById('password-input');

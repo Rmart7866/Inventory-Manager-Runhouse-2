@@ -238,9 +238,8 @@ var ProductEnrichment = {
         document.getElementById('enrich-confirm').onclick = async function() {
             await self._handleConfirm(brand, models, defaultPrice, overlay, onConfirm);
         };
-        document.getElementById('enrich-create').onclick = function() {
-            self.createInShopify();
-        };
+        var createBtn = document.getElementById('enrich-create');
+        if (createBtn) createBtn.onclick = function() { self.createInShopify(); };
         document.getElementById('enrich-brand-price').addEventListener('change', function() {
             var newPrice = this.value;
             // Update all model price fields that haven't been manually changed
@@ -346,7 +345,7 @@ var ProductEnrichment = {
             + '<div class="enrich-footer">'
             + '<button id="enrich-cancel" class="enrich-btn enrich-btn-cancel">Cancel</button>'
             + '<button id="enrich-confirm" class="enrich-btn enrich-btn-secondary">⬇ Download CSV</button>'
-            + '<button id="enrich-create" class="enrich-btn enrich-btn-confirm">Create in Shopify →</button>'
+            + (self._createEnabled() ? '<button id="enrich-create" class="enrich-btn enrich-btn-confirm">Create in Shopify →</button>' : '')
             + '</div>'
             + '</div>';
     },
@@ -515,6 +514,16 @@ var ProductEnrichment = {
                 metafields: mf
             };
         }).filter(function (s) { return s.title && s.variants.length; });
+    },
+
+    // Stage 4 is not live for staff yet: the write gate + browser testing aren't
+    // finished, and the production Worker has no write route. So the "Create in
+    // Shopify" button is hidden unless the tool is pointed at a test Worker
+    // (rhWorkerUrl set) or explicitly enabled (rhEnableCreate=1). Flip this when
+    // Stage 4 ships.
+    _createEnabled: function () {
+        try { return localStorage.getItem('rhEnableCreate') === '1' || !!localStorage.getItem('rhWorkerUrl'); }
+        catch (e) { return false; }
     },
 
     // Entry point from the "Create in Shopify" button. Collects the current field
