@@ -309,6 +309,7 @@ var ProductEnrichment = {
                 + '</div>'
                 + '<button class="enrich-toggle" data-model="' + m.modelKey + '">▶ Show colorways</button>'
                 + '<button class="enrich-model-dl" title="Download just this model as its own CSV" onclick="ProductEnrichment.downloadModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="margin-left:8px;font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;cursor:pointer;">⬇ Download</button>'
+                + (self._createEnabled() ? '<button class="enrich-model-create" title="Create just this model in Shopify" onclick="ProductEnrichment.createModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="margin-left:6px;font-size:11px;font-weight:700;color:#fff;background:#008060;border:1px solid #008060;border-radius:6px;padding:4px 10px;cursor:pointer;">Create →</button>' : '')
                 + '</div>'
                 + '<div class="enrich-colorways" id="enrich-colorways-' + m.modelKey + '" style="display:none">'
                 + colorwayRows
@@ -541,30 +542,70 @@ var ProductEnrichment = {
         this.showCreateConfirm(ctx.brand, specs);
     },
 
-    // ===== IMAGE ASSETS (match gallery photos to products by article code) =====
-    _imageIndex: null,   // { ARTICLECODE: [File, ...] sorted by gallery angle }
+    // Create just ONE model's colorways (one product line at a time), using the
+    // current field values. Same confirm dialog, scoped to this model's handles.
+    createModel: function (brand, modelKey) {
+        var ctx = this._active;
+        if (!ctx || ctx.brand !== brand) { alert('Open the new-products review first.'); return; }
+        var model = null;
+        for (var i = 0; i < ctx.models.length; i++) { if (ctx.models[i].modelKey === modelKey) { model = ctx.models[i]; break; } }
+        if (!model) return;
+        var bp = document.getElementById('enrich-brand-price');
+        var fallback = bp ? bp.value.trim() : '';
+        var self = this;
+        var map = {};
+        ctx.models.forEach(function (m) { map[m.modelKey] = self._readModelEnrichment(m.modelKey, fallback); });
+        var handleSet = {};
+        model.colorways.forEach(function (c) { handleSet[c.handle] = true; });
+        var specs = this.buildCreateSpecs(brand, ctx.converter, ctx.comparison, map).filter(function (s) { return handleSet[s.handle]; });
+        if (!specs.length) { alert('Nothing to create for ' + model.modelName + '.'); return; }
+        this.showCreateConfirm(brand, specs);
+    },
 
-    // Index a selected image folder. Filenames look like
-    // "3WF30375314-cloudsoma-fw26-urchin_agave-w-1x1-g5.png"; the leading token is
-    // the ON article code, which is also embedded in the product SKU.
-    indexImageFolder: function (fileList) {
+    // ===== IMAGE ASSETS (match photos to products by a per-brand colorway key) =====
+    _imageIndex: null,   // { COLORWAYKEY: [File, ...] } for the folder just indexed
+    _imageBrand: null,
+
+    // The regex that pulls a colorway key out of BOTH an image filename and a
+    // product SKU, per brand (they must agree). ON: the article code, which is
+    // color-specific ("3WF30375314"). ASICS: style-color ("1012B939-501"), the
+    // "-1.jpg" primary suffix and the trailing SKU size are ignored. A brand with
+    // no pattern here simply gets no image matching.
+    _imageKeyPatterns: {
+        on:    /\d[A-Z]{2}\d{6,}/,
+        asics: /\d{4,}[A-Z]\d{2,}-\d{3}/
+    },
+
+    _imageKeyIn: function (brand, str) {
+        var re = this._imageKeyPatterns[brand];
+        if (!re) return '';
+        var m = re.exec(String(str || '').toUpperCase());
+        return m ? m[0] : '';
+    },
+
+    // Index a selected image folder for `brand`. Each image is keyed by the
+    // brand's colorway key found in its filename; multiple images per key (an ON
+    // gallery) are kept in gallery order. ASICS has one primary image per key.
+    indexImageFolder: function (fileList, brand) {
+        var self = this;
         var idx = {};
-        var files = Array.prototype.slice.call(fileList || []);
-        files.forEach(function (f) {
+        Array.prototype.slice.call(fileList || []).forEach(function (f) {
             var name = f.name || '';
             if (!/\.(png|jpe?g)$/i.test(name)) return;
-            var code = (name.split('-')[0] || '').toUpperCase();
-            if (!/^\d[A-Z]{2}\d{6,}$/.test(code)) return;
-            (idx[code] = idx[code] || []).push(f);
+            var key = self._imageKeyIn(brand, name);
+            if (!key) return;
+            (idx[key] = idx[key] || []).push(f);
         });
         Object.keys(idx).forEach(function (c) {
-            idx[c].sort(function (a, b) { return ProductEnrichment._angleRank(a.name) - ProductEnrichment._angleRank(b.name); });
+            idx[c].sort(function (a, b) { return self._angleRank(a.name) - self._angleRank(b.name); });
         });
         this._imageIndex = idx;
+        this._imageBrand = brand;
         return idx;
     },
 
     // Gallery order: g1..g6 first (g1 = featured), then detail (d), then lifestyle.
+    // Single-image brands (ASICS) all rank the same, which is fine.
     _angleRank: function (name) {
         var m = /1x1-([a-z0-9-]+)\.(png|jpe?g)$/i.exec(name || '');
         var a = m ? m[1].toLowerCase() : 'zz';
@@ -575,16 +616,15 @@ var ProductEnrichment = {
         return 40;
     },
 
-    _articleCodeOf: function (spec) {
+    _imageKeyOf: function (spec) {
         var v = (spec.variants || [])[0];
-        var m = /\d[A-Z]{2}\d{6,}/.exec(String((v && v.sku) || '').toUpperCase());
-        return m ? m[0] : '';
+        return this._imageKeyIn(this._imageBrand, (v && v.sku) || '');
     },
 
     _imagesForSpec: function (spec) {
         if (!this._imageIndex) return [];
-        var code = this._articleCodeOf(spec);
-        return code ? (this._imageIndex[code] || []) : [];
+        var key = this._imageKeyOf(spec);
+        return key ? (this._imageIndex[key] || []) : [];
     },
 
     _hasImages: function () { return !!(this._imageIndex && Object.keys(this._imageIndex).length); },
@@ -695,7 +735,7 @@ var ProductEnrichment = {
         document.getElementById('s4-cancel').onclick = close;
         document.getElementById('s4-folder').onclick = function () { document.getElementById('s4-folder-input').click(); };
         document.getElementById('s4-folder-input').onchange = function (e) {
-            if (e.target.files && e.target.files.length) { self.indexImageFolder(e.target.files); toggle.checked = true; render(); }
+            if (e.target.files && e.target.files.length) { self.indexImageFolder(e.target.files, brand); toggle.checked = true; render(); }
         };
         toggle.onchange = render;
         document.getElementById('s4-go').onclick = function () { self._doCreate(brand, specs, overlay, toggle.checked && self._hasImages()); };
@@ -1016,8 +1056,8 @@ function escapeHtmlEnrich(s) {
             position: fixed; inset: 0; z-index: 10001; padding: 24px 16px;
             display: flex; align-items: center; justify-content: center;
             background: rgba(3,5,10,.66); backdrop-filter: blur(3px);
-            --s4-text: #e9f1fb; --s4-muted: #9fb2cc; --s4-muted2: #7d92b1;
-            --s4-surface: rgba(17,24,38,.92); --s4-surface2: rgba(10,15,26,.94); --s4-raise: rgba(28,38,58,.6);
+            --s4-text: #e9f1fb; --s4-muted: #9fb2cc; --s4-muted2: #97abc7;
+            --s4-surface: #111828; --s4-surface2: #0b111d; --s4-raise: #1b2740;
             --s4-line: rgba(94,234,212,.14); --s4-line2: rgba(56,189,248,.30);
             --s4-accent: #34e0ff; --s4-accent2: #7c8bff; --s4-ok: #3ce6b0; --s4-warn: #ffc04d; --s4-bad: #ff6b8b;
         }
@@ -1055,7 +1095,8 @@ function escapeHtmlEnrich(s) {
         .s4-switch input:focus-visible + .s4-track { box-shadow: 0 0 0 3px rgba(52,224,255,.35); }
         .s4-list-label { display: flex; justify-content: space-between; padding: 18px 22px 8px; }
         .s4-list-label span { font-size: 11px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--s4-muted2); font-weight: 700; }
-        .s4-list { overflow-y: auto; padding: 0 22px; display: flex; flex-direction: column; gap: 8px; }
+        .s4-list { flex: 1 1 auto; min-height: 64px; overflow-y: auto; padding: 2px 22px; display: flex; flex-direction: column; gap: 8px; }
+        .s4-list::-webkit-scrollbar { width: 8px; } .s4-list::-webkit-scrollbar-thumb { background: rgba(120,160,220,.25); border-radius: 4px; }
         .s4-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--s4-line); border-radius: 4px; background: var(--s4-surface2); }
         .s4-thumb { width: 44px; height: 44px; flex: none; border-radius: 3px; overflow: hidden; background: #0c1220; border: 1px solid var(--s4-line2); position: relative; }
         .s4-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
