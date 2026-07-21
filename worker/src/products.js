@@ -20,10 +20,40 @@
 const PRODUCT_SET = `
 mutation productSet($input: ProductSetInput!) {
   productSet(synchronous: true, input: $input) {
-    product { id handle status title }
+    product { id handle status title media(first: 20) { nodes { id status } } }
     userErrors { field message }
   }
 }`;
+
+// Local files cannot be handed to Shopify directly. stagedUploadsCreate returns
+// temporary signed targets; the browser POSTs each image's bytes to its target,
+// then the returned resourceUrl is used as a product image originalSource.
+const STAGED_UPLOADS = `
+mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+  stagedUploadsCreate(input: $input) {
+    stagedTargets { url resourceUrl parameters { name value } }
+    userErrors { field message }
+  }
+}`;
+
+// Request signed upload targets for a batch of images. files: [{ filename,
+// mimeType, fileSize? }]. Returns the stagedTargets array (url + params +
+// resourceUrl) the browser needs to upload and then reference.
+export async function createStagedUploads(client, files) {
+  const input = (files || []).map((f) => ({
+    filename: f.filename,
+    mimeType: f.mimeType || 'image/png',
+    resource: 'IMAGE',
+    httpMethod: 'POST',
+    ...(f.fileSize ? { fileSize: String(f.fileSize) } : {}),
+  }));
+  const body = await client.graphql(STAGED_UPLOADS, { input });
+  const r = (body.data && body.data.stagedUploadsCreate) || {};
+  if ((r.userErrors || []).length) {
+    throw new Error('stagedUploadsCreate: ' + r.userErrors.map((e) => e.message).join('; '));
+  }
+  return r.stagedTargets || [];
+}
 
 // Turn a plain colorway spec from the browser into a ProductSetInput.
 // spec = {
@@ -69,6 +99,15 @@ export function buildProductSetInput(spec) {
   if (spec.productType) input.productType = spec.productType;
   if (spec.descriptionHtml) input.descriptionHtml = spec.descriptionHtml;
   if (Array.isArray(spec.metafields) && spec.metafields.length) input.metafields = spec.metafields;
+  // Images: each already staged, referenced by its resourceUrl as originalSource.
+  // Order is preserved, so the first file becomes the product's featured image.
+  if (Array.isArray(spec.files) && spec.files.length) {
+    input.files = spec.files.map((f) => ({
+      originalSource: f.originalSource,
+      contentType: f.contentType || 'IMAGE',
+      alt: f.alt || '',
+    }));
+  }
   return input;
 }
 

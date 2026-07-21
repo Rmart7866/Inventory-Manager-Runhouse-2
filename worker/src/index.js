@@ -27,7 +27,7 @@
 
 import { createShopifyClient } from './shopify.js';
 import { buildCatalog } from './catalog.js';
-import { createProducts } from './products.js';
+import { createProducts, createStagedUploads } from './products.js';
 import { requireAuth, requireAdmin, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -190,6 +190,23 @@ async function handleCreateProducts(request, env) {
   return json({ created, total: results.length, results }, 200, request, env);
 }
 
+// POST /staged-uploads, Stage 4 image support. Body: { files: [{filename,
+// mimeType, fileSize}] }. Returns Shopify's signed upload targets so the browser
+// can PUT the image bytes, then reference each resourceUrl when creating products.
+async function handleStagedUploads(request, env) {
+  let body;
+  try { body = await request.json(); } catch (e) { body = null; }
+  if (!body || !Array.isArray(body.files) || body.files.length === 0) {
+    return json({ error: 'Expected JSON body { files: [ {filename, mimeType} ] }' }, 400, request, env);
+  }
+  if (body.files.length > 250) {
+    return json({ error: 'Too many files in one request (max 250)' }, 400, request, env);
+  }
+  const client = createShopifyClient(env);
+  const targets = await createStagedUploads(client, body.files);
+  return json({ targets }, 200, request, env);
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -216,6 +233,8 @@ export default {
       // Stage 4 WRITE. forWrite:true, so auth.js refuses it in bearer mode (501).
       // Inert in production until AUTH_MODE becomes a real identity/secret gate.
       '/products': { handler: handleCreateProducts, forWrite: true, methods: ['POST'] },
+      // Signed image-upload targets for product photos (also a write-scoped op).
+      '/staged-uploads': { handler: handleStagedUploads, forWrite: true, methods: ['POST'] },
     };
     const route = routes[url.pathname];
     if (!route) return json({ error: 'Not found' }, 404, request, env);
