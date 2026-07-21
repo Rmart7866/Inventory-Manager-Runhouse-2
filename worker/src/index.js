@@ -49,7 +49,7 @@ function corsHeaders(request, env) {
     // Cf-Access-Jwt-Assertion header cross-origin. Both need credentials.
     h['Access-Control-Allow-Credentials'] = 'true';
     h['Access-Control-Allow-Headers'] = 'Authorization, Cf-Access-Jwt-Assertion, Content-Type';
-    h['Access-Control-Allow-Methods'] = 'GET, OPTIONS';
+    h['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
     h['Access-Control-Max-Age'] = '86400';
   }
   return h;
