@@ -70,6 +70,38 @@ var BrandConverter = {
         });
         // ON has two dropzones
         this._setupOnDropzones();
+        // ASICS optional barcode upload (multi-file)
+        this._setupAsicsUpc();
+    },
+
+    _setupAsicsUpc: function() {
+        var self = this;
+        var zone = document.getElementById('asics-upc-dropzone');
+        var input = document.getElementById('asics-upc-file');
+        if (!zone || !input) return;
+        zone.addEventListener('click', function() { input.click(); });
+        zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', function() { zone.classList.remove('dragover'); });
+        zone.addEventListener('drop', function(e) { e.preventDefault(); zone.classList.remove('dragover'); if (e.dataTransfer.files.length) self.handleAsicsUpc(e.dataTransfer.files); });
+        input.addEventListener('change', function(e) { if (e.target.files.length) self.handleAsicsUpc(e.target.files); });
+    },
+
+    handleAsicsUpc: function(files) {
+        var conv = (typeof AsicsConverter !== 'undefined') ? AsicsConverter : null;
+        if (!conv || typeof conv.loadUPCs !== 'function') return;
+        var n = files.length;
+        document.getElementById('asics-upc-filename').textContent = n + ' barcode file' + (n !== 1 ? 's' : '');
+        document.getElementById('asics-upc-count').textContent = 'loading…';
+        document.getElementById('asics-upc-uploaded').style.display = 'flex';
+        document.getElementById('asics-upc-dropzone').style.display = 'none';
+        conv.loadUPCs(files).then(function(map) {
+            var c = map ? Object.keys(map).length : 0;
+            document.getElementById('asics-upc-count').textContent = '· ' + c.toLocaleString() + ' barcodes';
+            if (BrandConverter.brands.asics && BrandConverter.brands.asics.file) BrandConverter._scanBrand('asics');
+        }).catch(function(e) {
+            document.getElementById('asics-upc-count').textContent = '· failed to read';
+            console.warn('[ASICS] barcode load failed:', e);
+        });
     },
 
     _setupDropzone: function(brand) {

@@ -766,6 +766,16 @@
                         <div class="uploaded-info"><strong id="asics-filename"></strong></div>
                         <button class="clear-btn" onclick="clearFile('asics')">Clear</button>
                     </div>
+                    <div class="dropzone" id="asics-upc-dropzone" style="margin-top:8px;">
+                        <h3>Drop ASICS Barcodes (optional)</h3>
+                        <p>EAN codes for new products</p>
+                        <div class="csv-note">0010029173_collection_*.csv — select ALL of them</div>
+                        <input type="file" class="file-input" id="asics-upc-file" accept=".csv" multiple>
+                    </div>
+                    <div class="uploaded" id="asics-upc-uploaded" style="display:none;">
+                        <div class="uploaded-info"><strong id="asics-upc-filename"></strong> <span id="asics-upc-count"></span></div>
+                        <button class="clear-btn" onclick="clearAsicsUpc()">Clear</button>
+                    </div>
                     <div class="picker-wrap" id="asics-picker-container"></div>
                     <div class="convert-wrap" id="asics-convert">
                         <button class="gen-btn convert-btn" onclick="convertBrand('asics')">Generate Inventory</button>
@@ -965,6 +975,15 @@
             document.getElementById('on-upc-dropzone').style.display = 'flex';
             document.getElementById('on-upc-count').textContent = '';
             if (BrandConverter.brands.on.menFile || BrandConverter.brands.on.womenFile) BrandConverter._scanBrand('on');
+        }
+
+        function clearAsicsUpc() {
+            if (typeof AsicsConverter !== 'undefined') AsicsConverter.upcMap = null;
+            var f = document.getElementById('asics-upc-file'); if (f) f.value = '';
+            document.getElementById('asics-upc-uploaded').style.display = 'none';
+            document.getElementById('asics-upc-dropzone').style.display = 'flex';
+            document.getElementById('asics-upc-count').textContent = '';
+            if (BrandConverter.brands.asics && BrandConverter.brands.asics.file) BrandConverter._scanBrand('asics');
         }
         document.addEventListener('DOMContentLoaded', function() {
             const input = document.getElementById('password-input');

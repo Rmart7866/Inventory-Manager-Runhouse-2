@@ -17,6 +17,67 @@ var AsicsConverter = {
             ? CatalogClient.modelFromTitle(title, 'Asics') : null;
     },
 
+    // ===== UPC / BARCODE (ASICS order-form / pricat CSVs) =====
+    // The scraped ASICS feed has no barcodes. These order-form CSVs
+    // (0010029173_collection_*.csv) carry EAN codes, joined by Trading code +
+    // Color code + US size. Each export is a partial slice, so loadUPCs MERGES
+    // however many files you give it. During convert, a variant missing a barcode
+    // is filled by joining the style-color in the feed Handle + the size.
+    upcMap: null,
+
+    _normUpcSize: function(s) {
+        var m = /^K?(\d{1,2}(\.5)?)$/i.exec(String(s == null ? '' : s).trim());
+        if (!m) return '';
+        return (/^k/i.test(String(s)) ? 'K' : '') + String(parseFloat(m[1]));
+    },
+
+    // style-color like "1011C051-001" from a handle/sku (ignores the width suffix).
+    _asicsStyleColor: function(str) {
+        var m = /\d{3,}[A-Z]\d{2,}-\d{3}/.exec(String(str || '').toUpperCase());
+        return m ? m[0] : '';
+    },
+
+    // Load + MERGE one or more ASICS barcode CSVs into upcMap. The real header
+    // (with "EAN code") is a row or two below a legal disclaimer.
+    loadUPCs: function(fileList) {
+        var self = this;
+        var files = Array.prototype.slice.call((fileList && fileList.length !== undefined) ? fileList : [fileList]);
+        self.upcMap = self.upcMap || {};
+        return Promise.all(files.map(function(f) {
+            return f.text().then(function(text) {
+                var rows = Papa.parse(text, { header: false }).data;
+                var hi = -1;
+                for (var i = 0; i < Math.min(8, rows.length); i++) {
+                    if (rows[i] && rows[i].some(function(c) { return /EAN/i.test(String(c)); })) { hi = i; break; }
+                }
+                if (hi < 0) return 0;
+                var idx = {}; rows[hi].forEach(function(n, j) { idx[String(n).trim()] = j; });
+                var count = 0;
+                for (var r = hi + 1; r < rows.length; r++) {
+                    var row = rows[r]; if (!row) continue;
+                    var ean = (row[idx['EAN code']] || '').toString().trim();
+                    var tc = (row[idx['Trading code']] || '').toString().trim().toUpperCase();
+                    var cc = (row[idx['Color code']] || '').toString().trim();
+                    var sz = self._normUpcSize(row[idx['Size US']] || '');
+                    if (ean && tc && cc && sz) { self.upcMap[tc + '-' + cc + '|' + sz] = ean; count++; }
+                }
+                return count;
+            });
+        })).then(function() {
+            console.log('[ASICS] barcode map now has ' + Object.keys(self.upcMap).length + ' entries');
+            return self.upcMap;
+        });
+    },
+
+    // Barcode for a variant: the feed's own if present, else the merged UPC map.
+    _barcodeFor: function(feedBarcode, styleColorSource, size) {
+        if (feedBarcode) return feedBarcode;
+        if (!this.upcMap) return '';
+        var sc = this._asicsStyleColor(styleColorSource);
+        if (!sc) return '';
+        return this.upcMap[sc + '|' + this._normUpcSize(size)] || '';
+    },
+
     // ========== EXISTING SHOPIFY HANDLES (have Color as Option2) ==========
     existingHandles: new Set([
         '1011b958-001',
@@ -380,6 +441,10 @@ var AsicsConverter = {
 
                     var handle = row.Handle.trim();
                     var qty = row['On hand (new)'] || '0';
+                    // Fill barcode from the merged ASICS UPC map (style-color in the
+                    // RAW handle + size), before the handle is regenerated below.
+                    var size = row['Option1 Value'] || '';
+                    var barcode = self._barcodeFor(row.Barcode || '', row.Handle || row.SKU || '', size);
 
                     // Existing handles = products in Shopify with Color as Option2.
                     // New products (handle not in set) get blank Option2.
@@ -402,7 +467,7 @@ var AsicsConverter = {
                         'Option3 Name': '',
                         'Option3 Value': '',
                         'SKU': row.SKU || '',
-                        'Barcode': row.Barcode || '',
+                        'Barcode': barcode,
                         'HS Code': row['HS Code'] || '',
                         'COO': row.COO || '',
                         'Location': row.Location || 'Needham',
@@ -420,9 +485,9 @@ var AsicsConverter = {
                         color: titleInfo.color,
                         category: self.getCategory(titleInfo.model),
                         sku: row.SKU || '',
-                        size: row['Option1 Value'] || '',
+                        size: size,
                         quantity: qty,
-                        barcode: row.Barcode || ''
+                        barcode: barcode
                     }]);
                 });
 
