@@ -4,6 +4,16 @@
 // Shopify matches variants by Handle + Option1 (Size) only.
 
 var OnConverter = {
+
+    // Stable, gendered, width-independent model name from a product title, for
+    // matching new colorways to their live siblings (Stage 2 content inheritance).
+    // Delegates to the shared parser so the feed side and the catalog side key the
+    // inheritance index identically.
+    identifyProduct: function(title, handle) {
+        return (typeof CatalogClient !== 'undefined' && CatalogClient.modelFromTitle)
+            ? CatalogClient.modelFromTitle(title, 'On') : null;
+    },
+
     inventoryData: [],
     productVariantData: [],
     selectedProducts: new Set(),

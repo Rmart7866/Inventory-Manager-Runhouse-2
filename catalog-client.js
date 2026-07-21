@@ -76,6 +76,42 @@ var CatalogClient = {
         return idx.get(modelName + '|' + this._normWidth(width)) || null;
     },
 
+    // Derive a stable, gendered, width-independent model name from a product
+    // TITLE, e.g. "Saucony Women's Ride 15 Wide - Alloy/Quartz (S10729-15)" ->
+    // "Women's Ride 15". The SAME function runs on the live Shopify title (catalog
+    // side) and on the converter-built feed title, so both sides key the
+    // inheritance index identically even though brands format titles differently
+    // (some put the vendor before the gender, some after). Width is intentionally
+    // dropped here: it is a separate axis in the index key.
+    modelFromTitle: function(title, vendor) {
+        if (!title) return null;
+        var s = String(title).replace(/[’‘`´]/g, "'");       // normalize curly apostrophes
+        s = s.replace(/\([^)]*\)/g, ' ');                    // drop (SKU), (Wide), etc.
+        // Color starts at the first dash (hyphen, en-, or em-dash) that has
+        // whitespace on either side (" - ", "26- ", "26 -Black"). A dash with NO
+        // space on either side, like "Gel-Kayano", is an internal model dash, kept.
+        var m = s.match(/^(.*?)(?:\s+[-–—]\s*|\s*[-–—]\s+)/);
+        if (m) s = m[1];
+        var gender = '';
+        var gm = s.match(/\b(men'?s|women'?s|unisex|kids?)\b/i);
+        if (gm) {
+            var g = gm[1].toLowerCase();
+            gender = /^wom/.test(g) ? "Women's" : /^men/.test(g) ? "Men's" : /^uni/.test(g) ? 'Unisex' : "Kids'";
+            s = s.replace(gm[0], ' ');
+        }
+        if (vendor) s = s.replace(new RegExp('^\\s*' + vendor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'), ' ');
+        s = s.replace(/\b(extra[\s-]?wide|x[\s-]?wide|xwide|wide|narrow)\b/ig, ' ');
+        // Canonicalize so the store's title variants of ONE model collapse to the
+        // same key: drop trademark marks, turn a hyphen between word chars into a
+        // space ("Gel-Nimbus" == "Gel Nimbus"), collapse spaces, Title Case
+        // ("MAGMAX" == "MagMax" -> "Magmax"). Matching consistency matters more
+        // than display nicety here; the CSV title still comes from the converter.
+        s = s.replace(/[™®]/g, ' ').replace(/(\w)[-–—](\w)/g, '$1 $2').replace(/\s+/g, ' ').trim();
+        if (!s) return null;
+        s = s.toLowerCase().replace(/\b[a-z]/g, function (c) { return c.toUpperCase(); });
+        return (gender ? gender + ' ' : '') + s;
+    },
+
     // Model-level inheritance (price/description/category are identical across
     // widths), for defaults that do not depend on width. First width found wins.
     inheritForModel: function(toolBrand, modelName) {

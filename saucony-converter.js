@@ -4,6 +4,16 @@
 
 
 var SauconyConverter = {
+
+    // Stable, gendered, width-independent model name from a product title, for
+    // matching new colorways to their live siblings (Stage 2 content inheritance).
+    // Delegates to the shared parser so the feed side and the catalog side key the
+    // inheritance index identically.
+    identifyProduct: function(title, handle) {
+        return (typeof CatalogClient !== 'undefined' && CatalogClient.modelFromTitle)
+            ? CatalogClient.modelFromTitle(title, 'Saucony') : null;
+    },
+
     inventoryData: [],
     productVariantData: [],
     selectedProducts: new Set(),
