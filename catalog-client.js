@@ -238,6 +238,31 @@ var CatalogClient = {
         });
     },
 
+    // Stage 4 images: ask the Worker for signed upload targets, one per file.
+    // files: [{ filename, mimeType, fileSize }]. Returns { targets, __status }.
+    stagedUploads: function (files) {
+        return fetch(this.WORKER_URL + '/staged-uploads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.CATALOG_TOKEN },
+            body: JSON.stringify({ files: files })
+        }).then(function (res) {
+            return res.json().then(function (b) { b.__status = res.status; return b; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
+    },
+
+    // Upload one file's bytes to its signed target (browser -> Google staged
+    // storage), then the target.resourceUrl can be used as a product image.
+    uploadToTarget: function (target, file) {
+        var form = new FormData();
+        (target.parameters || []).forEach(function (p) { form.append(p.name, p.value); });
+        form.append('file', file);
+        return fetch(target.url, { method: 'POST', body: form }).then(function (res) {
+            if (res.status >= 300) throw new Error('Image upload failed (HTTP ' + res.status + ')');
+            return target.resourceUrl;
+        });
+    },
+
     // Fetch + build for one brand. Returns Promise<{ models, colorways, inherit }>.
     // Caches the inheritance index so product-enrichment can look it up later.
     forBrand: function(toolBrand, identifyFn) {

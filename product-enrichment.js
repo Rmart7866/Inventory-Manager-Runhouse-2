@@ -541,76 +541,210 @@ var ProductEnrichment = {
         this.showCreateConfirm(ctx.brand, specs);
     },
 
-    // The "are you sure" gate: a clear summary of exactly what will be created,
-    // as drafts, with Cancel / Create. No write fires until Create is clicked.
+    // ===== IMAGE ASSETS (match gallery photos to products by article code) =====
+    _imageIndex: null,   // { ARTICLECODE: [File, ...] sorted by gallery angle }
+
+    // Index a selected image folder. Filenames look like
+    // "3WF30375314-cloudsoma-fw26-urchin_agave-w-1x1-g5.png"; the leading token is
+    // the ON article code, which is also embedded in the product SKU.
+    indexImageFolder: function (fileList) {
+        var idx = {};
+        var files = Array.prototype.slice.call(fileList || []);
+        files.forEach(function (f) {
+            var name = f.name || '';
+            if (!/\.(png|jpe?g)$/i.test(name)) return;
+            var code = (name.split('-')[0] || '').toUpperCase();
+            if (!/^\d[A-Z]{2}\d{6,}$/.test(code)) return;
+            (idx[code] = idx[code] || []).push(f);
+        });
+        Object.keys(idx).forEach(function (c) {
+            idx[c].sort(function (a, b) { return ProductEnrichment._angleRank(a.name) - ProductEnrichment._angleRank(b.name); });
+        });
+        this._imageIndex = idx;
+        return idx;
+    },
+
+    // Gallery order: g1..g6 first (g1 = featured), then detail (d), then lifestyle.
+    _angleRank: function (name) {
+        var m = /1x1-([a-z0-9-]+)\.(png|jpe?g)$/i.exec(name || '');
+        var a = m ? m[1].toLowerCase() : 'zz';
+        var gm = /^g(\d+)/.exec(a);
+        if (gm) return parseInt(gm[1], 10);
+        if (a.charAt(0) === 'd') return 50;
+        if (a.charAt(0) === 'l') return 60;
+        return 40;
+    },
+
+    _articleCodeOf: function (spec) {
+        var v = (spec.variants || [])[0];
+        var m = /\d[A-Z]{2}\d{6,}/.exec(String((v && v.sku) || '').toUpperCase());
+        return m ? m[0] : '';
+    },
+
+    _imagesForSpec: function (spec) {
+        if (!this._imageIndex) return [];
+        var code = this._articleCodeOf(spec);
+        return code ? (this._imageIndex[code] || []) : [];
+    },
+
+    _hasImages: function () { return !!(this._imageIndex && Object.keys(this._imageIndex).length); },
+
+    // Stage + upload every matched image, attaching resourceUrls to each spec's
+    // files (in gallery order, so the first becomes the featured image).
+    _attachImages: function (specs, onProgress) {
+        var self = this;
+        var jobs = [];
+        specs.forEach(function (s, si) {
+            self._imagesForSpec(s).forEach(function (f) { jobs.push({ si: si, file: f }); });
+        });
+        if (!jobs.length) return Promise.resolve(specs);
+        var req = jobs.map(function (j) { return { filename: j.file.name, mimeType: j.file.type || 'image/png', fileSize: j.file.size }; });
+        return CatalogClient.stagedUploads(req).then(function (res) {
+            if (res.__status !== 200) throw new Error((res.error || res.reason || ('staged uploads HTTP ' + res.__status)));
+            var targets = res.targets || [];
+            if (targets.length < jobs.length) throw new Error('Server returned fewer upload targets than images');
+            var done = 0;
+            return jobs.reduce(function (chain, j, i) {
+                return chain.then(function () {
+                    return CatalogClient.uploadToTarget(targets[i], j.file).then(function (resourceUrl) {
+                        var s = specs[j.si];
+                        (s.files = s.files || []).push({ originalSource: resourceUrl, alt: s.title });
+                        done++; if (onProgress) onProgress(done, jobs.length);
+                    });
+                });
+            }, Promise.resolve()).then(function () { return specs; });
+        });
+    },
+
+    // ===== THE CREATE DIALOG (redesigned, matches the app's dark theme) =====
+    // A single clean screen: review what will be created, toggle images on/off,
+    // then Create. No write fires until Create is clicked. Drafts only.
     showCreateConfirm: function (brand, specs) {
         var self = this;
         var totalVariants = specs.reduce(function (t, s) { return t + s.variants.length; }, 0);
-        var rows = specs.map(function (s) {
-            return '<div class="s4-row"><span class="s4-row-name">' + escapeHtmlEnrich(s.title) + '</span>'
-                + '<span class="s4-row-meta">' + s.variants.length + ' variant' + (s.variants.length !== 1 ? 's' : '') + '</span></div>';
-        }).join('');
+        var thumbUrls = [];
 
         var overlay = document.createElement('div');
         overlay.id = 's4-confirm-overlay';
         overlay.innerHTML =
             '<div class="s4-modal" role="dialog" aria-modal="true">'
-            + '<div class="s4-head"><span class="s4-warn">⚠</span> Create ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' in Shopify?</div>'
-            + '<div class="s4-note">They will be created as <strong>Drafts</strong> — nothing goes live on your store until you publish them in Shopify.</div>'
-            + '<div class="s4-list">' + rows + '</div>'
-            + '<div class="s4-total">' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' · ' + totalVariants + ' variant' + (totalVariants !== 1 ? 's' : '') + ' · all Draft</div>'
+            + '<div class="s4-head"><div>'
+            + '<div class="s4-eyebrow">New products · ' + escapeHtmlEnrich((this.brandDefaults[brand] || {}).vendor || brand) + '</div>'
+            + '<h1 class="s4-title" id="s4-title"></h1>'
+            + '<div class="s4-sub">Reviewed and ready. They land as <strong>drafts</strong> for you to publish.</div>'
+            + '</div><button class="s4-x" id="s4-x" aria-label="Cancel">×</button></div>'
+            + '<div class="s4-toggle-bar">'
+            + '<div class="s4-toggle-ico" aria-hidden="true">🖼</div>'
+            + '<div class="s4-toggle-txt"><div class="s4-t">Upload product images</div><div class="s4-h" id="s4-hint"></div></div>'
+            + '<button class="s4-folder-btn" id="s4-folder" type="button">Choose folder</button>'
+            + '<label class="s4-switch"><input type="checkbox" id="s4-imgtoggle" aria-label="Upload product images"><span class="s4-track"></span><span class="s4-knob"></span></label>'
+            + '<input type="file" id="s4-folder-input" webkitdirectory directory multiple style="display:none">'
+            + '</div>'
+            + '<div class="s4-list-label"><span>What gets created</span><span>all draft</span></div>'
+            + '<div class="s4-list" id="s4-list"></div>'
+            + '<div class="s4-summary" id="s4-summary"></div>'
             + '<div class="s4-msg" id="s4-msg"></div>'
             + '<div class="s4-foot">'
-            + '<button class="s4-btn s4-btn-cancel" id="s4-cancel">Cancel</button>'
-            + '<button class="s4-btn s4-btn-go" id="s4-go">Create ' + specs.length + ' →</button>'
+            + '<div class="s4-safe"><strong>Nothing goes live.</strong> Created as drafts — review and publish in Shopify when ready.</div>'
+            + '<button class="s4-btn s4-btn-ghost" id="s4-cancel">Cancel</button>'
+            + '<button class="s4-btn s4-btn-go" id="s4-go"></button>'
             + '</div></div>';
         document.body.appendChild(overlay);
 
-        document.getElementById('s4-cancel').onclick = function () { overlay.remove(); };
-        document.getElementById('s4-go').onclick = function () { self._doCreate(brand, specs, overlay); };
+        var toggle = document.getElementById('s4-imgtoggle');
+        toggle.checked = self._hasImages();
+
+        function photoCount() { return specs.reduce(function (t, s) { return t + self._imagesForSpec(s).length; }, 0); }
+
+        function render() {
+            var on = toggle.checked && self._hasImages();
+            document.getElementById('s4-title').textContent = 'Create ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' in Shopify';
+            var hint = document.getElementById('s4-hint');
+            hint.innerHTML = self._hasImages()
+                ? '<b>' + photoCount() + '</b> photos matched from your gallery folder'
+                : 'Pick your gallery folder to attach photos (optional)';
+            document.getElementById('s4-folder').style.display = self._hasImages() ? 'none' : '';
+            toggle.disabled = !self._hasImages();
+
+            thumbUrls.forEach(function (u) { URL.revokeObjectURL(u); }); thumbUrls = [];
+            var list = document.getElementById('s4-list');
+            list.innerHTML = specs.map(function (s) {
+                var imgs = on ? self._imagesForSpec(s) : [];
+                var thumb = '';
+                if (imgs.length) { var u = URL.createObjectURL(imgs[0]); thumbUrls.push(u); thumb = '<div class="s4-thumb"><img src="' + u + '" alt=""><span class="s4-cnt">' + imgs.length + '</span></div>'; }
+                var cw = (s.tags || []).filter(function (t) { return /^cw-group:/.test(t); })[0] || '';
+                return '<div class="s4-item">' + thumb
+                    + '<div class="s4-item-main"><div class="s4-item-name">' + escapeHtmlEnrich(s.title) + '</div>'
+                    + '<div class="s4-item-meta"><span class="s4-chip s4-chip-draft">Draft</span>'
+                    + (cw ? '<span class="s4-chip s4-chip-cw">' + escapeHtmlEnrich(cw) + '</span>' : '')
+                    + '<span class="s4-chip s4-chip-plain">' + s.variants.length + ' sizes</span></div></div>'
+                    + '<div class="s4-item-price">$' + escapeHtmlEnrich((s.variants[0] && s.variants[0].price) || '—') + '<small>each</small></div>'
+                    + '</div>';
+            }).join('');
+
+            var photos = on ? photoCount() : 0;
+            document.getElementById('s4-summary').innerHTML =
+                '<span><b>' + specs.length + '</b> products</span><span class="s4-dot">·</span>'
+                + '<span><b>' + totalVariants + '</b> variants</span><span class="s4-dot">·</span><span>all draft</span>'
+                + (photos ? '<span class="s4-dot">·</span><span class="s4-imgpart"><b>' + photos + '</b> photos</span>' : '');
+            document.getElementById('s4-go').innerHTML = 'Create ' + specs.length + ' →';
+        }
+
+        function close() { thumbUrls.forEach(function (u) { URL.revokeObjectURL(u); }); overlay.remove(); }
+        document.getElementById('s4-x').onclick = close;
+        document.getElementById('s4-cancel').onclick = close;
+        document.getElementById('s4-folder').onclick = function () { document.getElementById('s4-folder-input').click(); };
+        document.getElementById('s4-folder-input').onchange = function (e) {
+            if (e.target.files && e.target.files.length) { self.indexImageFolder(e.target.files); toggle.checked = true; render(); }
+        };
+        toggle.onchange = render;
+        document.getElementById('s4-go').onclick = function () { self._doCreate(brand, specs, overlay, toggle.checked && self._hasImages()); };
+        render();
     },
 
-    // Fire the write, then report per-product results in the same dialog.
-    _doCreate: function (brand, specs, overlay) {
+    // Optionally stage+upload images, then create the products, reporting progress
+    // and per-product results in the same dialog.
+    _doCreate: function (brand, specs, overlay, withImages) {
+        var self = this;
         var go = document.getElementById('s4-go');
         var cancel = document.getElementById('s4-cancel');
         var msg = document.getElementById('s4-msg');
         go.disabled = true; cancel.disabled = true;
-        go.textContent = 'Creating…';
-        msg.className = 's4-msg s4-msg-info';
-        msg.textContent = 'Sending ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' to Shopify…';
+        var xBtn = document.getElementById('s4-x'); if (xBtn) xBtn.style.visibility = 'hidden';
 
-        CatalogClient.createProducts(specs).then(function (res) {
-            if (res.__status === 501) {
-                msg.className = 's4-msg s4-msg-error';
-                msg.textContent = 'Writes are turned off on the server (read-only mode). ' + (res.reason || '');
-                go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Close';
-                return;
-            }
-            if (res.__status !== 200) {
-                msg.className = 's4-msg s4-msg-error';
-                msg.textContent = 'Server error (HTTP ' + res.__status + '): ' + (res.error || res.reason || 'unknown');
-                go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Close';
-                return;
-            }
+        function fail(html) {
+            msg.className = 's4-msg s4-msg-error'; msg.innerHTML = html;
+            go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Close';
+        }
+
+        var prep = Promise.resolve(specs);
+        if (withImages) {
+            go.textContent = 'Uploading…';
+            msg.className = 's4-msg s4-msg-info'; msg.textContent = 'Uploading product images…';
+            prep = self._attachImages(specs, function (done, total) { msg.textContent = 'Uploading images… ' + done + ' / ' + total; });
+        }
+
+        prep.then(function (readySpecs) {
+            go.textContent = 'Creating…';
+            msg.className = 's4-msg s4-msg-info'; msg.textContent = 'Creating ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' in Shopify…';
+            return CatalogClient.createProducts(readySpecs);
+        }).then(function (res) {
+            if (res.__status === 501) { fail('Writes are turned off on the server (read-only mode). ' + escapeHtmlEnrich(res.reason || '')); return; }
+            if (res.__status !== 200) { fail('Server error (HTTP ' + res.__status + '): ' + escapeHtmlEnrich(res.error || res.reason || 'unknown')); return; }
             var results = res.results || [];
             var okCount = res.created != null ? res.created : results.filter(function (r) { return r.ok; }).length;
             var failed = results.filter(function (r) { return !r.ok; });
             if (failed.length === 0) {
                 msg.className = 's4-msg s4-msg-ok';
-                msg.innerHTML = '✓ Created <strong>' + okCount + '</strong> draft product' + (okCount !== 1 ? 's' : '') + ' in Shopify. Review and publish them in Shopify admin.';
+                msg.innerHTML = '✓ Created <strong>' + okCount + '</strong> draft product' + (okCount !== 1 ? 's' : '') + (withImages ? ' with photos' : '') + '. Review and publish them in Shopify admin.';
             } else {
                 msg.className = 's4-msg s4-msg-warn';
                 msg.innerHTML = 'Created <strong>' + okCount + '</strong>, <strong>' + failed.length + '</strong> failed:<br>'
                     + failed.slice(0, 8).map(function (r) { return '• ' + escapeHtmlEnrich(r.title || r.handle) + ': ' + escapeHtmlEnrich((r.userErrors && r.userErrors[0] && r.userErrors[0].message) || 'error'); }).join('<br>');
             }
             go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Done';
-            if (typeof showToast === 'function' && okCount > 0) showToast(okCount + ' draft product' + (okCount !== 1 ? 's' : '') + ' created in Shopify');
-        }).catch(function (e) {
-            msg.className = 's4-msg s4-msg-error';
-            msg.textContent = 'Request failed: ' + (e && e.message ? e.message : e);
-            go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Close';
-        });
+            if (typeof showToast === 'function' && okCount > 0) showToast(okCount + ' draft product' + (okCount !== 1 ? 's' : '') + ' created');
+        }).catch(function (e) { fail('Request failed: ' + escapeHtmlEnrich((e && e.message) || e)); });
     },
 
     // ========== APPLY ENRICHMENT TO CSV ==========
@@ -877,38 +1011,83 @@ function escapeHtmlEnrich(s) {
         .enrich-btn-confirm { background: #008060; color: #fff; }
         .enrich-btn-confirm:hover { background: #006e52; }
 
-        /* Stage 4: create-in-Shopify confirm dialog (light card, high contrast) */
+        /* Stage 4: create-in-Shopify dialog — dark, matches the app theme */
         #s4-confirm-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,.6);
-            display: flex; align-items: center; justify-content: center; z-index: 10001; padding: 20px;
+            position: fixed; inset: 0; z-index: 10001; padding: 24px 16px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(3,5,10,.66); backdrop-filter: blur(3px);
+            --s4-text: #e9f1fb; --s4-muted: #9fb2cc; --s4-muted2: #7d92b1;
+            --s4-surface: rgba(17,24,38,.92); --s4-surface2: rgba(10,15,26,.94); --s4-raise: rgba(28,38,58,.6);
+            --s4-line: rgba(94,234,212,.14); --s4-line2: rgba(56,189,248,.30);
+            --s4-accent: #34e0ff; --s4-accent2: #7c8bff; --s4-ok: #3ce6b0; --s4-warn: #ffc04d; --s4-bad: #ff6b8b;
         }
         .s4-modal {
-            background: #fff; color: #18181b; border-radius: 14px; width: 100%; max-width: 460px;
-            padding: 22px 22px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.35); font-family: inherit;
+            width: 100%; max-width: 580px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+            color: var(--s4-text); font-family: inherit;
+            background: var(--s4-surface); backdrop-filter: blur(18px) saturate(1.2);
+            border: 1px solid var(--s4-line2); border-radius: 4px;
+            box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
         }
-        .s4-head { font-size: 18px; font-weight: 800; color: #18181b; display: flex; align-items: center; gap: 8px; }
-        .s4-warn { color: #b45309; font-size: 20px; }
-        .s4-note { font-size: 13px; color: #3f3f46; line-height: 1.5; margin: 10px 0 14px; }
-        .s4-note strong { color: #18181b; }
-        .s4-list { max-height: 240px; overflow-y: auto; border: 1px solid #e4e4e7; border-radius: 8px; }
-        .s4-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; border-bottom: 1px solid #f0f0f2; }
-        .s4-row:last-child { border-bottom: none; }
-        .s4-row-name { font-size: 13px; font-weight: 600; color: #27272a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .s4-row-meta { font-size: 12px; color: #52525b; flex-shrink: 0; }
-        .s4-total { font-size: 12px; font-weight: 700; color: #3f3f46; text-align: center; margin: 10px 0 2px; text-transform: uppercase; letter-spacing: .3px; }
-        .s4-msg { font-size: 13px; line-height: 1.5; margin: 10px 0 0; padding: 0 2px; }
+        .s4-head { padding: 20px 22px 16px; border-bottom: 1px solid var(--s4-line); display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+        .s4-eyebrow { font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--s4-accent); font-weight: 700; }
+        .s4-title { margin: 6px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -.3px; line-height: 1.15; }
+        .s4-sub { margin-top: 5px; font-size: 13px; color: var(--s4-muted); }
+        .s4-sub strong { color: var(--s4-text); }
+        .s4-x { flex: none; width: 32px; height: 32px; border-radius: 3px; border: 1px solid var(--s4-line2); background: var(--s4-raise); color: var(--s4-muted); font-size: 18px; line-height: 1; cursor: pointer; }
+        .s4-x:hover { color: var(--s4-text); border-color: var(--s4-accent); }
+        .s4-toggle-bar { margin: 16px 22px 0; padding: 13px 16px; border: 1px solid var(--s4-line2); border-radius: 4px;
+            background: linear-gradient(180deg, rgba(52,224,255,.06), rgba(124,139,255,.04)); display: flex; align-items: center; gap: 13px; }
+        .s4-toggle-ico { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 3px; background: var(--s4-raise); border: 1px solid var(--s4-line2); font-size: 16px; }
+        .s4-toggle-txt { flex: 1; min-width: 0; }
+        .s4-toggle-txt .s4-t { font-size: 14px; font-weight: 700; }
+        .s4-toggle-txt .s4-h { font-size: 12px; color: var(--s4-muted); margin-top: 2px; }
+        .s4-toggle-txt .s4-h b { color: var(--s4-ok); font-variant-numeric: tabular-nums; }
+        .s4-folder-btn { flex: none; font-size: 12px; font-weight: 700; color: var(--s4-accent); background: var(--s4-raise); border: 1px solid var(--s4-line2); border-radius: 3px; padding: 7px 12px; cursor: pointer; font-family: inherit; }
+        .s4-folder-btn:hover { border-color: var(--s4-accent); }
+        .s4-switch { flex: none; position: relative; width: 50px; height: 28px; }
+        .s4-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+        .s4-switch input:disabled { cursor: not-allowed; }
+        .s4-track { position: absolute; inset: 0; border-radius: 999px; background: #1a2436; border: 1px solid var(--s4-line2); transition: background .18s, border-color .18s; }
+        .s4-knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #6b7d99; transition: transform .18s, background .18s; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+        .s4-switch input:checked + .s4-track { background: linear-gradient(92deg, var(--s4-accent), var(--s4-accent2)); border-color: transparent; }
+        .s4-switch input:checked + .s4-track + .s4-knob { transform: translateX(22px); background: #fff; }
+        .s4-switch input:disabled + .s4-track { opacity: .5; }
+        .s4-switch input:focus-visible + .s4-track { box-shadow: 0 0 0 3px rgba(52,224,255,.35); }
+        .s4-list-label { display: flex; justify-content: space-between; padding: 18px 22px 8px; }
+        .s4-list-label span { font-size: 11px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--s4-muted2); font-weight: 700; }
+        .s4-list { overflow-y: auto; padding: 0 22px; display: flex; flex-direction: column; gap: 8px; }
+        .s4-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--s4-line); border-radius: 4px; background: var(--s4-surface2); }
+        .s4-thumb { width: 44px; height: 44px; flex: none; border-radius: 3px; overflow: hidden; background: #0c1220; border: 1px solid var(--s4-line2); position: relative; }
+        .s4-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .s4-thumb .s4-cnt { position: absolute; bottom: 2px; right: 2px; font-size: 9px; font-weight: 700; background: rgba(5,7,13,.8); color: var(--s4-accent); padding: 1px 4px; border-radius: 2px; }
+        .s4-item-main { flex: 1; min-width: 0; }
+        .s4-item-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .s4-item-meta { margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .s4-chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 2px; }
+        .s4-chip-draft { color: var(--s4-warn); background: rgba(255,192,77,.10); border: 1px solid rgba(255,192,77,.28); }
+        .s4-chip-cw { color: var(--s4-accent); background: rgba(52,224,255,.08); border: 1px solid rgba(52,224,255,.22); font-family: ui-monospace, monospace; }
+        .s4-chip-plain { color: var(--s4-muted); background: var(--s4-raise); border: 1px solid var(--s4-line); }
+        .s4-item-price { flex: none; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+        .s4-item-price small { display: block; font-size: 10px; font-weight: 600; color: var(--s4-muted2); }
+        .s4-summary { margin: 14px 22px 0; padding: 11px 16px; border-radius: 4px; background: var(--s4-surface2); border: 1px solid var(--s4-line); display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--s4-muted); }
+        .s4-summary b { color: var(--s4-text); font-variant-numeric: tabular-nums; }
+        .s4-summary .s4-dot { color: var(--s4-muted2); }
+        .s4-summary .s4-imgpart { color: var(--s4-ok); }
+        .s4-msg { font-size: 13px; line-height: 1.5; margin: 12px 22px 0; }
         .s4-msg:empty { margin: 0; }
-        .s4-msg-info { color: #3f3f46; }
-        .s4-msg-ok { color: #026e4e; }
-        .s4-msg-warn { color: #9a3412; }
-        .s4-msg-error { color: #b91c1c; }
-        .s4-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
-        .s4-btn { padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; }
+        .s4-msg-info { color: var(--s4-muted); } .s4-msg-ok { color: var(--s4-ok); }
+        .s4-msg-warn { color: var(--s4-warn); } .s4-msg-error { color: var(--s4-bad); }
+        .s4-foot { padding: 16px 22px 20px; display: flex; align-items: center; gap: 12px; }
+        .s4-safe { flex: 1; font-size: 12px; color: var(--s4-muted); line-height: 1.4; }
+        .s4-safe strong { color: var(--s4-text); }
+        .s4-btn { border: 0; border-radius: 3px; font-family: inherit; font-weight: 700; cursor: pointer; transition: filter .18s, background .18s; }
         .s4-btn:disabled { opacity: .55; cursor: default; }
-        .s4-btn-cancel { background: #e4e4e7; color: #27272a; }
-        .s4-btn-cancel:hover:not(:disabled) { background: #d4d4d8; }
-        .s4-btn-go { background: #008060; color: #fff; }
-        .s4-btn-go:hover:not(:disabled) { background: #006e52; }
+        .s4-btn-ghost { padding: 11px 16px; font-size: 14px; background: transparent; color: var(--s4-muted); border: 1px solid var(--s4-line2); }
+        .s4-btn-ghost:hover:not(:disabled) { color: var(--s4-text); border-color: var(--s4-accent); }
+        .s4-btn-go { padding: 11px 20px; font-size: 14px; color: #04121a; white-space: nowrap; background: linear-gradient(92deg, var(--s4-accent), var(--s4-accent2)); box-shadow: 0 0 22px rgba(52,224,255,.28); }
+        .s4-btn-go:hover:not(:disabled) { filter: brightness(1.08); }
+        .s4-btn-go:focus-visible, .s4-btn-ghost:focus-visible, .s4-x:focus-visible { outline: 2px solid var(--s4-accent); outline-offset: 2px; }
+        @media (max-width: 520px) { .s4-foot { flex-wrap: wrap; } .s4-safe { flex-basis: 100%; order: -1; } .s4-btn-ghost, .s4-btn-go { flex: 1; } }
     `;
     document.head.appendChild(style);
 })();
