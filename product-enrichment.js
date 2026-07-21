@@ -226,6 +226,17 @@ var ProductEnrichment = {
             });
         }
 
+        // Autofill MSRP from the bundled barcode files (per colorway style/code),
+        // for brand-new models with no live sibling price to inherit.
+        var handleSku = {};
+        (converter.productVariantData || []).forEach(function (e) {
+            var v = e[1]; if (v.handle && !handleSku[v.handle]) handleSku[v.handle] = v.sku || '';
+        });
+        models.forEach(function (m) {
+            var c0 = m.colorways && m.colorways[0];
+            if (c0) m.barcodePrice = self._barcodePriceFor(brand, handleSku[c0.handle] || '');
+        });
+
         // Build modal HTML
         var overlay = document.createElement('div');
         overlay.id = 'enrichment-overlay';
@@ -285,9 +296,9 @@ var ProductEnrichment = {
 
         var modelCards = models.map(function(m) {
             var saved = savedDefaults[m.modelKey] || {};
-            // Price defaults to the live sibling's price when carried (colorways
-            // share MSRP), then a saved default, then the brand default.
-            var price = saved.price || (m.inherit && m.inherit.price) || defaultPrice;
+            // Price: saved edit, then the live sibling's price (carried models),
+            // then the barcode-file MSRP (new models), then the brand default.
+            var price = saved.price || (m.inherit && m.inherit.price) || m.barcodePrice || defaultPrice;
             var rawDesc = saved.description || '';
             // Strip outer <p> tags for display — user sees plain text, we re-wrap on save
             var desc = rawDesc.replace(/^<p>([\s\S]*)<\/p>$/i, '$1').trim();
@@ -581,6 +592,15 @@ var ProductEnrichment = {
         if (!re) return '';
         var m = re.exec(String(str || '').toUpperCase());
         return m ? m[0] : '';
+    },
+
+    // MSRP for a colorway from the bundled barcode files, keyed by the same
+    // colorway code the images/barcodes use. '' if none.
+    _barcodePriceFor: function (brand, sku) {
+        var prices = (typeof BarcodeData !== 'undefined' && BarcodeData.prices && BarcodeData.prices[brand]) || null;
+        if (!prices || !sku) return '';
+        var key = this._imageKeyIn(brand, sku);
+        return key ? (prices[key] || '') : '';
     },
 
     // Index a selected image folder for `brand`. Each image is keyed by the
