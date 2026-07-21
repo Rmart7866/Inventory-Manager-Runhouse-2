@@ -62,6 +62,9 @@ var BrandPicker = {
             var colorCount = product.colorways ? product.colorways.length : 0;
             var rows = product.rowCount || product.rows || 0;
             var inventory = product.totalInventory || product.inventory || 0;
+            // Only flag NEW if it has buyable stock. A model the supplier lists at
+            // 0 on hand is not worth creating, so it should not read as new.
+            if (inventory <= 0) isNew = false;
 
             html += '<label class="bp-item' + (isNew ? ' bp-item-new' : '') + '">';
             html += '<input type="checkbox" class="' + cbClass + '" data-model="' + product.name.replace(/"/g, '&quot;') + '" data-model-base="' + (product.model || product.name).replace(/"/g, '&quot;') + '" data-rows="' + rows + '" ' + (isChecked ? 'checked' : '') + '>';
@@ -236,7 +239,8 @@ var BrandPicker = {
         html += '<div class="bp-stat"><span class="bp-stat-num">' + (summary.matchingColorways || 0) + '</span><span class="bp-stat-lbl">Matched</span></div>';
         if (comparison.newProducts && comparison.newProducts.length > 0) html += '<div class="bp-stat bp-stat-warn"><span class="bp-stat-num">+' + comparison.newProducts.length + '</span><span class="bp-stat-lbl">New Products</span></div>';
         if (comparison.newColorways && comparison.newColorways.length > 0) html += '<div class="bp-stat bp-stat-green"><span class="bp-stat-num">+' + comparison.newColorways.length + '</span><span class="bp-stat-lbl">New Colors</span></div>';
-        if (comparison.removedColorways && comparison.removedColorways.length > 0) html += '<div class="bp-stat bp-stat-red"><span class="bp-stat-num">-' + comparison.removedColorways.length + '</span><span class="bp-stat-lbl">Removed</span></div>';
+        var removedCount = (comparison.removedColorways || []).length;
+        html += '<div class="bp-stat ' + (removedCount > 0 ? 'bp-stat-red' : 'bp-stat-green') + '"><span class="bp-stat-num">' + (removedCount > 0 ? '-' + removedCount : '0') + '</span><span class="bp-stat-lbl">Set to 0</span></div>';
         html += '</div>';
 
         if (comparison.newProducts && comparison.newProducts.length > 0) {
@@ -273,6 +277,15 @@ var BrandPicker = {
                 html += '<div class="bp-row"><span class="bp-tag bp-tag-red">SET 0</span><span class="bp-row-name">' + (r.title || r.handle) + '</span><span class="bp-row-detail">' + oh + '</span></div>';
             });
             html += '</div></div>';
+        } else {
+            // Explicit reassurance: the zero-out check DID run, it just found
+            // nothing to zero. Without this the section vanished entirely and it
+            // looked like the check never happened.
+            var brandName0 = brand.charAt(0).toUpperCase() + brand.slice(1);
+            html += '<div class="bp-section bp-section-green">';
+            html += '<div class="bp-section-head"><span>Set to 0 (0) — nothing to zero out</span></div>';
+            html += '<div class="bp-section-body" style="display:block;"><div class="bp-explain">Every live ' + brandName0 + ' colorway stocked at Needham is still present in the file you uploaded, so <strong>no products were set to 0</strong>. (Colorways already at 0 on hand are skipped as no-ops.)</div></div>';
+            html += '</div>';
         }
 
         html += '</div>';
