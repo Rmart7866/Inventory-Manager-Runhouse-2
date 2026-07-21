@@ -42,7 +42,8 @@ var AsicsConverter = {
     loadUPCs: function(fileList) {
         var self = this;
         var files = Array.prototype.slice.call((fileList && fileList.length !== undefined) ? fileList : [fileList]);
-        self.upcMap = self.upcMap || {};
+        // Start from the barcodes bundled with the app so an upload ADDS to them.
+        self.upcMap = self.upcMap || Object.assign({}, (typeof BarcodeData !== 'undefined' && BarcodeData.asics) || {});
         return Promise.all(files.map(function(f) {
             return f.text().then(function(text) {
                 var rows = Papa.parse(text, { header: false }).data;
@@ -72,10 +73,12 @@ var AsicsConverter = {
     // Barcode for a variant: the feed's own if present, else the merged UPC map.
     _barcodeFor: function(feedBarcode, styleColorSource, size) {
         if (feedBarcode) return feedBarcode;
-        if (!this.upcMap) return '';
+        // Uploaded map (which already includes the bundled one), else the bundle.
+        var map = this.upcMap || (typeof BarcodeData !== 'undefined' ? BarcodeData.asics : null);
+        if (!map) return '';
         var sc = this._asicsStyleColor(styleColorSource);
         if (!sc) return '';
-        return this.upcMap[sc + '|' + this._normUpcSize(size)] || '';
+        return map[sc + '|' + this._normUpcSize(size)] || '';
     },
 
     // ========== EXISTING SHOPIFY HANDLES (have Color as Option2) ==========

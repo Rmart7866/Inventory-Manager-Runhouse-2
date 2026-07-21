@@ -196,7 +196,8 @@ var OnConverter = {
             var wb = XLSX.read(buf);
             var ws = wb.Sheets[wb.SheetNames[0]];
             var rows = XLSX.utils.sheet_to_json(ws); // objects keyed by header row
-            var map = {};
+            // Start from the barcodes bundled with the app so an upload ADDS to them.
+            var map = Object.assign({}, (typeof BarcodeData !== 'undefined' && BarcodeData.on) || {});
             rows.forEach(function(r) {
                 var code = (r['Item Code'] || '').toString().trim().toUpperCase();
                 var ean = (r['EAN Barcode'] || '').toString().trim();
@@ -214,10 +215,11 @@ var OnConverter = {
     // Barcode for a variant: the feed's own if present, else the pricat lookup.
     _barcodeFor: function(feedBarcode, sku, size) {
         if (feedBarcode) return feedBarcode;
-        if (!this.upcMap) return '';
+        var map = this.upcMap || (typeof BarcodeData !== 'undefined' ? BarcodeData.on : null);
+        if (!map) return '';
         var code = this._onStyleCode(sku);
         if (!code) return '';
-        return this.upcMap[code + '|' + this._normUpcSize(size)] || '';
+        return map[code + '|' + this._normUpcSize(size)] || '';
     },
 
     // Get handle: check existing map first, generate unified handle if not found

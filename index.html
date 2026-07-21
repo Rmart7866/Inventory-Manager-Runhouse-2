@@ -767,9 +767,9 @@
                         <button class="clear-btn" onclick="clearFile('asics')">Clear</button>
                     </div>
                     <div class="dropzone" id="asics-upc-dropzone" style="margin-top:8px;">
-                        <h3>Drop ASICS Barcodes (optional)</h3>
-                        <p>EAN codes for new products</p>
-                        <div class="csv-note">0010029173_collection_*.csv — select ALL of them</div>
+                        <h3>ASICS Barcodes — built in ✓</h3>
+                        <p>Optional: add newer ones</p>
+                        <div class="csv-note">Drop more 0010029173_collection_*.csv to update</div>
                         <input type="file" class="file-input" id="asics-upc-file" accept=".csv" multiple>
                     </div>
                     <div class="uploaded" id="asics-upc-uploaded" style="display:none;">
@@ -865,9 +865,9 @@
                         <button class="clear-btn" onclick="clearOnFile('women')">Clear</button>
                     </div>
                     <div class="dropzone" id="on-upc-dropzone" style="margin-top:8px;">
-                        <h3>Drop ON Pricat (optional)</h3>
-                        <p>Barcodes for new products</p>
-                        <div class="csv-note">pricat-…-FW26.xlsx — fills in UPCs</div>
+                        <h3>ON Barcodes — built in ✓</h3>
+                        <p>Optional: add a newer pricat</p>
+                        <div class="csv-note">Drop a pricat-….xlsx to update</div>
                         <input type="file" class="file-input" id="on-upc-file" accept=".xlsx">
                     </div>
                     <div class="uploaded" id="on-upc-uploaded" style="display:none;">
@@ -995,6 +995,7 @@
         });
     </script>
 
+    <script src="barcode-data.js?v=1"></script>
     <script src="saucony-converter.js?v=2"></script>
     <script src="hoka-converter.js?v=4"></script>
     <script src="firebase-config.js"></script>
