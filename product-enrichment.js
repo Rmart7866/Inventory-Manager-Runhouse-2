@@ -238,6 +238,9 @@ var ProductEnrichment = {
         document.getElementById('enrich-confirm').onclick = async function() {
             await self._handleConfirm(brand, models, defaultPrice, overlay, onConfirm);
         };
+        document.getElementById('enrich-create').onclick = function() {
+            self.createInShopify();
+        };
         document.getElementById('enrich-brand-price').addEventListener('change', function() {
             var newPrice = this.value;
             // Update all model price fields that haven't been manually changed
@@ -342,7 +345,8 @@ var ProductEnrichment = {
             + '</div>'
             + '<div class="enrich-footer">'
             + '<button id="enrich-cancel" class="enrich-btn enrich-btn-cancel">Cancel</button>'
-            + '<button id="enrich-confirm" class="enrich-btn enrich-btn-confirm">Generate CSV →</button>'
+            + '<button id="enrich-confirm" class="enrich-btn enrich-btn-secondary">⬇ Download CSV</button>'
+            + '<button id="enrich-create" class="enrich-btn enrich-btn-confirm">Create in Shopify →</button>'
             + '</div>'
             + '</div>';
     },
@@ -456,6 +460,148 @@ var ProductEnrichment = {
             if (handleSet[handle]) out.push(lines[i]);
         }
         return out.join('\n');
+    },
+
+    // ===================== STAGE 4: CREATE IN SHOPIFY =====================
+
+    // Turn the current review into productSet specs. Reuses the enriched CSV (so
+    // tags/type/description/price inheritance is identical to what a download
+    // would produce), then layers on the custom.* metafields a CSV cannot carry
+    // (color_name, width_class, gender), sourced from the converter's per-handle
+    // data. Products are Size-only, matching the tool's existing new-product CSV;
+    // width lives in the cw-group tag + width_class metafield.
+    buildCreateSpecs: function (brand, converter, comparison, enrichmentMap) {
+        var full = converter.generateNewProductCSV(comparison);
+        if (!full) return [];
+        var enriched = this.applyToCSV(full, brand, converter, enrichmentMap);
+        var rows = parseCSVRecordsEnrich(enriched);
+        if (rows.length < 2) return [];
+        var H = rows[0], ix = {};
+        ['Title', 'URL handle', 'Description', 'Vendor', 'Type', 'Tags', 'Price', 'SKU', 'Barcode', 'Option1 value'].forEach(function (n) { ix[n] = H.indexOf(n); });
+
+        var info = {};
+        (converter.productVariantData || []).forEach(function (e) {
+            var v = e[1];
+            if (v.handle && !info[v.handle]) info[v.handle] = { color: v.color || v.colorway || '', width: v.width || '', gender: v.gender || '' };
+        });
+        var normW = (typeof CatalogClient !== 'undefined' && CatalogClient._normWidth) ? CatalogClient._normWidth.bind(CatalogClient) : function () { return ''; };
+        var normG = function (g) { g = String(g || '').toLowerCase(); return /wom/.test(g) ? "Women's" : /men/.test(g) ? "Men's" : /uni/.test(g) ? 'Unisex' : ''; };
+        var get = function (r, name) { return (ix[name] >= 0 ? (r[ix[name]] || '') : '').replace(/^"|"$/g, ''); };
+
+        var byHandle = {}, order = [];
+        for (var i = 1; i < rows.length; i++) {
+            var h = get(rows[i], 'URL handle').trim();
+            if (!h) continue;
+            if (!byHandle[h]) { byHandle[h] = []; order.push(h); }
+            byHandle[h].push(rows[i]);
+        }
+        return order.map(function (h) {
+            var rs = byHandle[h], first = rs[0], meta = info[h] || {};
+            var variants = rs.map(function (r) {
+                return { size: get(r, 'Option1 value').trim(), sku: get(r, 'SKU').trim(), barcode: get(r, 'Barcode').trim(), price: get(r, 'Price').trim() };
+            }).filter(function (v) { return v.size; });
+            var mf = [];
+            if (meta.color) mf.push({ namespace: 'custom', key: 'color_name', type: 'single_line_text_field', value: meta.color });
+            var wc = normW(meta.width); if (wc) mf.push({ namespace: 'custom', key: 'width_class', type: 'single_line_text_field', value: wc });
+            var gg = normG(meta.gender); if (gg) mf.push({ namespace: 'custom', key: 'gender', type: 'single_line_text_field', value: gg });
+            return {
+                title: get(first, 'Title').trim(),
+                handle: h,
+                vendor: get(first, 'Vendor').trim(),
+                productType: get(first, 'Type').trim(),
+                descriptionHtml: get(first, 'Description'),
+                tags: get(first, 'Tags').split(',').map(function (t) { return t.trim(); }).filter(Boolean),
+                variants: variants,
+                metafields: mf
+            };
+        }).filter(function (s) { return s.title && s.variants.length; });
+    },
+
+    // Entry point from the "Create in Shopify" button. Collects the current field
+    // values, builds specs, and opens the confirm dialog.
+    createInShopify: function () {
+        var ctx = this._active;
+        if (!ctx) { alert('Open the new-products review first.'); return; }
+        var bp = document.getElementById('enrich-brand-price');
+        var fallback = bp ? bp.value.trim() : '';
+        var map = {};
+        var self = this;
+        ctx.models.forEach(function (m) { map[m.modelKey] = self._readModelEnrichment(m.modelKey, fallback); });
+        var specs = this.buildCreateSpecs(ctx.brand, ctx.converter, ctx.comparison, map);
+        if (!specs.length) { alert('Nothing to create.'); return; }
+        this.showCreateConfirm(ctx.brand, specs);
+    },
+
+    // The "are you sure" gate: a clear summary of exactly what will be created,
+    // as drafts, with Cancel / Create. No write fires until Create is clicked.
+    showCreateConfirm: function (brand, specs) {
+        var self = this;
+        var totalVariants = specs.reduce(function (t, s) { return t + s.variants.length; }, 0);
+        var rows = specs.map(function (s) {
+            return '<div class="s4-row"><span class="s4-row-name">' + escapeHtmlEnrich(s.title) + '</span>'
+                + '<span class="s4-row-meta">' + s.variants.length + ' variant' + (s.variants.length !== 1 ? 's' : '') + '</span></div>';
+        }).join('');
+
+        var overlay = document.createElement('div');
+        overlay.id = 's4-confirm-overlay';
+        overlay.innerHTML =
+            '<div class="s4-modal" role="dialog" aria-modal="true">'
+            + '<div class="s4-head"><span class="s4-warn">⚠</span> Create ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' in Shopify?</div>'
+            + '<div class="s4-note">They will be created as <strong>Drafts</strong> — nothing goes live on your store until you publish them in Shopify.</div>'
+            + '<div class="s4-list">' + rows + '</div>'
+            + '<div class="s4-total">' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' · ' + totalVariants + ' variant' + (totalVariants !== 1 ? 's' : '') + ' · all Draft</div>'
+            + '<div class="s4-msg" id="s4-msg"></div>'
+            + '<div class="s4-foot">'
+            + '<button class="s4-btn s4-btn-cancel" id="s4-cancel">Cancel</button>'
+            + '<button class="s4-btn s4-btn-go" id="s4-go">Create ' + specs.length + ' →</button>'
+            + '</div></div>';
+        document.body.appendChild(overlay);
+
+        document.getElementById('s4-cancel').onclick = function () { overlay.remove(); };
+        document.getElementById('s4-go').onclick = function () { self._doCreate(brand, specs, overlay); };
+    },
+
+    // Fire the write, then report per-product results in the same dialog.
+    _doCreate: function (brand, specs, overlay) {
+        var go = document.getElementById('s4-go');
+        var cancel = document.getElementById('s4-cancel');
+        var msg = document.getElementById('s4-msg');
+        go.disabled = true; cancel.disabled = true;
+        go.textContent = 'Creating…';
+        msg.className = 's4-msg s4-msg-info';
+        msg.textContent = 'Sending ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' to Shopify…';
+
+        CatalogClient.createProducts(specs).then(function (res) {
+            if (res.__status === 501) {
+                msg.className = 's4-msg s4-msg-error';
+                msg.textContent = 'Writes are turned off on the server (read-only mode). ' + (res.reason || '');
+                go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Close';
+                return;
+            }
+            if (res.__status !== 200) {
+                msg.className = 's4-msg s4-msg-error';
+                msg.textContent = 'Server error (HTTP ' + res.__status + '): ' + (res.error || res.reason || 'unknown');
+                go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Close';
+                return;
+            }
+            var results = res.results || [];
+            var okCount = res.created != null ? res.created : results.filter(function (r) { return r.ok; }).length;
+            var failed = results.filter(function (r) { return !r.ok; });
+            if (failed.length === 0) {
+                msg.className = 's4-msg s4-msg-ok';
+                msg.innerHTML = '✓ Created <strong>' + okCount + '</strong> draft product' + (okCount !== 1 ? 's' : '') + ' in Shopify. Review and publish them in Shopify admin.';
+            } else {
+                msg.className = 's4-msg s4-msg-warn';
+                msg.innerHTML = 'Created <strong>' + okCount + '</strong>, <strong>' + failed.length + '</strong> failed:<br>'
+                    + failed.slice(0, 8).map(function (r) { return '• ' + escapeHtmlEnrich(r.title || r.handle) + ': ' + escapeHtmlEnrich((r.userErrors && r.userErrors[0] && r.userErrors[0].message) || 'error'); }).join('<br>');
+            }
+            go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Done';
+            if (typeof showToast === 'function' && okCount > 0) showToast(okCount + ' draft product' + (okCount !== 1 ? 's' : '') + ' created in Shopify');
+        }).catch(function (e) {
+            msg.className = 's4-msg s4-msg-error';
+            msg.textContent = 'Request failed: ' + (e && e.message ? e.message : e);
+            go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Close';
+        });
     },
 
     // ========== APPLY ENRICHMENT TO CSV ==========
@@ -597,6 +743,30 @@ function parseCSVLineEnrich(line) {
     return cols;
 }
 
+// Record-aware CSV parse: splits into rows honoring quotes, so a quoted field
+// with embedded newlines (an inherited description) stays one field on one row.
+// Returns an array of field-arrays.
+function parseCSVRecordsEnrich(csv) {
+    var rows = [], row = [], cur = '', q = false;
+    for (var i = 0; i < csv.length; i++) {
+        var ch = csv[i];
+        if (q) {
+            if (ch === '"') { if (csv[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+            else cur += ch;
+        } else if (ch === '"') { q = true; }
+        else if (ch === ',') { row.push(cur); cur = ''; }
+        else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+        else if (ch === '\r') { /* skip */ }
+        else cur += ch;
+    }
+    if (cur.length || row.length) { row.push(cur); rows.push(row); }
+    return rows;
+}
+
+function escapeHtmlEnrich(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // ========== CSS ==========
 (function() {
     var style = document.createElement('style');
@@ -618,9 +788,9 @@ function parseCSVLineEnrich(line) {
             flex-shrink: 0;
         }
         .enrich-header-title { font-size: 18px; font-weight: 800; }
-        .enrich-header-sub { font-size: 13px; opacity: .8; margin-top: 2px; }
+        .enrich-header-sub { font-size: 13px; opacity: .92; margin-top: 2px; }
         .enrich-brand-price-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-        .enrich-brand-price-wrap label { font-size: 11px; font-weight: 600; opacity: .85; }
+        .enrich-brand-price-wrap label { font-size: 11px; font-weight: 600; opacity: .95; }
 
         .enrich-body { overflow-y: auto; padding: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
         .enrich-body::-webkit-scrollbar { width: 5px; }
@@ -634,7 +804,7 @@ function parseCSVLineEnrich(line) {
             display: flex; align-items: center; justify-content: space-between;
         }
         .enrich-card-title { font-size: 15px; font-weight: 700; }
-        .enrich-cw-count { font-size: 12px; font-weight: 500; color: #71717a; margin-left: 6px; }
+        .enrich-cw-count { font-size: 12px; font-weight: 500; color: #3f3f46; margin-left: 6px; }
         .enrich-toggle {
             background: none; border: 1px solid #d4d4d8; border-radius: 5px;
             padding: 3px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
@@ -649,22 +819,22 @@ function parseCSVLineEnrich(line) {
         }
         .enrich-cw-row:last-child { border-bottom: none; }
         .enrich-cw-title { color: #3f3f46; }
-        .enrich-cw-meta { color: #a1a1aa; font-size: 11px; }
+        .enrich-cw-meta { color: #52525b; font-size: 11px; }
 
         .enrich-fields { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
         .enrich-row2 { display: flex; gap: 10px; align-items: flex-start; }
         .enrich-field2 { display: flex; flex-direction: column; gap: 4px; }
-        .enrich-field2 label { font-size: 10px; font-weight: 700; color: #71717a; text-transform: uppercase; letter-spacing: .4px; }
+        .enrich-field2 label { font-size: 10px; font-weight: 700; color: #3f3f46; text-transform: uppercase; letter-spacing: .4px; }
         .enrich-field2-wide { flex: 1; }
         .enrich-price-wrap2 { position: relative; width: 100px; }
-        .enrich-dollar { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #71717a; font-weight: 600; pointer-events: none; }
+        .enrich-dollar { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #3f3f46; font-weight: 600; pointer-events: none; }
         .enrich-price-wrap2 .enrich-price { padding-left: 20px; width: 100px; }
         .enrich-advanced-toggle { font-size: 11px; font-weight: 600; color: #2563eb; cursor: pointer; padding: 2px 0 4px; display: inline-block; user-select: none; }
         .enrich-advanced-toggle:hover { text-decoration: underline; }
         .enrich-advanced { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid #e4e4e7; margin-top: 6px; }
         .enrich-field-row { display: flex; align-items: flex-start; gap: 10px; }
         .enrich-field-row label {
-            font-size: 10px; font-weight: 700; color: #71717a; text-transform: uppercase;
+            font-size: 10px; font-weight: 700; color: #3f3f46; text-transform: uppercase;
             letter-spacing: .4px; padding-top: 8px; width: 80px; flex-shrink: 0;
         }
         .enrich-input {
@@ -691,10 +861,45 @@ function parseCSVLineEnrich(line) {
             cursor: pointer; font-family: inherit; border: none; transition: opacity .15s;
         }
         .enrich-btn:disabled { opacity: .5; cursor: not-allowed; }
-        .enrich-btn-cancel { background: #f4f4f5; color: #52525b; }
-        .enrich-btn-cancel:hover { background: #e4e4e7; }
-        .enrich-btn-confirm { background: #18181b; color: #fff; }
-        .enrich-btn-confirm:hover { opacity: .85; }
+        .enrich-btn-cancel { background: #e4e4e7; color: #27272a; }
+        .enrich-btn-cancel:hover { background: #d4d4d8; }
+        .enrich-btn-secondary { background: #fff; color: #18181b; border: 1px solid #c4c4cc; }
+        .enrich-btn-secondary:hover { background: #f4f4f5; }
+        .enrich-btn-confirm { background: #008060; color: #fff; }
+        .enrich-btn-confirm:hover { background: #006e52; }
+
+        /* Stage 4: create-in-Shopify confirm dialog (light card, high contrast) */
+        #s4-confirm-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,.6);
+            display: flex; align-items: center; justify-content: center; z-index: 10001; padding: 20px;
+        }
+        .s4-modal {
+            background: #fff; color: #18181b; border-radius: 14px; width: 100%; max-width: 460px;
+            padding: 22px 22px 18px; box-shadow: 0 24px 60px rgba(0,0,0,.35); font-family: inherit;
+        }
+        .s4-head { font-size: 18px; font-weight: 800; color: #18181b; display: flex; align-items: center; gap: 8px; }
+        .s4-warn { color: #b45309; font-size: 20px; }
+        .s4-note { font-size: 13px; color: #3f3f46; line-height: 1.5; margin: 10px 0 14px; }
+        .s4-note strong { color: #18181b; }
+        .s4-list { max-height: 240px; overflow-y: auto; border: 1px solid #e4e4e7; border-radius: 8px; }
+        .s4-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 12px; border-bottom: 1px solid #f0f0f2; }
+        .s4-row:last-child { border-bottom: none; }
+        .s4-row-name { font-size: 13px; font-weight: 600; color: #27272a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .s4-row-meta { font-size: 12px; color: #52525b; flex-shrink: 0; }
+        .s4-total { font-size: 12px; font-weight: 700; color: #3f3f46; text-align: center; margin: 10px 0 2px; text-transform: uppercase; letter-spacing: .3px; }
+        .s4-msg { font-size: 13px; line-height: 1.5; margin: 10px 0 0; padding: 0 2px; }
+        .s4-msg:empty { margin: 0; }
+        .s4-msg-info { color: #3f3f46; }
+        .s4-msg-ok { color: #026e4e; }
+        .s4-msg-warn { color: #9a3412; }
+        .s4-msg-error { color: #b91c1c; }
+        .s4-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+        .s4-btn { padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; }
+        .s4-btn:disabled { opacity: .55; cursor: default; }
+        .s4-btn-cancel { background: #e4e4e7; color: #27272a; }
+        .s4-btn-cancel:hover:not(:disabled) { background: #d4d4d8; }
+        .s4-btn-go { background: #008060; color: #fff; }
+        .s4-btn-go:hover:not(:disabled) { background: #006e52; }
     `;
     document.head.appendChild(style);
 })();

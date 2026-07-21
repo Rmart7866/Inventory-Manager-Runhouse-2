@@ -27,6 +27,7 @@
 
 import { createShopifyClient } from './shopify.js';
 import { buildCatalog } from './catalog.js';
+import { createProducts } from './products.js';
 import { requireAuth, requireAdmin, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -170,6 +171,25 @@ async function handleCatalog(request, env, ctx) {
   );
 }
 
+// POST /products, Stage 4 write. Only reachable once the write gate is open
+// (auth.js throws in bearer mode before this runs). Body: { products: [spec,...] }.
+// Every product is created as DRAFT by products.js. Returns a per-product result.
+async function handleCreateProducts(request, env) {
+  let body;
+  try { body = await request.json(); } catch (e) { body = null; }
+  if (!body || !Array.isArray(body.products)) {
+    return json({ error: 'Expected JSON body { products: [ ... ] }' }, 400, request, env);
+  }
+  if (body.products.length === 0) return json({ error: 'No products to create' }, 400, request, env);
+  if (body.products.length > 50) {
+    return json({ error: 'Too many products in one request (max 50)' }, 400, request, env);
+  }
+  const client = createShopifyClient(env);
+  const results = await createProducts(client, body.products);
+  const created = results.filter((r) => r.ok).length;
+  return json({ created, total: results.length, results }, 200, request, env);
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -191,8 +211,11 @@ export default {
     // pass forWrite: true, and auth.js will refuse to serve it until AUTH_MODE
     // is "access". That refusal is the point, do not route around it.
     const routes = {
-      '/catalog': { handler: handleCatalog, forWrite: false },
-      '/catalog/status': { handler: handleStatus, forWrite: false },
+      '/catalog': { handler: handleCatalog, forWrite: false, methods: ['GET'] },
+      '/catalog/status': { handler: handleStatus, forWrite: false, methods: ['GET'] },
+      // Stage 4 WRITE. forWrite:true, so auth.js refuses it in bearer mode (501).
+      // Inert in production until AUTH_MODE becomes a real identity/secret gate.
+      '/products': { handler: handleCreateProducts, forWrite: true, methods: ['POST'] },
     };
     const route = routes[url.pathname];
     if (!route) return json({ error: 'Not found' }, 404, request, env);
@@ -212,8 +235,8 @@ export default {
       return json({ error: 'Unauthorized', reason: auth.reason }, 401, request, env);
     }
 
-    if (request.method !== 'GET') {
-      return json({ error: 'Method not allowed' }, 405, request, env, { Allow: 'GET, OPTIONS' });
+    if (route.methods && route.methods.indexOf(request.method) === -1) {
+      return json({ error: 'Method not allowed' }, 405, request, env, { Allow: route.methods.concat('OPTIONS').join(', ') });
     }
 
     try {

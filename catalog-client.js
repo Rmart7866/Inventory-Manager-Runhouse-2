@@ -25,8 +25,11 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 var CatalogClient = {
-    WORKER_URL: 'https://runhouse-inventory-worker.ryan-486.workers.dev',
-    CATALOG_TOKEN: 'rh-cat-9b327c9736d5d17e2794c2c3df934b36', // public, see header
+    // Defaults point at production. A dev can redirect the tool at a local Worker
+    // by setting localStorage rhWorkerUrl / rhCatalogToken (e.g. for Stage 4 write
+    // testing on wrangler dev). Absent those keys, always production.
+    WORKER_URL: (function () { try { return localStorage.getItem('rhWorkerUrl') || 'https://runhouse-inventory-worker.ryan-486.workers.dev'; } catch (e) { return 'https://runhouse-inventory-worker.ryan-486.workers.dev'; } })(),
+    CATALOG_TOKEN: (function () { try { return localStorage.getItem('rhCatalogToken') || 'rh-cat-9b327c9736d5d17e2794c2c3df934b36'; } catch (e) { return 'rh-cat-9b327c9736d5d17e2794c2c3df934b36'; } })(), // public, see header
 
     // Tool brand key -> the brand key /catalog reports (from parsers.js brandFor).
     BRAND_MAP: {
@@ -218,6 +221,21 @@ var CatalogClient = {
             }
         }
         return { models: models, colorways: colorways, inherit: inherit };
+    },
+
+    // Stage 4 WRITE. POST a batch of product specs to the Worker, which creates
+    // them in Shopify as DRAFTS via productSet. Resolves to the Worker's JSON
+    // (with __status set to the HTTP code). In production this returns 501 until
+    // the write gate is opened; locally it works against wrangler dev.
+    createProducts: function (specs) {
+        return fetch(this.WORKER_URL + '/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.CATALOG_TOKEN },
+            body: JSON.stringify({ products: specs })
+        }).then(function (res) {
+            return res.json().then(function (body) { body.__status = res.status; return body; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
     },
 
     // Fetch + build for one brand. Returns Promise<{ models, colorways, inherit }>.
