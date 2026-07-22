@@ -57,6 +57,18 @@ var SauconyConverter = {
         'Endorphin Speed 5|White Gum|men': 'endorphin-speed-5-white-gum-men',
         'Endorphin Speed 5|White Gum|women': 'endorphin-speed-5-white-gum-women',
         'Endorphin Speed 5|White Mutant|women': 'endorphin-speed-5-white-mutant-women',
+        // These six live on Shopify under a "<gender>-saucony-<model>-<colour>"
+        // handle, which getProductHandle does not generate (it builds
+        // "saucony-<gender>s-..."). Without the mapping the feed treats them as
+        // new and would create a SECOND product for a colourway already live.
+        // Verified against the live catalogue: each of these handles exists and
+        // the generated one does not.
+        'Endorphin Pro 5|White Multi|women': 'womens-saucony-endorphin-pro-5-white-multi',
+        'Endorphin Pro 5|White Tranquil|men': 'mens-saucony-endorphin-pro-5-white-tranquil',
+        'Endorphin Speed 5|Ivory Maroon|women': 'womens-saucony-endorphin-speed-5-ivory-maroon',
+        'Endorphin Speed 5|White Fuego|men': 'mens-saucony-endorphin-speed-5-white-fuego',
+        'Endorphin Speed 5|White Multi|men': 'mens-saucony-endorphin-speed-5-white-multi',
+        'Endorphin Speed 5|White Spa|women': 'womens-saucony-endorphin-speed-5-white-spa',
         'Guide 19|Birch|women': 'guide-19-birch-women',
         'Guide 19|Black Calm|women': 'guide-19-black-calm-women',
         'Guide 19|Black Silver|men': 'guide-19-black-silver-men',
@@ -98,7 +110,7 @@ var SauconyConverter = {
         'Ride 19|Black Silver|women': 'ride-19-black-silver-women',
         'Ride 19|Black Silver|women|W': 'ride-19-black-silver-women-wide',
         'Ride 19|Cloud Aqua|women': 'ride-19-cloud-aqua-women',
-        'Ride 19|Cobalt Slime|men': 'ride-19-cobalt-slime-men',
+        'Ride 19|Cobalt Slime|men': 'ride-19-cobalt-slime',
         'Ride 19|Fire Orchid|women': 'ride-19-fire-orchid-women',
         'Ride 19|Flint Shadow|men': 'ride-19-flint-shadow-men',
         'Ride 19|Flint Shadow|men|W': 'ride-19-flint-shadow-men-wide',
@@ -120,7 +132,7 @@ var SauconyConverter = {
         'Ride 19|Vanilla Mauve|women|W': 'ride-19-vanilla-mauve-women-wide',
         'Ride 19|White Black|men': 'ride-19-white-black-men',
         'Ride 19|White Sage|men': 'ride-19-white-sage-men',
-        'Ride 19|White Silk|women': 'ride-19-white-silk-women',
+        'Ride 19|White Silk|women': 'ride-19-white-silk',
         'Ride 19|White Silk|women|W': 'ride-19-white-silk-women-wide',
         'Ride 19|White Splash|women': 'ride-19-white-splash-women',
         'Triumph 23 GTX|Shadow Aloe|women': 'triumph-23-gtx-shadow-aloe-women',
