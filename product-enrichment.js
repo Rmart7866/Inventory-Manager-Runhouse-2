@@ -296,9 +296,10 @@ var ProductEnrichment = {
 
         var modelCards = models.map(function(m) {
             var saved = savedDefaults[m.modelKey] || {};
-            // Price: saved edit, then the live sibling's price (carried models),
-            // then the barcode-file MSRP (new models), then the brand default.
-            var price = saved.price || (m.inherit && m.inherit.price) || m.barcodePrice || defaultPrice;
+            // Price: a saved edit wins, then the barcode-file price (source of
+            // truth, per the owner's call), then the live sibling's price, then
+            // the brand default as a last resort.
+            var price = saved.price || m.barcodePrice || (m.inherit && m.inherit.price) || defaultPrice;
             var rawDesc = saved.description || '';
             // Strip outer <p> tags for display — user sees plain text, we re-wrap on save
             var desc = rawDesc.replace(/^<p>([\s\S]*)<\/p>$/i, '$1').trim();
