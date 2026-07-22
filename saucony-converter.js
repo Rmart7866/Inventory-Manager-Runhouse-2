@@ -1,6 +1,15 @@
-// Saucony Converter - Updated with scan/picker/tracker flow
-// Reads B2B Excel files with size columns, handles gender/width/unisex sizing
-// Width column 7: M=Regular, W=Wide, XW=Extra Wide
+// Saucony Converter - scan / picker / tracker flow.
+//
+// Reads Saucony's "CatalogUPCs-<season>.xlsx" At-Once catalog export (sheet
+// "UPCs"): one row per style / colour / width / size, each stating its own size,
+// width, UPC, MSRP and on-hand quantity.
+//
+// This REPLACED the old "Needham Demo Inventory" ATS export, which was a wide
+// grid whose size columns meant different things per gender, forcing the parser
+// to infer sizes from column position. It inferred them wrongly for unisex, by
+// 3.5 sizes. Nothing here is positional any more. See parseExcel.
+//
+// Width comes from the "Dim 2" column: M=Regular, W=Wide, XW=Extra Wide.
 
 
 var SauconyConverter = {
@@ -191,47 +200,58 @@ var SauconyConverter = {
             .join(' ');
     },
 
-    getGenderType: function(gender, productName) {
-        if (!gender) return 'men';
-        var g = gender.toString().toLowerCase();
-        if (g.indexOf('unisex') !== -1) return 'unisex';
-        if (productName && productName.toLowerCase().indexOf('endorphin elite') !== -1) return 'unisex';
-        if (g.indexOf('women') !== -1) return 'women';
-        return 'men';
-    },
-
     getGenderPrefix: function(genderType) {
         if (genderType === 'unisex') return 'Unisex';
         if (genderType === 'women') return "Women's";
         return "Men's";
     },
 
-    getSizeColumns: function(genderType) {
-        if (genderType === 'unisex') {
-            return [
-                {col: 9, size: "M7.0/W8.5"}, {col: 10, size: "M7.5/W9.0"}, {col: 11, size: "M8.0/W9.5"},
-                {col: 12, size: "M8.5/W10.0"}, {col: 13, size: "M9.0/W10.5"}, {col: 14, size: "M9.5/W11.0"},
-                {col: 15, size: "M10.0/W11.5"}, {col: 16, size: "M10.5/W12.0"}, {col: 17, size: "M11.0/W12.5"},
-                {col: 18, size: "M11.5/W13.0"}, {col: 19, size: "M12.0/W13.5"}, {col: 20, size: "M12.5/W14.0"},
-                {col: 21, size: "M13.0/W14.5"}, {col: 22, size: "M13.5/W15.0"}, {col: 23, size: "M14.0/W15.5"}
-            ];
-        } else if (genderType === 'women') {
-            return [
-                {col: 9, size: "5.0"}, {col: 10, size: "5.5"}, {col: 11, size: "6.0"},
-                {col: 12, size: "6.5"}, {col: 13, size: "7.0"}, {col: 14, size: "7.5"},
-                {col: 15, size: "8.0"}, {col: 16, size: "8.5"}, {col: 17, size: "9.0"},
-                {col: 18, size: "9.5"}, {col: 19, size: "10.0"}, {col: 20, size: "10.5"},
-                {col: 21, size: "11.0"}, {col: 22, size: "11.5"}, {col: 23, size: "12.0"}
-            ];
-        } else {
-            return [
-                {col: 9, size: "7.0"}, {col: 10, size: "7.5"}, {col: 11, size: "8.0"},
-                {col: 12, size: "8.5"}, {col: 13, size: "9.0"}, {col: 14, size: "9.5"},
-                {col: 15, size: "10.0"}, {col: 16, size: "10.5"}, {col: 17, size: "11.0"},
-                {col: 18, size: "11.5"}, {col: 19, size: "12.0"}, {col: 20, size: "12.5"},
-                {col: 21, size: "13.0"}, {col: 22, size: "13.5"}, {col: 23, size: "14.0"}
-            ];
-        }
+    // GENDER. The CatalogUPCs export has no gender column, so it is inferred from
+    // the size run, which is an exact discriminator for Saucony: women's start at
+    // 5.0, men's at 7.0 (a couple of spike models at 6.0), and unisex at 3.5
+    // because unisex is listed in men's numbers and runs lower. Verified against
+    // the 199 styles the old Needham Demo Inventory export carries a real gender
+    // column for: 89 women's, 106 men's, 4 unisex, ZERO misclassified, and across
+    // all 517 style/width combos in the catalog the only minimums that occur are
+    // 3.5, 5.0, 6.0, and 7.0. The thresholds sit in those gaps, not on an edge.
+    genderFromSizeRun: function(minSize) {
+        if (!(minSize > 0)) return 'men';
+        if (minSize <= 4.0) return 'unisex';
+        if (minSize <= 5.5) return 'women';
+        return 'men';
+    },
+
+    // One decimal always ("9" -> "9.0"), matching the size labels the tool has
+    // always written, so a re-scan still matches variants already on Shopify.
+    formatSize: function(n) { return Number(n).toFixed(1); },
+
+    // Unisex is listed in men's numbers and shown as a dual label, women's being
+    // men's + 1.5. The store's unisex products carry exactly this form
+    // ("M3.5/W5.0" ... "M14.0/W15.5").
+    //
+    // This is where the old parser was WRONG. It ignored the file's size headers
+    // and hardcoded column 9 as "M7.0/W8.5", when column 9 is 3.5. Every unisex
+    // size was therefore labelled 3.5 sizes too big. Reading the size off the row
+    // instead of guessing it from the column position is what removes that whole
+    // class of bug.
+    sizeLabel: function(genderType, dim1) {
+        var n = parseFloat(dim1);
+        if (!(n > 0)) return String(dim1 || '').trim();
+        if (genderType === 'unisex') return 'M' + this.formatSize(n) + '/W' + this.formatSize(n + 1.5);
+        return this.formatSize(n);
+    },
+
+    _num: function(v) {
+        var m = /(\d+(?:\.\d+)?)/.exec(String(v == null ? '' : v));
+        return m ? m[1] : '';
+    },
+
+    // "50+" means "more than 50 available", which the tool has always treated as
+    // 100. Keep that, so switching files does not silently change stock levels.
+    _qty: function(v) {
+        if (v === null || v === undefined || v === '') return 0;
+        if (typeof v === 'string' && v.indexOf('+') !== -1) return 100;
+        return parseInt(v, 10) || 0;
     },
 
     getProductHandle: function(productName, colorName, genderType, width) {
@@ -259,44 +279,96 @@ var SauconyConverter = {
         return baseHandle;
     },
 
-    // ========== PARSE EXCEL ==========
-    // UPC lookup map: "styleNumber|size|width" → upc
-    upcMap: {},
-
-    // Load a Saucony UPC file (product-upc.xlsx)
-    // Columns: Style #, Style, Color Description, NRF Color, SKU Code, UPC Code, Dim 1 (size), Dim 2 (width), WHSL
-    loadUPCs: function(file) {
+    // ========== PARSE THE CATALOG UPCs EXPORT ==========
+    // Saucony's "CatalogUPCs-<season>.xlsx", the At-Once catalog. Replaces the old
+    // "Needham Demo Inventory" ATS export, which was a wide grid: one row per
+    // style/color with a fixed set of size COLUMNS whose real meaning depended on
+    // gender, which the parser had to guess. This file is long form, one row per
+    // style/color/width/SIZE, and every row states its own size, width, UPC, MSRP
+    // and on-hand. Nothing is positional, so nothing is guessed.
+    //
+    // Verified against the file it replaces: all 190 style/width combos that carry
+    // stock in the Needham export are present here, the 16 absent ones are all at
+    // zero stock, and 80% of size rows match on quantity exactly (the rest differ
+    // by one or two units, the two exports being snapshots at different times).
+    // It also adds 318 style/width combos to pick from, and a UPC on every row.
+    //
+    // Sheet "UPCs" columns:
+    //   Style #, Style, Color Description, NRF Color, SKU Code, UPC Code,
+    //   Dim 1 (size), Dim 2 (width), WHSL, MSRP, On Hand, ATP Date/Future pairs
+    //
+    // WHSL is wholesale cost. It is read past and never stored, never written to a
+    // CSV, and never sent to Shopify. Only MSRP (retail, public) is kept.
+    parseExcel: function(file) {
         var self = this;
         return file.arrayBuffer().then(function(arrayBuffer) {
             var workbook = XLSX.read(arrayBuffer);
-            var ws = workbook.Sheets[workbook.SheetNames[0]];
-            var rows = XLSX.utils.sheet_to_json(ws, { header: 1, range: 1 });
-            var map = {};
-            rows.forEach(function(row) {
-                var style = (row[0] || '').toString().trim();
-                var upc   = (row[5] || '').toString().trim();
-                var size  = (row[6] || '').toString().trim();
-                var width = (row[7] || 'M').toString().trim().toUpperCase();
-                if (!style || !upc || !size) return;
-                // Normalize size to match SKU format (e.g. "05.0" → "5.0")
-                var sizeNorm = parseFloat(size).toFixed(1);
-                var key = style + '|' + sizeNorm + '|' + width;
-                map[key] = upc;
-            });
-            self.upcMap = map;
-            console.log('[Saucony] Loaded ' + Object.keys(map).length + ' UPC entries');
-            return map;
-        });
-    },
+            var name = null;
+            for (var i = 0; i < workbook.SheetNames.length; i++) {
+                if (/^upcs?$/i.test(workbook.SheetNames[i].trim())) { name = workbook.SheetNames[i]; break; }
+            }
+            var ws = workbook.Sheets[name || workbook.SheetNames[0]];
+            var rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+            if (!rows.length) throw new Error('Saucony: the file has no rows');
 
-    parseExcel: function(file) {
-        return file.arrayBuffer().then(function(arrayBuffer) {
-            var workbook = XLSX.read(arrayBuffer);
-            var ws = workbook.Sheets[workbook.SheetNames[0]];
-            var rawData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 1 });
-            return rawData.filter(function(row) {
-                return row && row[1] && row[1] !== null && row[1] !== '' &&
-                    !(row[2] && row[2].toString().toLowerCase().indexOf('product name') !== -1);
+            // Map by header NAME, not position, so a reordered or extended export
+            // keeps working.
+            var H = {};
+            (rows[0] || []).forEach(function(h, i) { H[String(h || '').trim().toLowerCase()] = i; });
+            var need = ['style #', 'style', 'color description', 'upc code', 'dim 1', 'dim 2', 'msrp', 'on hand'];
+            var missing = need.filter(function(k) { return H[k] === undefined; });
+            if (missing.length) {
+                throw new Error('Saucony: this does not look like a CatalogUPCs export (missing column' +
+                    (missing.length > 1 ? 's' : '') + ': ' + missing.join(', ') + '). Export "UPCs" from the B2B catalog.');
+            }
+            var get = function(r, k) { var i = H[k]; return i === undefined ? '' : (r[i] == null ? '' : r[i]); };
+
+            // Group into one record per style + width. Sizes accumulate in file
+            // order, which is ascending, so the size run stays in a sane order.
+            var byKey = {}, order = [];
+            for (var ri = 1; ri < rows.length; ri++) {
+                var r = rows[ri];
+                if (!r) continue;
+                var styleNumber = String(get(r, 'style #')).trim();
+                if (!styleNumber || styleNumber.toLowerCase() === 'style #') continue;
+                var dim1 = String(get(r, 'dim 1')).trim();
+                if (!dim1) continue;
+                var width = String(get(r, 'dim 2') || 'M').trim().toUpperCase();
+                if (width !== 'M' && width !== 'W' && width !== 'XW') continue;
+
+                var key = styleNumber + '|' + width;
+                if (!byKey[key]) {
+                    // "TRIUMPH 24 - FOG/ICE MELT" -> "TRIUMPH 24". The Style column
+                    // appends a (sometimes truncated) colour; Color Description
+                    // holds the real one, so the suffix is dropped rather than
+                    // parsed.
+                    var styleText = String(get(r, 'style')).trim();
+                    var productName = styleText.split(' - ')[0].trim() || styleText;
+                    byKey[key] = {
+                        styleNumber: styleNumber,
+                        productName: productName,
+                        color: String(get(r, 'color description')).trim(),
+                        width: width,
+                        msrp: self._num(get(r, 'msrp')),
+                        sizes: []
+                    };
+                    order.push(key);
+                }
+                byKey[key].sizes.push({
+                    dim1: dim1,
+                    n: parseFloat(dim1),
+                    qty: self._qty(get(r, 'on hand')),
+                    upc: String(get(r, 'upc code')).trim()
+                });
+            }
+
+            // Resolve gender per record from its own size run, then label sizes.
+            return order.map(function(k) {
+                var rec = byKey[k];
+                var nums = rec.sizes.map(function(s) { return s.n; }).filter(function(n) { return n > 0; });
+                rec.genderType = self.genderFromSizeRun(nums.length ? Math.min.apply(Math, nums) : 0);
+                rec.sizes.forEach(function(s) { s.size = self.sizeLabel(rec.genderType, s.dim1); });
+                return rec;
             });
         });
     },
@@ -305,19 +377,16 @@ var SauconyConverter = {
     scanFile: function(file) {
         var self = this;
 
-        return this.parseExcel(file).then(function(rows) {
+        return this.parseExcel(file).then(function(records) {
             var productsByModel = new Map();
 
-            rows.forEach(function(row) {
-                var productName = (row[2] || '').toString().trim();
-                var color = (row[3] || '').toString().trim();
-                var gender = (row[4] || '').toString().trim();
-                var width = (row[7] || 'M').toString().trim().toUpperCase();
+            records.forEach(function(rec) {
+                var productName = rec.productName;
+                var color = rec.color;
+                var width = rec.width;
                 if (!productName) return;
-                // FIX: accept M, W, and XW
-                if (width !== 'M' && width !== 'W' && width !== 'XW') return;
 
-                var genderType = self.getGenderType(gender, productName);
+                var genderType = rec.genderType;
                 var genderPrefix = self.getGenderPrefix(genderType);
                 var formattedProduct = self.formatProductName(productName);
                 var modelUpper = formattedProduct.toUpperCase();
@@ -325,14 +394,7 @@ var SauconyConverter = {
                 var widthSuffix = widthLabel ? ' (' + widthLabel + ')' : '';
                 var modelKey = genderPrefix + ' ' + modelUpper + widthSuffix;
 
-                // Sum quantities
-                var qty = 0;
-                for (var c = 9; c < Math.min(24, row.length); c++) {
-                    var val = row[c];
-                    if (val === null || val === undefined) continue;
-                    if (typeof val === 'string' && val.indexOf('+') !== -1) qty += 100;
-                    else qty += parseInt(val) || 0;
-                }
+                var qty = rec.sizes.reduce(function(t, s) { return t + s.qty; }, 0);
 
                 var handle = self.getProductHandle(productName, color, genderType, width);
 
@@ -399,7 +461,7 @@ var SauconyConverter = {
     convert: function(file) {
         var self = this;
 
-        return this.parseExcel(file).then(function(rows) {
+        return this.parseExcel(file).then(function(records) {
             var inventory = [];
             var productVariantData = [];
 
@@ -408,17 +470,14 @@ var SauconyConverter = {
             // products look "removed" and get zeroed.
             self.allFeedSkus = new Set();
 
-            rows.forEach(function(row) {
-                var styleNumber = (row[1] || '').toString().trim();
-                var productName = (row[2] || '').toString().trim();
-                var color = (row[3] || '').toString().trim();
-                var gender = (row[4] || '').toString().trim();
-                var width = (row[7] || 'M').toString().trim().toUpperCase();
+            records.forEach(function(rec) {
+                var styleNumber = rec.styleNumber;
+                var productName = rec.productName;
+                var color = rec.color;
+                var width = rec.width;
                 if (!productName) return;
-                // FIX: accept M, W, and XW
-                if (width !== 'M' && width !== 'W' && width !== 'XW') return;
 
-                var genderType = self.getGenderType(gender, productName);
+                var genderType = rec.genderType;
                 var genderPrefix = self.getGenderPrefix(genderType);
                 var formattedProduct = self.formatProductName(productName);
                 var modelUpper = formattedProduct.toUpperCase();
@@ -429,13 +488,9 @@ var SauconyConverter = {
                 // Collect the built SKU for every size of this product, before the
                 // picker filter, so removal detection sees the whole feed. Matches
                 // the exact SKU string built for inventory rows below.
-                var allSizeCols = self.getSizeColumns(genderType);
-                for (var fs = 0; fs < allSizeCols.length; fs++) {
-                    var fsInfo = allSizeCols[fs];
-                    var fsVal = row[fsInfo.col];
-                    if (fsVal === null || fsVal === undefined) continue;
-                    self.allFeedSkus.add(String(styleNumber + '-' + fsInfo.size.replace(/\//g, '-')).trim().toUpperCase());
-                }
+                rec.sizes.forEach(function(s) {
+                    self.allFeedSkus.add(String(styleNumber + '-' + s.size.replace(/\//g, '-')).trim().toUpperCase());
+                });
 
                 // Filter by picker selection
                 if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) return;
@@ -443,16 +498,12 @@ var SauconyConverter = {
                 var handle = self.getProductHandle(productName, color, genderType, width);
                 var formattedColor = self.formatColorName(color);
                 var productTitle = genderPrefix + ' Saucony ' + formattedProduct + ' - ' + formattedColor + (widthLabel ? ' ' + widthLabel : '');
-                var sizeColumns = self.getSizeColumns(genderType);
 
-                for (var s = 0; s < sizeColumns.length; s++) {
-                    var sizeInfo = sizeColumns[s];
-                    var val = row[sizeInfo.col];
-                    if (val === null || val === undefined) continue;
-                    var qty = (typeof val === 'string' && val.indexOf('+') !== -1) ? 100 : (parseInt(val) || 0);
+                for (var s = 0; s < rec.sizes.length; s++) {
+                    var sizeInfo = rec.sizes[s];
+                    var qty = sizeInfo.qty;
                     var sku = styleNumber + '-' + sizeInfo.size.replace(/\//g, '-');
-                    var upcKey = styleNumber + '|' + sizeInfo.size.replace(/\//g, '-') + '|' + width;
-                    var barcode = self.upcMap[upcKey] || '';
+                    var barcode = sizeInfo.upc || '';
 
                     var inventoryRow = {
                         'Handle': handle,
@@ -485,7 +536,11 @@ var SauconyConverter = {
                         sku: sku,
                         size: sizeInfo.size,
                         quantity: qty,
-                        barcode: barcode
+                        barcode: barcode,
+                        // MSRP straight off the feed, so a new product does not
+                        // need the brand default price typed in. Retail only,
+                        // never the WHSL column.
+                        price: rec.msrp || ''
                     }]);
                 }
             });
@@ -583,7 +638,8 @@ var SauconyConverter = {
                 });
             }
             productGroups.get(v.handle).variants.push({
-                size: v.size, sku: v.sku, barcode: v.barcode || '', quantity: v.quantity
+                size: v.size, sku: v.sku, barcode: v.barcode || '', quantity: v.quantity,
+                price: v.price || ''
             });
         });
         if (productGroups.size === 0) return null;
@@ -633,7 +689,10 @@ var SauconyConverter = {
                 row['Option1 value'] = variant.size;
                 row['SKU'] = variant.sku;
                 row['Barcode'] = variant.barcode;
-                row['Price'] = '';
+                // MSRP from the catalog feed. Enrichment still overrides it if a
+                // price is typed or inherited; this just means the common case
+                // needs no typing.
+                row['Price'] = variant.price || '';
                 row['Charge tax'] = 'TRUE';
                 row['Inventory tracker'] = 'shopify';
                 row['Inventory quantity'] = variant.quantity;

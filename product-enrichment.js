@@ -618,9 +618,13 @@ var ProductEnrichment = {
     // "-1.jpg" primary suffix and the trailing SKU size are ignored. A brand with
     // no pattern here simply gets no image matching.
     _imageKeyPatterns: {
-        on:    /\d[A-Z]{2}\d{6,}/,
-        asics: /\d{4,}[A-Z]\d{2,}-\d{3}/,
-        hoka:  /\d{6,}-[A-Z]{2,}/
+        on:      /\d[A-Z]{2}\d{6,}/,
+        asics:   /\d{4,}[A-Z]\d{2,}-\d{3}/,
+        hoka:    /\d{6,}-[A-Z]{2,}/,
+        // Saucony style numbers: S100981-1019 (6+4) and older S11056-100 (5+3)
+        // or S29107-01 (5+2). Photos are named "<style>_1.jpg", the same
+        // "<key>_N" shape as Hoka, so _angleRank already orders them.
+        saucony: /S\d{5,6}-\d{2,4}/
     },
 
     _imageKeyIn: function (brand, str) {
