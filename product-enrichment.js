@@ -504,6 +504,22 @@ var ProductEnrichment = {
         var normG = function (g) { g = String(g || '').toLowerCase(); return /wom/.test(g) ? "Women's" : /men/.test(g) ? "Men's" : /uni/.test(g) ? 'Unisex' : ''; };
         var get = function (r, name) { return (ix[name] >= 0 ? (r[ix[name]] || '') : '').replace(/^"|"$/g, ''); };
 
+        // Feed stock per SKU, so the confirm dialog can show how deep a colorway
+        // actually is before you commit to creating it. Keyed by SKU and not by
+        // handle on purpose: the converter's CSV handle and the comparison entry's
+        // handle are built by different code paths and have drifted before, while
+        // the SKU is the same string on both sides.
+        var qtyBySku = {};
+        ['newProducts', 'newColorways'].forEach(function (k) {
+            ((comparison && comparison[k]) || []).forEach(function (e) {
+                var vs = e.variants || {};
+                Object.keys(vs).forEach(function (sz) {
+                    var sk = String((vs[sz] && vs[sz].sku) || '').trim().toUpperCase();
+                    if (sk) qtyBySku[sk] = (parseInt(vs[sz].quantity, 10) || 0);
+                });
+            });
+        });
+
         var byHandle = {}, order = [];
         for (var i = 1; i < rows.length; i++) {
             var h = get(rows[i], 'URL handle').trim();
@@ -516,6 +532,18 @@ var ProductEnrichment = {
             var variants = rs.map(function (r) {
                 return { size: get(r, 'Option1 value').trim(), sku: get(r, 'SKU').trim(), barcode: get(r, 'Barcode').trim(), price: get(r, 'Price').trim() };
             }).filter(function (v) { return v.size; });
+            // Stock for this colorway, in the CSV's size order. sizes carries a
+            // null qty when the feed has no row for that SKU, which reads as "not
+            // known" rather than "zero". `stock` is display only: the Worker's
+            // buildProductSetInput picks named fields, so it never reaches Shopify.
+            var known = 0, units = 0;
+            var sizes = variants.map(function (v) {
+                var q = qtyBySku[String(v.sku || '').trim().toUpperCase()];
+                if (q == null) return { size: v.size, qty: null };
+                known++; units += q;
+                return { size: v.size, qty: q };
+            });
+
             var mf = [];
             if (meta.color) mf.push({ namespace: 'custom', key: 'color_name', type: 'single_line_text_field', value: meta.color });
             var wc = normW(meta.width); if (wc) mf.push({ namespace: 'custom', key: 'width_class', type: 'single_line_text_field', value: wc });
@@ -528,7 +556,8 @@ var ProductEnrichment = {
                 descriptionHtml: get(first, 'Description'),
                 tags: get(first, 'Tags').split(',').map(function (t) { return t.trim(); }).filter(Boolean),
                 variants: variants,
-                metafields: mf
+                metafields: mf,
+                stock: known ? { units: units, sizes: sizes, inStock: sizes.filter(function (s) { return s.qty > 0; }).length } : null
             };
         }).filter(function (s) { return s.title && s.variants.length; });
     },
@@ -664,6 +693,40 @@ var ProductEnrichment = {
 
     _hasImages: function () { return !!(this._imageIndex && Object.keys(this._imageIndex).length); },
 
+    // A colorway at or below this many total units is flagged as thin in the
+    // create dialog. Not a filter: the row still creates, it just reads as a
+    // judgement call. InventoryTracker.NEW_MIN_UNITS decides what appears at all.
+    THIN_UNITS: 3,
+
+    // The size run, as "8 · 8.5 · 9" style cells with the per-size count. Sizes
+    // the feed has no row for render as a dash, so a gap is visible rather than
+    // silently reading as zero.
+    _sizeRunHtml: function (stock) {
+        return (stock.sizes || []).map(function (s) {
+            var cls = s.qty == null ? 's4-sz s4-sz-unknown' : (s.qty > 0 ? 's4-sz' : 's4-sz s4-sz-out');
+            return '<span class="' + cls + '"><b>' + escapeHtmlEnrich(s.size) + '</b>'
+                + (s.qty == null ? '&ndash;' : s.qty) + '</span>';
+        }).join('');
+    },
+
+    _sizeRunText: function (stock) {
+        return (stock.sizes || []).map(function (s) {
+            return s.size + ': ' + (s.qty == null ? 'not in feed' : s.qty);
+        }).join(', ');
+    },
+
+    // Images are indexed per brand: the filename-to-SKU key differs by brand, so
+    // an ON gallery cannot match a Hoka product. Switching brands must therefore
+    // drop the old folder, or the dialog reports "0 photos matched" against a
+    // folder that was never wrong, just for a different brand. Called when the
+    // dialog opens.
+    _resetImagesForBrand: function (brand) {
+        if (this._imageBrand && this._imageBrand !== brand) {
+            this._imageIndex = null;
+            this._imageBrand = null;
+        }
+    },
+
     // Stage + upload every matched image, attaching resourceUrls to each spec's
     // files (in gallery order, so the first becomes the featured image).
     _attachImages: function (specs, onProgress) {
@@ -696,6 +759,9 @@ var ProductEnrichment = {
     // then Create. No write fires until Create is clicked. Drafts only.
     showCreateConfirm: function (brand, specs) {
         var self = this;
+        // A folder picked for a different brand cannot match these products, so
+        // drop it before the dialog reads _hasImages().
+        this._resetImagesForBrand(brand);
         var totalVariants = specs.reduce(function (t, s) { return t + s.variants.length; }, 0);
         var thumbUrls = [];
         var createdHandles = {};   // handles already created via a per-row button
@@ -736,10 +802,14 @@ var ProductEnrichment = {
             var on = toggle.checked && self._hasImages();
             document.getElementById('s4-title').textContent = 'Create ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' in Shopify';
             var hint = document.getElementById('s4-hint');
+            var vendor = (self.brandDefaults[brand] || {}).vendor || brand;
             hint.innerHTML = self._hasImages()
-                ? '<b>' + photoCount() + '</b> photos matched from your gallery folder'
-                : 'Pick your gallery folder to attach photos (optional)';
-            document.getElementById('s4-folder').style.display = self._hasImages() ? 'none' : '';
+                ? '<b>' + photoCount() + '</b> photos matched from your ' + escapeHtmlEnrich(vendor) + ' folder'
+                : 'Pick your ' + escapeHtmlEnrich(vendor) + ' gallery folder to attach photos (optional)';
+            // The button STAYS once a folder is chosen, it just changes label. It
+            // used to hide itself, which left no way to correct a wrong folder.
+            var fbtn = document.getElementById('s4-folder');
+            fbtn.textContent = self._hasImages() ? 'Change folder' : 'Choose folder';
             toggle.disabled = !self._hasImages();
 
             thumbUrls.forEach(function (u) { URL.revokeObjectURL(u); }); thumbUrls = [];
@@ -752,20 +822,38 @@ var ProductEnrichment = {
                 var btn = createdHandles[s.handle]
                     ? '<button class="s4-item-create s4-item-created" disabled>✓ Created</button>'
                     : '<button class="s4-item-create" data-idx="' + idx + '" title="Create just this product in Shopify">Create</button>';
+                // Stock, so you can judge whether a colorway is deep enough to be
+                // worth creating. Thin drops get a warning colour rather than being
+                // hidden, since "1 unit" is a decision, not an error.
+                var st = s.stock, stockChip = '', runChip = '';
+                if (st) {
+                    var thin = st.units <= self.THIN_UNITS;
+                    stockChip = '<span class="s4-chip ' + (thin ? 's4-chip-thin' : 's4-chip-stock') + '" title="Total units in this feed across all sizes">'
+                        + st.units + ' unit' + (st.units === 1 ? '' : 's') + '</span>';
+                    runChip = '<span class="s4-chip s4-chip-plain" title="' + escapeHtmlEnrich(self._sizeRunText(st)) + '">'
+                        + st.inStock + '/' + s.variants.length + ' sizes</span>';
+                } else {
+                    runChip = '<span class="s4-chip s4-chip-plain">' + s.variants.length + ' sizes</span>';
+                }
                 return '<div class="s4-item">' + thumb
                     + '<div class="s4-item-main"><div class="s4-item-name">' + escapeHtmlEnrich(s.title) + '</div>'
                     + '<div class="s4-item-meta"><span class="s4-chip s4-chip-draft">Draft</span>'
                     + (cw ? '<span class="s4-chip s4-chip-cw">' + escapeHtmlEnrich(cw) + '</span>' : '')
-                    + '<span class="s4-chip s4-chip-plain">' + s.variants.length + ' sizes</span></div></div>'
+                    + stockChip + runChip + '</div>'
+                    + (st ? '<div class="s4-sizerun">' + self._sizeRunHtml(st) + '</div>' : '')
+                    + '</div>'
                     + '<div class="s4-item-price">$' + escapeHtmlEnrich((s.variants[0] && s.variants[0].price) || '—') + '<small>each</small></div>'
                     + btn
                     + '</div>';
             }).join('');
 
             var photos = on ? photoCount() : 0;
+            var totalUnits = specs.reduce(function (t, s) { return t + ((s.stock && s.stock.units) || 0); }, 0);
             document.getElementById('s4-summary').innerHTML =
                 '<span><b>' + specs.length + '</b> products</span><span class="s4-dot">·</span>'
-                + '<span><b>' + totalVariants + '</b> variants</span><span class="s4-dot">·</span><span>all draft</span>'
+                + '<span><b>' + totalVariants + '</b> variants</span>'
+                + (totalUnits ? '<span class="s4-dot">·</span><span><b>' + totalUnits + '</b> units</span>' : '')
+                + '<span class="s4-dot">·</span><span>all draft</span>'
                 + (photos ? '<span class="s4-dot">·</span><span class="s4-imgpart"><b>' + photos + '</b> photos</span>' : '');
             document.getElementById('s4-go').innerHTML = 'Create ' + specs.length + ' →';
         }
@@ -1204,6 +1292,14 @@ function escapeHtmlEnrich(s) {
         .s4-chip-draft { color: var(--s4-warn); background: rgba(255,192,77,.10); border: 1px solid rgba(255,192,77,.28); }
         .s4-chip-cw { color: var(--s4-accent); background: rgba(52,224,255,.08); border: 1px solid rgba(52,224,255,.22); font-family: ui-monospace, monospace; }
         .s4-chip-plain { color: var(--s4-muted); background: var(--s4-raise); border: 1px solid var(--s4-line); }
+        .s4-chip-stock { color: var(--s4-ok); background: rgba(60,230,176,.09); border: 1px solid rgba(60,230,176,.26); font-variant-numeric: tabular-nums; }
+        .s4-chip-thin { color: var(--s4-warn); background: rgba(255,192,77,.10); border: 1px solid rgba(255,192,77,.30); font-variant-numeric: tabular-nums; }
+        .s4-sizerun { margin-top: 5px; display: flex; gap: 3px; flex-wrap: wrap; }
+        .s4-sz { display: inline-flex; align-items: baseline; gap: 3px; font-size: 10px; font-variant-numeric: tabular-nums;
+                 padding: 1px 5px; border-radius: 2px; background: var(--s4-raise); border: 1px solid var(--s4-line); color: var(--s4-text); }
+        .s4-sz b { font-weight: 700; color: var(--s4-muted2); font-size: 9.5px; }
+        .s4-sz-out { opacity: .42; }
+        .s4-sz-unknown { opacity: .42; font-style: italic; }
         .s4-item-price { flex: none; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
         .s4-item-price small { display: block; font-size: 10px; font-weight: 600; color: var(--s4-muted2); }
         .s4-item-create { flex: none; font-size: 11px; font-weight: 700; color: #04121a; font-family: inherit; border: 0; border-radius: 3px; padding: 6px 11px; cursor: pointer; background: linear-gradient(92deg, var(--s4-accent), var(--s4-accent2)); }
