@@ -763,8 +763,10 @@ var ProductEnrichment = {
         render();
     },
 
-    // Optionally stage+upload images, then create the products, reporting progress
-    // and per-product results in the same dialog.
+    // Create in BATCHES so any number of products works: the Worker caps a single
+    // request (and Shopify rate limits / Worker subrequests favor smaller runs).
+    // Each batch stages+uploads its own images, then creates. Progress and partial
+    // results are reported live; a mid-run error still reports what succeeded.
     _doCreate: function (brand, specs, overlay, withImages) {
         var self = this;
         var go = document.getElementById('s4-go');
@@ -777,35 +779,54 @@ var ProductEnrichment = {
             msg.className = 's4-msg s4-msg-error'; msg.innerHTML = html;
             go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Close';
         }
+        function setInfo(t) { msg.className = 's4-msg s4-msg-info'; msg.textContent = t; }
 
-        var prep = Promise.resolve(specs);
-        if (withImages) {
-            go.textContent = 'Uploading…';
-            msg.className = 's4-msg s4-msg-info'; msg.textContent = 'Uploading product images…';
-            prep = self._attachImages(specs, function (done, total) { msg.textContent = 'Uploading images… ' + done + ' / ' + total; });
+        var BATCH = 20;
+        var chunks = [];
+        for (var i = 0; i < specs.length; i += BATCH) chunks.push(specs.slice(i, i + BATCH));
+        var total = specs.length, okCount = 0, failed = [];
+
+        function processChunk(ci) {
+            if (ci >= chunks.length) return Promise.resolve();
+            var chunk = chunks[ci];
+            var label = chunks.length > 1 ? ('Batch ' + (ci + 1) + '/' + chunks.length + ' — ') : '';
+            var prep = Promise.resolve(chunk);
+            if (withImages) {
+                go.textContent = 'Uploading…';
+                setInfo(label + 'uploading images…');
+                prep = self._attachImages(chunk, function (d, t) { setInfo(label + 'uploading images… ' + d + ' / ' + t); });
+            }
+            return prep.then(function (readyChunk) {
+                go.textContent = 'Creating…';
+                setInfo(label + 'creating in Shopify… (' + okCount + '/' + total + ' done)');
+                return CatalogClient.createProducts(readyChunk);
+            }).then(function (res) {
+                if (res.__status === 501) throw new Error('Writes are turned off on the server (read-only mode). ' + (res.reason || ''));
+                if (res.__status !== 200) throw new Error('Server error (HTTP ' + res.__status + '): ' + (res.error || res.reason || 'unknown'));
+                (res.results || []).forEach(function (r) { if (r.ok) okCount++; else failed.push(r); });
+                return processChunk(ci + 1);
+            });
         }
 
-        prep.then(function (readySpecs) {
-            go.textContent = 'Creating…';
-            msg.className = 's4-msg s4-msg-info'; msg.textContent = 'Creating ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' in Shopify…';
-            return CatalogClient.createProducts(readySpecs);
-        }).then(function (res) {
-            if (res.__status === 501) { fail('Writes are turned off on the server (read-only mode). ' + escapeHtmlEnrich(res.reason || '')); return; }
-            if (res.__status !== 200) { fail('Server error (HTTP ' + res.__status + '): ' + escapeHtmlEnrich(res.error || res.reason || 'unknown')); return; }
-            var results = res.results || [];
-            var okCount = res.created != null ? res.created : results.filter(function (r) { return r.ok; }).length;
-            var failed = results.filter(function (r) { return !r.ok; });
-            if (failed.length === 0) {
+        processChunk(0).then(function () {
+            var skipped = failed.filter(function (r) { return r.skipped; }).length;
+            var hardFails = failed.length - skipped;
+            if (hardFails === 0 && skipped === 0) {
                 msg.className = 's4-msg s4-msg-ok';
                 msg.innerHTML = '✓ Created <strong>' + okCount + '</strong> draft product' + (okCount !== 1 ? 's' : '') + (withImages ? ' with photos' : '') + '. Review and publish them in Shopify admin.';
             } else {
                 msg.className = 's4-msg s4-msg-warn';
-                msg.innerHTML = 'Created <strong>' + okCount + '</strong>, <strong>' + failed.length + '</strong> failed:<br>'
-                    + failed.slice(0, 8).map(function (r) { return '• ' + escapeHtmlEnrich(r.title || r.handle) + ': ' + escapeHtmlEnrich((r.userErrors && r.userErrors[0] && r.userErrors[0].message) || 'error'); }).join('<br>');
+                msg.innerHTML = 'Created <strong>' + okCount + '</strong>'
+                    + (skipped ? ', <strong>' + skipped + '</strong> skipped (already exist)' : '')
+                    + (hardFails ? ', <strong>' + hardFails + '</strong> failed' : '')
+                    + (failed.length ? ':<br>' + failed.slice(0, 8).map(function (r) { return '• ' + escapeHtmlEnrich(r.title || r.handle) + ': ' + escapeHtmlEnrich((r.userErrors && r.userErrors[0] && r.userErrors[0].message) || 'error'); }).join('<br>') : '');
             }
             go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Done';
             if (typeof showToast === 'function' && okCount > 0) showToast(okCount + ' draft product' + (okCount !== 1 ? 's' : '') + ' created');
-        }).catch(function (e) { fail('Request failed: ' + escapeHtmlEnrich((e && e.message) || e)); });
+        }).catch(function (e) {
+            var note = okCount ? ('Created <strong>' + okCount + '</strong> before stopping. ') : '';
+            fail(note + escapeHtmlEnrich((e && e.message) || e));
+        });
     },
 
     // ========== APPLY ENRICHMENT TO CSV ==========
