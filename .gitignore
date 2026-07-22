@@ -28,6 +28,14 @@ worker/node_modules/
 catalog-live.json
 worker/catalog-live.json
 
+# Run artifacts from tools/audit-cw-tags.mjs and tools/fix-cw-tags.mjs. The
+# audit is a full product dump, and the plan and rollback files are per-run
+# state. Keep the rollback files on disk until you are happy with a run, they
+# are the undo. They just do not belong in a public repo.
+cw-tag-audit.json
+cw-tag-plan-*.json
+cw-tag-rollback-*.json
+
 .DS_Store
 
 # Supplier data files must never be committed to this public repo
