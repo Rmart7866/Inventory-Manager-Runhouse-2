@@ -48,9 +48,10 @@ var InventoryTracker = {
 
     // A newly-seen colorway is only worth creating if the feed actually carries
     // enough stock to sell. Below this total (summed across all sizes) it is
-    // dropped from the new list, so a thin one-off drop (a single unit in one
-    // odd size) never becomes a product. Depth rule, not breadth. Tune here.
-    NEW_MIN_UNITS: 6,
+    // dropped from the new list. Set to 1 so any new colorway with buyable stock
+    // shows (ASICS and other dropship colorways legitimately arrive low-stock);
+    // only truly zero-stock entries are hidden. Raise this to filter thin drops.
+    NEW_MIN_UNITS: 1,
 
     // ========== LOAD ==========
     load: function(brand) {
