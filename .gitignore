@@ -48,3 +48,6 @@ saucony-size-rollback-*.json
 
 # Run artifacts from tools/fix-saucony-unisex-sizes.mjs
 saucony-unisex-rollback-*.json
+
+# Run artifacts from tools/add-saucony-missing-variants.mjs
+saucony-variants-rollback-*.json
