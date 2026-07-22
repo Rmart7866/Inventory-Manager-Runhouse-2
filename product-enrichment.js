@@ -888,6 +888,14 @@ var ProductEnrichment = {
                     createdHandles[spec.handle] = true;
                     btn.textContent = '✓ Created'; btn.className = 's4-item-create s4-item-created';
                     if (typeof showToast === 'function') showToast('Created ' + spec.title);
+                } else if (r.skipped) {
+                    // The Worker refused because the handle is already on Shopify.
+                    // That is the create-only guard working, not an error, and
+                    // retrying can never succeed. Saying "Retry" invited exactly
+                    // that. Say what happened and stop offering the click.
+                    btn.textContent = 'Already exists'; btn.disabled = true;
+                    btn.className = 's4-item-create s4-item-skipped';
+                    btn.title = 'This handle is already on Shopify, so nothing was created and the live product was not touched.';
                 } else {
                     btn.textContent = 'Retry'; btn.disabled = false;
                     btn.title = (r.userErrors && r.userErrors[0] && r.userErrors[0].message) || res.error || res.reason || ('HTTP ' + res.__status);
@@ -1310,6 +1318,7 @@ function escapeHtmlEnrich(s) {
         .s4-item-create:hover:not(:disabled) { filter: brightness(1.08); }
         .s4-item-create:disabled { cursor: default; }
         .s4-item-created { background: none; color: var(--s4-ok); border: 1px solid rgba(60,230,176,.4); }
+        .s4-item-skipped { background: none; color: var(--s4-muted); border: 1px solid var(--s4-line); font-weight: 600; }
         .s4-summary { margin: 14px 22px 0; padding: 11px 16px; border-radius: 4px; background: var(--s4-surface2); border: 1px solid var(--s4-line); display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--s4-muted); }
         .s4-summary b { color: var(--s4-text); font-variant-numeric: tabular-nums; }
         .s4-summary .s4-dot { color: var(--s4-muted2); }
