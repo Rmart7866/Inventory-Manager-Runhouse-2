@@ -684,6 +684,7 @@ var ProductEnrichment = {
         var self = this;
         var totalVariants = specs.reduce(function (t, s) { return t + s.variants.length; }, 0);
         var thumbUrls = [];
+        var createdHandles = {};   // handles already created via a per-row button
 
         var overlay = document.createElement('div');
         overlay.id = 's4-confirm-overlay';
@@ -729,17 +730,21 @@ var ProductEnrichment = {
 
             thumbUrls.forEach(function (u) { URL.revokeObjectURL(u); }); thumbUrls = [];
             var list = document.getElementById('s4-list');
-            list.innerHTML = specs.map(function (s) {
+            list.innerHTML = specs.map(function (s, idx) {
                 var imgs = on ? self._imagesForSpec(s) : [];
                 var thumb = '';
                 if (imgs.length) { var u = URL.createObjectURL(imgs[0]); thumbUrls.push(u); thumb = '<div class="s4-thumb"><img src="' + u + '" alt=""><span class="s4-cnt">' + imgs.length + '</span></div>'; }
                 var cw = (s.tags || []).filter(function (t) { return /^cw-group:/.test(t); })[0] || '';
+                var btn = createdHandles[s.handle]
+                    ? '<button class="s4-item-create s4-item-created" disabled>✓ Created</button>'
+                    : '<button class="s4-item-create" data-idx="' + idx + '" title="Create just this product in Shopify">Create</button>';
                 return '<div class="s4-item">' + thumb
                     + '<div class="s4-item-main"><div class="s4-item-name">' + escapeHtmlEnrich(s.title) + '</div>'
                     + '<div class="s4-item-meta"><span class="s4-chip s4-chip-draft">Draft</span>'
                     + (cw ? '<span class="s4-chip s4-chip-cw">' + escapeHtmlEnrich(cw) + '</span>' : '')
                     + '<span class="s4-chip s4-chip-plain">' + s.variants.length + ' sizes</span></div></div>'
                     + '<div class="s4-item-price">$' + escapeHtmlEnrich((s.variants[0] && s.variants[0].price) || '—') + '<small>each</small></div>'
+                    + btn
                     + '</div>';
             }).join('');
 
@@ -760,6 +765,30 @@ var ProductEnrichment = {
         };
         toggle.onchange = render;
         document.getElementById('s4-go').onclick = function () { self._doCreate(brand, specs, overlay, toggle.checked && self._hasImages()); };
+
+        // Per-row "Create" button: make just that one product (pick and choose).
+        document.getElementById('s4-list').addEventListener('click', function (e) {
+            var btn = e.target && e.target.closest && e.target.closest('.s4-item-create');
+            if (!btn || btn.disabled || btn.getAttribute('data-idx') == null) return;
+            var spec = specs[parseInt(btn.getAttribute('data-idx'), 10)];
+            if (!spec) return;
+            btn.disabled = true; btn.textContent = '…';
+            var withImages = toggle.checked && self._hasImages();
+            if (withImages) spec.files = []; // fresh, so a re-click does not double-attach
+            var prep = withImages ? self._attachImages([spec]) : Promise.resolve([spec]);
+            prep.then(function () { return CatalogClient.createProducts([spec]); }).then(function (res) {
+                var r = (res.results && res.results[0]) || {};
+                if (res.__status === 200 && r.ok) {
+                    createdHandles[spec.handle] = true;
+                    btn.textContent = '✓ Created'; btn.className = 's4-item-create s4-item-created';
+                    if (typeof showToast === 'function') showToast('Created ' + spec.title);
+                } else {
+                    btn.textContent = 'Retry'; btn.disabled = false;
+                    btn.title = (r.userErrors && r.userErrors[0] && r.userErrors[0].message) || res.error || res.reason || ('HTTP ' + res.__status);
+                }
+            }).catch(function (err) { btn.textContent = 'Retry'; btn.disabled = false; btn.title = (err && err.message) || String(err); });
+        });
+
         render();
     },
 
@@ -1152,6 +1181,10 @@ function escapeHtmlEnrich(s) {
         .s4-chip-plain { color: var(--s4-muted); background: var(--s4-raise); border: 1px solid var(--s4-line); }
         .s4-item-price { flex: none; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
         .s4-item-price small { display: block; font-size: 10px; font-weight: 600; color: var(--s4-muted2); }
+        .s4-item-create { flex: none; font-size: 11px; font-weight: 700; color: #04121a; font-family: inherit; border: 0; border-radius: 3px; padding: 6px 11px; cursor: pointer; background: linear-gradient(92deg, var(--s4-accent), var(--s4-accent2)); }
+        .s4-item-create:hover:not(:disabled) { filter: brightness(1.08); }
+        .s4-item-create:disabled { cursor: default; }
+        .s4-item-created { background: none; color: var(--s4-ok); border: 1px solid rgba(60,230,176,.4); }
         .s4-summary { margin: 14px 22px 0; padding: 11px 16px; border-radius: 4px; background: var(--s4-surface2); border: 1px solid var(--s4-line); display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--s4-muted); }
         .s4-summary b { color: var(--s4-text); font-variant-numeric: tabular-nums; }
         .s4-summary .s4-dot { color: var(--s4-muted2); }
