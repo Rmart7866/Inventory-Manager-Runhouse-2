@@ -221,7 +221,11 @@ var ProductEnrichment = {
                 try { gModel = converter.identifyProduct(c0.title, c0.handle); } catch (e) { /* best effort */ }
                 if (gModel) {
                     m._gModel = gModel; // stash for applyToCSV width-specific lookups
-                    m.inherit = CatalogClient.inheritForModel(brand, gModel);
+                    // Pass the colorway's gender: models here are grouped
+                    // genderless, so c0 may be the men's cut while other colorways
+                    // are women's. Price/description are gender-independent, so a
+                    // cross-gender fallback is fine (and flagged) inside.
+                    m.inherit = CatalogClient.inheritForModel(brand, gModel, c0.gender || '');
                 }
             });
         }
@@ -901,8 +905,13 @@ var ProductEnrichment = {
                     var g = null;
                     try { g = converter.identifyProduct(v.title, v.handle); } catch (e) { /* best effort */ }
                     if (g) {
-                        var recW = CatalogClient.inheritFor(brand, g, v.width || '');
-                        var recM = CatalogClient.inheritForModel(brand, g);
+                        // Gender is passed explicitly. identifyProduct is NOT a
+                        // reliable carrier of it (Hoka's returns a genderless
+                        // model), so without this a women's colorway can inherit
+                        // a men's cw-group tag.
+                        var vg = v.gender || '';
+                        var recW = CatalogClient.inheritFor(brand, g, v.width || '', vg);
+                        var recM = CatalogClient.inheritForModel(brand, g, vg);
                         if (recW || recM) handleToInherit[v.handle] = { w: recW, m: recM };
                     }
                 }
@@ -980,7 +989,13 @@ var ProductEnrichment = {
                     var tags = mergeTags(inhW && inhW.tags, enrich && enrich.tags);
                     if (tags) cols[tagsIdx] = q(tags);
                 }
-                var typeSrc = (inhM && inhM.productType) || (inhW && inhW.productType);
+                // Type is GENDERED ("Men's Shoes" / "Women's Shoes"), so it may
+                // only come from a gender-matched record. inhW is gender-strict;
+                // inhM may be a cross-gender fallback, which is fine for
+                // description/category/price but not for this. When neither
+                // qualifies, keep the Type the converter already wrote.
+                var typeSrc = (inhW && inhW.productType)
+                    || (inhM && !inhM.crossGender && inhM.productType) || '';
                 var catSrc = (inhM && inhM.category) || (inhW && inhW.category);
                 if (typeIdx >= 0 && typeSrc) cols[typeIdx] = q(typeSrc);
                 if (catIdx >= 0 && catSrc) cols[catIdx] = q(catSrc);

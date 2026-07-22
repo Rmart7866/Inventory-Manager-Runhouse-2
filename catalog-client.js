@@ -54,10 +54,19 @@ var CatalogClient = {
     _fetchedAt: 0,
     TTL_MS: 5 * 60 * 1000, // in-tab cache; the Worker itself refreshes every 20 min
 
-    // Per-brand inheritance index: "modelName|widthClass" -> the record a NEW
-    // colorway inherits from its live siblings (cwGroup tag, full tags, type,
+    // Per-brand inheritance index: "modelName|gender|widthClass" -> the record a
+    // NEW colorway inherits from its live siblings (cwGroup tag, full tags, type,
     // price, category, descriptionHtml). Built in buildKnownSets, cached here by
     // forBrand so product-enrichment can look it up at CSV time.
+    //
+    // GENDER IS PART OF THE KEY, and it must stay that way. It is NOT redundant
+    // with modelName: the key uses whatever the converter's identifyProduct
+    // returns, and not every converter carries gender in that string. Hoka's, in
+    // particular, strips the M/W prefix and returns a genderless model ("Clifton
+    // 10"), so before gender was keyed, a Men's and a Women's Clifton 10 collided
+    // on one index entry, first-seen won, and every new Women's colorway
+    // inherited the MEN'S tags: wrong cw-group, wrong gender tag, wrong type.
+    // Measured against the live catalog: 27 of 97 Hoka index keys collided.
     _inheritByBrand: {},
 
     // Normalize any width string (a catalog widthTag OR a converter width label)
@@ -70,13 +79,49 @@ var CatalogClient = {
         return 'standard';
     },
 
-    // What a new colorway of (modelName, width) inherits from its live siblings,
-    // or null if the model is not carried. modelName MUST be the same string the
-    // converter's identifyProduct returns (that is how the index is keyed).
-    inheritFor: function(toolBrand, modelName, width) {
+    // Normalize any gender string, a Shopify gender ("Women's"), a product type
+    // ("Women's Shoes"), or a converter label ("W", "Womens"), to one class, so
+    // the catalog side and the feed side key the index the same. Unknown or
+    // absent gender collapses to '' (its own bucket, never a match for a known
+    // gender), which is deliberate: better to inherit nothing than to inherit
+    // across genders.
+    _normGender: function(g) {
+        var s = String(g || '').toLowerCase();
+        if (/wom[ea]n|^w$|^w\s/.test(s)) return "Women's";
+        if (/\bmen|^m$|^m\s/.test(s)) return "Men's";
+        if (/uni|^u$|^u\s/.test(s)) return 'Unisex';
+        return '';
+    },
+
+    // What a new colorway of (modelName, width, gender) inherits from its live
+    // siblings, or null if the model is not carried in that gender + width.
+    // modelName MUST be the same string the converter's identifyProduct returns
+    // (that is how the index is keyed).
+    //
+    // Gender-STRICT on purpose. This record is what stamps the cw-group tag, and
+    // a cross-gender tag misgroups the product on the storefront. Same doctrine
+    // as width: inherit nothing rather than something wrong. Callers that pass no
+    // gender get the old any-gender behavior, for compatibility.
+    inheritFor: function(toolBrand, modelName, width, gender) {
         var idx = this._inheritByBrand[toolBrand];
         if (!idx || !modelName) return null;
-        return idx.get(modelName + '|' + this._normWidth(width)) || null;
+        var w = this._normWidth(width);
+        var g = arguments.length >= 4 ? this._normGender(gender) : null;
+        if (g !== null) return idx.get(modelName + '|' + g + '|' + w) || null;
+        return this._anyGender(idx, modelName, w);
+    },
+
+    // Scan the index for modelName + width in ANY gender. Only for callers that
+    // did not supply a gender; never used to satisfy a gendered lookup.
+    _anyGender: function(idx, modelName, wclass) {
+        var prefix = modelName + '|', suffix = '|' + wclass;
+        var it = idx.keys(), k;
+        while (!(k = it.next()).done) {
+            if (k.value.indexOf(prefix) === 0 && k.value.slice(-suffix.length) === suffix) {
+                return idx.get(k.value);
+            }
+        }
+        return null;
     },
 
     // Derive a stable, gendered, width-independent model name from a product
@@ -117,13 +162,29 @@ var CatalogClient = {
 
     // Model-level inheritance (price/description/category are identical across
     // widths), for defaults that do not depend on width. First width found wins.
-    inheritForModel: function(toolBrand, modelName) {
+    //
+    // Gender-PREFERRED, not gender-strict: description, price, and category are
+    // the same for the men's and women's cut of a model, so a new Women's
+    // colorway of a model the store only carries in Men's should still inherit
+    // them. A cross-gender fallback is flagged `crossGender: true` so the caller
+    // can refuse the fields that ARE gendered (productType, tags).
+    inheritForModel: function(toolBrand, modelName, gender) {
         var idx = this._inheritByBrand[toolBrand];
         if (!idx || !modelName) return null;
         var order = ['standard', 'wide', 'xwide', 'narrow'];
-        for (var i = 0; i < order.length; i++) {
-            var r = idx.get(modelName + '|' + order[i]);
-            if (r) return r;
+        var i, r;
+        var g = arguments.length >= 3 ? this._normGender(gender) : null;
+        if (g !== null) {
+            for (i = 0; i < order.length; i++) {
+                r = idx.get(modelName + '|' + g + '|' + order[i]);
+                if (r) return r;
+            }
+        }
+        for (i = 0; i < order.length; i++) {
+            r = this._anyGender(idx, modelName, order[i]);
+            // A gendered lookup that fell through to another gender is marked, so
+            // productType and tags are not taken from it.
+            if (r) return (g === null || r.gender === g) ? r : Object.assign({}, r, { crossGender: true });
         }
         return null;
     },
@@ -206,8 +267,20 @@ var CatalogClient = {
                         // First sibling seen wins (all colorways share these).
                         var rec = byModel[p.brand + '|' + p.cwGroup];
                         if (rec) {
-                            var ikey = mk + '|' + CatalogClient._normWidth(p.widthTag);
+                            // Gender comes from the Worker's title parse, and ONLY
+                            // from there. Do NOT fall back to productType: the
+                            // cw-group tag on this record is built from the same
+                            // parse, so a product whose title has no gender (the
+                            // store has a few, e.g. "HOKA  Skyflow - DRUZY /
+                            // DROPLET") carries a GENDERLESS cw-group. Bucketing
+                            // it by its product type would let it donate that
+                            // genderless tag to a new Men's or Women's colorway.
+                            // Unparsed gender lands in the '' bucket, which no
+                            // gendered lookup matches, so it never donates.
+                            var g = CatalogClient._normGender(p.gender);
+                            var ikey = mk + '|' + g + '|' + CatalogClient._normWidth(p.widthTag);
                             if (!inherit.has(ikey)) inherit.set(ikey, {
+                                gender: g,
                                 cwGroup: rec.cwGroup,
                                 tags: rec.tags || [],
                                 productType: rec.productType || p.productType,
