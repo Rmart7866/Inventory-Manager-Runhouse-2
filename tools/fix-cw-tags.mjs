@@ -76,6 +76,21 @@ query($id: ID!) {
   }
 }`;
 
+// Batched form of READ_ONE. The freshness guarantee (safety note 3) is about
+// reading live state immediately before planning, not about doing it one
+// request at a time, so a backfill of hundreds of products reads in chunks
+// instead of one round trip each.
+const READ_MANY = `
+query($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Product {
+      id handle title vendor status tags productType
+      variants(first: 1) { nodes { sku } }
+    }
+  }
+}`;
+const READ_CHUNK = 50;
+
 const TAGS_REMOVE = `mutation($id: ID!, $tags: [String!]!) { tagsRemove(id: $id, tags: $tags) { userErrors { field message } } }`;
 const TAGS_ADD = `mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { field message } } }`;
 const TYPE_SET = `mutation($p: ProductUpdateInput!) { productUpdate(product: $p) { product { id productType } userErrors { field message } } }`;
@@ -211,22 +226,27 @@ async function main(argv) {
   }
   const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
   const candidates = (mode === 'backfill' ? report.buckets?.missing : report.buckets?.wrong) || [];
-  const inScope = candidates.filter((r) => statuses.includes(r.status));
+  const exArg = argv.indexOf('--exclude');
+  const excluded = new Set(exArg >= 0 ? argv[exArg + 1].split(',').map((s) => s.trim()).filter(Boolean) : []);
+
+  const inScope = candidates.filter((r) => statuses.includes(r.status) && !excluded.has(r.handle));
   console.log(`mode: ${mode}   statuses: ${statuses.join(',')}`);
+  if (excluded.size) console.log(`excluded by hand: ${[...excluded].join(', ')}`);
   console.log(`${candidates.length} candidates in the audit, ${inScope.length} in scope. Re-checking each against live Shopify state.\n`);
 
   const plans = [];
   const skipped = {};
-  for (let i = 0; i < inScope.length; i++) {
-    const row = inScope[i];
-    const body = await client.graphql(READ_ONE, { id: row.id });
-    const node = body.data.product;
+  for (let i = 0; i < inScope.length; i += READ_CHUNK) {
+    const chunk = inScope.slice(i, i + READ_CHUNK);
+    const body = await client.graphql(READ_MANY, { ids: chunk.map((r) => r.id) });
     await throttle(client, body);
-    if (i && i % 100 === 0) process.stderr.write(`  ...checked ${i}/${inScope.length}\n`);
-    if (!node) { skipped['product no longer exists'] = (skipped['product no longer exists'] || 0) + 1; continue; }
-    const p = planFor(node, mode);
-    if (p.skip) { skipped[p.skip] = (skipped[p.skip] || 0) + 1; continue; }
-    plans.push({ id: node.id, status: node.status, ...p });
+    if (i) process.stderr.write(`  ...checked ${i}/${inScope.length}\n`);
+    for (const node of body.data.nodes) {
+      if (!node || !node.id) { skipped['product no longer exists'] = (skipped['product no longer exists'] || 0) + 1; continue; }
+      const p = planFor(node, mode);
+      if (p.skip) { skipped[p.skip] = (skipped[p.skip] || 0) + 1; continue; }
+      plans.push({ id: node.id, status: node.status, ...p });
+    }
   }
 
   console.log(`PLAN: ${plans.length} products to change${apply ? '' : '  (DRY RUN, nothing is written)'}\n`);
