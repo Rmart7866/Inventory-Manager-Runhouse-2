@@ -1037,6 +1037,14 @@ const HokaConverter = {
                             var handle = self.getProductHandle(lookupKey, variantData.matchingProduct, variantData.colorway, variantData.gender, variantData.width);
                             var hasWidth = variantData.width !== 'Regular';
                             var finalTitle = productTitle + (hasWidth ? ' (' + variantData.width + ')' : '');
+                            // Store the handle + a couple of aliases on the variant so the
+                            // enrichment/create flow (extractModels, buildCreateSpecs) can
+                            // match Hoka products by handle like every other brand.
+                            variantData.handle = handle;
+                            variantData.title = finalTitle;
+                            variantData.sku = variantData.variantSKU;
+                            variantData.color = variantData.colorway;
+                            variantData.barcode = variantData.upc || '';
 
                             shopifyInventory.push({
                                 Handle: handle,
