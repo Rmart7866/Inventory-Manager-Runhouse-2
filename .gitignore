@@ -51,3 +51,6 @@ saucony-unisex-rollback-*.json
 
 # Run artifacts from tools/add-saucony-missing-variants.mjs
 saucony-variants-rollback-*.json
+
+# Run artifacts from tools/backfill-saucony-barcodes.mjs
+saucony-barcode-rollback-*.json
