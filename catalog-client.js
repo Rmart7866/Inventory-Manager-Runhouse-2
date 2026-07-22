@@ -227,8 +227,20 @@ var CatalogClient = {
     // them in Shopify as DRAFTS via productSet. Resolves to the Worker's JSON
     // (with __status set to the HTTP code). In production this returns 501 until
     // the write gate is opened; locally it works against wrangler dev.
+    // Base URL for WRITE routes. An explicit rhWorkerUrl override wins; otherwise
+    // on localhost writes go to the local wrangler dev Worker (gate open) while
+    // catalog READS stay on production, so the tool still works if it is not
+    // running. In production this is just the production Worker (writes gated).
+    _writeBase: function () {
+        try {
+            var ls = localStorage.getItem('rhWorkerUrl'); if (ls) return ls;
+            if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return 'http://localhost:8790';
+        } catch (e) { /* no localStorage */ }
+        return this.WORKER_URL;
+    },
+
     createProducts: function (specs) {
-        return fetch(this.WORKER_URL + '/products', {
+        return fetch(this._writeBase() + '/products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.CATALOG_TOKEN },
             body: JSON.stringify({ products: specs })
@@ -241,7 +253,7 @@ var CatalogClient = {
     // Stage 4 images: ask the Worker for signed upload targets, one per file.
     // files: [{ filename, mimeType, fileSize }]. Returns { targets, __status }.
     stagedUploads: function (files) {
-        return fetch(this.WORKER_URL + '/staged-uploads', {
+        return fetch(this._writeBase() + '/staged-uploads', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.CATALOG_TOKEN },
             body: JSON.stringify({ files: files })
