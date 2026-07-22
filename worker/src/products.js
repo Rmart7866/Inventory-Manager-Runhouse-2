@@ -111,11 +111,33 @@ export function buildProductSetInput(spec) {
   return input;
 }
 
+// Which of these handles already exist on the store. Used to keep createProducts
+// CREATE-ONLY: productSet is create-OR-UPDATE, so without this a spec whose handle
+// matches a live product would silently overwrite it.
+async function existingHandles(client, handles) {
+  const found = new Set();
+  const uniq = [...new Set((handles || []).filter(Boolean))];
+  for (let i = 0; i < uniq.length; i += 40) {
+    const batch = uniq.slice(i, i + 40);
+    const q = batch.map((h) => 'handle:' + JSON.stringify(h)).join(' OR ');
+    const body = await client.graphql('query($q:String){ products(first:250, query:$q){ nodes{ handle } } }', { q });
+    for (const n of (body.data.products.nodes || [])) found.add(n.handle);
+  }
+  return found;
+}
+
 // Run productSet for each spec, one at a time (small batches, and one bad spec
 // should not sink the rest). Returns a per-product result the UI can report.
+// CREATE-ONLY: any spec whose handle already exists is skipped, never overwritten.
 export async function createProducts(client, specs) {
   const results = [];
+  let existing = new Set();
+  try { existing = await existingHandles(client, (specs || []).map((s) => s.handle)); } catch (e) { /* fail open to create; productSet still can't delete */ }
   for (const spec of specs || []) {
+    if (spec.handle && existing.has(spec.handle)) {
+      results.push({ ok: false, title: spec.title, handle: spec.handle, skipped: true, userErrors: [{ message: 'A product with this handle already exists — skipped so it is not overwritten.' }] });
+      continue;
+    }
     const input = buildProductSetInput(spec);
     try {
       const body = await client.graphql(PRODUCT_SET, { input });

@@ -534,12 +534,9 @@ var ProductEnrichment = {
     // (rhWorkerUrl set) or explicitly enabled (rhEnableCreate=1). Flip this when
     // Stage 4 ships.
     _createEnabled: function () {
-        try {
-            // On localhost the tool is always in test mode, so show it without the
-            // localStorage dance. In production it stays hidden until enabled.
-            if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return true;
-            return localStorage.getItem('rhEnableCreate') === '1' || !!localStorage.getItem('rhWorkerUrl');
-        } catch (e) { return false; }
+        // Live for staff. Writes are gated server-side (create-only, draft-only);
+        // to hide this again, return false.
+        return true;
     },
 
     // Entry point from the "Create in Shopify" button. Collects the current field

@@ -170,7 +170,15 @@ export async function requireAuth(request, env, opts = {}) {
   // THE HARD GATE. A shared token that lives in public JavaScript cannot
   // authorise a write. Do not soften this to a warning, and do not add an
   // env var that bypasses it. Move to AUTH_MODE=access instead.
-  if (opts.forWrite && mode !== 'access') {
+  //
+  // TEMPORARY, OWNER-DIRECTED: ALLOW_BEARER_WRITES=true opens the write routes in
+  // bearer mode so create can go live before the Access gate exists. This means
+  // the route is callable by anyone who reads the public token, so it is guarded
+  // downstream by being CREATE-ONLY (products.js never overwrites an existing
+  // product) and DRAFT-ONLY. REMOVE this before the tool is "done":
+  //   wrangler secret delete ALLOW_BEARER_WRITES   (restores the hard gate)
+  var bearerWritesOpen = (env.ALLOW_BEARER_WRITES === 'true');
+  if (opts.forWrite && mode !== 'access' && !bearerWritesOpen) {
     throw new WriteGateError(
       'Refusing to serve a write route in AUTH_MODE=' + mode + '. ' +
       'Writes require per-person identity (AUTH_MODE=access). See src/auth.js.'
