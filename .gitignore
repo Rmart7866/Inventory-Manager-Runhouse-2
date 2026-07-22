@@ -42,3 +42,6 @@ cw-tag-rollback-*.json
 *.xlsx
 *.xls
 *.csv
+
+# Run artifacts from tools/fix-saucony-sizes.mjs
+saucony-size-rollback-*.json
