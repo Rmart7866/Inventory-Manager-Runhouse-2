@@ -586,7 +586,8 @@ var ProductEnrichment = {
     // no pattern here simply gets no image matching.
     _imageKeyPatterns: {
         on:    /\d[A-Z]{2}\d{6,}/,
-        asics: /\d{4,}[A-Z]\d{2,}-\d{3}/
+        asics: /\d{4,}[A-Z]\d{2,}-\d{3}/,
+        hoka:  /\d{6,}-[A-Z]{2,}/
     },
 
     _imageKeyIn: function (brand, str) {
@@ -626,15 +627,23 @@ var ProductEnrichment = {
         return idx;
     },
 
-    // Gallery order: g1..g6 first (g1 = featured), then detail (d), then lifestyle.
-    // Single-image brands (ASICS) all rank the same, which is fine.
+    // Gallery order so the first image becomes the featured one:
+    //   ON:   "...1x1-g5.png"  -> g1..g6, then detail (d), then lifestyle (l)
+    //   Hoka: "...-BDGGR_3.png" -> _1.._8
+    //   ASICS: single image, all rank the same (fine).
     _angleRank: function (name) {
-        var m = /1x1-([a-z0-9-]+)\.(png|jpe?g)$/i.exec(name || '');
-        var a = m ? m[1].toLowerCase() : 'zz';
-        var gm = /^g(\d+)/.exec(a);
-        if (gm) return parseInt(gm[1], 10);
-        if (a.charAt(0) === 'd') return 50;
-        if (a.charAt(0) === 'l') return 60;
+        name = name || '';
+        var m = /1x1-([a-z0-9-]+)\.(png|jpe?g)$/i.exec(name);
+        if (m) {
+            var a = m[1].toLowerCase();
+            var gm = /^g(\d+)/.exec(a);
+            if (gm) return parseInt(gm[1], 10);
+            if (a.charAt(0) === 'd') return 50;
+            if (a.charAt(0) === 'l') return 60;
+            return 40;
+        }
+        var hm = /_(\d+)\.(png|jpe?g)$/i.exec(name);
+        if (hm) return parseInt(hm[1], 10);
         return 40;
     },
 
