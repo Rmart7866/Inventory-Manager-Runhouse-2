@@ -344,6 +344,24 @@
         /* Tighten the brand card once its chrome is gone. */
         body.user-mode .bh { padding: 16px 24px; font-size: 18px; }
 
+        /* Simple mode: fewer stats, less small print, bigger readable text. */
+        body.user-mode .section-card-head p,          /* section subtitles */
+        body.user-mode .bp-item-meta,                 /* per-row colour/rows/qty stats */
+        body.user-mode .bp-explain,                   /* long explanation paragraphs */
+        body.user-mode #individual-downloads,         /* per-brand download grid */
+        body.user-mode .dl-section h2,                /* "Downloads" heading */
+        body.user-mode .unified-bar h2 { display: none; }
+        body.user-mode .page-header p { display: none; }
+        /* Larger, calmer type in the parts that remain. */
+        body.user-mode .page-header h1 { font-size: 34px; }
+        body.user-mode .bp-item { font-size: 15px; padding: 9px 16px; }
+        body.user-mode .bp-item-name { font-weight: 600; }
+        body.user-mode .bp-row { font-size: 14px; padding: 8px 16px 8px 20px; }
+        body.user-mode .bp-row-name { color: var(--text); }
+        body.user-mode .bp-section-head { font-size: 15px; }
+        body.user-mode .bp-clear-btn, body.user-mode .uni-btn { font-size: 16px; }
+        body.user-mode .bp-list { max-height: 460px; }
+
         .chrome-warn {
             background: rgba(242,193,78,0.08); border: 1px solid rgba(242,193,78,0.28);
             color: var(--warn);
@@ -1070,7 +1088,7 @@
     <script src="on-converter.js?v=4"></script>
     <script src="asics-converter.js?v=4"></script>
     <script src="brooks-converter.js"></script>
-    <script src="brand-picker.js?v=5"></script>
+    <script src="brand-picker.js?v=6"></script>
     <script src="b2b-links.js"></script>
     <script src="product-enrichment.js?v=17"></script>
     <script src="catalog-ui.js?v=7"></script>

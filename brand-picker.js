@@ -44,8 +44,8 @@ var BrandPicker = {
         html += '<div class="bp-header-actions">';
         html += '<button class="bp-action-btn" onclick="BrandPicker.selectAll(\'' + brand + '\')">All</button>';
         html += '<button class="bp-action-btn" onclick="BrandPicker.selectNone(\'' + brand + '\')">None</button>';
-        html += '<button class="bp-action-btn" onclick="BrandPicker.selectDefaults(\'' + brand + '\')">Defaults</button>';
-        html += '<button class="bp-action-btn bp-save-btn" id="' + brand + '-save-defaults-btn" onclick="BrandPicker.saveDefaults(\'' + brand + '\')">Save Defaults</button>';
+        html += '<button class="bp-action-btn" title="Select what is already on Shopify, unselect new products" onclick="BrandPicker.selectDefaults(\'' + brand + '\')">On Shopify</button>';
+        html += '<button class="bp-action-btn bp-save-btn dev-only" id="' + brand + '-save-defaults-btn" onclick="BrandPicker.saveDefaults(\'' + brand + '\')">Save Defaults</button>';
         html += '</div></div>';
 
         // Summary
@@ -59,11 +59,16 @@ var BrandPicker = {
 
         sorted.forEach(function(product) {
             var modelKey = product.model || product.name;
-            var isChecked = knownProducts ? knownProducts.has(modelKey) : true;
-            var isNew = knownProducts && !knownProducts.has(modelKey);
-            if (product.isDefault !== undefined) { isChecked = product.isDefault; isNew = !product.isDefault; }
-            // Saved picker defaults override everything
-            if (savedDefaults) { isChecked = savedDefaults.indexOf(product.name) !== -1; }
+            // The LIVE Shopify catalog is the source of truth for what is already
+            // carried: a model on Shopify starts checked, a genuinely new one
+            // starts unchecked, so a normal inventory push does not try to write
+            // stock for products that do not exist yet. A stale hand-saved list
+            // used to override this and is deliberately no longer consulted here;
+            // see selectDefaults for the manual override.
+            var isChecked, isNew;
+            if (knownProducts) { isChecked = knownProducts.has(modelKey); isNew = !isChecked; }
+            else if (product.isDefault !== undefined) { isChecked = product.isDefault; isNew = !product.isDefault; }
+            else { isChecked = true; isNew = false; }
 
             var colorCount = product.colorways ? product.colorways.length : 0;
             var rows = product.rowCount || product.rows || 0;
@@ -139,24 +144,17 @@ var BrandPicker = {
         this._updateSelection(brand); this._updateSummary(brand);
     },
 
+    // "On Shopify": auto-select from the live catalog. Everything we already
+    // carry is checked, everything new is unchecked. No saved list, so it is
+    // always current with the store.
     selectDefaults: function(brand) {
         var config = this.configs[brand];
-        var savedDefaults = this._defaultsCache[brand];
-
-        if (savedDefaults) {
-            // Use saved picker defaults
-            document.querySelectorAll('.' + config.checkboxClass).forEach(function(cb) {
-                cb.checked = savedDefaults.indexOf(cb.getAttribute('data-model')) !== -1;
-            });
-        } else {
-            // Fall back to inventory tracker known products
-            var knownProducts = config.converter._knownProducts;
-            if (brand === 'hoka' && typeof InventoryTracker !== 'undefined') knownProducts = InventoryTracker.getKnownModels('hoka');
-            document.querySelectorAll('.' + config.checkboxClass).forEach(function(cb) {
-                var key = cb.getAttribute('data-model-base') || cb.getAttribute('data-model');
-                cb.checked = knownProducts ? knownProducts.has(key) : true;
-            });
-        }
+        var knownProducts = config.converter._knownProducts;
+        if (brand === 'hoka' && typeof InventoryTracker !== 'undefined') knownProducts = InventoryTracker.getKnownModels('hoka');
+        document.querySelectorAll('.' + config.checkboxClass).forEach(function(cb) {
+            var key = cb.getAttribute('data-model-base') || cb.getAttribute('data-model');
+            cb.checked = knownProducts ? knownProducts.has(key) : true;
+        });
         this._updateSelection(brand); this._updateSummary(brand);
     },
 
