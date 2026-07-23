@@ -206,6 +206,28 @@ export async function requireAuth(request, env, opts = {}) {
   return { ok: false, reason: `Unknown AUTH_MODE ${mode}` };
 }
 
+// The write-secret gate for the destructive inventory route.
+//
+// The catalog token ships in public JavaScript, so it cannot guard a route that
+// zeroes live stock: anyone who reads the bundle could call it. This is a
+// SECOND secret that is deliberately NOT in the bundle. Staff paste it into the
+// tool once and it lives in their browser's localStorage, so viewing page
+// source does not reveal it.
+//
+// It is weaker than AUTH_MODE=access (a shared secret cannot say WHO called), so
+// it is the interim guard for the inventory-zero route until an Access zone
+// exists, not the permanent answer. It is required IN ADDITION to requireAuth,
+// never instead of it. If WRITE_SECRET is unset, the route is refused rather
+// than opened, so a missing binding fails closed.
+export function requireWriteSecret(request, env) {
+  if (env.DEV_BYPASS_AUTH === 'true') return { ok: true };
+  if (!env.WRITE_SECRET) return { ok: false, reason: 'WRITE_SECRET is not configured; the inventory write route is closed.' };
+  const got = request.headers.get('X-Write-Secret') || '';
+  if (!got) return { ok: false, reason: 'This action needs the write secret. Paste it into the tool first.' };
+  if (!timingSafeEqual(got, env.WRITE_SECRET)) return { ok: false, reason: 'Wrong write secret.' };
+  return { ok: true };
+}
+
 // The rebuild path is the expensive one: about 170 Shopify requests and 150
 // seconds. Reading the catalog is a cheap KV lookup, so the browser token is
 // enough for it. Forcing a rebuild is not something a bundle-readable token

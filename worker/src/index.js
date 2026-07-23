@@ -28,7 +28,8 @@
 import { createShopifyClient } from './shopify.js';
 import { buildCatalog } from './catalog.js';
 import { createProducts, createStagedUploads } from './products.js';
-import { requireAuth, requireAdmin, WriteGateError } from './auth.js';
+import { zeroInventory } from './inventory.js';
+import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
   acquireBuildLock, releaseBuildLock,
@@ -48,7 +49,7 @@ function corsHeaders(request, env) {
     // Access identity rides on a cookie same-origin, and on the
     // Cf-Access-Jwt-Assertion header cross-origin. Both need credentials.
     h['Access-Control-Allow-Credentials'] = 'true';
-    h['Access-Control-Allow-Headers'] = 'Authorization, Cf-Access-Jwt-Assertion, Content-Type';
+    h['Access-Control-Allow-Headers'] = 'Authorization, Cf-Access-Jwt-Assertion, Content-Type, X-Write-Secret';
     h['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
     h['Access-Control-Max-Age'] = '86400';
   }
@@ -207,6 +208,26 @@ async function handleStagedUploads(request, env) {
   return json({ targets }, 200, request, env);
 }
 
+// POST /inventory, Stage 3 write. Zeroes Needham on-hand for a list of SKUs.
+// Guarded by requireWriteSecret ON TOP OF requireAuth (see the route table), so
+// the public bundle token alone cannot call it. Body:
+//   { skus: ["S100981-1019-M7.0-W8.5", ...], dryRun: true|false }
+// dryRun defaults TRUE: a caller must explicitly ask to write. Delegates all the
+// Needham-scoping and zero-only safety to inventory.js.
+async function handleZeroInventory(request, env) {
+  let body;
+  try { body = await request.json(); } catch (e) { body = null; }
+  if (!body || !Array.isArray(body.skus)) {
+    return json({ error: 'Expected JSON body { skus: [ ... ], dryRun }' }, 400, request, env);
+  }
+  if (body.skus.length > 2000) {
+    return json({ error: 'Too many SKUs in one request (max 2000)' }, 400, request, env);
+  }
+  const client = createShopifyClient(env);
+  const result = await zeroInventory(client, env, { skus: body.skus, dryRun: body.dryRun === true });
+  return json(result, result.ok ? 200 : 400, request, env);
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -235,6 +256,11 @@ export default {
       '/products': { handler: handleCreateProducts, forWrite: true, methods: ['POST'] },
       // Signed image-upload targets for product photos (also a write-scoped op).
       '/staged-uploads': { handler: handleStagedUploads, forWrite: true, methods: ['POST'] },
+      // Stage 3 WRITE. Zeroes Needham on-hand. forWrite:true keeps it behind the
+      // same hard gate, and needsWriteSecret adds a SECOND secret that is not in
+      // the public bundle, because this route is destructive (see auth.js). Both
+      // must pass. Zero-only and Needham-scoped in inventory.js.
+      '/inventory': { handler: handleZeroInventory, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
     };
     const route = routes[url.pathname];
     if (!route) return json({ error: 'Not found' }, 404, request, env);
@@ -252,6 +278,13 @@ export default {
     if (!auth.ok) {
       // The reason is safe to return: it describes the token, not the store.
       return json({ error: 'Unauthorized', reason: auth.reason }, 401, request, env);
+    }
+
+    // Destructive routes need the write secret ON TOP OF the bearer token, so
+    // the bundle-readable token alone cannot trigger them.
+    if (route.needsWriteSecret) {
+      const w = requireWriteSecret(request, env);
+      if (!w.ok) return json({ error: 'Write forbidden', reason: w.reason }, 403, request, env);
     }
 
     if (route.methods && route.methods.indexOf(request.method) === -1) {
