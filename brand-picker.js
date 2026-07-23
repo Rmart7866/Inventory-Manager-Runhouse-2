@@ -294,19 +294,14 @@ var BrandPicker = {
                 var oh = (r.needhamOnHand == null) ? (vc + ' sizes → 0') : (r.needhamOnHand.toLocaleString() + ' units → 0 · ' + vc + ' sizes');
                 html += '<div class="bp-row"><span class="bp-tag bp-tag-red">SET 0</span><span class="bp-row-name">' + (r.title || r.handle) + '</span><span class="bp-row-detail">' + oh + '</span></div>';
             });
-            // One-click zeroing in Shopify. Only shown when the create/write
-            // affordances are enabled (localStorage rhEnableCreate or a dev
-            // worker url), matching how Stage 4's button is gated, so it stays
-            // hidden for read-only viewers. The click runs a dry run first and
-            // asks for confirmation before it writes.
-            var writeOn = false;
-            try { writeOn = (localStorage.getItem('rhEnableCreate') === '1') || !!localStorage.getItem('rhWorkerUrl') || /^(localhost|127\.0\.0\.1)$/.test(location.hostname); } catch (e) {}
-            if (writeOn) {
-                html += '<div class="bp-clear-wrap">'
-                    + '<button class="bp-clear-btn" onclick="BrandPicker.clearRemovedInShopify(\'' + brand + '\')">Clear all ' + removed.length + ' in Shopify &rarr;</button>'
-                    + '<span class="bp-clear-note">Sets each to 0 at Needham. You confirm first.</span>'
-                    + '<div class="bp-clear-msg" id="' + prefix + '-clear-msg"></div></div>';
-            }
+            // One-click zeroing in Shopify. Shown for staff: it is safe to show
+            // because the Worker route needs the write secret, which is not in
+            // this bundle, so a viewer without it is simply prompted and cannot
+            // proceed. The click runs a dry run first and confirms before writing.
+            html += '<div class="bp-clear-wrap">'
+                + '<button class="bp-clear-btn" onclick="BrandPicker.clearRemovedInShopify(\'' + brand + '\')">Clear all ' + removed.length + ' in Shopify &rarr;</button>'
+                + '<span class="bp-clear-note">Sets each to 0 at Needham. You confirm first.</span>'
+                + '<div class="bp-clear-msg" id="' + prefix + '-clear-msg"></div></div>';
             html += '</div></div>';
         } else {
             // Explicit reassurance: the zero-out check DID run, it just found
