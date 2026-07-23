@@ -312,6 +312,36 @@ var CatalogClient = {
         return this.WORKER_URL;
     },
 
+    // The write secret for the destructive inventory route. NOT the catalog
+    // token, and deliberately NOT hardcoded here: it is typed once and kept in
+    // localStorage, so it never ships in this public bundle. Empty until set.
+    writeSecret: function () {
+        try { return localStorage.getItem('rhWriteSecret') || ''; } catch (e) { return ''; }
+    },
+    setWriteSecret: function (s) {
+        try { localStorage.setItem('rhWriteSecret', String(s || '').trim()); } catch (e) { /* no localStorage */ }
+    },
+    hasWriteSecret: function () { return !!this.writeSecret(); },
+
+    // Stage 3 WRITE. Zero Needham on-hand for a list of SKUs. dryRun:true (the
+    // default) resolves and reports what WOULD change without writing, which is
+    // what the button shows before you confirm. Sends the write secret in its
+    // own header; without it the Worker returns 403.
+    zeroInventory: function (skus, dryRun) {
+        return fetch(this._writeBase() + '/inventory', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + this.CATALOG_TOKEN,
+                'X-Write-Secret': this.writeSecret()
+            },
+            body: JSON.stringify({ skus: skus || [], dryRun: dryRun !== false })
+        }).then(function (res) {
+            return res.json().then(function (b) { b.__status = res.status; return b; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
+    },
+
     createProducts: function (specs) {
         return fetch(this._writeBase() + '/products', {
             method: 'POST',

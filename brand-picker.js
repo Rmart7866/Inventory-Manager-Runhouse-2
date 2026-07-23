@@ -1,6 +1,12 @@
 // ========== UNIFIED BRAND PICKER ==========
 // Flat alphabetical product list. Universal UI for all brands.
 
+function escapeHtmlBP(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
 var BrandPicker = {
 
     configs: {},
@@ -252,6 +258,18 @@ var BrandPicker = {
         if (comparison.removedColorways && comparison.removedColorways.length > 0) {
             var prefix = brand + '-tracker';
             var removed = comparison.removedColorways;
+            // Stash the removal set so the "Clear all in Shopify" button can read
+            // its SKUs without recomputing. Every SKU across every removed
+            // colorway; the Worker skips the ones already at 0.
+            this._removed = this._removed || {};
+            var skuSet = {};
+            removed.forEach(function (r) {
+                (r.skus || []).forEach(function (s) { if (s) skuSet[String(s).trim()] = 1; });
+                Object.keys(r.variants || {}).forEach(function (sz) {
+                    var vs = r.variants[sz]; if (vs && vs.sku) skuSet[String(vs.sku).trim()] = 1;
+                });
+            });
+            this._removed[brand] = { count: removed.length, skus: Object.keys(skuSet) };
             var brandName = brand.charAt(0).toUpperCase() + brand.slice(1);
             var liveTotal = summary.totalInDB || 0;
             var frac = liveTotal > 0 ? (removed.length / liveTotal) : 0;
@@ -276,6 +294,19 @@ var BrandPicker = {
                 var oh = (r.needhamOnHand == null) ? (vc + ' sizes → 0') : (r.needhamOnHand.toLocaleString() + ' units → 0 · ' + vc + ' sizes');
                 html += '<div class="bp-row"><span class="bp-tag bp-tag-red">SET 0</span><span class="bp-row-name">' + (r.title || r.handle) + '</span><span class="bp-row-detail">' + oh + '</span></div>';
             });
+            // One-click zeroing in Shopify. Only shown when the create/write
+            // affordances are enabled (localStorage rhEnableCreate or a dev
+            // worker url), matching how Stage 4's button is gated, so it stays
+            // hidden for read-only viewers. The click runs a dry run first and
+            // asks for confirmation before it writes.
+            var writeOn = false;
+            try { writeOn = (localStorage.getItem('rhEnableCreate') === '1') || !!localStorage.getItem('rhWorkerUrl') || /^(localhost|127\.0\.0\.1)$/.test(location.hostname); } catch (e) {}
+            if (writeOn) {
+                html += '<div class="bp-clear-wrap">'
+                    + '<button class="bp-clear-btn" onclick="BrandPicker.clearRemovedInShopify(\'' + brand + '\')">Clear all ' + removed.length + ' in Shopify &rarr;</button>'
+                    + '<span class="bp-clear-note">Sets each to 0 at Needham. You confirm first.</span>'
+                    + '<div class="bp-clear-msg" id="' + prefix + '-clear-msg"></div></div>';
+            }
             html += '</div></div>';
         } else {
             // Explicit reassurance: the zero-out check DID run, it just found
@@ -295,6 +326,46 @@ var BrandPicker = {
         var totalNew = (comparison.newProducts ? comparison.newProducts.length : 0) + (comparison.newColorways ? comparison.newColorways.length : 0);
         if (totalNew > 0) this._showNewProductButton(brand, totalNew);
         else this._hideNewProductButton(brand);
+    },
+
+    // "Clear all in Shopify": zero every removed colorway's Needham stock in one
+    // go. The flow is deliberate, because this writes to live inventory:
+    //   1. Ensure the write secret is set (prompt once, stored in localStorage).
+    //   2. DRY RUN first: ask the Worker what it would zero, and show that count.
+    //   3. Explicit confirm with the unit total.
+    //   4. Write, then report per the Worker's summary.
+    clearRemovedInShopify: function (brand) {
+        var self = this;
+        var prefix = brand + '-tracker';
+        var msg = document.getElementById(prefix + '-clear-msg');
+        var stash = (this._removed && this._removed[brand]) || null;
+        var setMsg = function (t, cls) { if (msg) { msg.className = 'bp-clear-msg' + (cls ? ' ' + cls : ''); msg.innerHTML = t; } };
+        if (typeof CatalogClient === 'undefined' || typeof CatalogClient.zeroInventory !== 'function') { setMsg('Live catalog is not available.', 'err'); return; }
+        if (!stash || !stash.skus.length) { setMsg('Nothing to clear.', 'err'); return; }
+
+        if (!CatalogClient.hasWriteSecret()) {
+            var s = window.prompt('Paste the write secret to allow zeroing inventory in Shopify.\n(Stored in this browser only, never in the page.)');
+            if (s == null || !s.trim()) { setMsg('Cancelled. A write secret is required.', 'err'); return; }
+            CatalogClient.setWriteSecret(s);
+        }
+
+        setMsg('Checking with Shopify…');
+        CatalogClient.zeroInventory(stash.skus, true).then(function (dry) {
+            if (dry.__status === 403) { CatalogClient.setWriteSecret(''); setMsg('Wrong or missing write secret. Click again to re-enter it.', 'err'); return; }
+            if (dry.__status !== 200 || !dry.ok) { setMsg('Could not reach the writer: ' + escapeHtmlBP((dry.reason || dry.error || ('HTTP ' + dry.__status))), 'err'); return; }
+            var toZero = dry.summary.toZero, units = dry.results.reduce(function (t, r) { return t + (r.status === 'would_zero' ? (r.onHand || 0) : 0); }, 0);
+            if (toZero === 0) { setMsg('Nothing to zero. All ' + stash.count + ' are already at 0 on hand.', 'ok'); return; }
+            if (!window.confirm('Set ' + toZero + ' ' + brand.toUpperCase() + ' variants to 0 at Needham (' + units + ' units)?\n\nThis writes to your live store now.')) { setMsg('Cancelled.', ''); return; }
+            setMsg('Zeroing ' + toZero + ' variants…');
+            CatalogClient.zeroInventory(stash.skus, false).then(function (res) {
+                if (res.__status !== 200 || !res.ok) { setMsg('Write failed: ' + escapeHtmlBP((res.reason || res.error || ('HTTP ' + res.__status))), 'err'); return; }
+                var s = res.summary;
+                var line = '&#10003; Zeroed <strong>' + s.zeroed + '</strong> variant' + (s.zeroed === 1 ? '' : 's') + ' at Needham'
+                    + (s.failed ? ', <strong>' + s.failed + '</strong> failed' : '')
+                    + (s.alreadyZero ? ', ' + s.alreadyZero + ' already 0' : '') + '.';
+                setMsg(line, s.failed ? 'err' : 'ok');
+            }).catch(function (e) { setMsg('Write failed: ' + escapeHtmlBP((e && e.message) || e), 'err'); });
+        }).catch(function (e) { setMsg('Could not reach the writer: ' + escapeHtmlBP((e && e.message) || e), 'err'); });
     },
 
     _buildTrackerSection: function(brand, sectionId, label, items, colorClass, hasConfirm) {
