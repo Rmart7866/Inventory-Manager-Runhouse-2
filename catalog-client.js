@@ -342,6 +342,25 @@ var CatalogClient = {
         });
     },
 
+    // Stage 3 FULL SYNC. Set Needham on-hand to an explicit quantity per SKU,
+    // for every loaded variant, zeroes included. items: [{sku, quantity}].
+    // dryRun:true (default) reports what would change without writing. Same
+    // write-secret guard as zeroInventory.
+    setInventory: function (items, dryRun) {
+        return fetch(this._writeBase() + '/inventory', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + this.CATALOG_TOKEN,
+                'X-Write-Secret': this.writeSecret()
+            },
+            body: JSON.stringify({ items: items || [], dryRun: dryRun !== false })
+        }).then(function (res) {
+            return res.json().then(function (b) { b.__status = res.status; return b; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
+    },
+
     createProducts: function (specs) {
         return fetch(this._writeBase() + '/products', {
             method: 'POST',

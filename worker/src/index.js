@@ -28,7 +28,7 @@
 import { createShopifyClient } from './shopify.js';
 import { buildCatalog } from './catalog.js';
 import { createProducts, createStagedUploads } from './products.js';
-import { zeroInventory } from './inventory.js';
+import { zeroInventory, setInventory } from './inventory.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -217,13 +217,23 @@ async function handleStagedUploads(request, env) {
 async function handleZeroInventory(request, env) {
   let body;
   try { body = await request.json(); } catch (e) { body = null; }
+  const client = createShopifyClient(env);
+
+  // Full-sync path: explicit { sku, quantity } targets. Writes each to Needham,
+  // zeroes included. Used by "Write all inventory to Shopify".
+  if (body && Array.isArray(body.items)) {
+    if (body.items.length > 8000) return json({ error: 'Too many items in one request (max 8000)' }, 400, request, env);
+    const result = await setInventory(client, env, { items: body.items, dryRun: body.dryRun !== false });
+    return json(result, result.ok ? 200 : 400, request, env);
+  }
+
+  // Zero-only path: a list of SKUs to set to 0. Used by "Clear all removed".
   if (!body || !Array.isArray(body.skus)) {
-    return json({ error: 'Expected JSON body { skus: [ ... ], dryRun }' }, 400, request, env);
+    return json({ error: 'Expected JSON body { skus: [...] } or { items: [{sku,quantity}] }, with dryRun' }, 400, request, env);
   }
   if (body.skus.length > 2000) {
     return json({ error: 'Too many SKUs in one request (max 2000)' }, 400, request, env);
   }
-  const client = createShopifyClient(env);
   const result = await zeroInventory(client, env, { skus: body.skus, dryRun: body.dryRun === true });
   return json(result, result.ok ? 200 : 400, request, env);
 }

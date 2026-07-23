@@ -640,6 +640,68 @@ function downloadUnified() {
     showToast('Combined inventory downloaded (' + allInventory.length + ' variants)');
 }
 
+// Full sync: write every loaded, selected brand's inventory straight to Shopify,
+// zeroes included, instead of downloading a CSV to import. Scoped to loaded +
+// selected brands exactly like downloadUnified, so an un-loaded brand is never
+// touched, which is the partial-feed footgun this guards against. Dry run and an
+// explicit confirm (with totals) come before any write.
+function writeAllInventory() {
+    var msg = document.getElementById('sync-all-msg');
+    var btn = document.querySelector('.uni-btn-sync');
+    var esc = (typeof escapeHtmlBP === 'function') ? escapeHtmlBP : function (s) { return String(s == null ? '' : s); };
+    var setMsg = function (t, cls) { if (msg) { msg.className = 'sync-msg' + (cls ? ' ' + cls : ''); msg.innerHTML = t; } };
+    var done = function () { if (btn) btn.disabled = false; };
+    if (typeof CatalogClient === 'undefined' || typeof CatalogClient.setInventory !== 'function') { setMsg('Live catalog is not available.', 'err'); return; }
+
+    var items = [], brands = [];
+    BRAND_ORDER.forEach(function (brand) {
+        var cb = document.getElementById('select-' + brand);
+        if (cb && cb.checked && BrandConverter.brands[brand].inventory.length > 0) {
+            var inv = BrandConverter.brands[brand].inventory.slice();
+            var config = BRAND_CONFIG[brand];
+            if (config && config.postProcess) inv = config.postProcess(inv);
+            inv.forEach(function (row) {
+                var sku = (row.SKU || '').toString().trim();
+                if (!sku) return;
+                var q = parseInt(row['On hand (new)'], 10); if (!(q >= 0)) q = 0;
+                items.push({ sku: sku, quantity: q });
+            });
+            brands.push(brand);
+        }
+    });
+    if (!items.length) { setMsg('No loaded brands selected. Drop a supplier file and tick the brand first.', 'err'); return; }
+
+    if (!CatalogClient.hasWriteSecret()) {
+        var s = window.prompt('Paste the write secret to write inventory to Shopify.\n(Stored in this browser only, never in the page.)');
+        if (s == null || !s.trim()) { setMsg('Cancelled. A write secret is required.', 'err'); return; }
+        CatalogClient.setWriteSecret(s);
+    }
+
+    if (btn) btn.disabled = true;
+    setMsg('Checking ' + items.length + ' variants across ' + brands.length + ' brand' + (brands.length !== 1 ? 's' : '') + ' with Shopify…');
+    CatalogClient.setInventory(items, true).then(function (dry) {
+        if (dry.__status === 403) { CatalogClient.setWriteSecret(''); setMsg('Wrong or missing write secret. Click again to re-enter it.', 'err'); done(); return; }
+        if (dry.__status !== 200 || !dry.ok) { setMsg('Could not reach the writer: ' + esc(dry.reason || dry.error || ('HTTP ' + dry.__status)), 'err'); done(); return; }
+        var s = dry.summary;
+        if (s.toChange === 0) { setMsg('Already in sync. Nothing to write (' + s.unchanged + ' already match' + (s.notFound ? ', ' + s.notFound + ' not on Shopify' : '') + ').', 'ok'); done(); return; }
+        var conf = 'Write ' + s.toChange + ' inventory changes to your LIVE store now?\n\n'
+            + brands.map(function (b) { return b.toUpperCase(); }).join(', ') + '\n'
+            + s.toChange + ' variants change (' + s.zeros + ' set to 0), ' + s.unchanged + ' already match'
+            + (s.notFound ? ', ' + s.notFound + ' not on Shopify (skipped)' : '') + '.';
+        if (!window.confirm(conf)) { setMsg('Cancelled.', ''); done(); return; }
+        setMsg('Writing ' + s.toChange + ' changes to Needham…');
+        CatalogClient.setInventory(items, false).then(function (res) {
+            done();
+            if (res.__status !== 200 || !res.ok) { setMsg('Write failed: ' + esc(res.reason || res.error || ('HTTP ' + res.__status)), 'err'); return; }
+            var r = res.summary;
+            setMsg('&#10003; Wrote <strong>' + r.written + '</strong> variant' + (r.written !== 1 ? 's' : '') + ' to Needham'
+                + (r.zeros ? ' (' + r.zeros + ' zeroed)' : '') + (r.failed ? ', <strong>' + r.failed + '</strong> failed' : '')
+                + '. ' + r.unchanged + ' already matched.', r.failed ? 'err' : 'ok');
+            if (typeof showToast === 'function' && r.written > 0) showToast('Wrote ' + r.written + ' inventory updates to Shopify');
+        }).catch(function (e) { done(); setMsg('Write failed: ' + esc((e && e.message) || e), 'err'); });
+    }).catch(function (e) { done(); setMsg('Could not reach the writer: ' + esc((e && e.message) || e), 'err'); });
+}
+
 function downloadUnifiedReset() {
     var allInventory = [];
 

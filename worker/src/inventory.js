@@ -50,6 +50,14 @@ mutation($input: InventorySetQuantitiesInput!) {
   }
 }`;
 
+const SET_MANY = `
+mutation($input: InventorySetQuantitiesInput!) {
+  inventorySetQuantities(input: $input) {
+    inventoryAdjustmentGroup { createdAt }
+    userErrors { field message }
+  }
+}`;
+
 const onHandOf = (node) => {
   const q = (node.inventoryItem && node.inventoryItem.inventoryLevel && node.inventoryItem.inventoryLevel.quantities) || [];
   const oh = q.find((x) => x.name === 'on_hand');
@@ -130,4 +138,76 @@ export async function zeroInventory(client, env, opts = {}) {
     ok: true, dryRun: false, location: locationId, results,
     summary: { requested: skus.length, toZero: plan.length, alreadyZero, notFound, zeroed, failed },
   };
+}
+
+// Set on-hand at Needham to an explicit quantity per SKU. This is the full-sync
+// path behind "Write all inventory to Shopify": the feed value is authoritative,
+// so it OVERWRITES the current count rather than compare-and-set. A quantity of
+// 0 is a valid target here, so this also zeroes removed products in the same
+// pass. Same Needham-only and refuse-without-location guards as zeroInventory.
+//
+// items: [{ sku, quantity }]. dryRun defaults TRUE.
+export async function setInventory(client, env, opts = {}) {
+  const locationId = env.NEEDHAM_LOCATION_ID;
+  if (!locationId) return { ok: false, error: 'NEEDHAM_LOCATION_ID is not configured; refusing to write inventory unscoped.' };
+  const dryRun = opts.dryRun !== false;
+  const items = Array.isArray(opts.items) ? opts.items : [];
+  if (!items.length) return { ok: true, dryRun, location: locationId, results: [], summary: { requested: 0, toChange: 0, unchanged: 0, notFound: 0, zeros: 0, written: 0, failed: 0 } };
+
+  // Collapse duplicate SKUs (last wins) and coerce quantities to a safe integer.
+  const want = new Map();
+  for (const it of items) {
+    const sku = String((it && it.sku) || '').trim();
+    if (!sku) continue;
+    let q = parseInt(it.quantity, 10); if (!(q >= 0)) q = 0;
+    want.set(sku, q);
+  }
+  const skus = [...want.keys()];
+  const resolved = await resolveSkus(client, skus, locationId);
+
+  const plan = [];
+  const results = [];
+  let unchanged = 0, notFound = 0, zeros = 0;
+  for (const sku of skus) {
+    const hit = resolved.get(sku);
+    const target = want.get(sku);
+    if (!hit || !hit.inventoryItemId || hit.onHand == null) { notFound++; results.push({ sku, status: 'not_found', target }); continue; }
+    if (hit.onHand === target) { unchanged++; results.push({ sku, status: 'unchanged', onHand: hit.onHand }); continue; }
+    if (target === 0) zeros++;
+    plan.push({ sku, inventoryItemId: hit.inventoryItemId, from: hit.onHand, to: target });
+  }
+
+  if (dryRun) {
+    for (const p of plan) results.push({ sku: p.sku, status: 'would_set', from: p.from, to: p.to });
+    return { ok: true, dryRun: true, location: locationId, results, summary: { requested: skus.length, toChange: plan.length, unchanged, notFound, zeros, written: 0, failed: 0 } };
+  }
+
+  // Batch the writes: inventorySetQuantities takes many quantities per call.
+  // ignoreCompareQuantity is true because the feed is authoritative for a full
+  // sync, so we do not want a moved count to reject the write.
+  let written = 0, failed = 0;
+  const BATCH = 100;
+  for (let i = 0; i < plan.length; i += BATCH) {
+    const chunk = plan.slice(i, i + BATCH);
+    try {
+      const input = {
+        name: 'on_hand',
+        reason: 'correction',
+        ignoreCompareQuantity: true,
+        quantities: chunk.map((p) => ({ inventoryItemId: p.inventoryItemId, locationId, quantity: p.to })),
+      };
+      const body = await client.graphql(SET_MANY, { input });
+      const ue = (body.data.inventorySetQuantities && body.data.inventorySetQuantities.userErrors) || [];
+      if (ue.length) {
+        // The whole batch shares one error; mark each row in it failed so the
+        // report totals stay honest rather than over-counting successes.
+        for (const p of chunk) { failed++; results.push({ sku: p.sku, status: 'failed', from: p.from, to: p.to, error: ue.map((e) => e.message).join('; ') }); }
+      } else {
+        for (const p of chunk) { written++; results.push({ sku: p.sku, status: 'set', from: p.from, to: p.to }); }
+      }
+    } catch (err) {
+      for (const p of chunk) { failed++; results.push({ sku: p.sku, status: 'failed', from: p.from, to: p.to, error: String((err && err.message) || err) }); }
+    }
+  }
+  return { ok: true, dryRun: false, location: locationId, results, summary: { requested: skus.length, toChange: plan.length, unchanged, notFound, zeros, written, failed } };
 }
