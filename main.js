@@ -689,16 +689,40 @@ function writeAllInventory() {
             + s.toChange + ' variants change (' + s.zeros + ' set to 0), ' + s.unchanged + ' already match'
             + (s.notFound ? ', ' + s.notFound + ' not on Shopify (skipped)' : '') + '.';
         if (!window.confirm(conf)) { setMsg('Cancelled.', ''); done(); return; }
-        setMsg('Writing ' + s.toChange + ' changes to Needham…');
-        CatalogClient.setInventory(items, false).then(function (res) {
-            done();
-            if (res.__status !== 200 || !res.ok) { setMsg('Write failed: ' + esc(res.reason || res.error || ('HTTP ' + res.__status)), 'err'); return; }
-            var r = res.summary;
-            setMsg('&#10003; Wrote <strong>' + r.written + '</strong> variant' + (r.written !== 1 ? 's' : '') + ' to Needham'
-                + (r.zeros ? ' (' + r.zeros + ' zeroed)' : '') + (r.failed ? ', <strong>' + r.failed + '</strong> failed' : '')
-                + '. ' + r.unchanged + ' already matched.', r.failed ? 'err' : 'ok');
-            if (typeof showToast === 'function' && r.written > 0) showToast('Wrote ' + r.written + ' inventory updates to Shopify');
-        }).catch(function (e) { done(); setMsg('Write failed: ' + esc((e && e.message) || e), 'err'); });
+
+        // Write only the variants that actually change, in client-side chunks, so
+        // the button can show real N of total progress instead of one long
+        // silent wait. Each chunk is its own request; a failed chunk is counted
+        // and the run continues, and re-running is safe because a set-to-value is
+        // idempotent.
+        var changed = dry.results.filter(function (r) { return r.status === 'would_set'; })
+            .map(function (r) { return { sku: r.sku, quantity: r.to }; });
+        var CHUNK = 250, total = changed.length;
+        var acc = { written: 0, failed: 0, zeros: 0 };
+
+        function writeChunk(i) {
+            if (i >= total) {
+                done();
+                setMsg('&#10003; Wrote <strong>' + acc.written + '</strong> of ' + total + ' variant' + (total !== 1 ? 's' : '') + ' to Needham'
+                    + (acc.zeros ? ' (' + acc.zeros + ' zeroed)' : '') + (acc.failed ? ', <strong>' + acc.failed + '</strong> failed' : '')
+                    + '. ' + s.unchanged + ' already matched.', acc.failed ? 'err' : 'ok');
+                if (typeof showToast === 'function' && acc.written > 0) showToast('Wrote ' + acc.written + ' inventory updates to Shopify');
+                return;
+            }
+            var slice = changed.slice(i, i + CHUNK);
+            setMsg('Writing to Shopify… <strong>' + Math.min(i + slice.length, total) + '</strong> / ' + total
+                + (acc.failed ? ' (' + acc.failed + ' failed)' : ''));
+            CatalogClient.setInventory(slice, false).then(function (res) {
+                if (res.__status !== 200 || !res.ok) {
+                    // Whole chunk could not be sent; count it failed and keep going.
+                    acc.failed += slice.length;
+                } else {
+                    acc.written += res.summary.written; acc.failed += res.summary.failed; acc.zeros += res.summary.zeros;
+                }
+                writeChunk(i + CHUNK);
+            }).catch(function () { acc.failed += slice.length; writeChunk(i + CHUNK); });
+        }
+        writeChunk(0);
     }).catch(function (e) { done(); setMsg('Could not reach the writer: ' + esc((e && e.message) || e), 'err'); });
 }
 
