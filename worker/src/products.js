@@ -64,7 +64,7 @@ export async function createStagedUploads(client, files) {
 // Size is always an option. Width is added only when a variant carries one, so
 // single-width models stay one-dimensional. optionValues on each variant must
 // reference the declared options, which is what productSet requires.
-export function buildProductSetInput(spec) {
+export function buildProductSetInput(spec, needhamLocationId) {
   const variantsIn = Array.isArray(spec.variants) ? spec.variants : [];
 
   const sizes = [];
@@ -84,6 +84,12 @@ export function buildProductSetInput(spec) {
     const out = { optionValues, inventoryItem: { sku: v.sku || '', tracked: true } };
     if (v.price != null && v.price !== '') out.price = String(v.price);
     if (v.barcode) out.barcode = String(v.barcode);
+    // Create the product WITH its feed stock at Needham, so a new colorway is
+    // not born at 0. Only when a location is configured and the spec carries a
+    // quantity for this variant; a null quantity is left unset, not zeroed.
+    if (needhamLocationId && v.quantity != null && Number.isFinite(Number(v.quantity))) {
+      out.inventoryQuantities = [{ locationId: needhamLocationId, name: 'on_hand', quantity: Math.max(0, Math.trunc(Number(v.quantity))) }];
+    }
     return out;
   });
 
@@ -129,7 +135,7 @@ async function existingHandles(client, handles) {
 // Run productSet for each spec, one at a time (small batches, and one bad spec
 // should not sink the rest). Returns a per-product result the UI can report.
 // CREATE-ONLY: any spec whose handle already exists is skipped, never overwritten.
-export async function createProducts(client, specs) {
+export async function createProducts(client, specs, needhamLocationId) {
   const results = [];
   let existing = new Set();
   try { existing = await existingHandles(client, (specs || []).map((s) => s.handle)); } catch (e) { /* fail open to create; productSet still can't delete */ }
@@ -138,7 +144,7 @@ export async function createProducts(client, specs) {
       results.push({ ok: false, title: spec.title, handle: spec.handle, skipped: true, userErrors: [{ message: 'A product with this handle already exists — skipped so it is not overwritten.' }] });
       continue;
     }
-    const input = buildProductSetInput(spec);
+    const input = buildProductSetInput(spec, needhamLocationId);
     try {
       const body = await client.graphql(PRODUCT_SET, { input });
       const r = (body.data && body.data.productSet) || {};

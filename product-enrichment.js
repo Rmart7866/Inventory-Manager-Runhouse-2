@@ -530,7 +530,16 @@ var ProductEnrichment = {
         return order.map(function (h) {
             var rs = byHandle[h], first = rs[0], meta = info[h] || {};
             var variants = rs.map(function (r) {
-                return { size: get(r, 'Option1 value').trim(), sku: get(r, 'SKU').trim(), barcode: get(r, 'Barcode').trim(), price: get(r, 'Price').trim() };
+                var vsku = get(r, 'SKU').trim();
+                var vqty = qtyBySku[vsku.toUpperCase()];
+                return {
+                    size: get(r, 'Option1 value').trim(), sku: vsku,
+                    barcode: get(r, 'Barcode').trim(), price: get(r, 'Price').trim(),
+                    // Feed on-hand for this size, so the product can be created
+                    // with its real stock instead of at 0. Null when the feed has
+                    // no row for the SKU (left unset rather than written as 0).
+                    quantity: (vqty == null ? null : vqty)
+                };
             }).filter(function (v) { return v.size; });
             // Stock for this colorway, in the CSV's size order. sizes carries a
             // null qty when the feed has no row for that SKU, which reads as "not
@@ -886,6 +895,7 @@ var ProductEnrichment = {
                 var r = (res.results && res.results[0]) || {};
                 if (res.__status === 200 && r.ok) {
                     createdHandles[spec.handle] = true;
+                    if (CatalogClient.markCreated) CatalogClient.markCreated(brand, [spec]);
                     btn.textContent = '✓ Created'; btn.className = 's4-item-create s4-item-created';
                     if (typeof showToast === 'function') showToast('Created ' + spec.title);
                 } else if (r.skipped) {
@@ -946,7 +956,13 @@ var ProductEnrichment = {
             }).then(function (res) {
                 if (res.__status === 501) throw new Error('Writes are turned off on the server (read-only mode). ' + (res.reason || ''));
                 if (res.__status !== 200) throw new Error('Server error (HTTP ' + res.__status + '): ' + (res.error || res.reason || 'unknown'));
-                (res.results || []).forEach(function (r) { if (r.ok) okCount++; else failed.push(r); });
+                var okHandles = {};
+                (res.results || []).forEach(function (r) { if (r.ok) { okCount++; okHandles[r.handle] = true; } else failed.push(r); });
+                // Register the ones that actually created, so they immediately
+                // count as on Shopify (out of new-detection, checked in picker).
+                if (CatalogClient.markCreated) {
+                    CatalogClient.markCreated(brand, readyChunk.filter(function (s) { return okHandles[s.handle]; }));
+                }
                 return processChunk(ci + 1);
             });
         }

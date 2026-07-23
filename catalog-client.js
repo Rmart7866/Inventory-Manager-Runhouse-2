@@ -443,6 +443,24 @@ var CatalogClient = {
     _existingSkusByBrand: {},
     existingSkus: function (toolBrand) { return this._existingSkusByBrand[toolBrand] || null; },
 
+    // Optimistically register products just created (as drafts) so THIS session
+    // immediately treats them as already on Shopify: their SKUs drop out of
+    // new-detection and their model checks on in the picker, without waiting for
+    // the Worker catalog to rebuild. The next catalog refresh makes it permanent
+    // (drafts are counted, see buildKnownSets).
+    markCreated: function (toolBrand, specs) {
+        var sset = this._existingSkusByBrand[toolBrand] || (this._existingSkusByBrand[toolBrand] = new Set());
+        var mset = this._shopifyModelsByBrand[toolBrand] || (this._shopifyModelsByBrand[toolBrand] = new Set());
+        var vendor = ({ hoka: 'HOKA', on: 'On', asics: 'Asics', brooks: 'Brooks', puma: 'Puma', saucony: 'Saucony', newbalance: 'New Balance' })[toolBrand] || '';
+        var self = this;
+        (specs || []).forEach(function (s) {
+            (s.variants || []).forEach(function (v) { if (v && v.sku) sset.add(String(v.sku).toUpperCase()); });
+            var m = self.modelFromTitle && s.title ? self.modelFromTitle(s.title, vendor) : null;
+            var nm = m ? self._normModel(m) : null;
+            if (nm) mset.add(nm);
+        });
+    },
+
     // Normalize any model name to a case, gender and punctuation insensitive key,
     // so a feed model ("Clifton 11") and the catalog's gendered modelKey
     // ("Men's CLIFTON 11") collapse to the same thing.

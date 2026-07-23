@@ -186,7 +186,7 @@ async function handleCreateProducts(request, env) {
     return json({ error: 'Too many products in one request (max 50)' }, 400, request, env);
   }
   const client = createShopifyClient(env);
-  const results = await createProducts(client, body.products);
+  const results = await createProducts(client, body.products, env.NEEDHAM_LOCATION_ID || null);
   const created = results.filter((r) => r.ok).length;
   return json({ created, total: results.length, results }, 200, request, env);
 }
