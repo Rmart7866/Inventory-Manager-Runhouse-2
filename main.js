@@ -678,52 +678,66 @@ function writeAllInventory() {
     }
 
     if (btn) btn.disabled = true;
-    setMsg('Checking ' + items.length + ' variants across ' + brands.length + ' brand' + (brands.length !== 1 ? 's' : '') + ' with Shopify…');
-    CatalogClient.setInventory(items, true).then(function (dry) {
-        if (dry.__status === 403) { CatalogClient.setWriteSecret(''); setMsg('Wrong or missing write secret. Click again to re-enter it.', 'err'); done(); return; }
-        if (dry.__status !== 200 || !dry.ok) { setMsg('Could not reach the writer: ' + esc(dry.reason || dry.error || ('HTTP ' + dry.__status)), 'err'); done(); return; }
-        var s = dry.summary;
-        if (s.toChange === 0) { setMsg('Already in sync. Nothing to write (' + s.unchanged + ' already match' + (s.notFound ? ', ' + s.notFound + ' not on Shopify' : '') + ').', 'ok'); done(); return; }
-        var conf = 'Write ' + s.toChange + ' inventory changes to your LIVE store now?\n\n'
+
+    // Everything is chunked client-side: the whole catalog across every brand is
+    // larger than one request allows (the Worker caps items per call), so both
+    // the dry-run check and the write run in slices, with live N of total.
+    var DRY_CHUNK = 1000, WRITE_CHUNK = 250;
+    var total = items.length;
+
+    // ---- phase 1: dry run in slices, accumulate the plan --------------------
+    var dsum = { toChange: 0, unchanged: 0, notFound: 0, zeros: 0 };
+    var changed = []; // {sku, quantity} for everything that would actually change
+
+    function checkChunk(i) {
+        if (i >= total) return afterCheck();
+        var slice = items.slice(i, i + DRY_CHUNK);
+        setMsg('Checking with Shopify… <strong>' + Math.min(i + slice.length, total) + '</strong> / ' + total);
+        return CatalogClient.setInventory(slice, true).then(function (dry) {
+            if (dry.__status === 403) { CatalogClient.setWriteSecret(''); setMsg('Wrong or missing write secret. Click again to re-enter it.', 'err'); done(); return; }
+            if (dry.__status !== 200 || !dry.ok) { setMsg('Could not reach the writer: ' + esc(dry.reason || dry.error || ('HTTP ' + dry.__status)), 'err'); done(); return; }
+            dsum.toChange += dry.summary.toChange; dsum.unchanged += dry.summary.unchanged;
+            dsum.notFound += dry.summary.notFound; dsum.zeros += dry.summary.zeros;
+            dry.results.forEach(function (r) { if (r.status === 'would_set') changed.push({ sku: r.sku, quantity: r.to }); });
+            checkChunk(i + DRY_CHUNK);
+        }).catch(function (e) { done(); setMsg('Could not reach the writer: ' + esc((e && e.message) || e), 'err'); });
+    }
+
+    function afterCheck() {
+        if (dsum.toChange === 0) { setMsg('Already in sync. Nothing to write (' + dsum.unchanged + ' already match' + (dsum.notFound ? ', ' + dsum.notFound + ' not on Shopify' : '') + ').', 'ok'); done(); return; }
+        var conf = 'Write ' + dsum.toChange + ' inventory changes to your LIVE store now?\n\n'
             + brands.map(function (b) { return b.toUpperCase(); }).join(', ') + '\n'
-            + s.toChange + ' variants change (' + s.zeros + ' set to 0), ' + s.unchanged + ' already match'
-            + (s.notFound ? ', ' + s.notFound + ' not on Shopify (skipped)' : '') + '.';
+            + dsum.toChange + ' variants change (' + dsum.zeros + ' set to 0), ' + dsum.unchanged + ' already match'
+            + (dsum.notFound ? ', ' + dsum.notFound + ' not on Shopify (skipped)' : '') + '.';
         if (!window.confirm(conf)) { setMsg('Cancelled.', ''); done(); return; }
-
-        // Write only the variants that actually change, in client-side chunks, so
-        // the button can show real N of total progress instead of one long
-        // silent wait. Each chunk is its own request; a failed chunk is counted
-        // and the run continues, and re-running is safe because a set-to-value is
-        // idempotent.
-        var changed = dry.results.filter(function (r) { return r.status === 'would_set'; })
-            .map(function (r) { return { sku: r.sku, quantity: r.to }; });
-        var CHUNK = 250, total = changed.length;
-        var acc = { written: 0, failed: 0, zeros: 0 };
-
-        function writeChunk(i) {
-            if (i >= total) {
-                done();
-                setMsg('&#10003; Wrote <strong>' + acc.written + '</strong> of ' + total + ' variant' + (total !== 1 ? 's' : '') + ' to Needham'
-                    + (acc.zeros ? ' (' + acc.zeros + ' zeroed)' : '') + (acc.failed ? ', <strong>' + acc.failed + '</strong> failed' : '')
-                    + '. ' + s.unchanged + ' already matched.', acc.failed ? 'err' : 'ok');
-                if (typeof showToast === 'function' && acc.written > 0) showToast('Wrote ' + acc.written + ' inventory updates to Shopify');
-                return;
-            }
-            var slice = changed.slice(i, i + CHUNK);
-            setMsg('Writing to Shopify… <strong>' + Math.min(i + slice.length, total) + '</strong> / ' + total
-                + (acc.failed ? ' (' + acc.failed + ' failed)' : ''));
-            CatalogClient.setInventory(slice, false).then(function (res) {
-                if (res.__status !== 200 || !res.ok) {
-                    // Whole chunk could not be sent; count it failed and keep going.
-                    acc.failed += slice.length;
-                } else {
-                    acc.written += res.summary.written; acc.failed += res.summary.failed; acc.zeros += res.summary.zeros;
-                }
-                writeChunk(i + CHUNK);
-            }).catch(function () { acc.failed += slice.length; writeChunk(i + CHUNK); });
-        }
         writeChunk(0);
-    }).catch(function (e) { done(); setMsg('Could not reach the writer: ' + esc((e && e.message) || e), 'err'); });
+    }
+
+    // ---- phase 2: write the changed variants in slices ----------------------
+    var acc = { written: 0, failed: 0, zeros: 0 };
+
+    function writeChunk(i) {
+        var n = changed.length;
+        if (i >= n) {
+            done();
+            setMsg('&#10003; Wrote <strong>' + acc.written + '</strong> of ' + n + ' variant' + (n !== 1 ? 's' : '') + ' to Needham'
+                + (acc.zeros ? ' (' + acc.zeros + ' zeroed)' : '') + (acc.failed ? ', <strong>' + acc.failed + '</strong> failed' : '')
+                + '. ' + dsum.unchanged + ' already matched.', acc.failed ? 'err' : 'ok');
+            if (typeof showToast === 'function' && acc.written > 0) showToast('Wrote ' + acc.written + ' inventory updates to Shopify');
+            return;
+        }
+        var slice = changed.slice(i, i + WRITE_CHUNK);
+        setMsg('Writing to Shopify… <strong>' + Math.min(i + slice.length, n) + '</strong> / ' + n
+            + (acc.failed ? ' (' + acc.failed + ' failed)' : ''));
+        CatalogClient.setInventory(slice, false).then(function (res) {
+            if (res.__status !== 200 || !res.ok) { acc.failed += slice.length; }
+            else { acc.written += res.summary.written; acc.failed += res.summary.failed; acc.zeros += res.summary.zeros; }
+            writeChunk(i + WRITE_CHUNK);
+        }).catch(function () { acc.failed += slice.length; writeChunk(i + WRITE_CHUNK); });
+    }
+
+    setMsg('Checking ' + total + ' variants across ' + brands.length + ' brand' + (brands.length !== 1 ? 's' : '') + '…');
+    checkChunk(0);
 }
 
 function downloadUnifiedReset() {
