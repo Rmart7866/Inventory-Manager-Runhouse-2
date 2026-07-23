@@ -220,6 +220,7 @@ var CatalogClient = {
         var status = (catalog && catalog.statusByHandle) || {};
         var colorways = new Map();
         var models = new Set();
+        var shopifyModels = new Set();                 // reliable: normalized genderless model names carried on Shopify
         var inherit = new Map();                       // modelName|widthClass -> inheritance record
         var byModel = (catalog && catalog.byModel) || {};
         var products = (catalog && catalog.products) || [];
@@ -241,7 +242,22 @@ var CatalogClient = {
         for (var i = 0; i < products.length; i++) {
             var p = products[i];
             if (p.brand !== catBrand) continue;
-            if (!this.LIVE_STATUSES[status[p.handle]]) continue;
+            var st = status[p.handle];
+
+            // Model-presence for the picker auto-check, recorded before BOTH the
+            // active-only and the Needham filters. "Is this model new" is about
+            // whether it exists on Shopify at all, so it counts ACTIVE and DRAFT
+            // (a draft was already created by the tool; recreating it is a no-op,
+            // so it is not new) but not ARCHIVED (retired, could be re-added).
+            // The Needham and active filters below are safety filters for the
+            // removed/zero known set, where writing to the wrong product is the
+            // harm; they must not narrow what counts as already carried.
+            if (st === 'ACTIVE' || st === 'DRAFT') {
+                var nmAll = this._normModel(p.modelKey);
+                if (nmAll) shopifyModels.add(nmAll);
+            }
+
+            if (!this.LIVE_STATUSES[st]) continue;
             if (scoped && p.needham !== true) continue; // not stocked at Needham, not dropship
             if (scoped && !this.DROPSHIP_TYPE_RE.test(p.productType || '')) continue; // Men's/Women's/Unisex Shoes only
 
@@ -293,7 +309,7 @@ var CatalogClient = {
                 } catch (e) { /* identify is best effort, never fatal */ }
             }
         }
-        return { models: models, colorways: colorways, inherit: inherit };
+        return { models: models, colorways: colorways, inherit: inherit, shopifyModels: shopifyModels };
     },
 
     // Stage 4 WRITE. POST a batch of product specs to the Worker, which creates
@@ -404,8 +420,32 @@ var CatalogClient = {
         return this.fetchCatalog().then(function(catalog) {
             var res = self.buildKnownSets(catalog, toolBrand, identifyFn);
             self._inheritByBrand[toolBrand] = res.inherit || new Map();
+            self._shopifyModelsByBrand[toolBrand] = res.shopifyModels || new Set();
             return res;
         });
+    },
+
+    // Reliable model-presence set per brand, built from the Worker's modelKey in
+    // buildKnownSets. Used by the picker to auto-check what is already carried.
+    _shopifyModelsByBrand: {},
+
+    // Normalize any model name to a case, gender and punctuation insensitive key,
+    // so a feed model ("Clifton 11") and the catalog's gendered modelKey
+    // ("Men's CLIFTON 11") collapse to the same thing.
+    _normModel: function(s) {
+        return String(s || '').toUpperCase()
+            .replace(/^(MEN'?S|WOMEN'?S|UNISEX|KIDS?'?S?)\s+/, '')  // drop a leading gender
+            .replace(/[^A-Z0-9]+/g, ' ')
+            .trim();
+    },
+
+    // Is this model already carried on Shopify? name is the picker's model label.
+    // Returns null when the set has not been built for the brand (caller should
+    // then fall back to its old signal), true/false otherwise.
+    isOnShopify: function(toolBrand, name) {
+        var set = this._shopifyModelsByBrand[toolBrand];
+        if (!set) return null;
+        return set.has(this._normModel(name));
     }
 };
 

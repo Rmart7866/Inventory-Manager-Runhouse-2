@@ -62,11 +62,20 @@ var BrandPicker = {
             // The LIVE Shopify catalog is the source of truth for what is already
             // carried: a model on Shopify starts checked, a genuinely new one
             // starts unchecked, so a normal inventory push does not try to write
-            // stock for products that do not exist yet. A stale hand-saved list
-            // used to override this and is deliberately no longer consulted here;
-            // see selectDefaults for the manual override.
+            // stock for products that do not exist yet.
+            //
+            // Prefer CatalogClient.isOnShopify, which matches on the Worker's own
+            // modelKey and is reliable. The old converter._knownProducts set was
+            // built by running identifyProduct on full storefront titles, which
+            // for several brands hands back the whole colorway title instead of
+            // the model, so a carried model (eg Clifton 11) never matched and
+            // wrongly read as new. Fall back to it only when the reliable set is
+            // not available.
+            var onShopify = (typeof CatalogClient !== 'undefined' && CatalogClient.isOnShopify)
+                ? CatalogClient.isOnShopify(brand, modelKey) : null;
             var isChecked, isNew;
-            if (knownProducts) { isChecked = knownProducts.has(modelKey); isNew = !isChecked; }
+            if (onShopify !== null) { isChecked = onShopify; isNew = !onShopify; }
+            else if (knownProducts) { isChecked = knownProducts.has(modelKey); isNew = !isChecked; }
             else if (product.isDefault !== undefined) { isChecked = product.isDefault; isNew = !product.isDefault; }
             else { isChecked = true; isNew = false; }
 
@@ -151,9 +160,12 @@ var BrandPicker = {
         var config = this.configs[brand];
         var knownProducts = config.converter._knownProducts;
         if (brand === 'hoka' && typeof InventoryTracker !== 'undefined') knownProducts = InventoryTracker.getKnownModels('hoka');
+        var useReliable = (typeof CatalogClient !== 'undefined' && CatalogClient.isOnShopify);
         document.querySelectorAll('.' + config.checkboxClass).forEach(function(cb) {
             var key = cb.getAttribute('data-model-base') || cb.getAttribute('data-model');
-            cb.checked = knownProducts ? knownProducts.has(key) : true;
+            var on = useReliable ? CatalogClient.isOnShopify(brand, key) : null;
+            if (on !== null) cb.checked = on;
+            else cb.checked = knownProducts ? knownProducts.has(key) : true;
         });
         this._updateSelection(brand); this._updateSummary(brand);
     },
