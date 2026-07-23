@@ -207,6 +207,16 @@ var InventoryTracker = {
             });
         }
 
+        // A broader "already on Shopify" SKU set, ACTIVE and DRAFT across every
+        // location, used ONLY to suppress new-detection. Without it, a product
+        // created last time as a draft is missing from the ACTIVE+Needham known
+        // set and reappears as new every scan, then is skipped as "already
+        // exists" on create. The removed/zero logic below still uses the narrow
+        // ACTIVE+Needham set, so this cannot cause a non-dropship product to be
+        // zeroed.
+        var existingSkus = (self.SOURCE === 'shopify' && typeof CatalogClient !== 'undefined' && CatalogClient.existingSkus)
+            ? CatalogClient.existingSkus(brand) : null;
+
         // Separate new handles into new PRODUCTS vs new COLORWAYS
         var newProducts = [];
         var newColorways = [];
@@ -214,7 +224,11 @@ var InventoryTracker = {
             var existing;
             if (useSku) {
                 var groupSkus = Object.keys(product.variants).map(function(sz) { return product.variants[sz].sku; });
-                existing = groupSkus.some(function(sk) { return sk && knownSkus.has(String(sk).toUpperCase()); });
+                existing = groupSkus.some(function(sk) {
+                    if (!sk) return false;
+                    var up = String(sk).toUpperCase();
+                    return knownSkus.has(up) || (existingSkus && existingSkus.has(up));
+                });
             } else {
                 existing = knownColorways.has(handle);
             }

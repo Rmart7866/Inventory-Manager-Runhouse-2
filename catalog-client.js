@@ -221,6 +221,7 @@ var CatalogClient = {
         var colorways = new Map();
         var models = new Set();
         var shopifyModels = new Set();                 // reliable: normalized genderless model names carried on Shopify
+        var existingSkus = new Set();                  // every SKU on Shopify (ACTIVE or DRAFT), for new-suppression
         var inherit = new Map();                       // modelName|widthClass -> inheritance record
         var byModel = (catalog && catalog.byModel) || {};
         var products = (catalog && catalog.products) || [];
@@ -255,6 +256,12 @@ var CatalogClient = {
             if (st === 'ACTIVE' || st === 'DRAFT') {
                 var nmAll = this._normModel(p.modelKey);
                 if (nmAll) shopifyModels.add(nmAll);
+                // Every SKU already on the store, so new-detection does not keep
+                // re-offering a product that was created last time (drafts land
+                // via Stage 4 and would otherwise reappear as new each scan, then
+                // be skipped as "already exists" on create). All statuses but
+                // ARCHIVED, all locations, because existence is the question here.
+                (p.skus || []).forEach(function (sk) { if (sk) existingSkus.add(String(sk).toUpperCase()); });
             }
 
             if (!this.LIVE_STATUSES[st]) continue;
@@ -309,7 +316,7 @@ var CatalogClient = {
                 } catch (e) { /* identify is best effort, never fatal */ }
             }
         }
-        return { models: models, colorways: colorways, inherit: inherit, shopifyModels: shopifyModels };
+        return { models: models, colorways: colorways, inherit: inherit, shopifyModels: shopifyModels, existingSkus: existingSkus };
     },
 
     // Stage 4 WRITE. POST a batch of product specs to the Worker, which creates
@@ -421,6 +428,7 @@ var CatalogClient = {
             var res = self.buildKnownSets(catalog, toolBrand, identifyFn);
             self._inheritByBrand[toolBrand] = res.inherit || new Map();
             self._shopifyModelsByBrand[toolBrand] = res.shopifyModels || new Set();
+            self._existingSkusByBrand[toolBrand] = res.existingSkus || new Set();
             return res;
         });
     },
@@ -428,6 +436,12 @@ var CatalogClient = {
     // Reliable model-presence set per brand, built from the Worker's modelKey in
     // buildKnownSets. Used by the picker to auto-check what is already carried.
     _shopifyModelsByBrand: {},
+
+    // Every SKU on Shopify (ACTIVE or DRAFT) per brand, for new-suppression. A
+    // superset of the ACTIVE+Needham known set, so new-detection stops offering
+    // products that were already created (as drafts) last time.
+    _existingSkusByBrand: {},
+    existingSkus: function (toolBrand) { return this._existingSkusByBrand[toolBrand] || null; },
 
     // Normalize any model name to a case, gender and punctuation insensitive key,
     // so a feed model ("Clifton 11") and the catalog's gendered modelKey
