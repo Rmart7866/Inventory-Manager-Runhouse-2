@@ -323,9 +323,11 @@ var ProductEnrichment = {
                 + '<div class="enrich-card-title">' + m.modelName
                     + ' <span class="enrich-cw-count">' + m.colorways.length + ' colorway' + (m.colorways.length !== 1 ? 's' : '') + '</span>'
                 + '</div>'
+                + '<div class="enrich-card-actions">'
                 + '<button class="enrich-toggle" data-model="' + m.modelKey + '">▶ Show colorways</button>'
-                + '<button class="enrich-model-dl" title="Download just this model as its own CSV" onclick="ProductEnrichment.downloadModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="margin-left:8px;font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;cursor:pointer;">⬇ Download</button>'
-                + (self._createEnabled() ? '<button class="enrich-model-create" title="Create just this model in Shopify" onclick="ProductEnrichment.createModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="margin-left:6px;font-size:11px;font-weight:700;color:#fff;background:#008060;border:1px solid #008060;border-radius:6px;padding:4px 10px;cursor:pointer;">Create →</button>' : '')
+                + '<button class="enrich-model-dl" title="Download just this model as its own CSV" onclick="ProductEnrichment.downloadModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;cursor:pointer;">⬇ Download</button>'
+                + (self._createEnabled() ? '<button class="enrich-model-create" title="Create just this model in Shopify" onclick="ProductEnrichment.createModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="font-size:11px;font-weight:700;color:#fff;background:#008060;border:1px solid #008060;border-radius:6px;padding:4px 10px;cursor:pointer;">Create →</button>' : '')
+                + '</div>'
                 + '</div>'
                 + '<div class="enrich-colorways" id="enrich-colorways-' + m.modelKey + '" style="display:none">'
                 + colorwayRows
@@ -346,7 +348,7 @@ var ProductEnrichment = {
         }).join('');
 
         return '<div class="enrich-modal">'
-            + '<div class="enrich-header" style="background:' + brandColor + '">'
+            + '<div class="enrich-header" style="background-color:' + brandColor + '">'
             + '<div>'
             + '<div class="enrich-header-title">New Product Enrichment</div>'
             + '<div class="enrich-header-sub">' + vendor + ' · ' + models.length + ' model' + (models.length !== 1 ? 's' : '') + ' · ' + models.reduce(function(t, m) { return t + m.colorways.length; }, 0) + ' colorways</div>'
@@ -1173,33 +1175,50 @@ function escapeHtmlEnrich(s) {
         }
         body.enrich-open { overflow: hidden; }
         .enrich-modal {
-            background: #fff; border-radius: 16px; width: 100%; max-width: 740px;
+            background: #fff; border-radius: 16px; width: 100%; max-width: 820px;
             height: 90vh; max-height: 90vh; display: flex; flex-direction: column;
             box-shadow: 0 24px 60px rgba(0,0,0,.25); overflow: hidden;
+            /* Explicit dark base color so no text inherits a light color from the
+               surrounding (dark-themed) app and vanishes on the modal's white bg. */
+            color: #18181b;
         }
+        .enrich-modal, .enrich-modal * { box-sizing: border-box; }
         .enrich-header {
             padding: 20px 24px; color: #fff;
             display: flex; align-items: center; justify-content: space-between; gap: 16px;
             flex-shrink: 0;
+            /* A subtle dark scrim under the brand color guarantees the white title
+               stays legible even on a light brand accent (eg Saucony orange), where
+               white-on-color alone falls below the readable contrast threshold. */
+            background-image: linear-gradient(rgba(0,0,0,.28), rgba(0,0,0,.28));
+            background-blend-mode: multiply;
         }
-        .enrich-header-title { font-size: 18px; font-weight: 800; }
-        .enrich-header-sub { font-size: 13px; opacity: .92; margin-top: 2px; }
+        .enrich-header-title { font-size: 18px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+        .enrich-header-sub { font-size: 13px; opacity: .95; margin-top: 2px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
+        .enrich-brand-price-wrap label { color: #fff; }
         .enrich-brand-price-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
         .enrich-brand-price-wrap label { font-size: 11px; font-weight: 600; opacity: .95; }
 
-        .enrich-body { overflow-y: auto; padding: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
-        .enrich-body::-webkit-scrollbar { width: 5px; }
-        .enrich-body::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
+        .enrich-body { overflow-y: auto; padding: 18px; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
+        .enrich-body::-webkit-scrollbar { width: 8px; }
+        .enrich-body::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 4px; }
 
         .enrich-card {
             border: 1px solid #e4e4e7; border-radius: 12px; overflow: hidden;
+            background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.05);
         }
         .enrich-card-head {
-            padding: 12px 16px; background: #fafafa; border-bottom: 1px solid #e4e4e7;
+            padding: 13px 16px; background: #f4f4f5; border-bottom: 1px solid #e4e4e7;
+            /* Wrap so a long model name pushes the buttons to a second line
+               instead of overlapping them. Row gap separates the wrapped lines. */
             display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 8px 12px;
         }
-        .enrich-card-title { font-size: 15px; font-weight: 700; }
-        .enrich-cw-count { font-size: 12px; font-weight: 500; color: #3f3f46; margin-left: 6px; }
+        /* Title takes remaining width and wraps; min-width:0 lets it shrink so the
+           action buttons never get pushed on top of it. */
+        .enrich-card-title { font-size: 15px; font-weight: 700; color: #18181b; line-height: 1.3; flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+        .enrich-card-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+        .enrich-cw-count { font-size: 12px; font-weight: 500; color: #52525b; margin-left: 6px; white-space: nowrap; }
         .enrich-toggle {
             background: none; border: 1px solid #d4d4d8; border-radius: 5px;
             padding: 3px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
@@ -1209,12 +1228,12 @@ function escapeHtmlEnrich(s) {
 
         .enrich-colorways { background: #fafafa; border-bottom: 1px solid #e4e4e7; }
         .enrich-cw-row {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 5px 16px; border-bottom: 1px solid #f4f4f5; font-size: 12px;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            padding: 6px 16px; border-bottom: 1px solid #ececee; font-size: 12px;
         }
         .enrich-cw-row:last-child { border-bottom: none; }
-        .enrich-cw-title { color: #3f3f46; }
-        .enrich-cw-meta { color: #52525b; font-size: 11px; }
+        .enrich-cw-title { color: #3f3f46; min-width: 0; overflow-wrap: anywhere; }
+        .enrich-cw-meta { color: #52525b; font-size: 11px; flex-shrink: 0; white-space: nowrap; }
 
         .enrich-fields { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
         .enrich-row2 { display: flex; gap: 10px; align-items: flex-start; }
