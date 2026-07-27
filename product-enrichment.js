@@ -1297,7 +1297,10 @@ function escapeHtmlEnrich(s) {
         .enrich-body::-webkit-scrollbar { width: 10px; }
         .enrich-body::-webkit-scrollbar-thumb { background: rgba(120,160,220,.22); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
 
-        .enrich-card { border: 1px solid var(--e-line); border-radius: 5px; overflow: hidden; background: var(--e-surface2); transition: border-color .15s, box-shadow .15s; }
+        /* flex-shrink:0 is critical: without it, many cards compress to fit the
+           fixed-height modal instead of letting the body scroll. */
+        .enrich-card { flex-shrink: 0; border: 1px solid var(--e-line); border-radius: 5px; overflow: hidden; background: var(--e-surface2); transition: border-color .15s, box-shadow .15s; }
+        .enrich-ignored-panel { display: block; }
         .enrich-card.enrich-open-card { border-color: var(--e-line2); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
         .enrich-card-head {
             padding: 15px 18px; background: var(--e-raise); display: flex; align-items: center; justify-content: space-between;
