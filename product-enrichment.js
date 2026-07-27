@@ -400,8 +400,8 @@ var ProductEnrichment = {
                     + ' <span class="enrich-cw-count">' + m.colorways.length + ' colorway' + (m.colorways.length !== 1 ? 's' : '') + '</span>'
                 + '</div>'
                 + '<div class="enrich-card-actions">'
-                + '<button class="enrich-model-dl" title="Download just this model as its own CSV" onclick="event.stopPropagation();ProductEnrichment.downloadModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;cursor:pointer;">⬇ Download</button>'
-                + (self._createEnabled() ? '<button class="enrich-model-create" title="Create just this model in Shopify" onclick="event.stopPropagation();ProductEnrichment.createModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="font-size:11px;font-weight:700;color:#fff;background:#008060;border:1px solid #008060;border-radius:6px;padding:4px 10px;cursor:pointer;">Create →</button>' : '')
+                + '<button class="enrich-model-dl" title="Download just this model as its own CSV" onclick="event.stopPropagation();ProductEnrichment.downloadModel(\'' + brand + '\',\'' + m.modelKey + '\')">⬇ Download</button>'
+                + (self._createEnabled() ? '<button class="enrich-model-create" title="Create just this model in Shopify" onclick="event.stopPropagation();ProductEnrichment.createModel(\'' + brand + '\',\'' + m.modelKey + '\')">Create →</button>' : '')
                 + '</div>'
                 + '</div>'
                 + '<div class="enrich-card-body" id="enrich-body-' + m.modelKey + '" style="display:none">'
@@ -426,11 +426,12 @@ var ProductEnrichment = {
                 + '</div>';
         }).join('');
 
-        return '<div class="enrich-modal">'
-            + '<div class="enrich-header" style="background-color:' + brandColor + '">'
+        return '<div class="enrich-modal" style="--brand:' + brandColor + '">'
+            + '<div class="enrich-header">'
             + '<div>'
-            + '<div class="enrich-header-title">New Product Enrichment</div>'
-            + '<div class="enrich-header-sub">' + vendor + ' · ' + models.length + ' model' + (models.length !== 1 ? 's' : '') + ' · ' + models.reduce(function(t, m) { return t + m.colorways.length; }, 0) + ' colorways</div>'
+            + '<div class="enrich-eyebrow">New products · ' + vendor + '</div>'
+            + '<div class="enrich-header-title">Review &amp; enrich</div>'
+            + '<div class="enrich-header-sub"><strong>' + models.length + '</strong> model' + (models.length !== 1 ? 's' : '') + ' · <strong>' + models.reduce(function(t, m) { return t + m.colorways.length; }, 0) + '</strong> colorways to create</div>'
             + '</div>'
             + '<div class="enrich-brand-price-wrap">'
             + '<label>Brand default price</label>'
@@ -1257,148 +1258,106 @@ function escapeHtmlEnrich(s) {
     var style = document.createElement('style');
     style.textContent = `
         #enrichment-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,.55);
+            position: fixed; inset: 0; z-index: 10000; padding: 26px 16px;
             display: flex; align-items: center; justify-content: center;
-            z-index: 10000; padding: 20px; overflow: hidden;
+            background: rgba(4,7,13,.72); backdrop-filter: blur(4px);
+            --e-surface:#111828; --e-surface2:#0b111d; --e-raise:#1b2740; --e-raise2:#243357;
+            --e-text:#e9f1fb; --e-muted:#9fb2cc; --e-muted2:#7f92ae;
+            --e-line:rgba(120,170,230,.13); --e-line2:rgba(90,150,230,.26);
+            --e-accent:#34e0ff; --e-accent2:#7c8bff; --e-bad:#ff6b8b;
         }
         body.enrich-open { overflow: hidden; }
         .enrich-modal {
-            background: #fff; border-radius: 16px; width: 100%; max-width: 920px;
-            height: 92vh; max-height: 92vh; display: flex; flex-direction: column;
-            box-shadow: 0 24px 60px rgba(0,0,0,.25); overflow: hidden;
-            /* Explicit dark base color so no text inherits a light color from the
-               surrounding (dark-themed) app and vanishes on the modal's white bg. */
-            color: #18181b;
+            position: relative; width: 100%; max-width: 900px; height: 90vh; max-height: 90vh;
+            display: flex; flex-direction: column; overflow: hidden;
+            background: var(--e-surface); color: var(--e-text); font-family: inherit;
+            border: 1px solid var(--e-line2); border-radius: 6px;
+            box-shadow: 0 40px 90px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.04);
+            --brand: var(--e-accent);
         }
         .enrich-modal, .enrich-modal * { box-sizing: border-box; }
+        .enrich-modal::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background: linear-gradient(90deg, var(--brand), var(--e-accent2)); z-index:3; }
+
         .enrich-header {
-            padding: 20px 24px; color: #fff;
-            display: flex; align-items: center; justify-content: space-between; gap: 16px;
-            flex-shrink: 0;
-            /* A subtle dark scrim under the brand color guarantees the white title
-               stays legible even on a light brand accent (eg Saucony orange), where
-               white-on-color alone falls below the readable contrast threshold. */
-            background-image: linear-gradient(rgba(0,0,0,.28), rgba(0,0,0,.28));
-            background-blend-mode: multiply;
+            padding: 24px 28px 20px; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+            flex-shrink: 0; border-bottom: 1px solid var(--e-line);
         }
-        .enrich-header-title { font-size: 18px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
-        .enrich-header-sub { font-size: 13px; opacity: .95; margin-top: 2px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
-        .enrich-brand-price-wrap label { color: #fff; }
-        .enrich-brand-price-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-        .enrich-brand-price-wrap label { font-size: 11px; font-weight: 600; opacity: .95; }
+        .enrich-eyebrow { font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--brand); font-weight: 700; }
+        .enrich-header-title { font-size: 22px; font-weight: 700; letter-spacing: -.4px; margin-top: 6px; color: var(--e-text); text-wrap: balance; }
+        .enrich-header-sub { font-size: 13px; color: var(--e-muted); margin-top: 6px; }
+        .enrich-header-sub strong { color: var(--e-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+        .enrich-brand-price-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+        .enrich-brand-price-wrap label { font-size: 10px; letter-spacing: .7px; text-transform: uppercase; font-weight: 700; color: var(--e-muted2); }
 
-        .enrich-body { overflow-y: auto; padding: 22px 24px; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 18px; }
-        .enrich-body::-webkit-scrollbar { width: 9px; }
-        .enrich-body::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 5px; }
+        .enrich-toolbar { display: flex; align-items: center; gap: 18px; padding: 12px 28px; flex-shrink: 0; border-bottom: 1px solid var(--e-line); background: var(--e-surface2); }
+        .enrich-linkbtn { background: none; border: none; color: var(--e-accent); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 0; }
+        .enrich-linkbtn:hover { color: var(--e-text); }
 
-        .enrich-card {
-            border: 1px solid #e4e4e7; border-radius: 12px; overflow: hidden;
-            background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.05);
-        }
-        /* When a card is open, lift it a touch so it reads as its own panel. */
-        .enrich-card.enrich-open-card { box-shadow: 0 6px 18px rgba(0,0,0,.09); border-color: #d4d4d8; }
+        .enrich-body { overflow-y: auto; padding: 20px 24px; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+        .enrich-body::-webkit-scrollbar { width: 10px; }
+        .enrich-body::-webkit-scrollbar-thumb { background: rgba(120,160,220,.22); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+
+        .enrich-card { border: 1px solid var(--e-line); border-radius: 5px; overflow: hidden; background: var(--e-surface2); transition: border-color .15s, box-shadow .15s; }
+        .enrich-card.enrich-open-card { border-color: var(--e-line2); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
         .enrich-card-head {
-            padding: 16px 20px; background: #f4f4f5; border-bottom: 1px solid #e4e4e7;
-            /* Wrap so a long model name pushes the buttons to a second line
-               instead of overlapping them. Row gap separates the wrapped lines. */
-            display: flex; align-items: center; justify-content: space-between;
-            flex-wrap: wrap; gap: 8px 12px;
+            padding: 15px 18px; background: var(--e-raise); display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 10px 14px; cursor: pointer; user-select: none; transition: background .12s;
         }
-        /* Title takes remaining width and wraps; min-width:0 lets it shrink so the
-           action buttons never get pushed on top of it. */
-        .enrich-card-title { font-size: 16px; font-weight: 700; color: #18181b; line-height: 1.35; flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
-        .enrich-card-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
-        .enrich-cw-count { font-size: 12px; font-weight: 500; color: #52525b; margin-left: 6px; white-space: nowrap; }
-        .enrich-toggle {
-            background: none; border: 1px solid #d4d4d8; border-radius: 5px;
-            padding: 3px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
-            font-family: inherit; color: #52525b; transition: all .15s;
-        }
-        .enrich-toggle:hover { background: #f4f4f5; }
+        .enrich-card-head:hover { background: var(--e-raise2); }
+        .enrich-card.enrich-open-card .enrich-card-head { border-bottom: 1px solid var(--e-line); }
+        .enrich-chevron { color: var(--e-accent); font-size: 10px; flex-shrink: 0; width: 12px; text-align: center; }
+        .enrich-card-title { font-size: 15.5px; font-weight: 700; color: var(--e-text); letter-spacing: -.2px; line-height: 1.3; flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; display: flex; align-items: center; gap: 11px; }
+        .enrich-cw-count { font-size: 11px; font-weight: 700; color: var(--e-accent); background: rgba(52,224,255,.08); border: 1px solid rgba(52,224,255,.22); border-radius: 3px; padding: 2px 8px; white-space: nowrap; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+        .enrich-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
+        .enrich-model-dl, .enrich-model-create { font-size: 12px; font-weight: 700; border-radius: 3px; padding: 7px 13px; cursor: pointer; font-family: inherit; transition: all .12s; }
+        .enrich-model-dl { color: var(--e-accent); background: var(--e-raise); border: 1px solid var(--e-line2); }
+        .enrich-model-dl:hover { border-color: var(--e-accent); }
+        .enrich-model-create { color: #06121f; background: linear-gradient(92deg, var(--e-accent), var(--e-accent2)); border: 1px solid transparent; }
+        .enrich-model-create:hover { filter: brightness(1.08); }
 
-        .enrich-colorways { background: #fafafa; border-bottom: 1px solid #e4e4e7; padding: 4px 0; }
-        .enrich-cw-row {
-            display: flex; align-items: center; justify-content: space-between; gap: 12px;
-            padding: 9px 20px; border-bottom: 1px solid #ececee; font-size: 13px;
-        }
-        .enrich-cw-row:last-child { border-bottom: none; }
-        .enrich-cw-title { color: #3f3f46; min-width: 0; overflow-wrap: anywhere; flex: 1; }
-        .enrich-cw-meta { color: #52525b; font-size: 11px; flex-shrink: 0; white-space: nowrap; }
+        .enrich-card-body { background: var(--e-surface2); }
+        .enrich-colorways { padding: 6px 0; border-bottom: 1px solid var(--e-line); }
+        .enrich-cw-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 18px; font-size: 13px; }
+        .enrich-cw-title { color: var(--e-text); min-width: 0; overflow-wrap: anywhere; flex: 1; }
+        .enrich-cw-meta { color: var(--e-muted2); font-size: 11px; flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+        .enrich-cw-ignore { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--e-bad); background: rgba(255,107,139,.08); border: 1px solid rgba(255,107,139,.26); border-radius: 3px; padding: 4px 11px; cursor: pointer; font-family: inherit; transition: all .12s; }
+        .enrich-cw-ignore:hover { background: rgba(255,107,139,.16); border-color: var(--e-bad); }
 
-        /* Accordion: head is clickable, chevron shows open/closed state. */
-        .enrich-card-head { cursor: pointer; user-select: none; }
-        .enrich-card-head:hover { background: #eeeef0; }
-        .enrich-chevron { color: #71717a; font-size: 11px; flex-shrink: 0; width: 12px; }
-        .enrich-card-body { }
-
-        /* Per-colorway Ignore button. */
-        .enrich-cw-ignore {
-            flex-shrink: 0; font-size: 11px; font-weight: 600; color: #b91c1c;
-            background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;
-            padding: 3px 10px; cursor: pointer; font-family: inherit; transition: all .12s;
-        }
-        .enrich-cw-ignore:hover { background: #fee2e2; border-color: #f87171; }
-
-        /* Expand/collapse-all toolbar above the list. */
-        .enrich-toolbar { display: flex; gap: 14px; padding: 8px 18px 0; flex-shrink: 0; }
-        .enrich-linkbtn { background: none; border: none; color: #2563eb; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 2px 0; }
-        .enrich-linkbtn:hover { text-decoration: underline; }
-
-        /* Ignored panel (swaps in over the list). */
-        .enrich-ignored-head { padding-bottom: 8px; border-bottom: 1px solid #e4e4e7; margin-bottom: 10px; }
-        .enrich-ign-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 8px; background: #fff; }
-        .enrich-unignore { flex-shrink: 0; font-size: 11px; font-weight: 700; color: #fff; background: #18181b; border: none; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-family: inherit; }
-        .enrich-unignore:hover { background: #3f3f46; }
-        .enrich-empty { color: #71717a; font-size: 13px; padding: 24px; text-align: center; }
-        .enrich-btn-ghost { background: #fff; color: #52525b; border: 1px solid #d4d4d8; }
-        .enrich-btn-ghost:hover { background: #f4f4f5; }
-
-        .enrich-fields { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
-        .enrich-row2 { display: flex; gap: 16px; align-items: flex-start; }
-        .enrich-field2 { display: flex; flex-direction: column; gap: 6px; }
-        .enrich-field2 label { font-size: 11px; font-weight: 700; color: #3f3f46; text-transform: uppercase; letter-spacing: .4px; }
+        .enrich-fields { padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
+        .enrich-row2 { display: flex; gap: 18px; align-items: flex-start; }
+        .enrich-field2 { display: flex; flex-direction: column; gap: 8px; }
+        .enrich-field2 label, .enrich-field-row label { font-size: 10px; font-weight: 700; color: var(--e-muted2); text-transform: uppercase; letter-spacing: .7px; }
         .enrich-field2-wide { flex: 1; }
-        .enrich-price-wrap2 { position: relative; width: 100px; }
-        .enrich-dollar { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #3f3f46; font-weight: 600; pointer-events: none; }
-        .enrich-price-wrap2 .enrich-price { padding-left: 20px; width: 100px; }
-        .enrich-advanced-toggle { font-size: 11px; font-weight: 600; color: #2563eb; cursor: pointer; padding: 2px 0 4px; display: inline-block; user-select: none; }
-        .enrich-advanced-toggle:hover { text-decoration: underline; }
-        .enrich-advanced { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid #e4e4e7; margin-top: 6px; }
-        .enrich-field-row { display: flex; align-items: flex-start; gap: 12px; }
-        .enrich-field-row label {
-            font-size: 11px; font-weight: 700; color: #3f3f46; text-transform: uppercase;
-            letter-spacing: .4px; padding-top: 11px; width: 92px; flex-shrink: 0;
-        }
-        .enrich-input {
-            flex: 1; padding: 11px 14px; border: 1px solid #e4e4e7; border-radius: 8px;
-            font-size: 14px; font-family: inherit; outline: none; transition: border-color .15s;
-            background: #fff;
-        }
-        .enrich-input:focus { border-color: #18181b; }
-        .enrich-input-sm { width: 96px; flex: none; padding: 7px 10px; font-size: 14px; }
-        .enrich-textarea {
-            flex: 1; padding: 12px 14px; border: 1px solid #e4e4e7; border-radius: 8px;
-            font-size: 14px; font-family: inherit; outline: none;
-            transition: border-color .15s; resize: vertical; min-height: 120px; background: #fff; line-height: 1.6;
-        }
-        .enrich-textarea:focus { border-color: #18181b; }
+        .enrich-price-wrap2 { position: relative; width: 130px; }
+        .enrich-dollar { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--e-muted); font-weight: 600; pointer-events: none; }
+        .enrich-price-wrap2 .enrich-price { padding-left: 24px; width: 130px; }
+        .enrich-advanced-toggle { font-size: 12px; font-weight: 600; color: var(--e-accent); cursor: pointer; padding: 2px 0; align-self: flex-start; user-select: none; }
+        .enrich-advanced-toggle:hover { color: var(--e-text); }
+        .enrich-advanced { display: flex; flex-direction: column; gap: 14px; padding-top: 16px; border-top: 1px solid var(--e-line); }
+        .enrich-field-row { display: flex; flex-direction: column; gap: 8px; }
+        .enrich-input { width: 100%; padding: 11px 13px; border: 1px solid var(--e-line2); font-size: 14px; font-family: inherit; outline: none; transition: border-color .15s, box-shadow .15s; background: var(--e-surface); color: var(--e-text); }
+        .enrich-input::placeholder, .enrich-textarea::placeholder { color: var(--e-muted2); }
+        .enrich-input:focus, .enrich-textarea:focus { border-color: var(--e-accent); box-shadow: 0 0 0 3px rgba(52,224,255,.16); }
+        .enrich-input-sm { width: 116px; padding: 9px 11px; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+        .enrich-textarea { width: 100%; padding: 12px 14px; border: 1px solid var(--e-line2); font-size: 14px; font-family: inherit; outline: none; transition: border-color .15s, box-shadow .15s; resize: vertical; min-height: 110px; background: var(--e-surface); color: var(--e-text); line-height: 1.6; }
 
-        .enrich-footer {
-            padding: 16px 24px; border-top: 1px solid #e4e4e7;
-            display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0;
-            background: #fafafa;
-        }
-        .enrich-btn {
-            padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 700;
-            cursor: pointer; font-family: inherit; border: none; transition: opacity .15s;
-        }
-        .enrich-btn:disabled { opacity: .5; cursor: not-allowed; }
-        .enrich-btn-cancel { background: #e4e4e7; color: #27272a; }
-        .enrich-btn-cancel:hover { background: #d4d4d8; }
-        .enrich-btn-secondary { background: #fff; color: #18181b; border: 1px solid #c4c4cc; }
-        .enrich-btn-secondary:hover { background: #f4f4f5; }
-        .enrich-btn-confirm { background: #008060; color: #fff; }
-        .enrich-btn-confirm:hover { background: #006e52; }
+        .enrich-ignored-head { padding-bottom: 12px; border-bottom: 1px solid var(--e-line); margin-bottom: 14px; }
+        .enrich-ign-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--e-line); border-radius: 4px; margin-bottom: 8px; background: var(--e-raise); }
+        .enrich-unignore { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--e-accent); background: var(--e-surface); border: 1px solid var(--e-line2); border-radius: 3px; padding: 6px 13px; cursor: pointer; font-family: inherit; }
+        .enrich-unignore:hover { border-color: var(--e-accent); }
+        .enrich-empty { color: var(--e-muted2); font-size: 13px; padding: 44px 24px; text-align: center; }
+
+        .enrich-footer { padding: 16px 24px; border-top: 1px solid var(--e-line); display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; background: var(--e-surface2); }
+        .enrich-btn { padding: 11px 20px; border-radius: 3px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit; border: 1px solid transparent; transition: all .13s; }
+        .enrich-btn:disabled { opacity: .45; cursor: not-allowed; }
+        .enrich-btn-cancel { background: transparent; color: var(--e-muted); border-color: var(--e-line2); }
+        .enrich-btn-cancel:hover { color: var(--e-text); border-color: var(--e-muted); }
+        .enrich-btn-secondary { background: var(--e-raise); color: var(--e-text); border-color: var(--e-line2); }
+        .enrich-btn-secondary:hover { border-color: var(--e-accent); }
+        .enrich-btn-confirm { background: linear-gradient(92deg, var(--e-accent), var(--e-accent2)); color: #06121f; }
+        .enrich-btn-confirm:hover { filter: brightness(1.08); }
+        .enrich-btn-ghost { background: transparent; color: var(--e-muted); border-color: var(--e-line2); }
+        .enrich-btn-ghost:hover { color: var(--e-text); border-color: var(--e-muted); }
 
         /* Stage 4: create-in-Shopify dialog — dark, matches the app theme */
         #s4-confirm-overlay {
