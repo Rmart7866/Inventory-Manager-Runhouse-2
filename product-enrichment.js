@@ -152,6 +152,14 @@ var ProductEnrichment = {
                 });
             }
             var m = modelMap.get(modelKey);
+            // MSRP straight off the feed file, if the converter parsed one
+            // (Saucony's CatalogUPCs MSRP, Hoka's retail column, etc.). This is
+            // the current drop's real price, so it should win over a stale catalog
+            // sibling or the brand default. First non-empty across the model wins.
+            if (!m.feedPrice) {
+                var fp = String(v.price || v.retail || v.msrp || '').replace(/[^0-9.]/g, '');
+                if (fp && parseFloat(fp) > 0) m.feedPrice = fp;
+            }
             if (!m.colorways.has(v.handle)) {
                 m.colorways.set(v.handle, {
                     handle: v.handle,
@@ -336,7 +344,7 @@ var ProductEnrichment = {
             if (t.classList.contains('enrich-advanced-toggle')) {
                 e.stopPropagation();
                 var key = t.dataset.model, adv = document.getElementById('enrich-adv-' + key);
-                if (adv) { var vis = adv.style.display !== 'none'; adv.style.display = vis ? 'none' : 'block'; t.textContent = vis ? '+ SEO & Description' : '− SEO & Description'; }
+                if (adv) { var vis = adv.style.display !== 'none'; adv.style.display = vis ? 'none' : 'block'; t.textContent = vis ? '+ SEO title & description' : '− SEO title & description'; }
                 return;
             }
             if (t.classList.contains('enrich-price')) { t.dataset.default = 'false'; }
@@ -360,10 +368,10 @@ var ProductEnrichment = {
 
         var modelCards = models.map(function(m) {
             var saved = savedDefaults[m.modelKey] || {};
-            // Price: a saved edit wins, then the barcode-file price (source of
-            // truth, per the owner's call), then the live sibling's price, then
-            // the brand default as a last resort.
-            var price = saved.price || m.barcodePrice || (m.inherit && m.inherit.price) || defaultPrice;
+            // Price priority: a manual saved override, then the feed file's MSRP
+            // (the current drop's real price), then a bundled barcode-file price
+            // (ON/ASICS), then the live catalog sibling, then the brand default.
+            var price = saved.price || m.feedPrice || m.barcodePrice || (m.inherit && m.inherit.price) || defaultPrice;
             var rawDesc = saved.description || '';
             // Strip outer <p> tags for display — user sees plain text, we re-wrap on save
             var desc = rawDesc.replace(/^<p>([\s\S]*)<\/p>$/i, '$1').trim();
@@ -403,11 +411,13 @@ var ProductEnrichment = {
                 + '<div class="enrich-field2"><label>Price</label><div class="enrich-price-wrap2"><span class="enrich-dollar">$</span><input class="enrich-input enrich-price" data-model="' + m.modelKey + '" data-default="true" type="text" value="' + price + '" placeholder="0.00"></div></div>'
                 + '<div class="enrich-field2 enrich-field2-wide"><label>Tags</label><input class="enrich-input enrich-tags" data-model="' + m.modelKey + '" type="text" value="' + tags.replace(/"/g, '&quot;') + '" placeholder="Saucony, Guide 19, Stability..."></div>'
                 + '</div>'
-                + '<div class="enrich-advanced-toggle" data-model="' + m.modelKey + '">+ SEO &amp; Description</div>'
+                // Description is a primary field now, always shown when the card
+                // is expanded, so staff can write it without hunting in "advanced".
+                + '<div class="enrich-field-row enrich-field-desc"><label>Description</label><textarea class="enrich-textarea enrich-description" data-model="' + m.modelKey + '" placeholder="Describe this shoe — features, feel, who it&#39;s for. Plain text is fine.">' + desc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>'
+                + '<div class="enrich-advanced-toggle" data-model="' + m.modelKey + '">+ SEO title &amp; description</div>'
                 + '<div class="enrich-advanced" id="enrich-adv-' + m.modelKey + '" style="display:none">'
                 + '<div class="enrich-field-row"><label>SEO Title</label><input class="enrich-input enrich-seo-title" data-model="' + m.modelKey + '" type="text" value="' + seoTitle.replace(/"/g, '&quot;') + '" placeholder="e.g. Saucony Guide 19 | Stability Running Shoe"></div>'
                 + '<div class="enrich-field-row"><label>SEO Desc</label><input class="enrich-input enrich-seo-desc" data-model="' + m.modelKey + '" type="text" value="' + seoDesc.replace(/"/g, '&quot;') + '" placeholder="160 char description for search engines..."></div>'
-                + '<div class="enrich-field-row enrich-field-desc"><label>Description</label><textarea class="enrich-textarea enrich-description" data-model="' + m.modelKey + '" placeholder="Describe this shoe — features, feel, who it&#39;s for. Plain text is fine.">' + desc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>'
                 + '</div>'
                 + '</div>'
                 + '</div>'
