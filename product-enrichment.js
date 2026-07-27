@@ -289,6 +289,8 @@ var ProductEnrichment = {
             if (!body) return;
             body.style.display = collapsed ? 'none' : 'block';
             if (chev) chev.textContent = collapsed ? '▶' : '▼';
+            var card = body.closest('.enrich-card');
+            if (card) card.classList.toggle('enrich-open-card', !collapsed);
         }
         function enrichRefreshIgnoredCount() {
             var el = document.getElementById('enrich-ignored-count');
@@ -1261,8 +1263,8 @@ function escapeHtmlEnrich(s) {
         }
         body.enrich-open { overflow: hidden; }
         .enrich-modal {
-            background: #fff; border-radius: 16px; width: 100%; max-width: 820px;
-            height: 90vh; max-height: 90vh; display: flex; flex-direction: column;
+            background: #fff; border-radius: 16px; width: 100%; max-width: 920px;
+            height: 92vh; max-height: 92vh; display: flex; flex-direction: column;
             box-shadow: 0 24px 60px rgba(0,0,0,.25); overflow: hidden;
             /* Explicit dark base color so no text inherits a light color from the
                surrounding (dark-themed) app and vanishes on the modal's white bg. */
@@ -1285,16 +1287,18 @@ function escapeHtmlEnrich(s) {
         .enrich-brand-price-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
         .enrich-brand-price-wrap label { font-size: 11px; font-weight: 600; opacity: .95; }
 
-        .enrich-body { overflow-y: auto; padding: 18px; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
-        .enrich-body::-webkit-scrollbar { width: 8px; }
-        .enrich-body::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 4px; }
+        .enrich-body { overflow-y: auto; padding: 22px 24px; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 18px; }
+        .enrich-body::-webkit-scrollbar { width: 9px; }
+        .enrich-body::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 5px; }
 
         .enrich-card {
             border: 1px solid #e4e4e7; border-radius: 12px; overflow: hidden;
             background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.05);
         }
+        /* When a card is open, lift it a touch so it reads as its own panel. */
+        .enrich-card.enrich-open-card { box-shadow: 0 6px 18px rgba(0,0,0,.09); border-color: #d4d4d8; }
         .enrich-card-head {
-            padding: 13px 16px; background: #f4f4f5; border-bottom: 1px solid #e4e4e7;
+            padding: 16px 20px; background: #f4f4f5; border-bottom: 1px solid #e4e4e7;
             /* Wrap so a long model name pushes the buttons to a second line
                instead of overlapping them. Row gap separates the wrapped lines. */
             display: flex; align-items: center; justify-content: space-between;
@@ -1302,7 +1306,7 @@ function escapeHtmlEnrich(s) {
         }
         /* Title takes remaining width and wraps; min-width:0 lets it shrink so the
            action buttons never get pushed on top of it. */
-        .enrich-card-title { font-size: 15px; font-weight: 700; color: #18181b; line-height: 1.3; flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+        .enrich-card-title { font-size: 16px; font-weight: 700; color: #18181b; line-height: 1.35; flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
         .enrich-card-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
         .enrich-cw-count { font-size: 12px; font-weight: 500; color: #52525b; margin-left: 6px; white-space: nowrap; }
         .enrich-toggle {
@@ -1312,10 +1316,10 @@ function escapeHtmlEnrich(s) {
         }
         .enrich-toggle:hover { background: #f4f4f5; }
 
-        .enrich-colorways { background: #fafafa; border-bottom: 1px solid #e4e4e7; }
+        .enrich-colorways { background: #fafafa; border-bottom: 1px solid #e4e4e7; padding: 4px 0; }
         .enrich-cw-row {
             display: flex; align-items: center; justify-content: space-between; gap: 12px;
-            padding: 6px 16px; border-bottom: 1px solid #ececee; font-size: 12px;
+            padding: 9px 20px; border-bottom: 1px solid #ececee; font-size: 13px;
         }
         .enrich-cw-row:last-child { border-bottom: none; }
         .enrich-cw-title { color: #3f3f46; min-width: 0; overflow-wrap: anywhere; flex: 1; }
@@ -1349,10 +1353,10 @@ function escapeHtmlEnrich(s) {
         .enrich-btn-ghost { background: #fff; color: #52525b; border: 1px solid #d4d4d8; }
         .enrich-btn-ghost:hover { background: #f4f4f5; }
 
-        .enrich-fields { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
-        .enrich-row2 { display: flex; gap: 10px; align-items: flex-start; }
-        .enrich-field2 { display: flex; flex-direction: column; gap: 4px; }
-        .enrich-field2 label { font-size: 10px; font-weight: 700; color: #3f3f46; text-transform: uppercase; letter-spacing: .4px; }
+        .enrich-fields { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+        .enrich-row2 { display: flex; gap: 16px; align-items: flex-start; }
+        .enrich-field2 { display: flex; flex-direction: column; gap: 6px; }
+        .enrich-field2 label { font-size: 11px; font-weight: 700; color: #3f3f46; text-transform: uppercase; letter-spacing: .4px; }
         .enrich-field2-wide { flex: 1; }
         .enrich-price-wrap2 { position: relative; width: 100px; }
         .enrich-dollar { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #3f3f46; font-weight: 600; pointer-events: none; }
@@ -1360,28 +1364,28 @@ function escapeHtmlEnrich(s) {
         .enrich-advanced-toggle { font-size: 11px; font-weight: 600; color: #2563eb; cursor: pointer; padding: 2px 0 4px; display: inline-block; user-select: none; }
         .enrich-advanced-toggle:hover { text-decoration: underline; }
         .enrich-advanced { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid #e4e4e7; margin-top: 6px; }
-        .enrich-field-row { display: flex; align-items: flex-start; gap: 10px; }
+        .enrich-field-row { display: flex; align-items: flex-start; gap: 12px; }
         .enrich-field-row label {
-            font-size: 10px; font-weight: 700; color: #3f3f46; text-transform: uppercase;
-            letter-spacing: .4px; padding-top: 8px; width: 80px; flex-shrink: 0;
+            font-size: 11px; font-weight: 700; color: #3f3f46; text-transform: uppercase;
+            letter-spacing: .4px; padding-top: 11px; width: 92px; flex-shrink: 0;
         }
         .enrich-input {
-            flex: 1; padding: 9px 12px; border: 1px solid #e4e4e7; border-radius: 7px;
-            font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s;
+            flex: 1; padding: 11px 14px; border: 1px solid #e4e4e7; border-radius: 8px;
+            font-size: 14px; font-family: inherit; outline: none; transition: border-color .15s;
             background: #fff;
         }
         .enrich-input:focus { border-color: #18181b; }
-        .enrich-input-sm { width: 90px; flex: none; padding: 5px 8px; font-size: 13px; }
+        .enrich-input-sm { width: 96px; flex: none; padding: 7px 10px; font-size: 14px; }
         .enrich-textarea {
-            flex: 1; padding: 10px 12px; border: 1px solid #e4e4e7; border-radius: 7px;
-            font-size: 13px; font-family: inherit; outline: none;
-            transition: border-color .15s; resize: vertical; min-height: 100px; background: #fff; line-height: 1.6;
+            flex: 1; padding: 12px 14px; border: 1px solid #e4e4e7; border-radius: 8px;
+            font-size: 14px; font-family: inherit; outline: none;
+            transition: border-color .15s; resize: vertical; min-height: 120px; background: #fff; line-height: 1.6;
         }
         .enrich-textarea:focus { border-color: #18181b; }
 
         .enrich-footer {
             padding: 16px 24px; border-top: 1px solid #e4e4e7;
-            display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0;
             background: #fafafa;
         }
         .enrich-btn {
