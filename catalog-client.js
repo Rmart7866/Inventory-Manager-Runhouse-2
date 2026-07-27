@@ -444,6 +444,24 @@ var CatalogClient = {
         });
     },
 
+    // Catalog tagging WRITE. POST a chunk of tag/type changes (computed in the
+    // browser from the cached catalog) to the Worker, which applies them behind
+    // the write secret. changes: [{id, add, remove, productType}].
+    applyTags: function (changes) {
+        return fetch(this._writeBase() + '/tags/apply', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + this.CATALOG_TOKEN,
+                'X-Write-Secret': this.writeSecret()
+            },
+            body: JSON.stringify({ changes: changes || [] })
+        }).then(function (res) {
+            return res.json().then(function (b) { b.__status = res.status; return b; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
+    },
+
     createProducts: function (specs) {
         return fetch(this._writeBase() + '/products', {
             method: 'POST',

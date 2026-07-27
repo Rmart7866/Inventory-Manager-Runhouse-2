@@ -145,7 +145,7 @@ function makeBulkAssembler(needhamLocationId) {
     if ('handle' in o) {
       if (!/shoes$/i.test(o.productType || '')) return; // footwear only
       productsById.set(o.id, {
-        handle: o.handle, title: o.title, vendor: o.vendor,
+        id: o.id, handle: o.handle, title: o.title, vendor: o.vendor,
         productType: o.productType, status: o.status, tags: o.tags || [],
         descriptionHtml: o.descriptionHtml || '', category: o.category || null,
         variants: { nodes: [] },
@@ -261,12 +261,16 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
     const widthTag = widthTagFor(parsed.width);
 
     products.push({
+      id: n.id,
       handle: n.handle,
       title: n.title,
       vendor: n.vendor,
       brand,
       productType: n.productType,
       status: n.status,
+      // Current tags, so the dashboard's Catalog Tagging panel can diff against
+      // the computed width/cw-group/gender tags without a fresh Admin scan.
+      tags: n.tags || [],
       price,
       styleCode: parsed.styleCode,
       colorCode: parsed.colorCode,

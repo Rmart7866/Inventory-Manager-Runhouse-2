@@ -29,6 +29,7 @@ import { createShopifyClient } from './shopify.js';
 import { buildCatalog } from './catalog.js';
 import { createProducts, createStagedUploads } from './products.js';
 import { zeroInventory, setInventory } from './inventory.js';
+import { applyTagChanges } from './tags.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -238,6 +239,23 @@ async function handleZeroInventory(request, env) {
   return json(result, result.ok ? 200 : 400, request, env);
 }
 
+// POST /tags/apply, catalog tagging WRITE. Body: { changes: [{id, add, remove,
+// productType}, ...] }. The browser computes the plan from the cached catalog and
+// sends it in chunks. Write-gated (forWrite + write secret), same as /inventory.
+async function handleApplyTags(request, env) {
+  let body;
+  try { body = await request.json(); } catch (e) { body = null; }
+  if (!body || !Array.isArray(body.changes)) {
+    return json({ error: 'Expected JSON body { changes: [ {id, add, remove, productType} ] }' }, 400, request, env);
+  }
+  if (body.changes.length > 250) {
+    return json({ error: 'Too many changes in one request (max 250 per chunk)' }, 400, request, env);
+  }
+  const client = createShopifyClient(env);
+  const result = await applyTagChanges(client, body.changes);
+  return json(result, 200, request, env);
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -271,6 +289,9 @@ export default {
       // the public bundle, because this route is destructive (see auth.js). Both
       // must pass. Zero-only and Needham-scoped in inventory.js.
       '/inventory': { handler: handleZeroInventory, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // Catalog tagging WRITE (width / cw-group / gender tags + product type).
+      // Same hard gate as /inventory: forWrite + a write secret not in the bundle.
+      '/tags/apply': { handler: handleApplyTags, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
     };
     const route = routes[url.pathname];
     if (!route) return json({ error: 'Not found' }, 404, request, env);
