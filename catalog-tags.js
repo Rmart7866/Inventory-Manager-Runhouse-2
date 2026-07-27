@@ -14,11 +14,23 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 var CatalogTags = {
-    GENDER_TAG: { "Men's": 'Men', "Women's": 'Women', 'Unisex': null },
+    // Canonical gender tag is the gendered "* Shoes" form (the store's convention,
+    // same string as the product type). The op adds this and strips every OTHER
+    // gender-tag variant the catalog has accumulated (men, mens, Men's, mens
+    // shoes, Women, womens, ...), so one clean tag wins.
+    GENDER_TAG: { "Men's": "Men's Shoes", "Women's": "Women's Shoes", 'Unisex': 'Unisex Shoes' },
     GENDER_TYPE: { "Men's": "Men's Shoes", "Women's": "Women's Shoes", 'Unisex': 'Unisex Shoes' },
-    // Gender tags we are allowed to remove when they disagree with the parse.
-    _GENDER_TAGS: ['Men', 'Women'],
     CHUNK: 100,
+    // A tag is a gender tag if it normalizes to a gender word, optionally + "shoes".
+    _isGenderTag: function (t) {
+        var s = String(t).toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
+        return /^(men|mens|man|men's|women|womens|woman|women's|unisex)( shoes)?$/.test(s);
+    },
+    // A tag is a width tag: wide / extra wide / x-wide / narrow, any case or spacing.
+    _isWidthTag: function (t) {
+        var s = String(t).toLowerCase().replace(/\s+/g, ' ').trim();
+        return /^(wide|extra[\s-]?wide|x[\s-]?wide|narrow)$/.test(s);
+    },
 
     // Which statuses get tagged. ARCHIVED is retired, leave it alone.
     _taggable: function (status) { return status === 'ACTIVE' || status === 'DRAFT'; },
@@ -28,7 +40,7 @@ var CatalogTags = {
     computePlan: function (products, ops) {
         var self = this;
         var changes = [];
-        var summary = { products: 0, widthAdds: 0, swatchAdds: 0, swatchRemoves: 0, genderAdds: 0, genderRemoves: 0, typeFixes: 0, scanned: 0 };
+        var summary = { products: 0, widthAdds: 0, widthRemoves: 0, swatchAdds: 0, swatchRemoves: 0, genderAdds: 0, genderRemoves: 0, typeFixes: 0, scanned: 0 };
         (products || []).forEach(function (p) {
             if (!self._taggable(p.status)) return;
             if (!p.id) return; // need the gid to write
@@ -37,7 +49,8 @@ var CatalogTags = {
             var has = function (t) { return tags.indexOf(t) !== -1; };
             var add = [], remove = [], newType = null;
 
-            if (ops.width && p.widthTag) {                       // 'wide' | 'extra wide' | 'narrow'
+            if (ops.width && p.widthTag) {                       // 'wide' | 'extra wide' | 'narrow' (lowercase canonical)
+                tags.forEach(function (t) { if (self._isWidthTag(t) && t !== p.widthTag) { remove.push(t); summary.widthRemoves++; } });
                 if (!has(p.widthTag)) { add.push(p.widthTag); summary.widthAdds++; }
             }
             if (ops.swatch && p.cwGroup) {
@@ -47,11 +60,13 @@ var CatalogTags = {
                 if (!has(p.cwGroup)) { add.push(p.cwGroup); summary.swatchAdds++; }
             }
             if (ops.gender && p.gender) {
-                var gt = self.GENDER_TAG[p.gender];              // 'Men' | 'Women' | null
-                self._GENDER_TAGS.forEach(function (t) { if (t !== gt && has(t)) { remove.push(t); summary.genderRemoves++; } });
-                if (gt && !has(gt)) { add.push(gt); summary.genderAdds++; }
-                var correctType = self.GENDER_TYPE[p.gender];
-                if (correctType && p.productType !== correctType) { newType = correctType; summary.typeFixes++; }
+                var canon = self.GENDER_TAG[p.gender];           // "Men's Shoes" | "Women's Shoes" | "Unisex Shoes"
+                if (canon) {
+                    tags.forEach(function (t) { if (self._isGenderTag(t) && t !== canon) { remove.push(t); summary.genderRemoves++; } });
+                    if (!has(canon)) { add.push(canon); summary.genderAdds++; }
+                    var correctType = self.GENDER_TYPE[p.gender];
+                    if (correctType && p.productType !== correctType) { newType = correctType; summary.typeFixes++; }
+                }
             }
 
             if (add.length || remove.length || newType) {
@@ -124,9 +139,9 @@ var CatalogTags = {
         var s = res.summary;
         var body = document.getElementById('ctags-result');
         var lines = [];
-        if (ops.width) lines.push('Width tags: <b>' + s.widthAdds + '</b> to add');
+        if (ops.width) lines.push('Width tags: <b>' + s.widthAdds + '</b> to add, <b>' + s.widthRemoves + '</b> variant to remove');
         if (ops.swatch) lines.push('Swatch (cw-group) tags: <b>' + s.swatchAdds + '</b> to add, <b>' + s.swatchRemoves + '</b> stale to remove');
-        if (ops.gender) lines.push('Gender tags: <b>' + s.genderAdds + '</b> to add, <b>' + s.genderRemoves + '</b> wrong to remove; <b>' + s.typeFixes + '</b> product-type fixes');
+        if (ops.gender) lines.push('Gender tags: <b>' + s.genderAdds + '</b> to add, <b>' + s.genderRemoves + '</b> variant to remove; <b>' + s.typeFixes + '</b> product-type fixes');
         var sample = self._plan.slice(0, 12).map(function (c) {
             var bits = [];
             if (c.remove && c.remove.length) bits.push('<span class="ctags-rm">- ' + c.remove.join(', ') + '</span>');
@@ -193,8 +208,8 @@ var CatalogTags = {
             + '<div class="ctags-body">'
             + '<div class="ctags-ops">'
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-swatch" checked><div><div class="ctags-op-t">Swatch grouping</div><div class="ctags-op-h">The cw-group:model--width tags that drive the color-swatch grid. Fixes stale ones, adds missing ones.</div></div></label>'
-            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-width"><div><div class="ctags-op-t">Width tags</div><div class="ctags-op-h">wide / extra wide / narrow, from the parsed width.</div></div></label>'
-            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-gender"><div><div class="ctags-op-t">Gender + product type</div><div class="ctags-op-h">Men / Women tag and the gendered "* Shoes" product type. Removes a wrong gender tag.</div></div></label>'
+            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-width"><div><div class="ctags-op-t">Width tags</div><div class="ctags-op-h">Lowercase wide / extra wide / narrow. Adds the right one and removes capitalized or variant duplicates.</div></div></label>'
+            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-gender"><div><div class="ctags-op-t">Gender + product type</div><div class="ctags-op-h">Canonical "Men\'s Shoes" / "Women\'s Shoes" / "Unisex Shoes" tag + matching product type. Strips the dozen stray gender-tag variants.</div></div></label>'
             + '</div>'
             + '<div class="ctags-status" id="ctags-status">Loading catalog...</div>'
             + '<div class="ctags-result" id="ctags-result"></div>'
