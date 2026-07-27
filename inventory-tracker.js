@@ -6,29 +6,88 @@
 //        always calling HokaConverter (which mis-identified everything for
 //        Brooks, ON, ASICS, etc. and routed new colorways to newProducts)
 
-// ========== IGNORE LIST ==========
+// ========== IGNORE LIST (SHARED, Firestore-backed) ==========
 // Colorways staff explicitly marked "don't add" (no photos, not wanted, etc.).
-// They must never show as a new product again. Stored in localStorage per brand
-// as { handle: { title, skus:[...], at } }. Filtering is by SKU (the stable key
-// on both the feed and Shopify), so an ignored colorway stays ignored even if its
-// handle drifts between scans. Un-ignoring removes it, and it reappears on the
-// next scan if still new.
+// They must never show as a new product again. Filtering is by SKU (the stable
+// key on both the feed and Shopify), so an ignored colorway stays ignored even if
+// its handle drifts. Un-ignoring removes it; it reappears on the next scan if
+// still new.
 //
-// NOTE: this is per-browser (localStorage). If ignores need to be shared across
-// staff/machines, move the store to Firestore (the db handle is available here).
+// SHARED ACROSS STAFF. Stored in Firestore at inventory-ignore/{brand}/items/
+// {handle} (same db the tracker uses), so an ignore made on one machine applies
+// everywhere. An in-memory cache keeps the hot path (skuSet/isIgnored, called in
+// compare) synchronous; load(brand) fills it and runs during InventoryTracker.load.
+// localStorage is kept as a mirror: a fast fallback if Firestore is unreachable,
+// and the source for a one-time migration of anything ignored before this change.
 var Ignore = {
-    _key: function (brand) { return 'rhIgnore:' + (brand || '_default'); },
-    all: function (brand) { try { return JSON.parse(localStorage.getItem(this._key(brand)) || '{}'); } catch (e) { return {}; } },
-    _save: function (brand, obj) { try { localStorage.setItem(this._key(brand), JSON.stringify(obj)); } catch (e) { /* no localStorage */ } },
-    count: function (brand) { return Object.keys(this.all(brand)).length; },
-    skuSet: function (brand) {
-        var o = this.all(brand), s = new Set();
-        Object.keys(o).forEach(function (h) { (o[h].skus || []).forEach(function (x) { if (x) s.add(String(x).toUpperCase()); }); });
-        return s;
+    _cache: {},   // brand -> { map: {handle:{title,skus,at}}, skus: Set, loaded: bool }
+    _lsKey: function (brand) { return 'rhIgnore:' + (brand || '_default'); },
+    _coll: function (brand) { return db.collection('inventory-ignore').doc(brand || '_default').collection('items'); },
+    // Firestore doc ids cannot contain / . # $ [ ]. Handles are safe slugs, but guard anyway.
+    _docId: function (handle) { return String(handle || '_').replace(/[\/.#$\[\]]/g, '_').slice(0, 200) || '_'; },
+    _c: function (brand) { return this._cache[brand] || (this._cache[brand] = { map: {}, skus: new Set(), loaded: false }); },
+
+    // Load this brand's ignore list from Firestore into the cache. Falls back to
+    // the localStorage mirror if Firestore is unavailable. Returns a Promise.
+    load: function (brand) {
+        var self = this;
+        var getPromise;
+        try { getPromise = this._coll(brand).get(); }
+        catch (e) { self._loadLocalIntoCache(brand); return Promise.resolve(self._cache[brand]); } // db missing: use local mirror
+        return getPromise.then(function (snap) {
+            var map = {}, skus = new Set();
+            snap.forEach(function (doc) {
+                var d = doc.data() || {};
+                map[doc.id] = { title: d.title || doc.id, skus: d.skus || [], at: d.at || 0 };
+                (d.skus || []).forEach(function (x) { if (x) skus.add(String(x).toUpperCase()); });
+            });
+            self._cache[brand] = { map: map, skus: skus, loaded: true };
+            self._migrateLocal(brand); // read the OLD local mirror, push local-only ignores up (one time)
+            self._saveLocal(brand);    // then mirror the merged result
+            return self._cache[brand];
+        }).catch(function (e) {
+            console.warn('[Ignore] Firestore load failed, using local mirror:', e && e.message);
+            self._loadLocalIntoCache(brand);
+            return self._cache[brand];
+        });
     },
-    isIgnored: function (brand, skus) { var s = this.skuSet(brand); return (skus || []).some(function (x) { return x && s.has(String(x).toUpperCase()); }); },
-    add: function (brand, entry) { var o = this.all(brand); o[entry.handle] = { title: entry.title || entry.handle, skus: entry.skus || [], at: Date.now() }; this._save(brand, o); },
-    remove: function (brand, handle) { var o = this.all(brand); delete o[handle]; this._save(brand, o); }
+    _loadLocalIntoCache: function (brand) {
+        var map = {}, skus = new Set();
+        try { map = JSON.parse(localStorage.getItem(this._lsKey(brand)) || '{}'); } catch (e) { map = {}; }
+        Object.keys(map).forEach(function (h) { (map[h].skus || []).forEach(function (x) { if (x) skus.add(String(x).toUpperCase()); }); });
+        this._cache[brand] = { map: map, skus: skus, loaded: true };
+    },
+    _migrateLocal: function (brand) {
+        var self = this, local = {};
+        try { local = JSON.parse(localStorage.getItem(this._lsKey(brand)) || '{}'); } catch (e) { return; }
+        var c = this._cache[brand];
+        Object.keys(local).forEach(function (h) {
+            if (!c.map[h]) self.add(brand, { handle: h, title: local[h].title, skus: local[h].skus || [] });
+        });
+    },
+    _saveLocal: function (brand) { try { localStorage.setItem(this._lsKey(brand), JSON.stringify(this._c(brand).map)); } catch (e) { /* no localStorage */ } },
+
+    all: function (brand) { return this._c(brand).map; },
+    count: function (brand) { return Object.keys(this._c(brand).map).length; },
+    skuSet: function (brand) { return this._c(brand).skus; },
+    isIgnored: function (brand, skus) { var s = this._c(brand).skus; return (skus || []).some(function (x) { return x && s.has(String(x).toUpperCase()); }); },
+    add: function (brand, entry) {
+        var c = this._c(brand);
+        var rec = { title: entry.title || entry.handle, skus: entry.skus || [], at: Date.now() };
+        c.map[entry.handle] = rec;
+        (entry.skus || []).forEach(function (x) { if (x) c.skus.add(String(x).toUpperCase()); });
+        this._saveLocal(brand);
+        try { this._coll(brand).doc(this._docId(entry.handle)).set(rec).catch(function () {}); } catch (e) { /* db missing */ }
+    },
+    remove: function (brand, handle) {
+        var c = this._c(brand);
+        delete c.map[handle];
+        var skus = new Set();
+        Object.keys(c.map).forEach(function (h) { (c.map[h].skus || []).forEach(function (x) { if (x) skus.add(String(x).toUpperCase()); }); });
+        c.skus = skus;
+        this._saveLocal(brand);
+        try { this._coll(brand).doc(this._docId(handle)).delete().catch(function () {}); } catch (e) { /* db missing */ }
+    }
 };
 
 var InventoryTracker = {
@@ -94,7 +153,11 @@ var InventoryTracker = {
             var converter = this._getConverter(brand);
             var identifyFn = (converter && typeof converter.identifyProduct === 'function')
                 ? converter.identifyProduct.bind(converter) : null;
-            return CatalogClient.forBrand(brand, identifyFn).then(function(sets) {
+            return Promise.all([
+                CatalogClient.forBrand(brand, identifyFn),
+                Ignore.load(brand).catch(function () { return null; }) // shared ignore list, never fatal
+            ]).then(function(results) {
+                var sets = results[0];
                 cache.models = sets.models;
                 cache.colorways = sets.colorways;
                 cache.loaded = true;
@@ -135,7 +198,8 @@ var InventoryTracker = {
                 return cw;
             }).catch(function() { return new Map(); });
 
-        return Promise.all([modelsPromise, colorwaysPromise]).then(function(results) {
+        var ignorePromise = Ignore.load(brand).catch(function () { return null; });
+        return Promise.all([modelsPromise, colorwaysPromise, ignorePromise]).then(function(results) {
             cache.models = results[0];
             cache.colorways = results[1];
             cache.loaded = true;
