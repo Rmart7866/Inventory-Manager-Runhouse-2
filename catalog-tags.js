@@ -49,15 +49,11 @@ var CatalogTags = {
             var has = function (t) { return tags.indexOf(t) !== -1; };
             var add = [], remove = [], newType = null;
 
-            if (ops.width && p.widthTag) {                       // 'wide' | 'extra wide' | 'narrow' (lowercase canonical)
-                tags.forEach(function (t) { if (self._isWidthTag(t) && t !== p.widthTag) { remove.push(t); summary.widthRemoves++; } });
-                if (!has(p.widthTag)) { add.push(p.widthTag); summary.widthAdds++; }
+            if (ops.width && p.widthTag) {                       // 'wide' | 'extra wide' | 'narrow' (lowercase)
+                if (!has(p.widthTag)) { add.push(p.widthTag); summary.widthAdds++; }   // add-only
             }
             if (ops.swatch && p.cwGroup) {
-                tags.forEach(function (t) {
-                    if (t.indexOf('cw-group:') === 0 && t !== p.cwGroup) { remove.push(t); summary.swatchRemoves++; }
-                });
-                if (!has(p.cwGroup)) { add.push(p.cwGroup); summary.swatchAdds++; }
+                if (!has(p.cwGroup)) { add.push(p.cwGroup); summary.swatchAdds++; }    // add-only
             }
             if (ops.gender && p.gender) {
                 var canon = self.GENDER_TAG[p.gender];           // "Men's Shoes" | "Women's Shoes" | "Unisex Shoes"
@@ -229,8 +225,8 @@ var CatalogTags = {
         var s = res.summary, mfCount = self._mf ? self._mf.inputs.length : 0;
         var body = document.getElementById('ctags-result');
         var lines = [];
-        if (ops.width) lines.push('Width tags: <b>' + s.widthAdds + '</b> to add, <b>' + s.widthRemoves + '</b> variant to remove');
-        if (ops.swatch) lines.push('Swatch (cw-group) tags: <b>' + s.swatchAdds + '</b> to add, <b>' + s.swatchRemoves + '</b> stale to remove');
+        if (ops.width) lines.push('Width tags: <b>' + s.widthAdds + '</b> to add (add-only)');
+        if (ops.swatch) lines.push('Swatch (cw-group) tags: <b>' + s.swatchAdds + '</b> to add (add-only)');
         if (ops.gender) lines.push('Gender tags: <b>' + s.genderAdds + '</b> to add (add-only, no removals); <b>' + s.typeFixes + '</b> product-type fixes');
         if (ops.metafields && self._mf) lines.push('Swatch metafields: <b>' + self._mf.summary.metafields + '</b> fields across <b>' + self._mf.summary.products + '</b> active products (rewrites every sibling reference)');
         var sample = self._plan.slice(0, 10).map(function (c) {
@@ -313,8 +309,8 @@ var CatalogTags = {
             + '<div class="ctags-sub">Apply width, swatch, and gender tags across the live catalog. Preview first, always.</div></div></div>'
             + '<div class="ctags-body">'
             + '<div class="ctags-ops">'
-            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-swatch" checked><div><div class="ctags-op-t">Swatch grouping</div><div class="ctags-op-h">The cw-group:model--width tags that drive the color-swatch grid. Fixes stale ones, adds missing ones.</div></div></label>'
-            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-width"><div><div class="ctags-op-t">Width tags</div><div class="ctags-op-h">Lowercase wide / extra wide / narrow. Adds the right one and removes capitalized or variant duplicates.</div></div></label>'
+            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-swatch" checked><div><div class="ctags-op-t">Swatch grouping</div><div class="ctags-op-h">The cw-group:model--width tags that drive the color-swatch grid. Adds the missing ones. Add-only, never removes.</div></div></label>'
+            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-width"><div><div class="ctags-op-t">Width tags</div><div class="ctags-op-h">Lowercase wide / extra wide / narrow, from the parsed width. Add-only, never removes.</div></div></label>'
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-gender"><div><div class="ctags-op-t">Gender + product type</div><div class="ctags-op-h">Adds the canonical "Men\'s Shoes" / "Women\'s Shoes" / "Unisex Shoes" tag + sets the matching product type. Add-only, never removes existing tags.</div></div></label>'
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-metafields"><div><div class="ctags-op-t">Swatch sibling metafields</div><div class="ctags-op-h">The custom.* style / width / gender sibling references + color_name / width_code that the PDP swatch grid reads. Rebuilds them for every active footwear product.</div></div></label>'
             + '</div>'
