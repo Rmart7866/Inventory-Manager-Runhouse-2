@@ -337,10 +337,11 @@
         body.user-mode .chrome-warn,
         body.user-mode .brand-links,
         body.user-mode .instruct,
-        body.user-mode .copy-section,
         body.user-mode [id$="-upc-dropzone"],
         body.user-mode [id$="-upc-uploaded"],
         body.user-mode .dev-only { display: none !important; }
+        /* Keep the ASICS / Brooks scraper-link managers (.copy-section) visible in
+           Simple mode: staff need those copy-paste links to pull those two brands. */
         /* Tighten the brand card once its chrome is gone. */
         body.user-mode .bh { padding: 16px 24px; font-size: 18px; }
 
@@ -352,15 +353,31 @@
         body.user-mode .dl-section h2,                /* "Downloads" heading */
         body.user-mode .unified-bar h2 { display: none; }
         body.user-mode .page-header p { display: none; }
-        /* Larger, calmer type in the parts that remain. */
-        body.user-mode .page-header h1 { font-size: 34px; }
-        body.user-mode .bp-item { font-size: 15px; padding: 9px 16px; }
+        /* Larger, calmer, high-contrast type so staff can read it at a glance. */
+        body.user-mode .page-header h1 { font-size: 38px; }
+        body.user-mode .bh { font-size: 22px; padding: 18px 24px; }
+        body.user-mode .bp-item { font-size: 18px; padding: 14px 20px; }
         body.user-mode .bp-item-name { font-weight: 600; }
-        body.user-mode .bp-row { font-size: 14px; padding: 8px 16px 8px 20px; }
+        body.user-mode .bp-row { font-size: 16px; padding: 12px 18px 12px 26px; }
         body.user-mode .bp-row-name { color: var(--text); }
-        body.user-mode .bp-section-head { font-size: 15px; }
-        body.user-mode .bp-clear-btn, body.user-mode .uni-btn { font-size: 16px; }
-        body.user-mode .bp-list { max-height: 460px; }
+        body.user-mode .bp-row-detail { font-size: 14px; }
+        body.user-mode .bp-section-head { font-size: 19px; padding: 14px 18px; }
+        body.user-mode .bp-clear-btn, body.user-mode .uni-btn { font-size: 17px; }
+        body.user-mode .bp-list { max-height: 62vh; }
+        /* Bigger controls and tap targets. */
+        body.user-mode .bp-item input[type=checkbox],
+        body.user-mode .bp-row input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
+        body.user-mode .csv-btn { font-size: 16px; padding: 14px 18px; }
+        body.user-mode .gen-btn { font-size: 18px; padding: 18px; }
+        body.user-mode .dropzone { padding: 24px; }
+        body.user-mode .dropzone p { font-size: 15px; }
+        body.user-mode .csv-note { font-size: 13px; }
+        /* ASICS / Brooks copy-paste links, kept prominent and readable in Simple mode. */
+        body.user-mode .copy-section { padding: 18px; margin-top: 14px; }
+        body.user-mode .copy-section h5 { font-size: 16px; }
+        body.user-mode .blm-item { font-size: 15px; padding: 11px 12px; }
+        body.user-mode .blm-tab { font-size: 15px; }
+        body.user-mode .copy-btn { font-size: 16px; padding: 13px 18px; font-weight: 700; }
 
         .chrome-warn {
             background: rgba(242,193,78,0.08); border: 1px solid rgba(242,193,78,0.28);
@@ -452,6 +469,22 @@
         .copy-section { background: rgba(255,255,255,0.02); border: 1px dashed var(--line-2); }
         .copy-section h5 { color: var(--muted); }
         .link-list { background: rgba(0,0,0,0.35); color: var(--muted); }
+        /* Link manager (b2b-links.js) ships light CSS injected AFTER this file, so
+           dark-theme it with higher-specificity .copy-section selectors that win
+           regardless of load order. Keeps the ASICS/Brooks copy links on-theme. */
+        .copy-section .blm-list { background: rgba(255,255,255,0.02); border-color: var(--line); }
+        .copy-section .blm-item { border-bottom-color: var(--line); }
+        .copy-section .blm-label { color: var(--text); }
+        .copy-section .blm-handle { color: var(--muted-2); }
+        .copy-section .blm-empty { color: var(--muted-2); }
+        .copy-section .blm-tab { background: rgba(255,255,255,0.04); border-color: var(--line-2); color: var(--muted); }
+        .copy-section .blm-tab:hover { background: rgba(255,255,255,0.08); }
+        .copy-section .blm-tab-active { background: var(--accent); border-color: var(--accent); color: #06121f; }
+        .copy-section .blm-tab:not(.blm-tab-active) .blm-count { background: rgba(255,255,255,0.08); color: var(--muted); }
+        .copy-section .blm-input { background: var(--surface-2); border-color: var(--line-2); color: var(--text); }
+        .copy-section .blm-open { color: var(--muted); }
+        .copy-section .blm-open:hover { color: var(--text); }
+        .copy-section .blm-delete { color: var(--muted-2); }
         .copy-btn { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--line-2); }
         .copy-btn.copied { background: linear-gradient(135deg,#3ce6b0,#12a97e); color:#06121f; }
 
