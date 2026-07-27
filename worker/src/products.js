@@ -64,7 +64,7 @@ export async function createStagedUploads(client, files) {
 // Size is always an option. Width is added only when a variant carries one, so
 // single-width models stay one-dimensional. optionValues on each variant must
 // reference the declared options, which is what productSet requires.
-export function buildProductSetInput(spec, needhamLocationId) {
+export function buildProductSetInput(spec, needhamLocationId, locationIds) {
   const variantsIn = Array.isArray(spec.variants) ? spec.variants : [];
 
   const sizes = [];
@@ -84,11 +84,22 @@ export function buildProductSetInput(spec, needhamLocationId) {
     const out = { optionValues, inventoryItem: { sku: v.sku || '', tracked: true } };
     if (v.price != null && v.price !== '') out.price = String(v.price);
     if (v.barcode) out.barcode = String(v.barcode);
-    // Create the product WITH its feed stock at Needham, so a new colorway is
-    // not born at 0. Only when a location is configured and the spec carries a
-    // quantity for this variant; a null quantity is left unset, not zeroed.
-    if (needhamLocationId && v.quantity != null && Number.isFinite(Number(v.quantity))) {
-      out.inventoryQuantities = [{ locationId: needhamLocationId, name: 'on_hand', quantity: Math.max(0, Math.trunc(Number(v.quantity))) }];
+    // Stock the variant at EVERY location, but with real quantity only at
+    // Needham, the dropship location. Listing a location in inventoryQuantities
+    // activates the item there, so the product shows up at all stores in admin;
+    // giving the others 0 means no phantom dropship stock lands on a physical
+    // store's shelves (the Needham-scoping doctrine still holds, nothing but
+    // Needham ever carries a real quantity). The feed quantity goes to Needham,
+    // 0 elsewhere; when the spec carries no quantity, every location starts at 0.
+    // Falls back to Needham-only when the caller did not supply the location list.
+    const locs = (Array.isArray(locationIds) && locationIds.length)
+      ? locationIds
+      : (needhamLocationId ? [needhamLocationId] : []);
+    if (locs.length) {
+      const qN = (v.quantity != null && Number.isFinite(Number(v.quantity))) ? Math.max(0, Math.trunc(Number(v.quantity))) : 0;
+      out.inventoryQuantities = locs.map((loc) => ({
+        locationId: loc, name: 'on_hand', quantity: loc === needhamLocationId ? qN : 0,
+      }));
     }
     return out;
   });
@@ -117,6 +128,43 @@ export function buildProductSetInput(spec, needhamLocationId) {
   return input;
 }
 
+// publishablePublish attaches a product to sales channels (publications). New
+// products land on NO channel by default, so even once made Active they can be
+// missing from the Online Store or POS until added by hand. We publish to every
+// channel the store has. It is safe to run while the product is still DRAFT: the
+// channel link is set, but a draft stays invisible to shoppers until published.
+const PUBLISH = `
+mutation($id: ID!, $input: [PublicationInput!]!) {
+  publishablePublish(id: $id, input: $input) {
+    userErrors { field message }
+  }
+}`;
+
+// Every ACTIVE fulfillment location's id. Used so a new variant is activated at
+// all locations (quantity only at Needham). Paginates in case there are many.
+async function fetchLocationIds(client) {
+  const out = [];
+  let cursor = null;
+  for (;;) {
+    const body = await client.graphql(
+      'query($c:String){ locations(first:250, after:$c){ pageInfo{ hasNextPage endCursor } nodes{ id } } }',
+      { c: cursor }
+    );
+    const conn = body.data.locations;
+    for (const n of conn.nodes) out.push(n.id);
+    if (!conn.pageInfo.hasNextPage) break;
+    cursor = conn.pageInfo.endCursor;
+  }
+  return out;
+}
+
+// Every sales channel (publication) id, so a created product can be published to
+// all of them.
+async function fetchPublicationIds(client) {
+  const body = await client.graphql('{ publications(first: 50) { nodes { id name } } }');
+  return (body.data.publications?.nodes || []).map((n) => n.id);
+}
+
 // Which of these handles already exist on the store. Used to keep createProducts
 // CREATE-ONLY: productSet is create-OR-UPDATE, so without this a spec whose handle
 // matches a live product would silently overwrite it.
@@ -139,22 +187,48 @@ export async function createProducts(client, specs, needhamLocationId) {
   const results = [];
   let existing = new Set();
   try { existing = await existingHandles(client, (specs || []).map((s) => s.handle)); } catch (e) { /* fail open to create; productSet still can't delete */ }
+
+  // Fetch the location and channel lists once for the whole batch. Both are
+  // best effort: if either query fails (eg a missing scope), we still create the
+  // products, just Needham-only stock and no channel publish, and say so.
+  let locationIds = [];
+  let publicationIds = [];
+  try { locationIds = await fetchLocationIds(client); } catch (e) { /* fall back to Needham-only stock */ }
+  try { publicationIds = await fetchPublicationIds(client); } catch (e) { /* fall back to no publish */ }
+
   for (const spec of specs || []) {
     if (spec.handle && existing.has(spec.handle)) {
       results.push({ ok: false, title: spec.title, handle: spec.handle, skipped: true, userErrors: [{ message: 'A product with this handle already exists — skipped so it is not overwritten.' }] });
       continue;
     }
-    const input = buildProductSetInput(spec, needhamLocationId);
+    const input = buildProductSetInput(spec, needhamLocationId, locationIds);
     try {
       const body = await client.graphql(PRODUCT_SET, { input });
       const r = (body.data && body.data.productSet) || {};
       const errs = r.userErrors || [];
+      const ok = errs.length === 0 && !!r.product;
+
+      // Publish the new product to every sales channel. Non-fatal: a publish
+      // failure (eg the app lacks write_publications) does not fail the create,
+      // it is reported per product so the UI can surface it.
+      let publishErrors = [];
+      if (ok && publicationIds.length && r.product && r.product.id) {
+        try {
+          const pub = await client.graphql(PUBLISH, { id: r.product.id, input: publicationIds.map((pid) => ({ publicationId: pid })) });
+          publishErrors = (pub.data && pub.data.publishablePublish && pub.data.publishablePublish.userErrors) || [];
+        } catch (perr) {
+          publishErrors = [{ message: String((perr && perr.message) || perr) }];
+        }
+      }
+
       results.push({
-        ok: errs.length === 0 && !!r.product,
+        ok,
         title: spec.title,
         handle: spec.handle || (r.product && r.product.handle) || '',
         product: r.product || null,
         userErrors: errs,
+        publishedChannels: ok ? (publicationIds.length - publishErrors.length) : 0,
+        publishErrors,
       });
     } catch (err) {
       results.push({ ok: false, title: spec.title, handle: spec.handle || '', userErrors: [{ message: String((err && err.message) || err) }] });

@@ -37,6 +37,16 @@ var CatalogClient = {
         puma: 'PUMA', saucony: 'SAUCONY', newbalance: 'NEW_BALANCE'
     },
 
+    // Tool brand key -> the vendor token as it appears in product TITLES, so
+    // colorwayKeyFromTitle strips the vendor identically on the catalog side
+    // (Shopify titles) and the feed side (converter-built titles). modelFromTitle
+    // strips the vendor only at the START of the model portion, so a vendor word
+    // that also reads like English ("On") cannot corrupt a color name.
+    VENDOR_BY_BRAND: {
+        hoka: 'HOKA', on: 'On', asics: 'Asics', brooks: 'Brooks',
+        puma: 'Puma', saucony: 'Saucony', newbalance: 'New Balance'
+    },
+
     // Only these statuses count as "we carry it". ARCHIVED is retired, so it must
     // not read as carried (else a feed row matching an archived handle looks like
     // an existing product) and must not be a zeroing target. DRAFT is in-progress
@@ -160,6 +170,47 @@ var CatalogClient = {
         return (gender ? gender + ' ' : '') + s;
     },
 
+    // A colorway identity key: "MODEL|GENDER|WIDTHCLASS|COLOR", derived from a
+    // product TITLE alone. This is the SKU-independent join used to suppress
+    // new-detection, because ~1 in 5 live products carry NO variant SKU on
+    // Shopify (hand-created or Shopify-duplicated, which blanks the copy's SKUs),
+    // so an exact-SKU check can never see them and their real feed colorway
+    // reappears as "new" every scan. The title survives where the SKU does not.
+    //
+    // SYMMETRY IS THE WHOLE POINT. The SAME function runs on the live Shopify
+    // title (catalog side, buildKnownSets) and on the converter-built feed title
+    // (compare side), and the Saucony/Hoka/etc converters format titles the same
+    // way the store does ("Women's Saucony Ride 19 - Black Silver Wide"), so both
+    // sides produce the identical key. Pass the brand's VENDOR_BY_BRAND token so
+    // the vendor is stripped identically on both sides.
+    //
+    // PRECISION OVER RECALL, on purpose. The key pins model + gender + width +
+    // exact color, so a match means we genuinely already carry that exact
+    // colorway (suppressing it is correct). A color-spelling drift causes a MISS,
+    // which just falls back to the SKU check, never a false suppression of a
+    // truly new colorway. Returns null when there is no color portion (nothing to
+    // key on), so callers must treat null as "no opinion", not "matches".
+    colorwayKeyFromTitle: function(title, vendor) {
+        if (!title) return null;
+        var full = this.modelFromTitle(title, vendor); // "Women's Ride 19"
+        if (!full) return null;
+        var gm = full.match(/^(Men's|Women's|Unisex|Kids')\s+/);
+        var gender = gm ? gm[1] : '';
+        var modelBare = this._normModel(full);         // "RIDE 19"
+        var widthClass = this._normWidth(title);       // standard | wide | xwide | narrow
+        // Color = everything after the first spaced dash, with width words and
+        // punctuation stripped. "Black Silver Wide" and "Black/Silver (Wide)"
+        // both collapse to "BLACK SILVER".
+        var s = String(title).replace(/[’‘`´]/g, "'").replace(/\([^)]*\)/g, ' ');
+        var m = s.match(/(?:\s+[-–—]\s*|\s*[-–—]\s+)(.+)$/);
+        var color = m ? m[1] : '';
+        color = color.replace(/[™®]/g, ' ')
+            .replace(/\b(extra[\s-]?wide|x[\s-]?wide|xwide|wide|narrow|regular|standard|medium)\b/ig, ' ')
+            .replace(/[^a-z0-9]+/ig, ' ').trim().toUpperCase();
+        if (!modelBare || !color) return null;
+        return modelBare + '|' + gender + '|' + widthClass + '|' + color;
+    },
+
     // Model-level inheritance (price/description/category are identical across
     // widths), for defaults that do not depend on width. First width found wins.
     //
@@ -222,6 +273,8 @@ var CatalogClient = {
         var models = new Set();
         var shopifyModels = new Set();                 // reliable: normalized genderless model names carried on Shopify
         var existingSkus = new Set();                  // every SKU on Shopify (ACTIVE or DRAFT), for new-suppression
+        var existingCwKeys = new Set();                // title-derived colorway keys (ACTIVE or DRAFT), suppresses SKU-less products
+        var vendorTok = this.VENDOR_BY_BRAND[toolBrand] || '';
         var inherit = new Map();                       // modelName|widthClass -> inheritance record
         var byModel = (catalog && catalog.byModel) || {};
         var products = (catalog && catalog.products) || [];
@@ -262,6 +315,13 @@ var CatalogClient = {
                 // be skipped as "already exists" on create). All statuses but
                 // ARCHIVED, all locations, because existence is the question here.
                 (p.skus || []).forEach(function (sk) { if (sk) existingSkus.add(String(sk).toUpperCase()); });
+                // SKU-independent suppression key. Critical for the ~21% of live
+                // products that have NO SKU (hand-created / Shopify-duplicated):
+                // they add nothing to existingSkus, so without this their real
+                // feed colorway reappears as new forever. Keyed off the title,
+                // which those products still have and which matches the feed.
+                var ck = this.colorwayKeyFromTitle(p.title, vendorTok);
+                if (ck) existingCwKeys.add(ck);
             }
 
             if (!this.LIVE_STATUSES[st]) continue;
@@ -316,7 +376,7 @@ var CatalogClient = {
                 } catch (e) { /* identify is best effort, never fatal */ }
             }
         }
-        return { models: models, colorways: colorways, inherit: inherit, shopifyModels: shopifyModels, existingSkus: existingSkus };
+        return { models: models, colorways: colorways, inherit: inherit, shopifyModels: shopifyModels, existingSkus: existingSkus, existingCwKeys: existingCwKeys };
     },
 
     // Stage 4 WRITE. POST a batch of product specs to the Worker, which creates
@@ -429,6 +489,7 @@ var CatalogClient = {
             self._inheritByBrand[toolBrand] = res.inherit || new Map();
             self._shopifyModelsByBrand[toolBrand] = res.shopifyModels || new Set();
             self._existingSkusByBrand[toolBrand] = res.existingSkus || new Set();
+            self._existingCwKeysByBrand[toolBrand] = res.existingCwKeys || new Set();
             return res;
         });
     },
@@ -443,6 +504,13 @@ var CatalogClient = {
     _existingSkusByBrand: {},
     existingSkus: function (toolBrand) { return this._existingSkusByBrand[toolBrand] || null; },
 
+    // Title-derived colorway keys on Shopify (ACTIVE or DRAFT) per brand. The
+    // SKU-independent half of new-suppression, so a product with no SKU on
+    // Shopify (about 1 in 5) is still recognized as already carried. See
+    // colorwayKeyFromTitle and compare() in inventory-tracker.js.
+    _existingCwKeysByBrand: {},
+    existingColorwayKeys: function (toolBrand) { return this._existingCwKeysByBrand[toolBrand] || null; },
+
     // Optimistically register products just created (as drafts) so THIS session
     // immediately treats them as already on Shopify: their SKUs drop out of
     // new-detection and their model checks on in the picker, without waiting for
@@ -451,13 +519,18 @@ var CatalogClient = {
     markCreated: function (toolBrand, specs) {
         var sset = this._existingSkusByBrand[toolBrand] || (this._existingSkusByBrand[toolBrand] = new Set());
         var mset = this._shopifyModelsByBrand[toolBrand] || (this._shopifyModelsByBrand[toolBrand] = new Set());
-        var vendor = ({ hoka: 'HOKA', on: 'On', asics: 'Asics', brooks: 'Brooks', puma: 'Puma', saucony: 'Saucony', newbalance: 'New Balance' })[toolBrand] || '';
+        var cset = this._existingCwKeysByBrand[toolBrand] || (this._existingCwKeysByBrand[toolBrand] = new Set());
+        var vendor = this.VENDOR_BY_BRAND[toolBrand] || '';
         var self = this;
         (specs || []).forEach(function (s) {
             (s.variants || []).forEach(function (v) { if (v && v.sku) sset.add(String(v.sku).toUpperCase()); });
             var m = self.modelFromTitle && s.title ? self.modelFromTitle(s.title, vendor) : null;
             var nm = m ? self._normModel(m) : null;
             if (nm) mset.add(nm);
+            // Register the colorway key too, so a just-created product suppresses
+            // even if it was created without SKUs.
+            var ck = self.colorwayKeyFromTitle(s.title, vendor);
+            if (ck) cset.add(ck);
         });
     },
 

@@ -217,6 +217,20 @@ var InventoryTracker = {
         var existingSkus = (self.SOURCE === 'shopify' && typeof CatalogClient !== 'undefined' && CatalogClient.existingSkus)
             ? CatalogClient.existingSkus(brand) : null;
 
+        // SKU-INDEPENDENT SUPPRESSION. About 1 in 5 live products carry no SKU on
+        // Shopify (hand-created or Shopify-duplicated, which blanks the copy's
+        // SKUs), so the SKU check above literally cannot see them and their real
+        // feed colorway reappears as new every scan. This title-derived colorway
+        // key (model|gender|width|color) matches where the SKU cannot. It only
+        // ever SUPPRESSES (marks a feed product as already carried); it never
+        // adds a removal, so it cannot cause a wrongful zero. See
+        // CatalogClient.colorwayKeyFromTitle.
+        var existingCwKeys = (self.SOURCE === 'shopify' && typeof CatalogClient !== 'undefined' && CatalogClient.existingColorwayKeys)
+            ? CatalogClient.existingColorwayKeys(brand) : null;
+        var vendorTok = (typeof CatalogClient !== 'undefined' && CatalogClient.VENDOR_BY_BRAND)
+            ? (CatalogClient.VENDOR_BY_BRAND[brand] || '') : '';
+        var cwKeySuppressed = 0;
+
         // Separate new handles into new PRODUCTS vs new COLORWAYS
         var newProducts = [];
         var newColorways = [];
@@ -229,6 +243,12 @@ var InventoryTracker = {
                     var up = String(sk).toUpperCase();
                     return knownSkus.has(up) || (existingSkus && existingSkus.has(up));
                 });
+                // Fall back to the title-derived colorway key for the SKU-less
+                // products the SKU check can never match.
+                if (!existing && existingCwKeys) {
+                    var cwKey = CatalogClient.colorwayKeyFromTitle(product.title, vendorTok);
+                    if (cwKey && existingCwKeys.has(cwKey)) { existing = true; cwKeySuppressed++; }
+                }
             } else {
                 existing = knownColorways.has(handle);
             }
@@ -298,6 +318,11 @@ var InventoryTracker = {
             for (var sz in v) { if (v.hasOwnProperty(sz)) t += (parseInt(v[sz].quantity) || 0); }
             return t;
         };
+        if (cwKeySuppressed > 0) {
+            console.log('[InventoryTracker] Colorway-key suppression: ' + cwKeySuppressed +
+                ' feed product(s) recognized as already carried by title (model|gender|width|color), ' +
+                'not by SKU. These are SKU-less Shopify products the old SKU-only check re-offered as new.');
+        }
         var newProdBefore = newProducts.length, newColorBefore = newColorways.length;
         newProducts = newProducts.filter(function(e) { return unitsOf(e) >= self.NEW_MIN_UNITS; });
         newColorways = newColorways.filter(function(e) { return unitsOf(e) >= self.NEW_MIN_UNITS; });
@@ -319,6 +344,7 @@ var InventoryTracker = {
                 newColorways: newColorways.length,
                 hiddenThinNew: newHiddenThin,
                 noSkuGuarded: noSkuGuarded,
+                cwKeySuppressed: cwKeySuppressed,
                 removedColorways: removedColorways.length,
                 matchingColorways: currentHandles.size - newProducts.length - newColorways.length - newHiddenThin
             }
