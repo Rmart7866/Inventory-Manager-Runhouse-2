@@ -79,6 +79,92 @@ var CatalogTags = {
         return { changes: changes, summary: summary };
     },
 
+    // ===== Swatch sibling metafields (Phase 2) =====
+    // groupProducts + buildMetafieldInputs, the same logic as worker/src/group.js
+    // and the Color Swatch index.js. Computes the style/width/gender sibling
+    // references + color_name/width_code helpers the PDP swatch snippet reads.
+    _widthClassG: function (code) {
+        var c = String(code || 'STD').toUpperCase();
+        if (c === 'STD' || c === 'D' || c === 'B') return 'standard';
+        if (c === 'NARROW' || c === '2A' || c === 'A') return 'narrow';
+        if (c === 'WIDE' || c === '2E' || c === 'EE' || c === 'E') return 'wide';
+        if (c === 'XWIDE' || c === '4E' || c === 'EEEE' || c === '6E') return 'xwide';
+        return 'standard';
+    },
+    _norm: function (s) { return String(s || '').toUpperCase().replace(/\s+/g, ' ').trim(); },
+    _groupProducts: function (records) {
+        var self = this;
+        var recs = records.map(function (r) {
+            return Object.assign({}, r, {
+                _wclass: self._widthClassG(r.width),
+                _styleKey: self._norm(r.modelKey) + '|' + self._widthClassG(r.width),
+                _colorKey: self._norm(r.modelKey) + '|' + self._norm(r.colorName),
+                _modelKey: self._norm(r.modelKey),
+                _genderlessKey: self._norm(r.modelKeyGenderless)
+            });
+        });
+        var byStyle = new Map(), byColor = new Map(), byModel = new Map(), byGenderless = new Map();
+        recs.forEach(function (r) {
+            if (!byStyle.has(r._styleKey)) byStyle.set(r._styleKey, []); byStyle.get(r._styleKey).push(r);
+            if (!byColor.has(r._colorKey)) byColor.set(r._colorKey, []); byColor.get(r._colorKey).push(r);
+            if (!byModel.has(r._modelKey)) byModel.set(r._modelKey, new Set()); byModel.get(r._modelKey).add(r._wclass);
+            if (!byGenderless.has(r._genderlessKey)) byGenderless.set(r._genderlessKey, []); byGenderless.get(r._genderlessKey).push(r);
+        });
+        var ids = function (arr) { return arr.map(function (x) { return x.id; }); };
+        var sortByColor = function (arr) { return arr.slice().sort(function (a, b) { return String(a.colorName).localeCompare(String(b.colorName)); }); };
+        var plan = {};
+        recs.forEach(function (r) {
+            var styleGroup = sortByColor(byStyle.get(r._styleKey));
+            var colorGroup = byColor.get(r._colorKey);
+            var family = byGenderless.get(r._genderlessKey) || [];
+            var otherGenders = new Map();
+            family.forEach(function (o) {
+                if (o.gender === r.gender || !o.gender) return;
+                var cur = otherGenders.get(o.gender);
+                var better = !cur
+                    || (o._wclass === 'standard' && cur._wclass !== 'standard')
+                    || (o._wclass === cur._wclass && String(o.id).localeCompare(String(cur.id)) < 0);
+                if (better) otherGenders.set(o.gender, o);
+            });
+            plan[r.id] = {
+                gender: r.gender, width_code: r.width, width_class: r._wclass, color_name: r.colorName,
+                model_widths: Array.from(byModel.get(r._modelKey) || []).sort(),
+                style_siblings: ids(styleGroup),
+                width_siblings: ids(sortByColor(colorGroup)),
+                gender_sibling: Array.from(otherGenders.values()).map(function (x) { return x.id; })
+            };
+        });
+        return plan;
+    },
+    _buildMetafieldInputs: function (plan) {
+        var NS = 'custom', inputs = [];
+        Object.keys(plan).forEach(function (ownerId) {
+            var g = plan[ownerId];
+            var refList = function (key, arr) { if (!arr || !arr.length) return; inputs.push({ ownerId: ownerId, namespace: NS, key: key, type: 'list.product_reference', value: JSON.stringify(arr) }); };
+            refList('style_siblings', g.style_siblings);
+            refList('width_siblings', g.width_siblings);
+            refList('gender_sibling', g.gender_sibling);
+            var textField = function (key, type, value) { var v = value == null ? '' : String(value); if (v === '') return; inputs.push({ ownerId: ownerId, namespace: NS, key: key, type: type, value: v }); };
+            textField('model_widths', 'list.single_line_text_field', (g.model_widths && g.model_widths.length) ? JSON.stringify(g.model_widths) : '');
+            textField('width_code', 'single_line_text_field', g.width_code);
+            textField('width_class', 'single_line_text_field', g.width_class);
+            textField('gender', 'single_line_text_field', g.gender);
+            textField('color_name', 'single_line_text_field', g.color_name);
+        });
+        return inputs;
+    },
+    // Compute the full metafield input list from ACTIVE footwear (siblings must be
+    // buyable, so drafts/archived are excluded from the grouping).
+    computeMetafields: function (products) {
+        var active = (products || []).filter(function (p) { return p.status === 'ACTIVE' && p.id && p.modelKey && p.colorName; });
+        var records = active.map(function (p) {
+            return { id: p.id, gender: p.gender, colorName: p.colorName, modelKey: p.modelKey, modelKeyGenderless: p.modelKeyGenderless, width: p.width };
+        });
+        var plan = this._groupProducts(records);
+        var inputs = this._buildMetafieldInputs(plan);
+        return { inputs: inputs, summary: { products: Object.keys(plan).length, metafields: inputs.length } };
+    },
+
     // ===== UI =====
     _plan: null,
 
@@ -122,7 +208,8 @@ var CatalogTags = {
         return {
             width: document.getElementById('ctags-op-width').checked,
             swatch: document.getElementById('ctags-op-swatch').checked,
-            gender: document.getElementById('ctags-op-gender').checked
+            gender: document.getElementById('ctags-op-gender').checked,
+            metafields: document.getElementById('ctags-op-metafields').checked
         };
     },
     _setStatus: function (msg, isErr) {
@@ -133,72 +220,89 @@ var CatalogTags = {
         var self = this;
         if (!self._catalog) { self._setStatus('Catalog still loading, one moment.', true); return; }
         var ops = self._ops();
-        if (!ops.width && !ops.swatch && !ops.gender) { self._setStatus('Pick at least one operation.', true); return; }
+        if (!ops.width && !ops.swatch && !ops.gender && !ops.metafields) { self._setStatus('Pick at least one operation.', true); return; }
         var res = self.computePlan(self._catalog.products, ops);
         self._plan = res.changes;
-        var s = res.summary;
+        self._mf = ops.metafields ? self.computeMetafields(self._catalog.products) : null;
+        var s = res.summary, mfCount = self._mf ? self._mf.inputs.length : 0;
         var body = document.getElementById('ctags-result');
         var lines = [];
         if (ops.width) lines.push('Width tags: <b>' + s.widthAdds + '</b> to add, <b>' + s.widthRemoves + '</b> variant to remove');
         if (ops.swatch) lines.push('Swatch (cw-group) tags: <b>' + s.swatchAdds + '</b> to add, <b>' + s.swatchRemoves + '</b> stale to remove');
         if (ops.gender) lines.push('Gender tags: <b>' + s.genderAdds + '</b> to add, <b>' + s.genderRemoves + '</b> variant to remove; <b>' + s.typeFixes + '</b> product-type fixes');
-        var sample = self._plan.slice(0, 12).map(function (c) {
+        if (ops.metafields && self._mf) lines.push('Swatch metafields: <b>' + self._mf.summary.metafields + '</b> fields across <b>' + self._mf.summary.products + '</b> active products (rewrites every sibling reference)');
+        var sample = self._plan.slice(0, 10).map(function (c) {
             var bits = [];
             if (c.remove && c.remove.length) bits.push('<span class="ctags-rm">- ' + c.remove.join(', ') + '</span>');
             if (c.add && c.add.length) bits.push('<span class="ctags-ad">+ ' + c.add.join(', ') + '</span>');
             if (c.productType) bits.push('<span class="ctags-ty">type: ' + c.productType + '</span>');
             return '<div class="ctags-row"><div class="ctags-row-title">' + (c.title || c.handle) + '</div><div class="ctags-row-chg">' + bits.join(' ') + '</div></div>';
         }).join('');
-        body.innerHTML = '<div class="ctags-summary">' + lines.join('<br>') + '</div>'
-            + '<div class="ctags-total"><b>' + s.products + '</b> products change, of ' + s.scanned + ' scanned.</div>'
-            + (self._plan.length ? '<div class="ctags-samplbl">Sample changes</div>' + sample + (self._plan.length > 12 ? '<div class="ctags-more">...and ' + (self._plan.length - 12) + ' more</div>' : '') : '<div class="ctags-more">Nothing to change, everything is already tagged.</div>');
+        body.innerHTML = '<div class="ctags-summary">' + (lines.length ? lines.join('<br>') : '') + '</div>'
+            + '<div class="ctags-total"><b>' + s.products + '</b> products get tag changes' + (mfCount ? ', <b>' + self._mf.summary.products + '</b> get metafields' : '') + '. ' + s.scanned + ' scanned.</div>'
+            + (self._plan.length ? '<div class="ctags-samplbl">Sample tag changes</div>' + sample + (self._plan.length > 10 ? '<div class="ctags-more">...and ' + (self._plan.length - 10) + ' more</div>' : '') : '');
         var applyBtn = document.getElementById('ctags-apply');
-        applyBtn.disabled = self._plan.length === 0;
-        applyBtn.textContent = 'Apply to ' + s.products + ' products';
+        applyBtn.disabled = (self._plan.length === 0 && mfCount === 0);
+        applyBtn.textContent = 'Apply';
         self._setStatus('Preview ready. Review, then Apply.');
     },
+    // Two phases: tag changes (chunks of CHUNK products) then metafields (chunks
+    // of 200 inputs). Either can be empty. Stops on a write-gate or network error.
     _apply: function () {
         var self = this;
-        if (!self._plan || !self._plan.length) return;
+        var hasTags = !!(self._plan && self._plan.length);
+        var hasMf = !!(self._mf && self._mf.inputs && self._mf.inputs.length);
+        if (!hasTags && !hasMf) return;
         if (!CatalogClient.hasWriteSecret || !CatalogClient.hasWriteSecret()) {
-            var sec = prompt('Enter the write secret to apply tag changes:');
+            var sec = prompt('Enter the write secret to apply changes:');
             if (!sec) { self._setStatus('Cancelled, no write secret.', true); return; }
             CatalogClient.setWriteSecret(sec);
         }
-        var changes = self._plan.slice();
-        var total = changes.length, done = 0, failed = 0;
-        var applyBtn = document.getElementById('ctags-apply');
-        applyBtn.disabled = true;
-        document.getElementById('ctags-preview').disabled = true;
+        var applyBtn = document.getElementById('ctags-apply'), prevBtn = document.getElementById('ctags-preview');
+        applyBtn.disabled = true; prevBtn.disabled = true;
+        var stopped = false;
+        function stop(msg) { stopped = true; self._setStatus(msg, true); applyBtn.disabled = false; prevBtn.disabled = false; }
+        function refused(r) { return [401, 403, 501].indexOf(r.__status) >= 0; }
+        function chunk(arr, n) { var out = []; for (var i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; }
 
-        var chunks = [];
-        for (var i = 0; i < changes.length; i += self.CHUNK) chunks.push(changes.slice(i, i + self.CHUNK));
-
-        function runChunk(idx) {
-            if (idx >= chunks.length) {
-                self._setStatus('Done. ' + (done - failed) + ' of ' + total + ' products updated' + (failed ? ', ' + failed + ' failed (see console)' : '') + '. Refresh the catalog to see the new tags.', failed > 0);
-                applyBtn.textContent = 'Applied';
-                document.getElementById('ctags-preview').disabled = false;
-                return;
-            }
-            CatalogClient.applyTags(chunks[idx]).then(function (r) {
-                if (r.__status === 501 || r.__status === 403 || r.__status === 401) {
-                    self._setStatus('Write refused (HTTP ' + r.__status + '): ' + (r.reason || r.error || 'check the write secret and that writes are enabled') + '.', true);
-                    applyBtn.disabled = false; document.getElementById('ctags-preview').disabled = false;
-                    return;
-                }
-                done += (r.total || chunks[idx].length);
-                failed += (r.failed || 0);
-                (r.results || []).forEach(function (x) { if (!x.ok) console.warn('[tags] failed', x.id, x.errors); });
-                self._setStatus('Applying... ' + done + ' of ' + total + (failed ? ' (' + failed + ' failed)' : ''));
-                runChunk(idx + 1);
-            }).catch(function (err) {
-                self._setStatus('Network error mid-apply: ' + err.message + '. ' + done + ' of ' + total + ' done. Re-Preview and Apply to finish the rest.', true);
-                applyBtn.disabled = false; document.getElementById('ctags-preview').disabled = false;
-            });
+        function runTags(next) {
+            if (!hasTags) return next(0, 0);
+            var chunks = chunk(self._plan, self.CHUNK), total = self._plan.length, done = 0, failed = 0;
+            (function step(idx) {
+                if (stopped) return;
+                if (idx >= chunks.length) return next(done - failed, failed);
+                CatalogClient.applyTags(chunks[idx]).then(function (r) {
+                    if (refused(r)) return stop('Write refused (HTTP ' + r.__status + '): ' + (r.reason || r.error || 'check the write secret') + '.');
+                    done += (r.total || chunks[idx].length); failed += (r.failed || 0);
+                    (r.results || []).forEach(function (x) { if (!x.ok) console.warn('[tags]', x.id, x.errors); });
+                    self._setStatus('Tagging... ' + done + ' / ' + total + ' products' + (failed ? ' (' + failed + ' failed)' : ''));
+                    step(idx + 1);
+                }).catch(function (e) { stop('Network error mid-apply: ' + e.message + '. Re-Preview and Apply to finish.'); });
+            })(0);
         }
-        self._setStatus('Applying ' + total + ' products in chunks of ' + self.CHUNK + '...');
-        runChunk(0);
+        function runMf(tOk, tFail) {
+            if (!hasMf) return finish(tOk, tFail, 0, 0);
+            var chunks = chunk(self._mf.inputs, 200), total = self._mf.inputs.length, set = 0, failed = 0;
+            (function step(idx) {
+                if (stopped) return;
+                if (idx >= chunks.length) return finish(tOk, tFail, set, failed);
+                CatalogClient.applyMetafields(chunks[idx]).then(function (r) {
+                    if (refused(r)) return stop('Write refused (HTTP ' + r.__status + '): ' + (r.reason || r.error || 'check the write secret') + '.');
+                    set += (r.set || 0); failed += (r.failed || 0);
+                    self._setStatus('Writing metafields... ' + set + ' / ' + total);
+                    step(idx + 1);
+                }).catch(function (e) { stop('Network error mid-apply: ' + e.message + '. Re-Preview and Apply to finish.'); });
+            })(0);
+        }
+        function finish(tOk, tFail, mfSet, mfFail) {
+            var msg = 'Done.';
+            if (hasTags) msg += ' Tags: ' + tOk + ' products' + (tFail ? ', ' + tFail + ' failed' : '') + '.';
+            if (hasMf) msg += ' Metafields: ' + mfSet + ' written' + (mfFail ? ', ' + mfFail + ' failed' : '') + '.';
+            self._setStatus(msg + ' Refresh the catalog to see changes.', (tFail + mfFail) > 0);
+            applyBtn.textContent = 'Applied'; prevBtn.disabled = false;
+        }
+        self._setStatus('Applying...');
+        runTags(function (tOk, tFail) { runMf(tOk, tFail); });
     },
 
     _modalHTML: function () {
@@ -210,6 +314,7 @@ var CatalogTags = {
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-swatch" checked><div><div class="ctags-op-t">Swatch grouping</div><div class="ctags-op-h">The cw-group:model--width tags that drive the color-swatch grid. Fixes stale ones, adds missing ones.</div></div></label>'
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-width"><div><div class="ctags-op-t">Width tags</div><div class="ctags-op-h">Lowercase wide / extra wide / narrow. Adds the right one and removes capitalized or variant duplicates.</div></div></label>'
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-gender"><div><div class="ctags-op-t">Gender + product type</div><div class="ctags-op-h">Canonical "Men\'s Shoes" / "Women\'s Shoes" / "Unisex Shoes" tag + matching product type. Strips the dozen stray gender-tag variants.</div></div></label>'
+            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-metafields"><div><div class="ctags-op-t">Swatch sibling metafields</div><div class="ctags-op-h">The custom.* style / width / gender sibling references + color_name / width_code that the PDP swatch grid reads. Rebuilds them for every active footwear product.</div></div></label>'
             + '</div>'
             + '<div class="ctags-status" id="ctags-status">Loading catalog...</div>'
             + '<div class="ctags-result" id="ctags-result"></div>'

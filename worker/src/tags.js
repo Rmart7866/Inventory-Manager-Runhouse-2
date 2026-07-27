@@ -47,3 +47,26 @@ export async function applyTagChanges(client, changes) {
   const ok = results.filter((r) => r.ok).length;
   return { ok, failed: results.length - ok, total: results.length, results };
 }
+
+// ===== Swatch sibling metafields (Phase 2) =====
+// The browser computes the metafieldsSet inputs from the cached catalog (using
+// the same groupProducts logic ported to catalog-tags.js) and sends them here in
+// chunks. Each input: { ownerId, namespace, key, type, value }. metafieldsSet
+// accepts up to 25 per call, so batch internally.
+const METAFIELDS_SET = `mutation($mf: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $mf) { userErrors { field message } } }`;
+
+export async function applyMetafields(client, inputs) {
+  const list = inputs || [];
+  const errors = [];
+  let set = 0;
+  for (let i = 0; i < list.length; i += 25) {
+    const batch = list.slice(i, i + 25);
+    try {
+      const r = await client.graphql(METAFIELDS_SET, { mf: batch });
+      const ue = (r.data && r.data.metafieldsSet && r.data.metafieldsSet.userErrors) || [];
+      ue.forEach((e) => errors.push(e.message));
+      set += batch.length - ue.length;
+    } catch (e) { errors.push(String((e && e.message) || e)); }
+  }
+  return { set, total: list.length, failed: errors.length, errors };
+}

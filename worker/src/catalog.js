@@ -275,6 +275,8 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
       styleCode: parsed.styleCode,
       colorCode: parsed.colorCode,
       modelKey: parsed.modelKey,
+      modelKeyGenderless: parsed.modelKeyGenderless,
+      colorName: parsed.colorName,
       gender: parsed.gender,
       width: parsed.width,
       cwGroup,

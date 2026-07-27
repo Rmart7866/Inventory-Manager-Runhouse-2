@@ -29,7 +29,7 @@ import { createShopifyClient } from './shopify.js';
 import { buildCatalog } from './catalog.js';
 import { createProducts, createStagedUploads } from './products.js';
 import { zeroInventory, setInventory } from './inventory.js';
-import { applyTagChanges } from './tags.js';
+import { applyTagChanges, applyMetafields } from './tags.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -256,6 +256,23 @@ async function handleApplyTags(request, env) {
   return json(result, 200, request, env);
 }
 
+// POST /tags/metafields/apply, swatch sibling metafields WRITE. Body:
+// { inputs: [{ownerId, namespace, key, type, value}, ...] }. Browser-computed,
+// chunked, write-gated.
+async function handleApplyMetafields(request, env) {
+  let body;
+  try { body = await request.json(); } catch (e) { body = null; }
+  if (!body || !Array.isArray(body.inputs)) {
+    return json({ error: 'Expected JSON body { inputs: [ {ownerId, namespace, key, type, value} ] }' }, 400, request, env);
+  }
+  if (body.inputs.length > 250) {
+    return json({ error: 'Too many metafield inputs in one request (max 250 per chunk)' }, 400, request, env);
+  }
+  const client = createShopifyClient(env);
+  const result = await applyMetafields(client, body.inputs);
+  return json(result, 200, request, env);
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -292,6 +309,7 @@ export default {
       // Catalog tagging WRITE (width / cw-group / gender tags + product type).
       // Same hard gate as /inventory: forWrite + a write secret not in the bundle.
       '/tags/apply': { handler: handleApplyTags, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      '/tags/metafields/apply': { handler: handleApplyMetafields, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
     };
     const route = routes[url.pathname];
     if (!route) return json({ error: 'Not found' }, 404, request, env);

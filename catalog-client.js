@@ -462,6 +462,24 @@ var CatalogClient = {
         });
     },
 
+    // Swatch sibling metafields WRITE. POST a chunk of metafieldsSet inputs
+    // (computed in the browser) to the Worker, which applies them behind the
+    // write secret. inputs: [{ownerId, namespace, key, type, value}].
+    applyMetafields: function (inputs) {
+        return fetch(this._writeBase() + '/tags/metafields/apply', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + this.CATALOG_TOKEN,
+                'X-Write-Secret': this.writeSecret()
+            },
+            body: JSON.stringify({ inputs: inputs || [] })
+        }).then(function (res) {
+            return res.json().then(function (b) { b.__status = res.status; return b; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
+    },
+
     createProducts: function (specs) {
         return fetch(this._writeBase() + '/products', {
             method: 'POST',
