@@ -140,24 +140,6 @@ mutation($id: ID!, $input: [PublicationInput!]!) {
   }
 }`;
 
-// Every ACTIVE fulfillment location's id. Used so a new variant is activated at
-// all locations (quantity only at Needham). Paginates in case there are many.
-async function fetchLocationIds(client) {
-  const out = [];
-  let cursor = null;
-  for (;;) {
-    const body = await client.graphql(
-      'query($c:String){ locations(first:250, after:$c){ pageInfo{ hasNextPage endCursor } nodes{ id } } }',
-      { c: cursor }
-    );
-    const conn = body.data.locations;
-    for (const n of conn.nodes) out.push(n.id);
-    if (!conn.pageInfo.hasNextPage) break;
-    cursor = conn.pageInfo.endCursor;
-  }
-  return out;
-}
-
 // Every sales channel (publication) id, so a created product can be published to
 // all of them.
 async function fetchPublicationIds(client) {
@@ -183,17 +165,21 @@ async function existingHandles(client, handles) {
 // Run productSet for each spec, one at a time (small batches, and one bad spec
 // should not sink the rest). Returns a per-product result the UI can report.
 // CREATE-ONLY: any spec whose handle already exists is skipped, never overwritten.
-export async function createProducts(client, specs, needhamLocationId) {
+export async function createProducts(client, specs, needhamLocationId, dropshipLocationIds) {
   const results = [];
   let existing = new Set();
   try { existing = await existingHandles(client, (specs || []).map((s) => s.handle)); } catch (e) { /* fail open to create; productSet still can't delete */ }
 
-  // Fetch the location and channel lists once for the whole batch. Both are
-  // best effort: if either query fails (eg a missing scope), we still create the
-  // products, just Needham-only stock and no channel publish, and say so.
-  let locationIds = [];
+  // The locations a new product is activated at come from config, not a live
+  // fetch: only the stores that actually matter (Needham + Falmouth + Walpole +
+  // Warehouse), so we do not litter every location with zero rows. Real quantity
+  // still goes to Needham only (see buildProductSetInput). Empty config falls
+  // back to Needham-only.
+  const locationIds = String(dropshipLocationIds || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+  // Channels are a live fetch, best effort: if it fails (eg no read_publications
+  // scope) we still create the products, just without publishing, and say so.
   let publicationIds = [];
-  try { locationIds = await fetchLocationIds(client); } catch (e) { /* fall back to Needham-only stock */ }
   try { publicationIds = await fetchPublicationIds(client); } catch (e) { /* fall back to no publish */ }
 
   for (const spec of specs || []) {

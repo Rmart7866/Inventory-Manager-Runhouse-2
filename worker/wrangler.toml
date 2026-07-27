@@ -72,6 +72,15 @@ AUTH_MODE = "bearer"
 # scoping (no location field in the query, needham flag null, client warns OFF).
 NEEDHAM_LOCATION_ID = "gid://shopify/Location/77957136639"
 
+# Locations a newly created product is activated at (comma separated GIDs). Real
+# quantity is written only at Needham; the others are activated at 0, so the
+# product shows up at those stores in admin without any phantom dropship stock on
+# their shelves. Scoped to the stores that actually matter (Needham, Falmouth,
+# Walpole, Warehouse), NOT all 7 locations: the store's footwear lives at 2 to 3
+# locations, so activating everything everywhere would just litter Florida Events
+# and Run Bus with zero rows. Leave EMPTY to fall back to Needham-only.
+DROPSHIP_LOCATION_IDS = "gid://shopify/Location/77957136639,gid://shopify/Location/71668531455,gid://shopify/Location/68029448447,gid://shopify/Location/73726886143"
+
 # Access mode only, unused while AUTH_MODE = "bearer". Fill in from the Access
 # application when a Cloudflare zone exists.
 # ACCESS_TEAM_DOMAIN = "therunhouse.cloudflareaccess.com"

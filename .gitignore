@@ -57,3 +57,6 @@ saucony-barcode-rollback-*.json
 
 # Run artifacts from tools/backfill-saucony-skus.mjs
 saucony-sku-rollback-*.json
+
+# Run artifacts from tools/set-shoe-weights.mjs
+shoe-weight-rollback-*.json
