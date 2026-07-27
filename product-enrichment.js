@@ -109,6 +109,17 @@ var ProductEnrichment = {
         if (comparison.newColorways) comparison.newColorways.forEach(function(c) { newHandles.add(c.handle); });
         if (newHandles.size === 0) return [];
 
+        // Per-handle SKUs from the comparison, so each colorway can carry its SKUs
+        // (needed to add it to the ignore list, which filters by SKU).
+        var skusByHandle = {};
+        ['newProducts', 'newColorways'].forEach(function(k) {
+            ((comparison && comparison[k]) || []).forEach(function(e) {
+                var arr = [], vs = e.variants || {};
+                Object.keys(vs).forEach(function(sz) { if (vs[sz] && vs[sz].sku) arr.push(vs[sz].sku); });
+                if (e.handle) skusByHandle[e.handle] = arr;
+            });
+        });
+
         // Group colorways by model name
         var modelMap = new Map(); // modelKey → { modelName, brand, colorways[] }
 
@@ -148,6 +159,7 @@ var ProductEnrichment = {
                     color: v.color || v.colorway || '',
                     gender: v.gender || '',
                     width: v.width || '',
+                    skus: skusByHandle[v.handle] || [],
                     variantCount: 0,
                 });
             }
@@ -263,29 +275,77 @@ var ProductEnrichment = {
             });
         });
 
-        // Expand/collapse colorway list + advanced fields
+        function enrichSetCollapsed(key, collapsed) {
+            var body = document.getElementById('enrich-body-' + key);
+            var chev = overlay.querySelector('[data-chev="' + key + '"]');
+            if (!body) return;
+            body.style.display = collapsed ? 'none' : 'block';
+            if (chev) chev.textContent = collapsed ? '▶' : '▼';
+        }
+        function enrichRefreshIgnoredCount() {
+            var el = document.getElementById('enrich-ignored-count');
+            if (el && typeof Ignore !== 'undefined') el.textContent = Ignore.count(brand);
+        }
+        function enrichRenderIgnoredList() {
+            var wrap = document.getElementById('enrich-ignored-list');
+            if (!wrap || typeof Ignore === 'undefined') return;
+            var o = Ignore.all(brand), handles = Object.keys(o);
+            if (!handles.length) { wrap.innerHTML = '<div class="enrich-empty">Nothing ignored yet. Use the Ignore button on a colorway to hide it from new products.</div>'; return; }
+            wrap.innerHTML = handles.map(function(h) {
+                return '<div class="enrich-ign-row"><span class="enrich-cw-title">' + (o[h].title || h) + '</span>'
+                    + '<button class="enrich-unignore" data-handle="' + h + '">Un-ignore</button></div>';
+            }).join('');
+        }
+
         overlay.addEventListener('click', function(e) {
-            if (e.target.classList.contains('enrich-toggle')) {
-                var key = e.target.dataset.model;
-                var list = document.getElementById('enrich-colorways-' + key);
-                if (list) {
-                    var visible = list.style.display !== 'none';
-                    list.style.display = visible ? 'none' : 'block';
-                    e.target.textContent = visible ? '▶ Show colorways' : '▼ Hide colorways';
-                }
+            var t = e.target;
+
+            // Ignore a colorway: hide it and never offer it as new again.
+            if (t.classList.contains('enrich-cw-ignore')) {
+                e.stopPropagation();
+                var skus = (t.dataset.skus || '').split(',').filter(Boolean);
+                Ignore.add(brand, { handle: t.dataset.handle, title: t.dataset.title, skus: skus });
+                var row = t.closest('.enrich-cw-row'); var card = t.closest('.enrich-card');
+                if (row) row.remove();
+                if (card && !card.querySelector('.enrich-cw-row')) card.remove(); // no colorways left
+                enrichRefreshIgnoredCount();
+                return;
             }
-            if (e.target.classList.contains('enrich-advanced-toggle')) {
-                var key = e.target.dataset.model;
-                var adv = document.getElementById('enrich-adv-' + key);
-                if (adv) {
-                    var visible = adv.style.display !== 'none';
-                    adv.style.display = visible ? 'none' : 'block';
-                    e.target.textContent = visible ? '+ SEO & Description' : '− SEO & Description';
-                }
+            if (t.classList.contains('enrich-unignore')) {
+                Ignore.remove(brand, t.dataset.handle);
+                var ir = t.closest('.enrich-ign-row'); if (ir) ir.remove();
+                enrichRefreshIgnoredCount(); enrichRenderIgnoredList();
+                return;
             }
-            // Track manual price edits
-            if (e.target.classList.contains('enrich-price')) {
-                e.target.dataset.default = 'false';
+            if (t.id === 'enrich-ignored-btn') {
+                enrichRenderIgnoredList();
+                document.getElementById('enrich-body-main').style.display = 'none';
+                var tb = overlay.querySelector('.enrich-toolbar'); if (tb) tb.style.display = 'none';
+                document.getElementById('enrich-ignored-panel').style.display = 'block';
+                return;
+            }
+            if (t.id === 'enrich-ignored-back') {
+                document.getElementById('enrich-ignored-panel').style.display = 'none';
+                document.getElementById('enrich-body-main').style.display = 'block';
+                var tb2 = overlay.querySelector('.enrich-toolbar'); if (tb2) tb2.style.display = 'flex';
+                return;
+            }
+            if (t.id === 'enrich-expand-all') { overlay.querySelectorAll('.enrich-card').forEach(function(c) { enrichSetCollapsed(c.dataset.model, false); }); return; }
+            if (t.id === 'enrich-collapse-all') { overlay.querySelectorAll('.enrich-card').forEach(function(c) { enrichSetCollapsed(c.dataset.model, true); }); return; }
+
+            if (t.classList.contains('enrich-advanced-toggle')) {
+                e.stopPropagation();
+                var key = t.dataset.model, adv = document.getElementById('enrich-adv-' + key);
+                if (adv) { var vis = adv.style.display !== 'none'; adv.style.display = vis ? 'none' : 'block'; t.textContent = vis ? '+ SEO & Description' : '− SEO & Description'; }
+                return;
+            }
+            if (t.classList.contains('enrich-price')) { t.dataset.default = 'false'; }
+
+            // Accordion: a click on the head (not on a button/input) toggles the card body.
+            var head = t.closest('.enrich-card-head');
+            if (head && !t.closest('button') && !t.closest('input')) {
+                var body = document.getElementById('enrich-body-' + head.dataset.toggle);
+                enrichSetCollapsed(head.dataset.toggle, body && body.style.display !== 'none');
             }
         });
     },
@@ -312,24 +372,30 @@ var ProductEnrichment = {
             var seoDesc = saved.seoDesc || '';
 
             var colorwayRows = m.colorways.map(function(c) {
-                return '<div class="enrich-cw-row">'
+                var skuAttr = (c.skus || []).join(',');
+                return '<div class="enrich-cw-row" data-cw="' + c.handle + '">'
                     + '<span class="enrich-cw-title">' + c.title + '</span>'
                     + '<span class="enrich-cw-meta">' + c.variantCount + ' sizes</span>'
+                    + '<button class="enrich-cw-ignore" title="Do not add this colorway. It will not show up as new again." data-brand="' + brand + '" data-handle="' + c.handle + '" data-title="' + (c.title || '').replace(/"/g, '&quot;') + '" data-skus="' + skuAttr + '">Ignore</button>'
                     + '</div>';
             }).join('');
 
+            // Whole card is an accordion: the head toggles the body (colorways +
+            // fields), collapsed by default so a long list of models stays a tidy,
+            // scrollable set of header rows instead of one crowded wall.
             return '<div class="enrich-card" data-model="' + m.modelKey + '">'
-                + '<div class="enrich-card-head">'
+                + '<div class="enrich-card-head" data-toggle="' + m.modelKey + '">'
+                + '<span class="enrich-chevron" data-chev="' + m.modelKey + '">▶</span>'
                 + '<div class="enrich-card-title">' + m.modelName
                     + ' <span class="enrich-cw-count">' + m.colorways.length + ' colorway' + (m.colorways.length !== 1 ? 's' : '') + '</span>'
                 + '</div>'
                 + '<div class="enrich-card-actions">'
-                + '<button class="enrich-toggle" data-model="' + m.modelKey + '">▶ Show colorways</button>'
-                + '<button class="enrich-model-dl" title="Download just this model as its own CSV" onclick="ProductEnrichment.downloadModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;cursor:pointer;">⬇ Download</button>'
-                + (self._createEnabled() ? '<button class="enrich-model-create" title="Create just this model in Shopify" onclick="ProductEnrichment.createModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="font-size:11px;font-weight:700;color:#fff;background:#008060;border:1px solid #008060;border-radius:6px;padding:4px 10px;cursor:pointer;">Create →</button>' : '')
+                + '<button class="enrich-model-dl" title="Download just this model as its own CSV" onclick="event.stopPropagation();ProductEnrichment.downloadModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;cursor:pointer;">⬇ Download</button>'
+                + (self._createEnabled() ? '<button class="enrich-model-create" title="Create just this model in Shopify" onclick="event.stopPropagation();ProductEnrichment.createModel(\'' + brand + '\',\'' + m.modelKey + '\')" style="font-size:11px;font-weight:700;color:#fff;background:#008060;border:1px solid #008060;border-radius:6px;padding:4px 10px;cursor:pointer;">Create →</button>' : '')
                 + '</div>'
                 + '</div>'
-                + '<div class="enrich-colorways" id="enrich-colorways-' + m.modelKey + '" style="display:none">'
+                + '<div class="enrich-card-body" id="enrich-body-' + m.modelKey + '" style="display:none">'
+                + '<div class="enrich-colorways">'
                 + colorwayRows
                 + '</div>'
                 + '<div class="enrich-fields">'
@@ -342,6 +408,7 @@ var ProductEnrichment = {
                 + '<div class="enrich-field-row"><label>SEO Title</label><input class="enrich-input enrich-seo-title" data-model="' + m.modelKey + '" type="text" value="' + seoTitle.replace(/"/g, '&quot;') + '" placeholder="e.g. Saucony Guide 19 | Stability Running Shoe"></div>'
                 + '<div class="enrich-field-row"><label>SEO Desc</label><input class="enrich-input enrich-seo-desc" data-model="' + m.modelKey + '" type="text" value="' + seoDesc.replace(/"/g, '&quot;') + '" placeholder="160 char description for search engines..."></div>'
                 + '<div class="enrich-field-row enrich-field-desc"><label>Description</label><textarea class="enrich-textarea enrich-description" data-model="' + m.modelKey + '" placeholder="Describe this shoe — features, feel, who it&#39;s for. Plain text is fine.">' + desc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>'
+                + '</div>'
                 + '</div>'
                 + '</div>'
                 + '</div>';
@@ -358,10 +425,19 @@ var ProductEnrichment = {
             + '<input id="enrich-brand-price" class="enrich-input enrich-input-sm" type="text" value="' + defaultPrice + '">'
             + '</div>'
             + '</div>'
-            + '<div class="enrich-body">'
+            + '<div class="enrich-toolbar">'
+            + '<button class="enrich-linkbtn" id="enrich-expand-all">Expand all</button>'
+            + '<button class="enrich-linkbtn" id="enrich-collapse-all">Collapse all</button>'
+            + '</div>'
+            + '<div class="enrich-body" id="enrich-body-main">'
             + modelCards
             + '</div>'
+            + '<div class="enrich-body enrich-ignored-panel" id="enrich-ignored-panel" style="display:none">'
+            + '<div class="enrich-ignored-head"><button class="enrich-linkbtn" id="enrich-ignored-back">← Back to new products</button></div>'
+            + '<div id="enrich-ignored-list"></div>'
+            + '</div>'
             + '<div class="enrich-footer">'
+            + '<button id="enrich-ignored-btn" class="enrich-btn enrich-btn-ghost" style="margin-right:auto">Ignored (<span id="enrich-ignored-count">' + ((typeof Ignore !== 'undefined') ? Ignore.count(brand) : 0) + '</span>)</button>'
             + '<button id="enrich-cancel" class="enrich-btn enrich-btn-cancel">Cancel</button>'
             + '<button id="enrich-confirm" class="enrich-btn enrich-btn-secondary">⬇ Download CSV</button>'
             + (self._createEnabled() ? '<button id="enrich-create" class="enrich-btn enrich-btn-confirm">Create in Shopify →</button>' : '')
@@ -1232,8 +1308,36 @@ function escapeHtmlEnrich(s) {
             padding: 6px 16px; border-bottom: 1px solid #ececee; font-size: 12px;
         }
         .enrich-cw-row:last-child { border-bottom: none; }
-        .enrich-cw-title { color: #3f3f46; min-width: 0; overflow-wrap: anywhere; }
+        .enrich-cw-title { color: #3f3f46; min-width: 0; overflow-wrap: anywhere; flex: 1; }
         .enrich-cw-meta { color: #52525b; font-size: 11px; flex-shrink: 0; white-space: nowrap; }
+
+        /* Accordion: head is clickable, chevron shows open/closed state. */
+        .enrich-card-head { cursor: pointer; user-select: none; }
+        .enrich-card-head:hover { background: #eeeef0; }
+        .enrich-chevron { color: #71717a; font-size: 11px; flex-shrink: 0; width: 12px; }
+        .enrich-card-body { }
+
+        /* Per-colorway Ignore button. */
+        .enrich-cw-ignore {
+            flex-shrink: 0; font-size: 11px; font-weight: 600; color: #b91c1c;
+            background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;
+            padding: 3px 10px; cursor: pointer; font-family: inherit; transition: all .12s;
+        }
+        .enrich-cw-ignore:hover { background: #fee2e2; border-color: #f87171; }
+
+        /* Expand/collapse-all toolbar above the list. */
+        .enrich-toolbar { display: flex; gap: 14px; padding: 8px 18px 0; flex-shrink: 0; }
+        .enrich-linkbtn { background: none; border: none; color: #2563eb; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; padding: 2px 0; }
+        .enrich-linkbtn:hover { text-decoration: underline; }
+
+        /* Ignored panel (swaps in over the list). */
+        .enrich-ignored-head { padding-bottom: 8px; border-bottom: 1px solid #e4e4e7; margin-bottom: 10px; }
+        .enrich-ign-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border: 1px solid #e4e4e7; border-radius: 8px; margin-bottom: 8px; background: #fff; }
+        .enrich-unignore { flex-shrink: 0; font-size: 11px; font-weight: 700; color: #fff; background: #18181b; border: none; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-family: inherit; }
+        .enrich-unignore:hover { background: #3f3f46; }
+        .enrich-empty { color: #71717a; font-size: 13px; padding: 24px; text-align: center; }
+        .enrich-btn-ghost { background: #fff; color: #52525b; border: 1px solid #d4d4d8; }
+        .enrich-btn-ghost:hover { background: #f4f4f5; }
 
         .enrich-fields { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
         .enrich-row2 { display: flex; gap: 10px; align-items: flex-start; }

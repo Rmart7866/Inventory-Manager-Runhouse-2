@@ -6,6 +6,31 @@
 //        always calling HokaConverter (which mis-identified everything for
 //        Brooks, ON, ASICS, etc. and routed new colorways to newProducts)
 
+// ========== IGNORE LIST ==========
+// Colorways staff explicitly marked "don't add" (no photos, not wanted, etc.).
+// They must never show as a new product again. Stored in localStorage per brand
+// as { handle: { title, skus:[...], at } }. Filtering is by SKU (the stable key
+// on both the feed and Shopify), so an ignored colorway stays ignored even if its
+// handle drifts between scans. Un-ignoring removes it, and it reappears on the
+// next scan if still new.
+//
+// NOTE: this is per-browser (localStorage). If ignores need to be shared across
+// staff/machines, move the store to Firestore (the db handle is available here).
+var Ignore = {
+    _key: function (brand) { return 'rhIgnore:' + (brand || '_default'); },
+    all: function (brand) { try { return JSON.parse(localStorage.getItem(this._key(brand)) || '{}'); } catch (e) { return {}; } },
+    _save: function (brand, obj) { try { localStorage.setItem(this._key(brand), JSON.stringify(obj)); } catch (e) { /* no localStorage */ } },
+    count: function (brand) { return Object.keys(this.all(brand)).length; },
+    skuSet: function (brand) {
+        var o = this.all(brand), s = new Set();
+        Object.keys(o).forEach(function (h) { (o[h].skus || []).forEach(function (x) { if (x) s.add(String(x).toUpperCase()); }); });
+        return s;
+    },
+    isIgnored: function (brand, skus) { var s = this.skuSet(brand); return (skus || []).some(function (x) { return x && s.has(String(x).toUpperCase()); }); },
+    add: function (brand, entry) { var o = this.all(brand); o[entry.handle] = { title: entry.title || entry.handle, skus: entry.skus || [], at: Date.now() }; this._save(brand, o); },
+    remove: function (brand, handle) { var o = this.all(brand); delete o[handle]; this._save(brand, o); }
+};
+
 var InventoryTracker = {
 
     // Per-brand cache: { brandName: { models: Set, colorways: Map, loaded: true } }
@@ -323,6 +348,20 @@ var InventoryTracker = {
                 ' feed product(s) recognized as already carried by title (model|gender|width|color), ' +
                 'not by SKU. These are SKU-less Shopify products the old SKU-only check re-offered as new.');
         }
+        // Drop colorways staff explicitly ignored (don't-add list). Matched by
+        // SKU so an ignored colorway stays hidden regardless of handle drift.
+        var ignoreSkus = (typeof Ignore !== 'undefined') ? Ignore.skuSet(brand) : new Set();
+        var ignoredCount = 0;
+        var notIgnored = function(e) {
+            if (!ignoreSkus.size) return true;
+            var v = e.variants || {};
+            for (var sz in v) { if (v.hasOwnProperty(sz) && v[sz] && v[sz].sku && ignoreSkus.has(String(v[sz].sku).toUpperCase())) { ignoredCount++; return false; } }
+            return true;
+        };
+        newProducts = newProducts.filter(notIgnored);
+        newColorways = newColorways.filter(notIgnored);
+        if (ignoredCount > 0) console.log('[InventoryTracker] Hid ' + ignoredCount + ' colorway(s) on the ignore list.');
+
         var newProdBefore = newProducts.length, newColorBefore = newColorways.length;
         newProducts = newProducts.filter(function(e) { return unitsOf(e) >= self.NEW_MIN_UNITS; });
         newColorways = newColorways.filter(function(e) { return unitsOf(e) >= self.NEW_MIN_UNITS; });
