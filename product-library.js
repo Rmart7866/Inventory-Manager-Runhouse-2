@@ -76,9 +76,13 @@ var ProductLibrary = {
         var by = {};
         (products || []).forEach(function (p) {
             if (!p || !p.id) return;
-            var key = (p.modelKeyGenderless || p.modelKey || p.title || '').toUpperCase().trim();
-            if (!key) return;
-            if (!by[key]) by[key] = { key: key, vendor: p.vendor || '', colorways: [] };
+            var model = ProductLibrary._cleanModel(p.modelKeyGenderless || p.modelKey || p.title || '');
+            if (!model) return;
+            var vendor = p.vendor || '';
+            // Group by vendor + cleaned model, so width variants the parser split
+            // out ("Bondi 8" vs "Bondi 8 Extra") land in ONE group.
+            var key = vendor.toUpperCase() + ' :: ' + model;
+            if (!by[key]) by[key] = { key: key, vendor: vendor, model: model, colorways: [] };
             by[key].colorways.push(p);
         });
         var groups = Object.keys(by).map(function (k) {
@@ -88,17 +92,30 @@ var ProductLibrary = {
                 if (ga !== gb) return ga.localeCompare(gb);
                 return String(a.colorName || a.title).localeCompare(String(b.colorName || b.title));
             });
-            g.label = ProductLibrary._titleCase(g.key);
+            g.label = ProductLibrary._titleCase(g.model);
             g.count = g.colorways.length;
             // Most recent edit across the model's colorways (ISO strings sort
             // chronologically), for the "Recently modified" sort.
             g._modified = g.colorways.reduce(function (m, p) { return (p.updatedAt && p.updatedAt > m) ? p.updatedAt : m; }, '');
+            // Total on-hand across the model, for the "Most inventory" sort.
+            g._stock = g.colorways.reduce(function (t, p) { return t + (typeof p.totalOnHand === 'number' ? p.totalOnHand : 0); }, 0);
             return g;
         });
         return groups;
     },
     _titleCase: function (s) {
         return String(s || '').toLowerCase().replace(/\b([a-z])/g, function (m, c) { return c.toUpperCase(); });
+    },
+    // Tidy a parser model key for display and grouping: drop junk punctuation at
+    // the ends (a leading "'" from "Boys'") and trailing width words the parser
+    // left behind ("Bondi 8 Extra Wide" -> "Bondi 8"), so width variants merge
+    // into the base model instead of showing as their own broken group.
+    _cleanModel: function (raw) {
+        var s = String(raw || '').toUpperCase().trim();
+        s = s.replace(/^[^A-Z0-9]+/, '').replace(/[^A-Z0-9)]+$/, '');
+        s = s.replace(/[\s-]+(EXTRA\s*WIDE|X[-\s]?WIDE|XWIDE|WIDE|NARROW)\s*$/, '').trim();
+        s = s.replace(/[\s-]+EXTRA\s*$/, '').trim(); // "Extra Wide" that left a bare "Extra"
+        return s.replace(/\s{2,}/g, ' ').trim();
     },
     // Readable width label. Standard is the default and gets NO chip (no "std").
     _widthLabel: function (w) {
@@ -157,6 +174,11 @@ var ProductLibrary = {
                 if (a.vendor !== b.vendor) return String(a.vendor).localeCompare(String(b.vendor));
                 return a.label.localeCompare(b.label);
             });
+        } else if (this._filter.sort === 'stock') {
+            shown.sort(function (a, b) {
+                if (b._stock !== a._stock) return b._stock - a._stock; // most inventory first
+                return a.label.localeCompare(b.label);
+            });
         } else {
             shown.sort(function (a, b) {
                 if (a._modified !== b._modified) return a._modified < b._modified ? 1 : -1; // newest first
@@ -180,8 +202,14 @@ var ProductLibrary = {
         var prices = cws.map(function (p) { return parseFloat(p.price); }).filter(function (x) { return !isNaN(x); });
         var priceLbl = prices.length ? ('$' + Math.min.apply(null, prices) + (Math.max.apply(null, prices) !== Math.min.apply(null, prices) ? ('–$' + Math.max.apply(null, prices)) : '')) : '';
         var genders = {}; cws.forEach(function (p) { if (p.gender) genders[p.gender] = 1; });
+        var gimg = '';
+        for (var i = 0; i < cws.length; i++) { if (cws[i].image) { gimg = cws[i].image; break; } }
+        var gthumb = gimg
+            ? '<img class="plib-g-thumb" src="' + this._esc(gimg) + '" alt="" loading="lazy">'
+            : '<span class="plib-g-thumb plib-thumb-none"></span>';
         var head = '<div class="plib-g-head" data-model="' + this._esc(g.key) + '">'
             + '<span class="plib-caret">' + (isOpen ? '▾' : '▸') + '</span>'
+            + gthumb
             + '<span class="plib-g-vendor">' + this._esc(g.vendor) + '</span>'
             + '<span class="plib-g-name">' + this._esc(g.label) + '</span>'
             + '<span class="plib-g-meta">' + cws.length + ' colorway' + (cws.length !== 1 ? 's' : '')
@@ -512,7 +540,7 @@ var ProductLibrary = {
             + '<select id="plib-f-brand" class="plib-sel"><option value="">All brands</option></select>'
             + '<select id="plib-f-gender" class="plib-sel"><option value="">All genders</option><option>Men\'s</option><option>Women\'s</option><option>Unisex</option></select>'
             + '<select id="plib-f-status" class="plib-sel"><option value="">All status</option><option value="ACTIVE">Active</option><option value="DRAFT">Draft</option><option value="ARCHIVED">Archived</option></select>'
-            + '<select id="plib-f-sort" class="plib-sel"><option value="modified">Recently modified</option><option value="az">A to Z</option></select>'
+            + '<select id="plib-f-sort" class="plib-sel"><option value="modified">Recently modified</option><option value="stock">Most inventory</option><option value="az">A to Z</option></select>'
             + '<label class="plib-oos"><input type="checkbox" id="plib-f-oos"> Show out of stock</label>'
             + '</div>'
             + '<div id="plib-status" class="plib-status">Loading...</div>'
@@ -543,8 +571,9 @@ var ProductLibrary = {
         .plib-list::-webkit-scrollbar { width: 10px; } .plib-list::-webkit-scrollbar-thumb { background: rgba(120,160,220,.22); border-radius: 5px; }
         .plib-empty { padding: 40px; text-align: center; color: #6f83a0; }
         .plib-group { border-bottom: 1px solid rgba(120,170,230,.10); }
-        .plib-g-head { display: flex; align-items: baseline; gap: 10px; padding: 13px 6px; cursor: pointer; }
+        .plib-g-head { display: flex; align-items: center; gap: 10px; padding: 11px 6px; cursor: pointer; }
         .plib-g-head:hover { background: rgba(120,170,230,.05); }
+        .plib-g-thumb { width: 30px; height: 30px; object-fit: cover; background: #0b111d; flex-shrink: 0; border: 1px solid rgba(120,170,230,.12); }
         .plib-caret { color: #6f83a0; font-size: 11px; width: 12px; }
         .plib-g-vendor { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: #6f83a0; font-weight: 700; min-width: 64px; }
         .plib-g-name { font-size: 15px; font-weight: 600; color: #eef4fc; }
