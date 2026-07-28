@@ -151,16 +151,38 @@ var CatalogTags = {
         });
         return inputs;
     },
-    // Compute the full metafield input list from ACTIVE footwear (siblings must be
-    // buyable, so drafts/archived are excluded from the grouping).
+    // Compute the metafield inputs for ACTIVE footwear (siblings must be buyable,
+    // so drafts/archived are excluded from the grouping), then DIFF each against
+    // the product's current custom.* value and keep only the ones that changed.
+    // So a run on an already-correct catalog writes nothing; after adding a few
+    // colorways it writes just the siblings that actually moved.
     computeMetafields: function (products) {
+        var self = this;
         var active = (products || []).filter(function (p) { return p.status === 'ACTIVE' && p.id && p.modelKey && p.colorName; });
+        var mfById = {};
+        active.forEach(function (p) { mfById[p.id] = p.mf || {}; });
         var records = active.map(function (p) {
             return { id: p.id, gender: p.gender, colorName: p.colorName, modelKey: p.modelKey, modelKeyGenderless: p.modelKeyGenderless, width: p.width };
         });
         var plan = this._groupProducts(records);
-        var inputs = this._buildMetafieldInputs(plan);
-        return { inputs: inputs, summary: { products: Object.keys(plan).length, metafields: inputs.length } };
+        var allInputs = this._buildMetafieldInputs(plan);
+        var changed = [], productsChanged = {};
+        allInputs.forEach(function (inp) {
+            var cur = (mfById[inp.ownerId] || {})[inp.key];
+            if (self._mfEqual(cur, inp.value, inp.type)) return; // already correct
+            changed.push(inp); productsChanged[inp.ownerId] = true;
+        });
+        return { inputs: changed, summary: { products: Object.keys(productsChanged).length, metafields: changed.length, scanned: active.length } };
+    },
+    // A stored metafield value equals a computed one? For list types both sides are
+    // JSON arrays, so compare normalized JSON (formatting is not a real change).
+    _mfEqual: function (current, computed, type) {
+        if (current == null) return false;              // missing -> write it
+        if (current === computed) return true;
+        if (type && type.indexOf('list.') === 0) {
+            try { return JSON.stringify(JSON.parse(current)) === JSON.stringify(JSON.parse(computed)); } catch (e) { return false; }
+        }
+        return false;
     },
 
     // ===== UI =====
@@ -228,7 +250,7 @@ var CatalogTags = {
         if (ops.width) lines.push('Width tags: <b>' + s.widthAdds + '</b> to add (add-only)');
         if (ops.swatch) lines.push('Swatch (cw-group) tags: <b>' + s.swatchAdds + '</b> to add (add-only)');
         if (ops.gender) lines.push('Gender tags: <b>' + s.genderAdds + '</b> to add (add-only, no removals); <b>' + s.typeFixes + '</b> product-type fixes');
-        if (ops.metafields && self._mf) lines.push('Swatch metafields: <b>' + self._mf.summary.metafields + '</b> fields across <b>' + self._mf.summary.products + '</b> active products (rewrites every sibling reference)');
+        if (ops.metafields && self._mf) lines.push('Swatch metafields: <b>' + self._mf.summary.metafields + '</b> fields to update across <b>' + self._mf.summary.products + '</b> products (only where changed; ' + self._mf.summary.scanned + ' checked)');
         var sample = self._plan.slice(0, 10).map(function (c) {
             var bits = [];
             if (c.remove && c.remove.length) bits.push('<span class="ctags-rm">- ' + c.remove.join(', ') + '</span>');
@@ -312,7 +334,7 @@ var CatalogTags = {
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-swatch" checked><div><div class="ctags-op-t">Swatch grouping</div><div class="ctags-op-h">The cw-group:model--width tags that drive the color-swatch grid. Adds the missing ones. Add-only, never removes.</div></div></label>'
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-width"><div><div class="ctags-op-t">Width tags</div><div class="ctags-op-h">Lowercase wide / extra wide / narrow, from the parsed width. Add-only, never removes.</div></div></label>'
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-gender"><div><div class="ctags-op-t">Gender + product type</div><div class="ctags-op-h">Adds the canonical "Men\'s Shoes" / "Women\'s Shoes" / "Unisex Shoes" tag + sets the matching product type. Add-only, never removes existing tags.</div></div></label>'
-            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-metafields"><div><div class="ctags-op-t">Swatch sibling metafields</div><div class="ctags-op-h">The custom.* style / width / gender sibling references + color_name / width_code that the PDP swatch grid reads. Rebuilds them for every active footwear product.</div></div></label>'
+            + '<label class="ctags-op"><input type="checkbox" id="ctags-op-metafields"><div><div class="ctags-op-t">Swatch sibling metafields</div><div class="ctags-op-h">The custom.* style / width / gender sibling references + color_name / width_code the PDP swatch grid reads. Writes only the ones that actually changed (nothing if already correct).</div></div></label>'
             + '</div>'
             + '<div class="ctags-status" id="ctags-status">Loading catalog...</div>'
             + '<div class="ctags-result" id="ctags-result"></div>'

@@ -41,6 +41,11 @@ function widthTagFor(width) {
   }
 }
 
+// The custom.* swatch metafields we carry so the dashboard tagging panel can
+// diff its computed sibling references against what is already on the product,
+// and write ONLY the ones that changed instead of rewriting all of them.
+const SWATCH_MF_KEYS = new Set(['style_siblings', 'width_siblings', 'gender_sibling', 'model_widths', 'width_code', 'width_class', 'gender', 'color_name']);
+
 // Pull the fields the prep tool needs: handle, type, tags, and every variant's
 // SKU and price. Colorways share MSRP and sizes share price, so the first
 // variant price is the model price.
@@ -58,6 +63,7 @@ query($cursor: String, $q: String) {
       tags
       descriptionHtml
       category { fullName }
+      metafields(namespace: "custom", first: 30) { nodes { key value } }
       variants(first: 100) { nodes { sku price } }
     }
   }
@@ -106,6 +112,7 @@ function bulkCatalogQuery(activeOnly) {
     edges { node {
       id handle title vendor productType status tags
       descriptionHtml category { fullName }
+      metafields(namespace: "custom") { edges { node { namespace key value } } }
       variants { edges { node {
         id sku price selectedOptions { name value }
         inventoryItem { id inventoryLevels { edges { node {
@@ -166,6 +173,13 @@ function makeBulkAssembler(needhamLocationId) {
       if (!vmap) { vmap = {}; needham.variants.set(p.handle, vmap); }
       const key = vi.size || vi.sku;
       if (key) vmap[key] = { sku: vi.sku || '', quantity: (vmap[key] ? vmap[key].quantity : 0) + qty };
+    } else if ('namespace' in o) {
+      // A product metafield line. Keep only the custom.* swatch fields; store on
+      // the product so buildCatalogFrom can publish current values for diffing.
+      if (o.namespace !== 'custom' || !SWATCH_MF_KEYS.has(o.key)) return;
+      const p = productsById.get(o.__parentId);
+      if (!p) return; // metafield of a non-footwear product
+      (p._mf = p._mf || {})[o.key] = o.value;
     } else {
       const p = productsById.get(o.__parentId);
       if (!p) return; // variant of a non-footwear product
@@ -260,6 +274,13 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
     const cwGroup = groupTagFor(parsed);        // identical to the pipeline tag
     const widthTag = widthTagFor(parsed.width);
 
+    // Current custom.* swatch metafields, for the tagging panel to diff its
+    // computed sibling references against (bulk path sets n._mf; the paged dev
+    // path returns n.metafields.nodes). Only the swatch keys are kept.
+    const currentMf = n._mf || (n.metafields && n.metafields.nodes
+      ? n.metafields.nodes.reduce((a, m) => { if (SWATCH_MF_KEYS.has(m.key)) a[m.key] = m.value; return a; }, {})
+      : {});
+
     products.push({
       id: n.id,
       handle: n.handle,
@@ -271,6 +292,7 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
       // Current tags, so the dashboard's Catalog Tagging panel can diff against
       // the computed width/cw-group/gender tags without a fresh Admin scan.
       tags: n.tags || [],
+      mf: currentMf,
       price,
       styleCode: parsed.styleCode,
       colorCode: parsed.colorCode,
