@@ -480,6 +480,55 @@ var CatalogClient = {
         });
     },
 
+    // Product Library READ. Full detail the cached catalog does not carry
+    // (description, image, per-variant prices), fetched on demand when a colorway
+    // is opened. Gated by the catalog bearer only, no write secret.
+    fetchProductDetail: function (id) {
+        return fetch(this._writeBase() + '/product?id=' + encodeURIComponent(id), {
+            headers: { 'Authorization': 'Bearer ' + this.CATALOG_TOKEN }
+        }).then(function (res) {
+            return res.json().then(function (b) { b.__status = res.status; return b; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
+    },
+
+    // Product Library WRITE. Update one existing product's description (and
+    // optionally its type). Behind the write secret, same gate as tags/inventory.
+    updateProductDescription: function (id, descriptionHtml, productType) {
+        var payload = { id: id };
+        if (descriptionHtml != null) payload.descriptionHtml = descriptionHtml;
+        if (productType != null) payload.productType = productType;
+        return fetch(this._writeBase() + '/product/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + this.CATALOG_TOKEN,
+                'X-Write-Secret': this.writeSecret()
+            },
+            body: JSON.stringify(payload)
+        }).then(function (res) {
+            return res.json().then(function (b) { b.__status = res.status; return b; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
+    },
+
+    // Product Library WRITE. Set variant prices for one product. variants:
+    // [{id, price}]. Behind the write secret.
+    updateProductPrices: function (productId, variants) {
+        return fetch(this._writeBase() + '/product/prices', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + this.CATALOG_TOKEN,
+                'X-Write-Secret': this.writeSecret()
+            },
+            body: JSON.stringify({ productId: productId, variants: variants || [] })
+        }).then(function (res) {
+            return res.json().then(function (b) { b.__status = res.status; return b; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
+    },
+
     createProducts: function (specs) {
         return fetch(this._writeBase() + '/products', {
             method: 'POST',

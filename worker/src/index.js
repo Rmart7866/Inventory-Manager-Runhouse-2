@@ -30,6 +30,7 @@ import { buildCatalog } from './catalog.js';
 import { createProducts, createStagedUploads } from './products.js';
 import { zeroInventory, setInventory } from './inventory.js';
 import { applyTagChanges, applyMetafields } from './tags.js';
+import { fetchProductDetail, updateProduct, updatePrices } from './product-edit.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -273,6 +274,46 @@ async function handleApplyMetafields(request, env) {
   return json(result, 200, request, env);
 }
 
+// GET /product?id=... : full detail for the Product Library (description, image,
+// per-variant prices), which the cached catalog does not carry. Read-only.
+async function handleProductDetail(request, env) {
+  const id = new URL(request.url).searchParams.get('id');
+  if (!id) return json({ error: 'Expected ?id=<product gid>' }, 400, request, env);
+  const client = createShopifyClient(env);
+  const detail = await fetchProductDetail(client, id);
+  if (!detail) return json({ error: 'Product not found' }, 404, request, env);
+  return json({ product: detail }, 200, request, env);
+}
+
+// POST /product/update : { id, descriptionHtml?, productType? }. Edits one
+// existing product's description (and optionally type). Write-gated.
+async function handleProductUpdate(request, env) {
+  let body;
+  try { body = await request.json(); } catch (e) { body = null; }
+  if (!body || !body.id) {
+    return json({ error: 'Expected JSON body { id, descriptionHtml? }' }, 400, request, env);
+  }
+  const client = createShopifyClient(env);
+  const result = await updateProduct(client, body);
+  return json(result, result.ok ? 200 : 400, request, env);
+}
+
+// POST /product/prices : { productId, variants: [{id, price}] }. Sets variant
+// prices for one product. Write-gated.
+async function handleProductPrices(request, env) {
+  let body;
+  try { body = await request.json(); } catch (e) { body = null; }
+  if (!body || !body.productId || !Array.isArray(body.variants)) {
+    return json({ error: 'Expected JSON body { productId, variants: [{id, price}] }' }, 400, request, env);
+  }
+  if (body.variants.length > 100) {
+    return json({ error: 'Too many variants in one request (max 100)' }, 400, request, env);
+  }
+  const client = createShopifyClient(env);
+  const result = await updatePrices(client, body);
+  return json(result, result.ok ? 200 : 400, request, env);
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -310,6 +351,13 @@ export default {
       // Same hard gate as /inventory: forWrite + a write secret not in the bundle.
       '/tags/apply': { handler: handleApplyTags, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/tags/metafields/apply': { handler: handleApplyMetafields, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // Product Library. /product is a READ (full detail the cached catalog does
+      // not carry: description, image, per-variant prices), gated by the catalog
+      // bearer only. The two edits write to a single existing product and sit
+      // behind the same hard gate as /inventory (forWrite + write secret).
+      '/product': { handler: handleProductDetail, forWrite: false, methods: ['GET'] },
+      '/product/update': { handler: handleProductUpdate, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      '/product/prices': { handler: handleProductPrices, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
     };
     const route = routes[url.pathname];
     if (!route) return json({ error: 'Not found' }, 404, request, env);
