@@ -63,6 +63,7 @@ query($cursor: String, $q: String) {
       tags
       descriptionHtml
       category { fullName }
+      featuredImage { url }
       metafields(namespace: "custom", first: 30) { nodes { key value } }
       variants(first: 100) { nodes { sku price } }
     }
@@ -112,6 +113,7 @@ function bulkCatalogQuery(activeOnly) {
     edges { node {
       id handle title vendor productType status tags
       descriptionHtml category { fullName }
+      featuredImage { url }
       metafields(namespace: "custom") { edges { node { namespace key value } } }
       variants { edges { node {
         id sku price selectedOptions { name value }
@@ -155,6 +157,7 @@ function makeBulkAssembler(needhamLocationId) {
         id: o.id, handle: o.handle, title: o.title, vendor: o.vendor,
         productType: o.productType, status: o.status, tags: o.tags || [],
         descriptionHtml: o.descriptionHtml || '', category: o.category || null,
+        image: (o.featuredImage && o.featuredImage.url) || '',
         variants: { nodes: [] },
       });
     } else if ('location' in o) {
@@ -286,6 +289,9 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
       handle: n.handle,
       title: n.title,
       vendor: n.vendor,
+      // Featured image URL, for the Product Library row thumbnails. Bulk sets
+      // n.image; the paged dev path returns n.featuredImage.url.
+      image: n.image || (n.featuredImage && n.featuredImage.url) || '',
       brand,
       productType: n.productType,
       status: n.status,
