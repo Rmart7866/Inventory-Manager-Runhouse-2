@@ -236,6 +236,23 @@ var CatalogTags = {
         var el = document.getElementById('ctags-status');
         if (el) { el.textContent = msg; el.className = 'ctags-status' + (isErr ? ' ctags-status-err' : ''); }
     },
+    _showProgress: function (show) {
+        var w = document.getElementById('ctags-progress-wrap');
+        if (w) w.style.display = show ? 'block' : 'none';
+        if (show) { var l = document.getElementById('ctags-log'); if (l) l.innerHTML = ''; }
+    },
+    _bar: function (done, total, label) {
+        var pct = total ? Math.round(done / total * 100) : 0;
+        var b = document.getElementById('ctags-bar'); if (b) b.style.width = pct + '%';
+        var t = document.getElementById('ctags-progress-txt'); if (t) t.textContent = label + '  ' + done + ' / ' + total + '  (' + pct + '%)';
+    },
+    _log: function (html) {
+        var l = document.getElementById('ctags-log'); if (!l) return;
+        var d = document.createElement('div'); d.className = 'ctags-log-line'; d.innerHTML = html; l.appendChild(d);
+        while (l.childNodes.length > 250) l.removeChild(l.firstChild);
+        l.scrollTop = l.scrollHeight;
+    },
+    _titleFor: function (id) { return (this._titleById && this._titleById[id]) || id; },
     _preview: function () {
         var self = this;
         if (!self._catalog) { self._setStatus('Catalog still loading, one moment.', true); return; }
@@ -280,6 +297,10 @@ var CatalogTags = {
         }
         var applyBtn = document.getElementById('ctags-apply'), prevBtn = document.getElementById('ctags-preview');
         applyBtn.disabled = true; prevBtn.disabled = true;
+        // id -> title, so the live log can name each product as it writes.
+        self._titleById = {};
+        (self._catalog && self._catalog.products || []).forEach(function (p) { self._titleById[p.id] = p.title; });
+        self._showProgress(true);
         var stopped = false;
         function stop(msg) { stopped = true; self._setStatus(msg, true); applyBtn.disabled = false; prevBtn.disabled = false; }
         function refused(r) { return [401, 403, 501].indexOf(r.__status) >= 0; }
@@ -288,14 +309,22 @@ var CatalogTags = {
         function runTags(next) {
             if (!hasTags) return next(0, 0);
             var chunks = chunk(self._plan, self.CHUNK), total = self._plan.length, done = 0, failed = 0;
+            self._bar(0, total, 'Tagging');
             (function step(idx) {
                 if (stopped) return;
                 if (idx >= chunks.length) return next(done - failed, failed);
                 CatalogClient.applyTags(chunks[idx]).then(function (r) {
                     if (refused(r)) return stop('Write refused (HTTP ' + r.__status + '): ' + (r.reason || r.error || 'check the write secret') + '.');
+                    var okById = {}; (r.results || []).forEach(function (x) { okById[x.id] = x.ok; if (!x.ok) console.warn('[tags]', x.id, x.errors); });
+                    chunks[idx].forEach(function (c) {
+                        var ok = okById[c.id] !== false;
+                        var bits = [];
+                        if (c.add && c.add.length) bits.push('<span class="ctags-ad">+' + c.add.join(', ') + '</span>');
+                        if (c.productType) bits.push('<span class="ctags-ty">type ' + c.productType + '</span>');
+                        self._log((ok ? '<span class="ctags-ok">✓</span> ' : '<span class="ctags-rm">✗</span> ') + (c.title || c.handle) + '  ' + bits.join(' '));
+                    });
                     done += (r.total || chunks[idx].length); failed += (r.failed || 0);
-                    (r.results || []).forEach(function (x) { if (!x.ok) console.warn('[tags]', x.id, x.errors); });
-                    self._setStatus('Tagging... ' + done + ' / ' + total + ' products' + (failed ? ' (' + failed + ' failed)' : ''));
+                    self._bar(done, total, 'Tagging' + (failed ? ' (' + failed + ' failed)' : ''));
                     step(idx + 1);
                 }).catch(function (e) { stop('Network error mid-apply: ' + e.message + '. Re-Preview and Apply to finish.'); });
             })(0);
@@ -303,13 +332,17 @@ var CatalogTags = {
         function runMf(tOk, tFail) {
             if (!hasMf) return finish(tOk, tFail, 0, 0);
             var chunks = chunk(self._mf.inputs, 200), total = self._mf.inputs.length, set = 0, failed = 0;
+            self._log('<span class="ctags-samplbl2">Writing swatch metafields</span>');
+            self._bar(0, total, 'Metafields');
             (function step(idx) {
                 if (stopped) return;
                 if (idx >= chunks.length) return finish(tOk, tFail, set, failed);
                 CatalogClient.applyMetafields(chunks[idx]).then(function (r) {
                     if (refused(r)) return stop('Write refused (HTTP ' + r.__status + '): ' + (r.reason || r.error || 'check the write secret') + '.');
+                    // name the distinct products touched in this chunk
+                    var seen = {}; chunks[idx].forEach(function (inp) { if (!seen[inp.ownerId]) { seen[inp.ownerId] = 1; self._log('<span class="ctags-ok">✓</span> ' + self._titleFor(inp.ownerId) + ' <span class="ctags-ty">siblings</span>'); } });
                     set += (r.set || 0); failed += (r.failed || 0);
-                    self._setStatus('Writing metafields... ' + set + ' / ' + total);
+                    self._bar(set, total, 'Metafields' + (failed ? ' (' + failed + ' failed)' : ''));
                     step(idx + 1);
                 }).catch(function (e) { stop('Network error mid-apply: ' + e.message + '. Re-Preview and Apply to finish.'); });
             })(0);
@@ -319,9 +352,10 @@ var CatalogTags = {
             if (hasTags) msg += ' Tags: ' + tOk + ' products' + (tFail ? ', ' + tFail + ' failed' : '') + '.';
             if (hasMf) msg += ' Metafields: ' + mfSet + ' written' + (mfFail ? ', ' + mfFail + ' failed' : '') + '.';
             self._setStatus(msg + ' Refresh the catalog to see changes.', (tFail + mfFail) > 0);
+            self._log('<span class="ctags-ok">✓ All done.</span>');
             applyBtn.textContent = 'Applied'; prevBtn.disabled = false;
         }
-        self._setStatus('Applying...');
+        self._setStatus('Applying, watch the log below.');
         runTags(function (tOk, tFail) { runMf(tOk, tFail); });
     },
 
@@ -337,6 +371,11 @@ var CatalogTags = {
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-metafields"><div><div class="ctags-op-t">Swatch sibling metafields</div><div class="ctags-op-h">The custom.* style / width / gender sibling references + color_name / width_code the PDP swatch grid reads. Writes only the ones that actually changed (nothing if already correct).</div></div></label>'
             + '</div>'
             + '<div class="ctags-status" id="ctags-status">Loading catalog...</div>'
+            + '<div class="ctags-progress-wrap" id="ctags-progress-wrap" style="display:none">'
+            + '<div class="ctags-progress"><div class="ctags-bar" id="ctags-bar"></div></div>'
+            + '<div class="ctags-progress-txt" id="ctags-progress-txt"></div>'
+            + '<div class="ctags-log" id="ctags-log"></div>'
+            + '</div>'
             + '<div class="ctags-result" id="ctags-result"></div>'
             + '</div>'
             + '<div class="ctags-footer">'
@@ -372,6 +411,14 @@ if (typeof document !== 'undefined') (function () {
         .ctags-op-h { font-size: 12.5px; color: #9fb2cc; margin-top: 3px; line-height: 1.5; }
         .ctags-status { margin-top: 16px; font-size: 13px; color: #9fb2cc; line-height: 1.5; }
         .ctags-status-err { color: #ff9db0; }
+        .ctags-progress-wrap { margin-top: 14px; }
+        .ctags-progress { height: 9px; background: #0b111d; border: 1px solid rgba(120,170,230,.16); border-radius: 999px; overflow: hidden; }
+        .ctags-bar { height: 100%; width: 0%; background: linear-gradient(90deg,#34e0ff,#7c8bff); transition: width .25s ease; }
+        .ctags-progress-txt { font-size: 12px; color: #e9f1fb; font-weight: 600; margin-top: 9px; font-variant-numeric: tabular-nums; }
+        .ctags-log { margin-top: 12px; max-height: 200px; overflow-y: auto; background: #0b111d; border: 1px solid rgba(120,170,230,.12); border-radius: 5px; padding: 10px 12px; font-size: 11.5px; font-family: ui-monospace, monospace; line-height: 1.7; color: #9fb2cc; }
+        .ctags-log::-webkit-scrollbar { width: 8px; } .ctags-log::-webkit-scrollbar-thumb { background: rgba(120,160,220,.25); border-radius: 4px; }
+        .ctags-log-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ctags-ok { color: #3ce6b0; } .ctags-samplbl2 { color: #7f92ae; text-transform: uppercase; letter-spacing: .6px; font-size: 10px; font-weight: 700; }
         .ctags-result { margin-top: 14px; }
         .ctags-summary { font-size: 14px; line-height: 1.9; }
         .ctags-summary b { color: #34e0ff; font-variant-numeric: tabular-nums; }
