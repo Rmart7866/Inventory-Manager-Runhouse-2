@@ -87,3 +87,23 @@ export async function updatePrices(client, { productId, variants }) {
   const ue = (r.data && r.data.productVariantsBulkUpdate && r.data.productVariantsBulkUpdate.userErrors) || [];
   return { ok: ue.length === 0, updated: clean.length, errors: ue.map((e) => e.message) };
 }
+
+const CREATE_MEDIA = `
+mutation($id: ID!, $media: [CreateMediaInput!]!) {
+  productCreateMedia(productId: $id, media: $media) {
+    media { ... on MediaImage { id } }
+    mediaUserErrors { field message }
+  }
+}`;
+
+// Append an image to an existing product. originalSource is a resourceUrl from a
+// staged upload (the browser uploads the bytes to Shopify's signed target first,
+// same flow as product creation). This ADDS media, it does not remove existing
+// photos, so it is safe: a wrong add can be deleted in admin, nothing is lost.
+export async function addProductMedia(client, { id, originalSource, alt }) {
+  if (!id || !originalSource) return { ok: false, errors: ['missing id or originalSource'] };
+  const media = [{ originalSource: String(originalSource), mediaContentType: 'IMAGE', alt: alt ? String(alt) : '' }];
+  const r = await client.graphql(CREATE_MEDIA, { id, media });
+  const ue = (r.data && r.data.productCreateMedia && r.data.productCreateMedia.mediaUserErrors) || [];
+  return { ok: ue.length === 0, errors: ue.map((e) => e.message) };
+}

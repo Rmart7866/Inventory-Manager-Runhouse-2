@@ -20,8 +20,9 @@ var ProductLibrary = {
     _catalog: null,
     _groups: null,        // [{ key, label, vendor, count, colorways:[product] }]
     _detail: {},          // product id -> detail (lazy)
-    _filter: { q: '', brand: '', gender: '', status: '' },
+    _filter: { q: '', brand: '', gender: '', status: '', sort: 'modified', showOOS: false },
     _open: {},            // model key -> expanded?
+    _modelEdit: {},       // model key -> model-wide editor open?
 
     // ---------- lifecycle ----------
     open: function () {
@@ -40,10 +41,12 @@ var ProductLibrary = {
         o.addEventListener('keydown', function (e) { if (e.key === 'Escape') self.close(); });
         var q = o.querySelector('#plib-q');
         q.oninput = function () { self._filter.q = q.value.trim().toLowerCase(); self._debouncedRender(); };
-        ['brand', 'gender', 'status'].forEach(function (k) {
+        ['brand', 'gender', 'status', 'sort'].forEach(function (k) {
             var el = o.querySelector('#plib-f-' + k);
             el.onchange = function () { self._filter[k] = el.value; self._render(); };
         });
+        var oos = o.querySelector('#plib-f-oos');
+        oos.onchange = function () { self._filter.showOOS = oos.checked; self._render(); };
         o.querySelector('#plib-list').addEventListener('click', function (e) { self._onListClick(e); });
 
         this._setStatus('Loading catalog...');
@@ -87,16 +90,23 @@ var ProductLibrary = {
             });
             g.label = ProductLibrary._titleCase(g.key);
             g.count = g.colorways.length;
+            // Most recent edit across the model's colorways (ISO strings sort
+            // chronologically), for the "Recently modified" sort.
+            g._modified = g.colorways.reduce(function (m, p) { return (p.updatedAt && p.updatedAt > m) ? p.updatedAt : m; }, '');
             return g;
-        });
-        groups.sort(function (a, b) {
-            if (a.vendor !== b.vendor) return String(a.vendor).localeCompare(String(b.vendor));
-            return a.label.localeCompare(b.label);
         });
         return groups;
     },
     _titleCase: function (s) {
         return String(s || '').toLowerCase().replace(/\b([a-z])/g, function (m, c) { return c.toUpperCase(); });
+    },
+    // Readable width label. Standard is the default and gets NO chip (no "std").
+    _widthLabel: function (w) {
+        var c = String(w || '').toUpperCase();
+        if (c === 'WIDE' || c === '2E' || c === 'EE' || c === 'E') return 'Wide';
+        if (c === 'XWIDE' || c === 'X-WIDE' || c === 'EXTRA WIDE' || c === 'EXTRAWIDE' || c === '4E' || c === '2E4E') return 'X-Wide';
+        if (c === 'NARROW' || c === '2A' || c === 'A' || c === 'B') return 'Narrow';
+        return ''; // STD / standard / D / blank -> no chip
     },
 
     _fillFilters: function () {
@@ -110,9 +120,16 @@ var ProductLibrary = {
     },
 
     // ---------- filtering ----------
+    // A model has no inventory anywhere when every colorway has a KNOWN total of
+    // exactly 0. A null total (paged dev path, or pre-rebuild) counts as unknown,
+    // so nothing is hidden until the catalog actually carries inventory.
+    _isOOS: function (g) {
+        return g.colorways.length > 0 && g.colorways.every(function (p) { return p.totalOnHand === 0; });
+    },
     _matchGroup: function (g) {
         var f = this._filter;
         if (f.brand && g.vendor !== f.brand) return false;
+        if (!f.showOOS && this._isOOS(g)) { this._oosHidden = (this._oosHidden || 0) + 1; return false; }
         // A group is shown if ANY colorway passes gender/status/text.
         return g.colorways.some(this._matchCw, this);
     },
@@ -132,9 +149,25 @@ var ProductLibrary = {
         var self = this;
         var list = document.getElementById('plib-list');
         if (!list || !this._groups) return;
+        this._oosHidden = 0;
         var shown = this._groups.filter(function (g) { return self._matchGroup(g); });
+        // Sort: recently modified (default) or A to Z by vendor then model.
+        if (this._filter.sort === 'az') {
+            shown.sort(function (a, b) {
+                if (a.vendor !== b.vendor) return String(a.vendor).localeCompare(String(b.vendor));
+                return a.label.localeCompare(b.label);
+            });
+        } else {
+            shown.sort(function (a, b) {
+                if (a._modified !== b._modified) return a._modified < b._modified ? 1 : -1; // newest first
+                return a.label.localeCompare(b.label);
+            });
+        }
+        var hidden = this._groups.length - shown.length;
         var totalCw = shown.reduce(function (t, g) { return t + g.colorways.filter(self._matchCw, self).length; }, 0);
-        this._setStatus(shown.length + ' models, ' + totalCw + ' colorways' + (this._filterActive() ? ' (filtered)' : ''));
+        this._setStatus(shown.length + ' models, ' + totalCw + ' colorways'
+            + (this._filterActive() ? ' (filtered)' : '')
+            + (!this._filter.showOOS && this._oosHidden ? ' · ' + this._oosHidden + ' out-of-stock models hidden' : ''));
         if (!shown.length) { list.innerHTML = '<div class="plib-empty">No products match.</div>'; return; }
         list.innerHTML = shown.map(function (g) { return self._groupHTML(g); }).join('');
     },
@@ -153,15 +186,22 @@ var ProductLibrary = {
             + '<span class="plib-g-name">' + this._esc(g.label) + '</span>'
             + '<span class="plib-g-meta">' + cws.length + ' colorway' + (cws.length !== 1 ? 's' : '')
             + (Object.keys(genders).length ? ' · ' + Object.keys(genders).join(', ') : '')
-            + (priceLbl ? ' · ' + priceLbl : '') + '</span></div>';
-        var body = isOpen ? '<div class="plib-g-body">' + cws.map(function (p) { return self._cwRowHTML(p); }).join('') + '</div>' : '';
+            + (priceLbl ? ' · ' + priceLbl : '') + '</span>'
+            + '<button class="plib-model-edit" data-model="' + this._esc(g.key) + '" title="Change price, description or photo for every colorway at once">Edit all</button>'
+            + '</div>';
+        var editor = (isOpen && this._modelEdit[g.key]) ? this._modelEditorHTML(g, cws) : '';
+        var body = isOpen ? '<div class="plib-g-body">' + editor + cws.map(function (p) { return self._cwRowHTML(p); }).join('') + '</div>' : '';
         return '<div class="plib-group' + (isOpen ? ' open' : '') + '">' + head + body + '</div>';
     },
 
     _cwRowHTML: function (p) {
         var st = String(p.status || '').toUpperCase();
         var stCls = st === 'ACTIVE' ? 'plib-st-active' : (st === 'DRAFT' ? 'plib-st-draft' : 'plib-st-arch');
-        var width = p.width ? '<span class="plib-chip plib-chip-w">' + this._esc(p.width) + '</span>' : '';
+        var wl = this._widthLabel(p.width);
+        var width = wl ? '<span class="plib-chip plib-chip-w">' + this._esc(wl) + '</span>' : '';
+        var stock = (typeof p.totalOnHand === 'number')
+            ? '<span class="plib-stock' + (p.totalOnHand === 0 ? ' zero' : '') + '" title="On hand across all locations">' + p.totalOnHand + ' in stock</span>'
+            : '';
         var thumb = p.image
             ? '<img class="plib-thumb" src="' + this._esc(p.image) + '" alt="" loading="lazy">'
             : '<span class="plib-thumb plib-thumb-none"></span>';
@@ -172,6 +212,7 @@ var ProductLibrary = {
             + '<span class="plib-cw-color">' + this._esc(p.colorName || p.title) + '</span>'
             + (p.gender ? '<span class="plib-chip">' + this._esc(p.gender) + '</span>' : '')
             + width
+            + stock
             + '</div>'
             + '<div class="plib-cw-right"><span class="plib-cw-price">' + (p.price ? '$' + this._esc(p.price) : '—') + '</span>'
             + '<button class="plib-edit" data-id="' + this._esc(p.id) + '">Edit</button></div>'
@@ -181,15 +222,23 @@ var ProductLibrary = {
 
     // ---------- interaction ----------
     _onListClick: function (e) {
-        var head = e.target.closest && e.target.closest('.plib-g-head');
-        if (head) {
-            var m = head.getAttribute('data-model');
-            this._open[m] = !this._open[m];
+        var t = e.target;
+        if (!t.closest) return;
+        var mEdit = t.closest('.plib-model-edit');
+        if (mEdit) {
+            e.stopPropagation();
+            var mk = mEdit.getAttribute('data-model');
+            this._open[mk] = true;
+            this._modelEdit[mk] = !this._modelEdit[mk];
             this._render();
             return;
         }
-        var edit = e.target.closest && e.target.closest('.plib-edit');
+        var mSave = t.closest('.plib-msave');
+        if (mSave) { this._applyModel(mSave.getAttribute('data-mact'), mSave.getAttribute('data-model')); return; }
+        var edit = t.closest('.plib-edit');
         if (edit) { this._toggleEditor(edit.getAttribute('data-id')); return; }
+        var head = t.closest('.plib-g-head');
+        if (head) { var m = head.getAttribute('data-model'); this._open[m] = !this._open[m]; this._render(); return; }
     },
 
     _findProduct: function (id) {
@@ -237,6 +286,8 @@ var ProductLibrary = {
             + '<label class="plib-lab">Description</label>'
             + '<textarea class="plib-ta" id="plib-desc-' + this._cssId(p.id) + '">' + this._esc(d.descriptionHtml || '') + '</textarea>'
             + '<div class="plib-row"><button class="plib-save" data-act="desc" data-id="' + this._esc(p.id) + '">Save description</button><span class="plib-hint">HTML allowed</span></div>'
+            + '<label class="plib-lab">Add a photo</label>'
+            + '<div class="plib-row"><input class="plib-file" id="plib-photo-' + this._cssId(p.id) + '" type="file" accept="image/*"><button class="plib-save" data-act="photo" data-id="' + this._esc(p.id) + '">Add photo</button><span class="plib-hint">appends, does not replace</span></div>'
             + '<label class="plib-lab">Tags</label>'
             + '<div class="plib-tags" id="plib-tags-' + this._cssId(p.id) + '"></div>'
             + '<div class="plib-row"><input class="plib-in" id="plib-tagin-' + this._cssId(p.id) + '" placeholder="add a tag, Enter"><button class="plib-save" data-act="tags" data-id="' + this._esc(p.id) + '">Save tags</button></div>'
@@ -281,6 +332,110 @@ var ProductLibrary = {
     },
     _refused: function (r) { return [401, 403, 501].indexOf(r.__status) >= 0; },
 
+    // ---------- model-wide (all colorways) editing ----------
+    _modelEditorHTML: function (g, cws) {
+        var k = this._cssId(g.key);
+        var n = cws.length;
+        return '<div class="plib-model-ed">'
+            + '<div class="plib-me-title">Change all ' + n + ' colorway' + (n !== 1 ? 's' : '') + ' of ' + this._esc(g.label) + ' at once</div>'
+            + '<label class="plib-lab">Price ($) for every colorway and size</label>'
+            + '<div class="plib-row"><input class="plib-in" id="plib-mprice-' + k + '" type="number" step="0.01" placeholder="e.g. 140"><button class="plib-msave" data-mact="price" data-model="' + this._esc(g.key) + '">Apply price to all</button></div>'
+            + '<label class="plib-lab">Description for every colorway</label>'
+            + '<textarea class="plib-ta" id="plib-mdesc-' + k + '" placeholder="Shared description, HTML allowed"></textarea>'
+            + '<div class="plib-row"><button class="plib-msave" data-mact="desc" data-model="' + this._esc(g.key) + '">Apply description to all</button></div>'
+            + '<label class="plib-lab">Add a photo to every colorway</label>'
+            + '<div class="plib-row"><input class="plib-file" id="plib-mphoto-' + k + '" type="file" accept="image/*"><button class="plib-msave" data-mact="photo" data-model="' + this._esc(g.key) + '">Add photo to all</button></div>'
+            + '<div class="plib-me-msg" id="plib-mstatus-' + k + '"></div>'
+            + '</div>';
+    },
+
+    _applyModel: function (act, key) {
+        var self = this;
+        var g = null;
+        (this._groups || []).some(function (x) { if (x.key === key) { g = x; return true; } return false; });
+        if (!g) return;
+        if (!this._ensureSecret()) { this._mMsg(key, 'Need the write secret to save.', true); return; }
+        var cws = g.colorways, k = this._cssId(key);
+        if (act === 'price') {
+            var price = parseFloat(document.getElementById('plib-mprice-' + k).value.trim());
+            if (isNaN(price) || price < 0) { this._mMsg(key, 'Enter a valid price.', true); return; }
+            var pv = price.toFixed(2);
+            this._runAll(key, cws, 'price to $' + pv, function (p) {
+                return self._ensureDetail(p.id).then(function (d) {
+                    var variants = (d.variants || []).map(function (v) { return { id: v.id, price: pv }; });
+                    if (!variants.length) return { ok: true };
+                    return CatalogClient.updateProductPrices(p.id, variants).then(function (r) {
+                        if (r.__status === 200 && r.ok) {
+                            (d.variants || []).forEach(function (v) { v.price = pv; }); p.price = pv;
+                            var cell = document.querySelector('.plib-cw[data-id="' + self._cssSel(p.id) + '"] .plib-cw-price'); if (cell) cell.textContent = '$' + pv;
+                        }
+                        return r;
+                    });
+                });
+            });
+        } else if (act === 'desc') {
+            var html = document.getElementById('plib-mdesc-' + k).value;
+            if (!html.trim()) { this._mMsg(key, 'Enter a description.', true); return; }
+            this._runAll(key, cws, 'description', function (p) {
+                return CatalogClient.updateProductDescription(p.id, html).then(function (r) {
+                    if (r.__status === 200 && r.ok && self._detail[p.id]) self._detail[p.id].descriptionHtml = html;
+                    return r;
+                });
+            });
+        } else if (act === 'photo') {
+            var input = document.getElementById('plib-mphoto-' + k);
+            var file = input.files && input.files[0];
+            if (!file) { this._mMsg(key, 'Choose an image first.', true); return; }
+            this._mMsg(key, 'Uploading photo...');
+            this._uploadImage(file).then(function (url) {
+                self._runAll(key, cws, 'photo', function (p) { return CatalogClient.addProductMedia(p.id, url, p.title); });
+            }).catch(function (e) { self._mMsg(key, 'Upload failed: ' + self._esc(e && e.message || String(e)), true); });
+        }
+    },
+
+    // Run fn over every colorway, one at a time (gentle on rate limits), updating
+    // a live count. Stops on a refusal (bad write secret). fn returns the write
+    // response (or a promise of it).
+    _runAll: function (key, items, label, fn) {
+        var self = this, total = items.length, ok = 0, fail = 0, stopped = false;
+        (function step(i) {
+            if (stopped) return;
+            if (i >= total) {
+                self._mMsg(key, (fail ? '✓ ' + ok + ' updated, ' + fail + ' failed' : '✓ All ' + ok + ' colorways updated') + ' (' + label + ').', fail > 0);
+                return;
+            }
+            self._mMsg(key, 'Saving ' + label + '... ' + (i + 1) + ' / ' + total);
+            Promise.resolve(fn(items[i])).then(function (r) {
+                if (r && self._refused(r)) { stopped = true; self._mMsg(key, 'Write refused (HTTP ' + r.__status + '): ' + self._esc(r.reason || r.error || 'check the write secret'), true); return; }
+                if (r && ((r.__status && r.__status !== 200) || r.ok === false)) fail++; else ok++;
+                step(i + 1);
+            }).catch(function () { fail++; step(i + 1); });
+        })(0);
+    },
+
+    _ensureDetail: function (id) {
+        var self = this;
+        if (this._detail[id]) return Promise.resolve(this._detail[id]);
+        return CatalogClient.fetchProductDetail(id).then(function (r) {
+            if (r.__status === 200 && r.product) { self._detail[id] = r.product; return r.product; }
+            throw new Error('detail HTTP ' + r.__status);
+        });
+    },
+
+    // Stage the bytes to Shopify's signed target (same flow as product creation),
+    // returning the resourceUrl to hand to addProductMedia.
+    _uploadImage: function (file) {
+        return CatalogClient.stagedUploads([{ filename: file.name || 'photo.jpg', mimeType: file.type || 'image/jpeg', fileSize: String(file.size) }]).then(function (r) {
+            if (r.__status !== 200 || !r.targets || !r.targets[0]) throw new Error('image staging failed (HTTP ' + r.__status + ')');
+            return CatalogClient.uploadToTarget(r.targets[0], file);
+        });
+    },
+
+    _mMsg: function (key, html, isErr) {
+        var el = document.getElementById('plib-mstatus-' + this._cssId(key));
+        if (el) { el.innerHTML = html; el.className = 'plib-me-msg' + (isErr ? ' err' : ' ok'); }
+    },
+
     _save: function (act, p, d, box) {
         var self = this, id = p.id;
         if (!this._ensureSecret()) { this._msg(id, 'Need the write secret to save.', true); return; }
@@ -307,6 +462,18 @@ var ProductLibrary = {
                 if (r.__status !== 200 || !r.ok) return self._msg(id, 'Failed: ' + self._esc((r.errors && r.errors[0]) || r.error || 'HTTP ' + r.__status), true);
                 d.descriptionHtml = html;
                 self._msg(id, '✓ Description saved.');
+            }).catch(function (e) { self._msg(id, self._esc(e && e.message || String(e)), true); });
+        } else if (act === 'photo') {
+            var input = document.getElementById('plib-photo-' + this._cssId(id));
+            var file = input && input.files && input.files[0];
+            if (!file) { this._msg(id, 'Choose an image first.', true); return; }
+            this._msg(id, 'Uploading photo...');
+            this._uploadImage(file).then(function (url) {
+                return CatalogClient.addProductMedia(id, url, p.title).then(function (r) {
+                    if (self._refused(r)) return self._msg(id, 'Write refused (HTTP ' + r.__status + '): ' + self._esc(r.reason || r.error || 'check the write secret'), true);
+                    if (r.__status !== 200 || !r.ok) return self._msg(id, 'Failed: ' + self._esc((r.errors && r.errors[0]) || r.error || 'HTTP ' + r.__status), true);
+                    self._msg(id, '✓ Photo added to this product.');
+                });
             }).catch(function (e) { self._msg(id, self._esc(e && e.message || String(e)), true); });
         } else if (act === 'tags') {
             var current = d.tags || [];
@@ -345,6 +512,8 @@ var ProductLibrary = {
             + '<select id="plib-f-brand" class="plib-sel"><option value="">All brands</option></select>'
             + '<select id="plib-f-gender" class="plib-sel"><option value="">All genders</option><option>Men\'s</option><option>Women\'s</option><option>Unisex</option></select>'
             + '<select id="plib-f-status" class="plib-sel"><option value="">All status</option><option value="ACTIVE">Active</option><option value="DRAFT">Draft</option><option value="ARCHIVED">Archived</option></select>'
+            + '<select id="plib-f-sort" class="plib-sel"><option value="modified">Recently modified</option><option value="az">A to Z</option></select>'
+            + '<label class="plib-oos"><input type="checkbox" id="plib-f-oos"> Show out of stock</label>'
             + '</div>'
             + '<div id="plib-status" class="plib-status">Loading...</div>'
             + '<div id="plib-list" class="plib-list"></div>'
@@ -425,6 +594,18 @@ var ProductLibrary = {
         .plib-ed-msg.ok { color: #3ce6b0; } .plib-ed-msg.err { color: #ff9db0; }
         .plib-admin { font-size: 11.5px; color: #6f9fe0; text-decoration: none; margin-top: 6px; }
         .plib-admin:hover { text-decoration: underline; }
+        .plib-oos { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #9fb2cc; cursor: pointer; user-select: none; padding: 0 4px; }
+        .plib-oos input { accent-color: #4c9bff; }
+        .plib-stock { font-size: 10.5px; color: #7f9ab8; margin-left: 2px; }
+        .plib-stock.zero { color: #ff9db0; }
+        .plib-model-edit { margin-left: 12px; background: #1c2635; border: 1px solid rgba(120,170,230,.22); color: #cfe0f5; font-size: 11.5px; padding: 4px 11px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+        .plib-model-edit:hover { border-color: #4c9bff; color: #fff; }
+        .plib-model-ed { background: #10192a; border: 1px solid rgba(76,155,255,.28); padding: 15px 16px; margin: 6px 0 12px; display: flex; flex-direction: column; gap: 6px; }
+        .plib-me-title { font-size: 13px; font-weight: 700; color: #cfe0f5; margin-bottom: 4px; }
+        .plib-me-msg { font-size: 12px; min-height: 16px; margin-top: 4px; }
+        .plib-me-msg.ok { color: #3ce6b0; } .plib-me-msg.err { color: #ff9db0; }
+        .plib-file { font-size: 12px; color: #9fb2cc; font-family: inherit; max-width: 260px; }
+        .plib-file::file-selector-button { background: #1c2635; border: 1px solid rgba(120,170,230,.22); color: #cfe0f5; font-size: 12px; padding: 6px 10px; margin-right: 8px; cursor: pointer; font-family: inherit; }
         @media (max-width: 640px) { .plib-ed-grid { flex-direction: column; } .plib-g-meta { display: none; } }
         `;
         document.head.appendChild(s);

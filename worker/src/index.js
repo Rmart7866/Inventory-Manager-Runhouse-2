@@ -30,7 +30,7 @@ import { buildCatalog } from './catalog.js';
 import { createProducts, createStagedUploads } from './products.js';
 import { zeroInventory, setInventory } from './inventory.js';
 import { applyTagChanges, applyMetafields } from './tags.js';
-import { fetchProductDetail, updateProduct, updatePrices } from './product-edit.js';
+import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from './product-edit.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -314,6 +314,19 @@ async function handleProductPrices(request, env) {
   return json(result, result.ok ? 200 : 400, request, env);
 }
 
+// POST /product/media : { id, originalSource, alt? }. Appends one image (already
+// staged via /staged-uploads) to an existing product. Write-gated.
+async function handleProductMedia(request, env) {
+  let body;
+  try { body = await request.json(); } catch (e) { body = null; }
+  if (!body || !body.id || !body.originalSource) {
+    return json({ error: 'Expected JSON body { id, originalSource, alt? }' }, 400, request, env);
+  }
+  const client = createShopifyClient(env);
+  const result = await addProductMedia(client, body);
+  return json(result, result.ok ? 200 : 400, request, env);
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -358,6 +371,7 @@ export default {
       '/product': { handler: handleProductDetail, forWrite: false, methods: ['GET'] },
       '/product/update': { handler: handleProductUpdate, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/product/prices': { handler: handleProductPrices, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      '/product/media': { handler: handleProductMedia, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
     };
     const route = routes[url.pathname];
     if (!route) return json({ error: 'Not found' }, 404, request, env);

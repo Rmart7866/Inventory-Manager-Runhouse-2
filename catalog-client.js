@@ -529,6 +529,24 @@ var CatalogClient = {
         });
     },
 
+    // Product Library WRITE. Append one image to an existing product. The bytes
+    // are staged first via stagedUploads + uploadToTarget (same as create), then
+    // resourceUrl is passed here as originalSource. Behind the write secret.
+    addProductMedia: function (id, originalSource, alt) {
+        return fetch(this._writeBase() + '/product/media', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + this.CATALOG_TOKEN,
+                'X-Write-Secret': this.writeSecret()
+            },
+            body: JSON.stringify({ id: id, originalSource: originalSource, alt: alt || '' })
+        }).then(function (res) {
+            return res.json().then(function (b) { b.__status = res.status; return b; })
+                .catch(function () { return { __status: res.status, error: 'Non-JSON response' }; });
+        });
+    },
+
     createProducts: function (specs) {
         return fetch(this._writeBase() + '/products', {
             method: 'POST',

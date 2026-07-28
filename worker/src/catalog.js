@@ -61,6 +61,7 @@ query($cursor: String, $q: String) {
       productType
       status
       tags
+      updatedAt
       descriptionHtml
       category { fullName }
       featuredImage { url }
@@ -111,7 +112,7 @@ function bulkCatalogQuery(activeOnly) {
   return `{
   products ${filter} {
     edges { node {
-      id handle title vendor productType status tags
+      id handle title vendor productType status tags updatedAt
       descriptionHtml category { fullName }
       featuredImage { url }
       metafields(namespace: "custom") { edges { node { namespace key value } } }
@@ -158,17 +159,22 @@ function makeBulkAssembler(needhamLocationId) {
         productType: o.productType, status: o.status, tags: o.tags || [],
         descriptionHtml: o.descriptionHtml || '', category: o.category || null,
         image: (o.featuredImage && o.featuredImage.url) || '',
+        updatedAt: o.updatedAt || '',
+        _total: 0,
         variants: { nodes: [] },
       });
     } else if ('location' in o) {
-      if (!needham) return;
       const vi = variantInfo.get(o.__parentId);
       if (!vi) return; // level on a non-footwear variant
-      if (!o.location || o.location.id !== needhamLocationId) return; // other location
       const p = productsById.get(vi.productId);
       if (!p) return;
       const q = (o.quantities || []).find((x) => x.name === 'on_hand');
       const qty = q ? q.quantity : 0;
+      // Total on-hand across EVERY location, so the Library can tell what has no
+      // stock anywhere. Summed regardless of Needham scoping.
+      p._total = (p._total || 0) + qty;
+      if (!needham) return;
+      if (!o.location || o.location.id !== needhamLocationId) return; // Needham-only below
       needham.onHand.set(p.handle, (needham.onHand.get(p.handle) || 0) + qty);
       // Per-size detail for zero rows. If a size repeats (multiple levels), keep
       // the sku and add the quantity.
@@ -292,6 +298,11 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
       // Featured image URL, for the Product Library row thumbnails. Bulk sets
       // n.image; the paged dev path returns n.featuredImage.url.
       image: n.image || (n.featuredImage && n.featuredImage.url) || '',
+      // Last edit time, for sorting the Library by recently modified.
+      updatedAt: n.updatedAt || '',
+      // Total on-hand across ALL locations (bulk path only). Lets the Library
+      // hide models with no stock anywhere. Undefined on the paged dev path.
+      totalOnHand: (typeof n._total === 'number') ? n._total : null,
       brand,
       productType: n.productType,
       status: n.status,
