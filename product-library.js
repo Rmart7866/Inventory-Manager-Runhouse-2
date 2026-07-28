@@ -20,7 +20,7 @@ var ProductLibrary = {
     _catalog: null,
     _groups: null,        // [{ key, label, vendor, count, colorways:[product] }]
     _detail: {},          // product id -> detail (lazy)
-    _filter: { q: '', brand: '', gender: '', status: '', sort: 'modified', showOOS: false },
+    _filter: { q: '', brand: '', gender: '', status: '', sort: 'stock', showOOS: false },
     _open: {},            // model key -> expanded?
     _modelEdit: {},       // model key -> model-wide editor open?
 
@@ -125,6 +125,13 @@ var ProductLibrary = {
         if (c === 'NARROW' || c === '2A' || c === 'A' || c === 'B') return 'Narrow';
         return ''; // STD / standard / D / blank -> no chip
     },
+    // A colored stock pill: green in stock, amber low, red out.
+    _stockPill: function (n, big) {
+        if (typeof n !== 'number') return '';
+        var cls = n === 0 ? 'oos' : (n <= 5 ? 'low' : 'ok');
+        var label = n === 0 ? 'Out of stock' : (n + ' in stock');
+        return '<span class="plib-pill plib-pill-' + cls + (big ? ' plib-pill-lg' : '') + '">' + label + '</span>';
+    },
 
     _fillFilters: function () {
         var brands = {}, self = this;
@@ -207,16 +214,20 @@ var ProductLibrary = {
         var gthumb = gimg
             ? '<img class="plib-g-thumb" src="' + this._esc(gimg) + '" alt="" loading="lazy">'
             : '<span class="plib-g-thumb plib-thumb-none"></span>';
+        var gStock = 0, gKnown = false;
+        cws.forEach(function (p) { if (typeof p.totalOnHand === 'number') { gStock += p.totalOnHand; gKnown = true; } });
+        var sub = this._esc(g.vendor.toUpperCase()) + '&ensp;·&ensp;' + cws.length + ' colorway' + (cws.length !== 1 ? 's' : '')
+            + (Object.keys(genders).length ? '&ensp;·&ensp;' + Object.keys(genders).join(', ') : '');
         var head = '<div class="plib-g-head" data-model="' + this._esc(g.key) + '">'
             + '<span class="plib-caret">' + (isOpen ? '▾' : '▸') + '</span>'
             + gthumb
-            + '<span class="plib-g-vendor">' + this._esc(g.vendor) + '</span>'
-            + '<span class="plib-g-name">' + this._esc(g.label) + '</span>'
-            + '<span class="plib-g-meta">' + cws.length + ' colorway' + (cws.length !== 1 ? 's' : '')
-            + (Object.keys(genders).length ? ' · ' + Object.keys(genders).join(', ') : '')
-            + (priceLbl ? ' · ' + priceLbl : '') + '</span>'
+            + '<div class="plib-g-id"><div class="plib-g-name">' + this._esc(g.label) + '</div>'
+            + '<div class="plib-g-sub">' + sub + '</div></div>'
+            + '<div class="plib-g-right">'
+            + (priceLbl ? '<span class="plib-g-price">' + this._esc(priceLbl) + '</span>' : '')
+            + (gKnown ? this._stockPill(gStock, true) : '')
             + '<button class="plib-model-edit" data-model="' + this._esc(g.key) + '" title="Change price, description or photo for every colorway at once">Edit all</button>'
-            + '</div>';
+            + '</div></div>';
         var editor = (isOpen && this._modelEdit[g.key]) ? this._modelEditorHTML(g, cws) : '';
         var body = isOpen ? '<div class="plib-g-body">' + editor + cws.map(function (p) { return self._cwRowHTML(p); }).join('') + '</div>' : '';
         return '<div class="plib-group' + (isOpen ? ' open' : '') + '">' + head + body + '</div>';
@@ -226,23 +237,21 @@ var ProductLibrary = {
         var st = String(p.status || '').toUpperCase();
         var stCls = st === 'ACTIVE' ? 'plib-st-active' : (st === 'DRAFT' ? 'plib-st-draft' : 'plib-st-arch');
         var wl = this._widthLabel(p.width);
-        var width = wl ? '<span class="plib-chip plib-chip-w">' + this._esc(wl) + '</span>' : '';
-        var stock = (typeof p.totalOnHand === 'number')
-            ? '<span class="plib-stock' + (p.totalOnHand === 0 ? ' zero' : '') + '" title="On hand across all locations">' + p.totalOnHand + ' in stock</span>'
-            : '';
+        var subBits = ['<span class="plib-st ' + stCls + '">' + (st || '?') + '</span>'];
+        if (p.gender) subBits.push('<span class="plib-sub-t">' + this._esc(p.gender) + '</span>');
+        if (wl) subBits.push('<span class="plib-sub-t">' + this._esc(wl) + '</span>');
         var thumb = p.image
             ? '<img class="plib-thumb" src="' + this._esc(p.image) + '" alt="" loading="lazy">'
             : '<span class="plib-thumb plib-thumb-none"></span>';
         return '<div class="plib-cw" data-id="' + this._esc(p.id) + '">'
             + '<div class="plib-cw-main">'
             + thumb
-            + '<span class="plib-st ' + stCls + '">' + (st || '?') + '</span>'
-            + '<span class="plib-cw-color">' + this._esc(p.colorName || p.title) + '</span>'
-            + (p.gender ? '<span class="plib-chip">' + this._esc(p.gender) + '</span>' : '')
-            + width
-            + stock
+            + '<div class="plib-cw-id"><div class="plib-cw-color">' + this._esc(p.colorName || p.title) + '</div>'
+            + '<div class="plib-cw-sub">' + subBits.join('<span class="plib-dot">·</span>') + '</div></div>'
             + '</div>'
-            + '<div class="plib-cw-right"><span class="plib-cw-price">' + (p.price ? '$' + this._esc(p.price) : '—') + '</span>'
+            + '<div class="plib-cw-right">'
+            + (typeof p.totalOnHand === 'number' ? this._stockPill(p.totalOnHand) : '')
+            + '<span class="plib-cw-price">' + (p.price ? '$' + this._esc(p.price) : '—') + '</span>'
             + '<button class="plib-edit" data-id="' + this._esc(p.id) + '">Edit</button></div>'
             + '<div class="plib-editor" id="plib-ed-' + this._cssId(p.id) + '"></div>'
             + '</div>';
@@ -540,7 +549,7 @@ var ProductLibrary = {
             + '<select id="plib-f-brand" class="plib-sel"><option value="">All brands</option></select>'
             + '<select id="plib-f-gender" class="plib-sel"><option value="">All genders</option><option>Men\'s</option><option>Women\'s</option><option>Unisex</option></select>'
             + '<select id="plib-f-status" class="plib-sel"><option value="">All status</option><option value="ACTIVE">Active</option><option value="DRAFT">Draft</option><option value="ARCHIVED">Archived</option></select>'
-            + '<select id="plib-f-sort" class="plib-sel"><option value="modified">Recently modified</option><option value="stock">Most inventory</option><option value="az">A to Z</option></select>'
+            + '<select id="plib-f-sort" class="plib-sel"><option value="stock">Most inventory</option><option value="modified">Recently modified</option><option value="az">A to Z</option></select>'
             + '<label class="plib-oos"><input type="checkbox" id="plib-f-oos"> Show out of stock</label>'
             + '</div>'
             + '<div id="plib-status" class="plib-status">Loading...</div>'
@@ -571,32 +580,40 @@ var ProductLibrary = {
         .plib-list::-webkit-scrollbar { width: 10px; } .plib-list::-webkit-scrollbar-thumb { background: rgba(120,160,220,.22); border-radius: 5px; }
         .plib-empty { padding: 40px; text-align: center; color: #6f83a0; }
         .plib-group { border-bottom: 1px solid rgba(120,170,230,.10); }
-        .plib-g-head { display: flex; align-items: center; gap: 10px; padding: 11px 6px; cursor: pointer; }
-        .plib-g-head:hover { background: rgba(120,170,230,.05); }
-        .plib-g-thumb { width: 30px; height: 30px; object-fit: cover; background: #0b111d; flex-shrink: 0; border: 1px solid rgba(120,170,230,.12); }
+        .plib-g-head { display: flex; align-items: center; gap: 12px; padding: 12px 8px; cursor: pointer; }
+        .plib-g-head:hover { background: rgba(120,170,230,.06); }
+        .plib-g-thumb { width: 40px; height: 40px; object-fit: cover; background: #0b111d; flex-shrink: 0; border: 1px solid rgba(120,170,230,.12); border-radius: 2px; }
+        .plib-g-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        .plib-g-sub { font-size: 11.5px; color: #7f93b0; letter-spacing: .2px; }
+        .plib-g-right { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+        .plib-g-price { font-size: 13.5px; color: #cfe0f5; font-variant-numeric: tabular-nums; }
         .plib-caret { color: #6f83a0; font-size: 11px; width: 12px; }
-        .plib-g-vendor { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: #6f83a0; font-weight: 700; min-width: 64px; }
-        .plib-g-name { font-size: 15px; font-weight: 600; color: #eef4fc; }
-        .plib-g-meta { font-size: 12px; color: #7f93b0; margin-left: auto; }
-        .plib-g-body { padding: 2px 0 12px 22px; }
-        .plib-cw { border-top: 1px solid rgba(120,170,230,.07); }
-        .plib-cw-main { display: flex; align-items: center; gap: 9px; padding: 9px 6px 9px 0; }
-        .plib-thumb { width: 34px; height: 34px; object-fit: cover; background: #0b111d; flex-shrink: 0; border: 1px solid rgba(120,170,230,.10); }
+        .plib-g-name { font-size: 16px; font-weight: 700; color: #eef4fc; letter-spacing: -.2px; }
+        .plib-g-body { padding: 0 0 14px 30px; }
+        .plib-cw { border-top: 1px solid rgba(120,170,230,.07); display: grid; grid-template-columns: 1fr auto; align-items: center; }
+        .plib-cw-main { display: flex; align-items: center; gap: 12px; padding: 11px 8px 11px 0; grid-column: 1; min-width: 0; }
+        .plib-thumb { width: 42px; height: 42px; object-fit: cover; background: #0b111d; flex-shrink: 0; border: 1px solid rgba(120,170,230,.10); border-radius: 2px; }
         .plib-thumb-none { background: repeating-linear-gradient(45deg, #0f1622, #0f1622 4px, #131b28 4px, #131b28 8px); }
-        .plib-cw-right { display: none; }
-        .plib-cw { display: grid; grid-template-columns: 1fr auto; align-items: center; }
-        .plib-cw > .plib-cw-main { grid-column: 1; }
-        .plib-cw > .plib-cw-right { grid-column: 2; display: flex; align-items: center; gap: 12px; }
+        .plib-cw-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        .plib-cw-color { font-size: 14px; color: #eaf1fa; }
+        .plib-cw-sub { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #8ea3bf; }
+        .plib-sub-t { color: #9fb2cc; }
+        .plib-dot { color: #45566f; }
+        .plib-cw > .plib-cw-right { grid-column: 2; display: flex; align-items: center; gap: 16px; }
         .plib-cw > .plib-editor { grid-column: 1 / -1; }
-        .plib-st { font-size: 9.5px; font-weight: 800; letter-spacing: .4px; padding: 2px 6px; border-radius: 2px; }
+        .plib-st { font-size: 9px; font-weight: 800; letter-spacing: .4px; padding: 2px 6px; border-radius: 2px; }
         .plib-st-active { background: rgba(60,230,176,.15); color: #3ce6b0; }
         .plib-st-draft { background: rgba(255,192,77,.15); color: #ffc04d; }
         .plib-st-arch { background: rgba(159,178,204,.14); color: #9fb2cc; }
-        .plib-cw-color { font-size: 13.5px; color: #dfe9f6; }
         .plib-chip { font-size: 10.5px; color: #9fb2cc; background: rgba(120,170,230,.10); padding: 2px 7px; }
         .plib-chip-w { color: #cbd8ea; }
-        .plib-cw-price { font-size: 13px; color: #cfe0f5; font-variant-numeric: tabular-nums; }
-        .plib-edit { background: #1c2635; border: 1px solid rgba(120,170,230,.22); color: #cfe0f5; font-size: 12px; padding: 5px 12px; cursor: pointer; font-family: inherit; }
+        .plib-pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 3px; white-space: nowrap; }
+        .plib-pill-ok { background: rgba(60,220,170,.13); color: #4fe0b4; }
+        .plib-pill-low { background: rgba(255,192,77,.15); color: #ffc760; }
+        .plib-pill-oos { background: rgba(255,120,140,.13); color: #ff9db0; }
+        .plib-pill-lg { font-size: 12px; padding: 4px 12px; }
+        .plib-cw-price { font-size: 14px; font-weight: 600; color: #dfe9f6; font-variant-numeric: tabular-nums; min-width: 54px; text-align: right; }
+        .plib-edit { background: #1c2635; border: 1px solid rgba(120,170,230,.22); color: #cfe0f5; font-size: 12px; padding: 6px 14px; cursor: pointer; font-family: inherit; border-radius: 3px; }
         .plib-edit:hover { border-color: #4c9bff; color: #fff; }
         .plib-editor { display: none; }
         .plib-editor.open { display: block; padding: 4px 0 16px; }
