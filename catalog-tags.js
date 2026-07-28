@@ -156,9 +156,20 @@ var CatalogTags = {
     // the product's current custom.* value and keep only the ones that changed.
     // So a run on an already-correct catalog writes nothing; after adding a few
     // colorways it writes just the siblings that actually moved.
-    computeMetafields: function (products) {
+    // opts.modelKeys (optional): a Set of normalized modelKeyGenderless values.
+    // When given, only products in those model families are grouped and diffed,
+    // so an after-create pass touches just the affected models, never all ~3,000
+    // shoes. Grouping is model-local (siblings never cross a modelKeyGenderless),
+    // so a scoped plan is identical to what a full run would produce for those
+    // families.
+    computeMetafields: function (products, opts) {
         var self = this;
-        var active = (products || []).filter(function (p) { return p.status === 'ACTIVE' && p.id && p.modelKey && p.colorName; });
+        var keyFilter = opts && opts.modelKeys;
+        var active = (products || []).filter(function (p) {
+            if (!(p.status === 'ACTIVE' && p.id && p.modelKey && p.colorName)) return false;
+            if (keyFilter && !keyFilter.has(self._norm(p.modelKeyGenderless))) return false;
+            return true;
+        });
         var mfById = {};
         active.forEach(function (p) { mfById[p.id] = p.mf || {}; });
         var records = active.map(function (p) {
@@ -183,6 +194,110 @@ var CatalogTags = {
             try { return JSON.stringify(JSON.parse(current)) === JSON.stringify(JSON.parse(computed)); } catch (e) { return false; }
         }
         return false;
+    },
+
+    // ===== Auto swatch wiring after create (SHARED queue) =====
+    // New colorways are created as DRAFT, so their swatch cross-links cannot be
+    // written yet: the swatch group only includes ACTIVE products. We remember
+    // the created handles in a Firestore queue (shared across staff, mirrors the
+    // Ignore list) and, on every catalog load and right after a create, check
+    // whether any queued handle is now ACTIVE. The ones that are get their model
+    // family, and ONLY that family, re-grouped and written, then dropped from the
+    // queue. Steady state (empty queue) is a single Firestore read.
+    _swColl: function (brand) { return db.collection('swatch-queue').doc(brand || '_default').collection('items'); },
+    _swDocId: function (h) { return String(h || '_').replace(/[\/.#$\[\]]/g, '_').slice(0, 200) || '_'; },
+    _swLsKey: function (brand) { return 'rhSwatchQueue:' + (brand || '_default'); },
+    _swLocal: function (brand) {
+        var raw = {}; try { raw = JSON.parse(localStorage.getItem(this._swLsKey(brand)) || '{}'); } catch (e) { raw = {}; }
+        var out = {}; Object.keys(raw).forEach(function (h) { out[h] = { handle: h, title: (raw[h] && raw[h].title) || h, ts: (raw[h] && raw[h].ts) || 0 }; });
+        return out;
+    },
+    _swSaveLocal: function (brand, map) { try { localStorage.setItem(this._swLsKey(brand), JSON.stringify(map)); } catch (e) { /* no localStorage */ } },
+
+    // Remember created handles so their swatches get wired once they go live.
+    queueSwatch: function (brand, entries) {
+        var self = this;
+        var arr = (entries || []).filter(function (e) { return e && e.handle; });
+        if (!arr.length) return;
+        var raw = {}; try { raw = JSON.parse(localStorage.getItem(self._swLsKey(brand)) || '{}'); } catch (e) { raw = {}; }
+        arr.forEach(function (e) {
+            var rec = { title: e.title || e.handle, ts: Date.now() };
+            raw[e.handle] = rec;
+            if (typeof db !== 'undefined') { try { self._swColl(brand).doc(self._swDocId(e.handle)).set(rec).catch(function () {}); } catch (x) { /* db missing */ } }
+        });
+        self._swSaveLocal(brand, raw);
+    },
+    _swLoad: function (brand) {
+        var self = this;
+        var getP;
+        if (typeof db === 'undefined') return Promise.resolve(self._swLocal(brand));
+        try { getP = self._swColl(brand).get(); } catch (e) { return Promise.resolve(self._swLocal(brand)); }
+        return getP.then(function (snap) {
+            var map = {};
+            snap.forEach(function (d) { var x = d.data() || {}; map[d.id] = { handle: d.id, title: x.title || d.id, ts: x.ts || 0 }; });
+            var local = self._swLocal(brand);   // fold in any set still in flight
+            Object.keys(local).forEach(function (h) { if (!map[h]) map[h] = local[h]; });
+            return map;
+        }).catch(function () { return self._swLocal(brand); });
+    },
+    _swRemove: function (brand, handles) {
+        var self = this;
+        var raw = {}; try { raw = JSON.parse(localStorage.getItem(self._swLsKey(brand)) || '{}'); } catch (e) { raw = {}; }
+        (handles || []).forEach(function (h) {
+            delete raw[h];
+            if (typeof db !== 'undefined') { try { self._swColl(brand).doc(self._swDocId(h)).delete().catch(function () {}); } catch (x) { /* db missing */ } }
+        });
+        self._swSaveLocal(brand, raw);
+    },
+
+    // Wire any now-ACTIVE queued colorways into their swatch group. Scoped to the
+    // affected model families only. Safe to call on every load: no-op when the
+    // queue is empty, when nothing has gone live yet, or when there is no write
+    // secret (it just waits for a session that has one). Never throws.
+    processSwatchQueue: function (brand) {
+        var self = this;
+        if (!brand || typeof db === 'undefined') return Promise.resolve(null);
+        if (localStorage.getItem('rhAutoSwatch') === '0') return Promise.resolve(null);   // kill switch
+        if (typeof CatalogClient === 'undefined' || !CatalogClient.hasWriteSecret || !CatalogClient.hasWriteSecret()) return Promise.resolve(null);
+        return self._swLoad(brand).then(function (queue) {
+            var handles = Object.keys(queue || {});
+            if (!handles.length) return null;
+            return CatalogClient.fetchCatalog().then(function (catalog) {
+                var byHandle = {};
+                (catalog.products || []).forEach(function (p) { if (p.handle) byHandle[p.handle] = p; });
+                var affected = new Set(), ready = [], stale = [];
+                handles.forEach(function (h) {
+                    var p = byHandle[h];
+                    if (!p) { if (queue[h].ts && (Date.now() - queue[h].ts) > 30 * 864e5) stale.push(h); return; } // not in a build yet; drop if very old
+                    if (p.status !== 'ACTIVE') return;   // still a draft: keep waiting
+                    ready.push(h);
+                    var k = self._norm(p.modelKeyGenderless);
+                    if (k) affected.add(k);
+                });
+                if (stale.length) self._swRemove(brand, stale);
+                if (!ready.length || !affected.size) return null;
+                var plan = self.computeMetafields(catalog.products, { modelKeys: affected });
+                var inputs = plan.inputs || [];
+                if (!inputs.length) { self._swRemove(brand, ready); return { wired: ready.length, metafields: 0 }; } // already correct
+                var chunks = []; for (var i = 0; i < inputs.length; i += 200) chunks.push(inputs.slice(i, i + 200));
+                var set = 0, refused = false;
+                function step(idx) {
+                    if (refused || idx >= chunks.length) return Promise.resolve();
+                    return CatalogClient.applyMetafields(chunks[idx]).then(function (r) {
+                        if ([401, 403, 501].indexOf(r.__status) >= 0) { refused = true; return; }
+                        set += (r.set || 0);
+                        return step(idx + 1);
+                    });
+                }
+                return step(0).then(function () {
+                    if (refused) return null;   // keep queued for a session that can write
+                    self._swRemove(brand, ready);
+                    if (typeof showToast === 'function' && set > 0) showToast('Wired ' + ready.length + ' new colorway' + (ready.length !== 1 ? 's' : '') + ' into color swatches');
+                    console.log('[swatch-queue] wired ' + ready.length + ' colorway(s), ' + set + ' metafields across ' + affected.size + ' model(s)');
+                    return { wired: ready.length, metafields: set, models: affected.size };
+                });
+            });
+        }).catch(function (e) { console.warn('[swatch-queue]', e && e.message); return null; });
     },
 
     // ===== UI =====

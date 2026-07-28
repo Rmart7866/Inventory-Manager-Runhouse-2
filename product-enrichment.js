@@ -987,6 +987,7 @@ var ProductEnrichment = {
                 if (res.__status === 200 && r.ok) {
                     createdHandles[spec.handle] = true;
                     if (CatalogClient.markCreated) CatalogClient.markCreated(brand, [spec]);
+                    if (typeof CatalogTags !== 'undefined' && CatalogTags.queueSwatch) { CatalogTags.queueSwatch(brand, [spec]); if (CatalogTags.processSwatchQueue) CatalogTags.processSwatchQueue(brand); }
                     btn.textContent = '✓ Created'; btn.className = 's4-item-create s4-item-created';
                     if (typeof showToast === 'function') showToast('Created ' + spec.title);
                 } else if (r.skipped) {
@@ -1051,9 +1052,11 @@ var ProductEnrichment = {
                 (res.results || []).forEach(function (r) { if (r.ok) { okCount++; okHandles[r.handle] = true; } else failed.push(r); });
                 // Register the ones that actually created, so they immediately
                 // count as on Shopify (out of new-detection, checked in picker).
-                if (CatalogClient.markCreated) {
-                    CatalogClient.markCreated(brand, readyChunk.filter(function (s) { return okHandles[s.handle]; }));
-                }
+                var made = readyChunk.filter(function (s) { return okHandles[s.handle]; });
+                if (CatalogClient.markCreated) CatalogClient.markCreated(brand, made);
+                // Remember them so their color swatches get wired once they go
+                // live (they are created as drafts, so it cannot happen yet).
+                if (typeof CatalogTags !== 'undefined' && CatalogTags.queueSwatch) CatalogTags.queueSwatch(brand, made);
                 return processChunk(ci + 1);
             });
         }
@@ -1073,6 +1076,9 @@ var ProductEnrichment = {
             }
             go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Done';
             if (typeof showToast === 'function' && okCount > 0) showToast(okCount + ' draft product' + (okCount !== 1 ? 's' : '') + ' created');
+            // Try to wire swatches now in case any created colorway is already
+            // live (a rerun/republish). Drafts stay queued for a later load.
+            if (okCount > 0 && typeof CatalogTags !== 'undefined' && CatalogTags.processSwatchQueue) CatalogTags.processSwatchQueue(brand);
         }).catch(function (e) {
             var note = okCount ? ('Created <strong>' + okCount + '</strong> before stopping. ') : '';
             fail(note + escapeHtmlEnrich((e && e.message) || e));

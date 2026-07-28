@@ -165,6 +165,7 @@ var InventoryTracker = {
                 self._lastLoadedBrand = brand;
                 if (typeof CatalogUI !== 'undefined') CatalogUI.refreshFreshness();
                 console.log('[' + brand + '] Shopify /catalog: ' + cache.models.size + ' models, ' + cache.colorways.size + ' colorways');
+                self._afterLoad(brand);
                 return { models: cache.models, colorways: cache.colorways };
             }).catch(function(err) {
                 console.warn('[' + brand + '] /catalog load failed, falling back to Firestore:', err.message);
@@ -206,8 +207,18 @@ var InventoryTracker = {
             cache.source = 'firestore';
             self._lastLoadedBrand = brand;
             console.log('[' + brand + '] Firestore: ' + cache.models.size + ' models, ' + cache.colorways.size + ' colorways');
+            self._afterLoad(brand);
             return { models: cache.models, colorways: cache.colorways };
         });
+    },
+
+    // Fire-and-forget housekeeping after a brand's catalog loads. Currently:
+    // wire the color swatches of any created colorway that has since gone live
+    // (scoped to just those model families). Guarded and never fatal.
+    _afterLoad: function (brand) {
+        try {
+            if (typeof CatalogTags !== 'undefined' && CatalogTags.processSwatchQueue) CatalogTags.processSwatchQueue(brand);
+        } catch (e) { /* never block a load */ }
     },
 
     invalidateCache: function(brand) {
