@@ -23,6 +23,7 @@ var ProductLibrary = {
     _filter: { q: '', brand: '', gender: '', status: '', sort: 'stock', showOOS: false },
     _open: {},            // model key -> expanded?
     _modelEdit: {},       // model key -> model-wide editor open?
+    _brandCollapsed: {},  // brand name -> section collapsed?
 
     // ---------- lifecycle ----------
     open: function () {
@@ -175,32 +176,55 @@ var ProductLibrary = {
         if (!list || !this._groups) return;
         this._oosHidden = 0;
         var shown = this._groups.filter(function (g) { return self._matchGroup(g); });
-        // Sort: recently modified (default) or A to Z by vendor then model.
-        if (this._filter.sort === 'az') {
-            shown.sort(function (a, b) {
-                if (a.vendor !== b.vendor) return String(a.vendor).localeCompare(String(b.vendor));
-                return a.label.localeCompare(b.label);
-            });
-        } else if (this._filter.sort === 'stock') {
-            shown.sort(function (a, b) {
-                if (b._stock !== a._stock) return b._stock - a._stock; // most inventory first
-                return a.label.localeCompare(b.label);
-            });
-        } else {
-            shown.sort(function (a, b) {
-                if (a._modified !== b._modified) return a._modified < b._modified ? 1 : -1; // newest first
-                return a.label.localeCompare(b.label);
-            });
-        }
-        var hidden = this._groups.length - shown.length;
         var totalCw = shown.reduce(function (t, g) { return t + g.colorways.filter(self._matchCw, self).length; }, 0);
-        this._setStatus(shown.length + ' models, ' + totalCw + ' colorways'
+
+        // Section by brand, so the list reads as "here is all my Hoka, here is
+        // all my Brooks" instead of one flat wall of models.
+        var brands = {};
+        shown.forEach(function (g) { var b = g.vendor || 'Other'; (brands[b] = brands[b] || []).push(g); });
+        var names = Object.keys(brands);
+        var cmp = this._modelCmp();
+        names.forEach(function (b) { brands[b].sort(cmp); });   // models within a brand
+        names.sort(this._brandCmp(brands));                     // the brands themselves
+
+        this._setStatus(names.length + ' brand' + (names.length !== 1 ? 's' : '') + ' · ' + shown.length + ' models · ' + totalCw + ' colorways'
             + (this._filterActive() ? ' (filtered)' : '')
-            + (!this._filter.showOOS && this._oosHidden ? ' · ' + this._oosHidden + ' out-of-stock models hidden' : ''));
+            + (!this._filter.showOOS && this._oosHidden ? ' · ' + this._oosHidden + ' out of stock hidden' : ''));
         if (!shown.length) { list.innerHTML = '<div class="plib-empty">No products match.</div>'; return; }
-        list.innerHTML = shown.map(function (g) { return self._groupHTML(g); }).join('');
+
+        list.innerHTML = names.map(function (b) {
+            var models = brands[b], stock = 0, known = false;
+            models.forEach(function (g) { stock += g._stock; if (!known) known = g.colorways.some(function (p) { return typeof p.totalOnHand === 'number'; }); });
+            var collapsed = !!self._brandCollapsed[b];
+            var head = '<div class="plib-brand" data-brand="' + self._esc(b) + '">'
+                + '<span class="plib-brand-caret">' + (collapsed ? '▸' : '▾') + '</span>'
+                + '<span class="plib-brand-name">' + self._esc(b) + '</span>'
+                + '<span class="plib-brand-meta">' + models.length + ' model' + (models.length !== 1 ? 's' : '')
+                + (known ? ' · ' + stock + ' in stock' : '') + '</span></div>';
+            var body = collapsed ? '' : models.map(function (g) { return self._groupHTML(g); }).join('');
+            return '<section class="plib-brandsec' + (collapsed ? ' collapsed' : '') + '">' + head + body + '</section>';
+        }).join('');
     },
     _filterActive: function () { var f = this._filter; return !!(f.q || f.brand || f.gender || f.status); },
+    // Comparator for models within a brand, per the active sort.
+    _modelCmp: function () {
+        var s = this._filter.sort;
+        if (s === 'az') return function (a, b) { return a.label.localeCompare(b.label); };
+        if (s === 'modified') return function (a, b) { if (a._modified !== b._modified) return a._modified < b._modified ? 1 : -1; return a.label.localeCompare(b.label); };
+        return function (a, b) { if (b._stock !== a._stock) return b._stock - a._stock; return a.label.localeCompare(b.label); };
+    },
+    // Comparator for the brand sections themselves, matching the model sort:
+    // most stock, most recent, or A to Z.
+    _brandCmp: function (brands) {
+        var s = this._filter.sort;
+        if (s === 'az') return function (a, b) { return a.localeCompare(b); };
+        if (s === 'modified') {
+            var mod = {}; Object.keys(brands).forEach(function (b) { mod[b] = brands[b].reduce(function (m, g) { return g._modified > m ? g._modified : m; }, ''); });
+            return function (a, b) { if (mod[a] !== mod[b]) return mod[a] < mod[b] ? 1 : -1; return a.localeCompare(b); };
+        }
+        var tot = {}; Object.keys(brands).forEach(function (b) { tot[b] = brands[b].reduce(function (t, g) { return t + g._stock; }, 0); });
+        return function (a, b) { if (tot[a] !== tot[b]) return tot[b] - tot[a]; return a.localeCompare(b); };
+    },
 
     _groupHTML: function (g) {
         var self = this;
@@ -216,7 +240,7 @@ var ProductLibrary = {
             : '<span class="plib-g-thumb plib-thumb-none"></span>';
         var gStock = 0, gKnown = false;
         cws.forEach(function (p) { if (typeof p.totalOnHand === 'number') { gStock += p.totalOnHand; gKnown = true; } });
-        var sub = this._esc(g.vendor.toUpperCase()) + '&ensp;·&ensp;' + cws.length + ' colorway' + (cws.length !== 1 ? 's' : '')
+        var sub = cws.length + ' colorway' + (cws.length !== 1 ? 's' : '')
             + (Object.keys(genders).length ? '&ensp;·&ensp;' + Object.keys(genders).join(', ') : '');
         var head = '<div class="plib-g-head" data-model="' + this._esc(g.key) + '">'
             + '<span class="plib-caret">' + (isOpen ? '▾' : '▸') + '</span>'
@@ -261,6 +285,8 @@ var ProductLibrary = {
     _onListClick: function (e) {
         var t = e.target;
         if (!t.closest) return;
+        var brand = t.closest('.plib-brand');
+        if (brand) { var bn = brand.getAttribute('data-brand'); this._brandCollapsed[bn] = !this._brandCollapsed[bn]; this._render(); return; }
         var mEdit = t.closest('.plib-model-edit');
         if (mEdit) {
             e.stopPropagation();
@@ -579,7 +605,15 @@ var ProductLibrary = {
         .plib-list { flex: 1; overflow-y: auto; padding: 0 26px 40px; }
         .plib-list::-webkit-scrollbar { width: 10px; } .plib-list::-webkit-scrollbar-thumb { background: rgba(120,160,220,.22); border-radius: 5px; }
         .plib-empty { padding: 40px; text-align: center; color: #6f83a0; }
-        .plib-group { border-bottom: 1px solid rgba(120,170,230,.10); }
+        .plib-brandsec { margin-bottom: 10px; }
+        .plib-brand { display: flex; align-items: center; gap: 10px; padding: 15px 8px 8px; cursor: pointer; border-bottom: 1px solid rgba(120,170,230,.18); position: sticky; top: 0; background: #0d131f; z-index: 3; }
+        .plib-brand:hover { background: #101a29; }
+        .plib-brand-caret { color: #6f83a0; font-size: 11px; width: 12px; }
+        .plib-brand-name { font-size: 13.5px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: #cfe0f5; }
+        .plib-brand-meta { font-size: 11.5px; color: #6f83a0; margin-left: auto; font-variant-numeric: tabular-nums; }
+        .plib-brandsec.collapsed .plib-brand { border-bottom-color: transparent; }
+        .plib-group { border-bottom: 1px solid rgba(120,170,230,.07); margin-left: 6px; }
+        .plib-brandsec .plib-group:last-child { border-bottom: none; }
         .plib-g-head { display: flex; align-items: center; gap: 12px; padding: 12px 8px; cursor: pointer; }
         .plib-g-head:hover { background: rgba(120,170,230,.06); }
         .plib-g-thumb { width: 40px; height: 40px; object-fit: cover; background: #0b111d; flex-shrink: 0; border: 1px solid rgba(120,170,230,.12); border-radius: 2px; }
@@ -588,7 +622,7 @@ var ProductLibrary = {
         .plib-g-right { display: flex; align-items: center; gap: 14px; margin-left: auto; }
         .plib-g-price { font-size: 13.5px; color: #cfe0f5; font-variant-numeric: tabular-nums; }
         .plib-caret { color: #6f83a0; font-size: 11px; width: 12px; }
-        .plib-g-name { font-size: 16px; font-weight: 700; color: #eef4fc; letter-spacing: -.2px; }
+        .plib-g-name { font-size: 15px; font-weight: 600; color: #eaf1fa; letter-spacing: -.1px; }
         .plib-g-body { padding: 0 0 14px 30px; }
         .plib-cw { border-top: 1px solid rgba(120,170,230,.07); display: grid; grid-template-columns: 1fr auto; align-items: center; }
         .plib-cw-main { display: flex; align-items: center; gap: 12px; padding: 11px 8px 11px 0; grid-column: 1; min-width: 0; }
