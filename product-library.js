@@ -49,6 +49,7 @@ var ProductLibrary = {
         var oos = o.querySelector('#plib-f-oos');
         oos.onchange = function () { self._filter.showOOS = oos.checked; self._render(); };
         o.querySelector('#plib-list').addEventListener('click', function (e) { self._onListClick(e); });
+        o.querySelector('#plib-list').addEventListener('change', function (e) { self._onListChange(e); });
 
         this._setStatus('Loading catalog...');
         CatalogClient.fetchCatalog().then(function (catalog) {
@@ -339,12 +340,34 @@ var ProductLibrary = {
             this._render();
             return;
         }
+        var mClose = t.closest('.plib-me-close');
+        if (mClose) { this._modelEdit[mClose.getAttribute('data-mclose')] = false; this._render(); return; }
         var mSave = t.closest('.plib-msave');
         if (mSave) { this._applyModel(mSave.getAttribute('data-mact'), mSave.getAttribute('data-model')); return; }
         var edit = t.closest('.plib-edit');
         if (edit) { this._toggleEditor(edit.getAttribute('data-id')); return; }
         var head = t.closest('.plib-g-head');
         if (head) { var m = head.getAttribute('data-model'); this._open[m] = !this._open[m]; this._render(); return; }
+    },
+
+    // The bulk photo picker is a hidden file input behind a styled label, so the
+    // chosen file has to be echoed back by hand: name, size, and a thumbnail.
+    _onListChange: function (e) {
+        var t = e.target;
+        if (!t || !t.getAttribute) return;
+        var k = t.getAttribute('data-mfile');
+        if (!k) return;
+        var f = t.files && t.files[0];
+        var name = document.getElementById('plib-mfname-' + k);
+        var prev = document.getElementById('plib-mprev-' + k);
+        if (name) {
+            name.textContent = f ? (f.name + ' (' + Math.max(1, Math.round(f.size / 1024)) + ' KB)') : 'No image chosen yet';
+            name.className = 'plib-filename' + (f ? ' has' : '');
+        }
+        if (prev) {
+            if (f) { prev.src = URL.createObjectURL(f); prev.className = 'plib-fileprev on'; }
+            else { prev.removeAttribute('src'); prev.className = 'plib-fileprev'; }
+        }
     },
 
     _findProduct: function (id) {
@@ -439,19 +462,70 @@ var ProductLibrary = {
     _refused: function (r) { return [401, 403, 501].indexOf(r.__status) >= 0; },
 
     // ---------- model-wide (all colorways) editing ----------
+    // Bulk edits are the scariest thing in this tool: one click rewrites live
+    // Shopify products. So the panel is built to be read, not just filled in.
+    // Each action is its own card that states in plain words what it will touch,
+    // shows the current value it is about to replace, and carries its own button,
+    // progress bar and result line. Nothing is shared between the three, so you
+    // always know which action a message belongs to.
     _modelEditorHTML: function (g, cws) {
-        var k = this._cssId(g.key);
+        var k = this._cssId(g.key), self = this;
         var n = cws.length;
+        var cwWord = n + ' colorway' + (n !== 1 ? 's' : '');
+        // What the price card is about to overwrite.
+        var prices = cws.map(function (p) { return parseFloat(p.price); }).filter(function (x) { return !isNaN(x); });
+        var lo = prices.length ? Math.min.apply(null, prices) : null;
+        var hi = prices.length ? Math.max.apply(null, prices) : null;
+        var nowPrice = prices.length ? (lo === hi ? '$' + lo.toFixed(2) : '$' + lo.toFixed(2) + ' to $' + hi.toFixed(2)) : 'unknown';
+        var mixed = prices.length && lo !== hi;
+
+        function card(act, num, title, blurb, current, control, btn) {
+            return '<div class="plib-card" data-act="' + act + '">'
+                + '<div class="plib-card-head"><span class="plib-card-num">' + num + '</span>'
+                + '<div><div class="plib-card-title">' + title + '</div>'
+                + '<div class="plib-card-blurb">' + blurb + '</div></div></div>'
+                + (current ? '<div class="plib-card-now">' + current + '</div>' : '')
+                + control
+                + '<div class="plib-card-foot">'
+                + '<button class="plib-msave" data-mact="' + act + '" data-model="' + self._esc(g.key) + '">' + btn + '</button>'
+                + '<span class="plib-me-msg" id="plib-mstatus-' + act + '-' + k + '"></span>'
+                + '</div>'
+                + '<div class="plib-bar" id="plib-mbar-' + act + '-' + k + '"><span></span></div>'
+                + '</div>';
+        }
+
         return '<div class="plib-model-ed">'
-            + '<div class="plib-me-title">Change all ' + n + ' colorway' + (n !== 1 ? 's' : '') + ' of ' + this._esc(g.label) + ' at once</div>'
-            + '<label class="plib-lab">Price ($) for every colorway and size</label>'
-            + '<div class="plib-row"><input class="plib-in" id="plib-mprice-' + k + '" type="number" step="0.01" placeholder="e.g. 140"><button class="plib-msave" data-mact="price" data-model="' + this._esc(g.key) + '">Apply price to all</button></div>'
-            + '<label class="plib-lab">Description for every colorway</label>'
-            + '<textarea class="plib-ta" id="plib-mdesc-' + k + '" placeholder="Shared description, HTML allowed"></textarea>'
-            + '<div class="plib-row"><button class="plib-msave" data-mact="desc" data-model="' + this._esc(g.key) + '">Apply description to all</button></div>'
-            + '<label class="plib-lab">Add a photo to every colorway</label>'
-            + '<div class="plib-row"><input class="plib-file" id="plib-mphoto-' + k + '" type="file" accept="image/*"><button class="plib-msave" data-mact="photo" data-model="' + this._esc(g.key) + '">Add photo to all</button></div>'
-            + '<div class="plib-me-msg" id="plib-mstatus-' + k + '"></div>'
+            + '<div class="plib-me-head">'
+            + '<div><div class="plib-me-eyebrow">Bulk edit</div>'
+            + '<div class="plib-me-title">' + this._esc(g.label) + '</div>'
+            + '<div class="plib-me-sub">Every change below is applied to all <b>' + cwWord + '</b> of this model, one product at a time. Writes go straight to the live Shopify products, and each action asks you to confirm first.</div></div>'
+            + '<button class="plib-me-close" data-mclose="' + this._esc(g.key) + '" title="Close bulk edit">Done</button>'
+            + '</div>'
+
+            + '<div class="plib-cards">'
+            + card('price', '1', 'Set one price',
+                'Overwrites the price of <b>every size</b> of all ' + cwWord + '. Compare-at prices are left alone.',
+                'Currently ' + nowPrice + (mixed ? ' <span class="plib-warn">prices differ across colorways</span>' : ''),
+                '<div class="plib-row"><span class="plib-money">$</span><input class="plib-in plib-in-money" id="plib-mprice-' + k + '" type="number" step="0.01" min="0" placeholder="140.00" inputmode="decimal"></div>',
+                'Apply price to all ' + n)
+
+            + card('desc', '2', 'Replace the description',
+                'Replaces the existing description on all ' + cwWord + '. The old text is <b>not</b> kept, so paste the full description you want.',
+                '',
+                '<textarea class="plib-ta" id="plib-mdesc-' + k + '" placeholder="Shared description for the whole model. Plain text or HTML (&lt;p&gt;, &lt;ul&gt;, &lt;b&gt;)."></textarea>',
+                'Apply description to all ' + n)
+
+            + card('photo', '3', 'Add one photo everywhere',
+                'Adds this image to all ' + cwWord + '. It is <b>added</b> to each product gallery, so existing colorway photos stay. Best for a size chart or a shared lifestyle shot.',
+                '',
+                '<div class="plib-filerow">'
+                + '<label class="plib-filebtn" for="plib-mphoto-' + k + '">Choose image</label>'
+                + '<input class="plib-file-hidden" id="plib-mphoto-' + k + '" type="file" accept="image/*" data-mfile="' + k + '">'
+                + '<img class="plib-fileprev" id="plib-mprev-' + k + '" alt="">'
+                + '<span class="plib-filename" id="plib-mfname-' + k + '">No image chosen yet</span>'
+                + '</div>',
+                'Add photo to all ' + n)
+            + '</div>'
             + '</div>';
     },
 
@@ -460,13 +534,15 @@ var ProductLibrary = {
         var g = null;
         (this._groups || []).some(function (x) { if (x.key === key) { g = x; return true; } return false; });
         if (!g) return;
-        if (!this._ensureSecret()) { this._mMsg(key, 'Need the write secret to save.', true); return; }
+        if (!this._ensureSecret()) { this._mMsg(key, act, 'Need the write secret to save.', true); return; }
         var cws = g.colorways, k = this._cssId(key);
+        var many = cws.length + ' colorway' + (cws.length !== 1 ? 's' : '') + ' of ' + g.label;
         if (act === 'price') {
             var price = parseFloat(document.getElementById('plib-mprice-' + k).value.trim());
-            if (isNaN(price) || price < 0) { this._mMsg(key, 'Enter a valid price.', true); return; }
+            if (isNaN(price) || price < 0) { this._mMsg(key, act, 'Enter a valid price.', true); return; }
             var pv = price.toFixed(2);
-            this._runAll(key, cws, 'price to $' + pv, function (p) {
+            if (!confirm('Set every size of ' + many + ' to $' + pv + '?\n\nThis writes to the live products and cannot be undone from here.')) return;
+            this._runAll(key, act, cws, 'price to $' + pv, function (p) {
                 return self._ensureDetail(p.id).then(function (d) {
                     var variants = (d.variants || []).map(function (v) { return { id: v.id, price: pv }; });
                     if (!variants.length) return { ok: true };
@@ -481,8 +557,9 @@ var ProductLibrary = {
             });
         } else if (act === 'desc') {
             var html = document.getElementById('plib-mdesc-' + k).value;
-            if (!html.trim()) { this._mMsg(key, 'Enter a description.', true); return; }
-            this._runAll(key, cws, 'description', function (p) {
+            if (!html.trim()) { this._mMsg(key, act, 'Enter a description.', true); return; }
+            if (!confirm('Replace the description on all ' + many + '?\n\nThe existing description on each product is overwritten.')) return;
+            this._runAll(key, act, cws, 'description', function (p) {
                 return CatalogClient.updateProductDescription(p.id, html).then(function (r) {
                     if (r.__status === 200 && r.ok && self._detail[p.id]) self._detail[p.id].descriptionHtml = html;
                     return r;
@@ -491,32 +568,47 @@ var ProductLibrary = {
         } else if (act === 'photo') {
             var input = document.getElementById('plib-mphoto-' + k);
             var file = input.files && input.files[0];
-            if (!file) { this._mMsg(key, 'Choose an image first.', true); return; }
-            this._mMsg(key, 'Uploading photo...');
+            if (!file) { this._mMsg(key, act, 'Choose an image first.', true); return; }
+            if (!confirm('Add "' + (file.name || 'this image') + '" to all ' + many + '?\n\nIt is added to each gallery, existing photos are kept.')) return;
+            this._mMsg(key, act, 'Uploading photo...');
             this._uploadImage(file).then(function (url) {
-                self._runAll(key, cws, 'photo', function (p) { return CatalogClient.addProductMedia(p.id, url, p.title); });
-            }).catch(function (e) { self._mMsg(key, 'Upload failed: ' + self._esc(e && e.message || String(e)), true); });
+                self._runAll(key, act, cws, 'photo', function (p) { return CatalogClient.addProductMedia(p.id, url, p.title); });
+            }).catch(function (e) { self._mMsg(key, act, 'Upload failed: ' + self._esc(e && e.message || String(e)), true); });
         }
     },
 
     // Run fn over every colorway, one at a time (gentle on rate limits), updating
     // a live count. Stops on a refusal (bad write secret). fn returns the write
     // response (or a promise of it).
-    _runAll: function (key, items, label, fn) {
+    _runAll: function (key, act, items, label, fn) {
         var self = this, total = items.length, ok = 0, fail = 0, stopped = false;
+        var btn = document.querySelector('.plib-msave[data-mact="' + act + '"][data-model="' + this._cssSel(key) + '"]');
+        if (btn) { btn.disabled = true; btn.classList.add('busy'); }
+        function done() { if (btn) { btn.disabled = false; btn.classList.remove('busy'); } }
         (function step(i) {
             if (stopped) return;
             if (i >= total) {
-                self._mMsg(key, (fail ? '✓ ' + ok + ' updated, ' + fail + ' failed' : '✓ All ' + ok + ' colorways updated') + ' (' + label + ').', fail > 0);
+                self._bar(key, act, 1);
+                self._mMsg(key, act, (fail ? '✓ ' + ok + ' updated, ' + fail + ' failed' : '✓ All ' + ok + ' colorways updated') + ' (' + label + ').', fail > 0);
+                done();
                 return;
             }
-            self._mMsg(key, 'Saving ' + label + '... ' + (i + 1) + ' / ' + total);
+            self._bar(key, act, i / total);
+            self._mMsg(key, act, 'Saving ' + label + '... ' + (i + 1) + ' of ' + total);
             Promise.resolve(fn(items[i])).then(function (r) {
-                if (r && self._refused(r)) { stopped = true; self._mMsg(key, 'Write refused (HTTP ' + r.__status + '): ' + self._esc(r.reason || r.error || 'check the write secret'), true); return; }
+                if (r && self._refused(r)) { stopped = true; self._mMsg(key, act, 'Write refused (HTTP ' + r.__status + '): ' + self._esc(r.reason || r.error || 'check the write secret'), true); done(); return; }
                 if (r && ((r.__status && r.__status !== 200) || r.ok === false)) fail++; else ok++;
                 step(i + 1);
             }).catch(function () { fail++; step(i + 1); });
         })(0);
+    },
+    // Progress fill for one action card, 0 to 1.
+    _bar: function (key, act, frac) {
+        var el = document.getElementById('plib-mbar-' + act + '-' + this._cssId(key));
+        if (!el) return;
+        el.classList.add('on');
+        var span = el.firstChild;
+        if (span && span.style) span.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
     },
 
     _ensureDetail: function (id) {
@@ -537,8 +629,8 @@ var ProductLibrary = {
         });
     },
 
-    _mMsg: function (key, html, isErr) {
-        var el = document.getElementById('plib-mstatus-' + this._cssId(key));
+    _mMsg: function (key, act, html, isErr) {
+        var el = document.getElementById('plib-mstatus-' + act + '-' + this._cssId(key));
         if (el) { el.innerHTML = html; el.className = 'plib-me-msg' + (isErr ? ' err' : ' ok'); }
     },
 
@@ -727,12 +819,45 @@ var ProductLibrary = {
         .plib-stock.zero { color: #ff9db0; }
         .plib-model-edit { margin-left: 12px; background: #1c2635; border: 1px solid rgba(120,170,230,.22); color: #cfe0f5; font-size: 11.5px; padding: 4px 11px; cursor: pointer; font-family: inherit; white-space: nowrap; }
         .plib-model-edit:hover { border-color: #4c9bff; color: #fff; }
-        .plib-model-ed { background: #10192a; border: 1px solid rgba(76,155,255,.28); padding: 15px 16px; margin: 6px 0 12px; display: flex; flex-direction: column; gap: 6px; }
-        .plib-me-title { font-size: 13px; font-weight: 700; color: #cfe0f5; margin-bottom: 4px; }
-        .plib-me-msg { font-size: 12px; min-height: 16px; margin-top: 4px; }
-        .plib-me-msg.ok { color: #3ce6b0; } .plib-me-msg.err { color: #ff9db0; }
-        .plib-file { font-size: 12px; color: #9fb2cc; font-family: inherit; max-width: 260px; }
-        .plib-file::file-selector-button { background: #1c2635; border: 1px solid rgba(120,170,230,.22); color: #cfe0f5; font-size: 12px; padding: 6px 10px; margin-right: 8px; cursor: pointer; font-family: inherit; }
+        /* ----- bulk (model-wide) editor ----- */
+        .plib-model-ed { background: #101a2b; border: 1px solid rgba(76,155,255,.35); border-left: 3px solid #4c9bff; margin: 8px 0 16px; }
+        .plib-me-head { display: flex; align-items: flex-start; gap: 16px; padding: 16px 18px; border-bottom: 1px solid rgba(120,170,230,.18); }
+        .plib-me-eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: #6fb0ff; }
+        .plib-me-title { font-size: 19px; font-weight: 700; color: #ffffff; letter-spacing: -.2px; margin-top: 3px; }
+        .plib-me-sub { font-size: 13px; line-height: 1.55; color: #b6c8de; margin-top: 7px; max-width: 640px; }
+        .plib-me-sub b { color: #ffffff; font-weight: 700; }
+        .plib-me-close { margin-left: auto; background: #1c2635; border: 1px solid rgba(120,170,230,.28); color: #dfeaf7; font-size: 12.5px; padding: 7px 16px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+        .plib-me-close:hover { border-color: #4c9bff; color: #fff; }
+        .plib-cards { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px 18px; }
+        .plib-card { background: #0c1420; border: 1px solid rgba(120,170,230,.18); padding: 15px 16px 0; position: relative; overflow: hidden; }
+        .plib-card-head { display: flex; align-items: flex-start; gap: 12px; }
+        .plib-card-num { flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; background: rgba(76,155,255,.16); color: #7cbaff; font-size: 12.5px; font-weight: 800; border-radius: 50%; }
+        .plib-card-title { font-size: 15px; font-weight: 700; color: #f4f8fd; }
+        .plib-card-blurb { font-size: 12.5px; line-height: 1.5; color: #a7bad4; margin-top: 4px; max-width: 620px; }
+        .plib-card-blurb b { color: #dfeaf7; font-weight: 700; }
+        .plib-card-now { font-size: 12.5px; color: #bccee2; margin: 11px 0 0 36px; padding: 6px 10px; background: rgba(120,170,230,.09); display: inline-block; font-variant-numeric: tabular-nums; }
+        .plib-warn { color: #ffce6b; margin-left: 6px; }
+        .plib-card .plib-row, .plib-card .plib-ta, .plib-card .plib-filerow { margin: 12px 0 0 36px; }
+        .plib-card .plib-ta { width: calc(100% - 36px); }
+        .plib-card-foot { display: flex; align-items: center; gap: 14px; margin: 12px 0 0 36px; padding-bottom: 15px; flex-wrap: wrap; }
+        .plib-msave { background: #2f6fd6; border: 0; color: #fff; font-size: 13px; font-weight: 700; padding: 10px 18px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+        .plib-msave:hover { background: #4c9bff; }
+        .plib-msave:disabled { background: #29405f; color: #b6c8de; cursor: default; }
+        .plib-money { color: #9fb2cc; font-size: 14px; }
+        #plib-overlay input[type=number].plib-in-money { width: 140px; font-size: 15px; padding: 10px 12px; }
+        .plib-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(120,170,230,.12); opacity: 0; }
+        .plib-bar.on { opacity: 1; }
+        .plib-bar span { display: block; height: 100%; width: 0; background: #4c9bff; transition: width .15s linear; }
+        .plib-me-msg { font-size: 12.5px; min-height: 16px; }
+        .plib-me-msg.ok { color: #5cf0c4; } .plib-me-msg.err { color: #ffb0bf; }
+        .plib-filerow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .plib-file-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+        .plib-filebtn { background: #1c2635; border: 1px solid rgba(120,170,230,.28); color: #dfeaf7; font-size: 12.5px; padding: 9px 15px; cursor: pointer; font-family: inherit; display: inline-block; }
+        .plib-filebtn:hover { border-color: #4c9bff; color: #fff; }
+        .plib-fileprev { display: none; width: 40px; height: 40px; object-fit: cover; border: 1px solid rgba(120,170,230,.22); }
+        .plib-fileprev.on { display: block; }
+        .plib-filename { font-size: 12.5px; color: #8ea3bf; }
+        .plib-filename.has { color: #eaf2fb; }
         @media (max-width: 640px) { .plib-ed-grid { flex-direction: column; } .plib-g-meta { display: none; } }
         `;
         document.head.appendChild(s);
