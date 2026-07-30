@@ -64,15 +64,9 @@ var BrandPicker = {
             // starts unchecked, so a normal inventory push does not try to write
             // stock for products that do not exist yet.
             //
-            // Prefer CatalogClient.isOnShopify, which matches on the Worker's own
-            // modelKey and is reliable. The old converter._knownProducts set was
-            // built by running identifyProduct on full storefront titles, which
-            // for several brands hands back the whole colorway title instead of
-            // the model, so a carried model (eg Clifton 11) never matched and
-            // wrongly read as new. Fall back to it only when the reliable set is
-            // not available.
-            var onShopify = (typeof CatalogClient !== 'undefined' && CatalogClient.isOnShopify)
-                ? CatalogClient.isOnShopify(brand, modelKey) : null;
+            // See BrandPicker._onShopify: handle match first, model name second,
+            // and only then the old converter._knownProducts fallback.
+            var onShopify = BrandPicker._onShopify(brand, product);
             var isChecked, isNew;
             if (onShopify !== null) { isChecked = onShopify; isNew = !onShopify; }
             else if (knownProducts) { isChecked = knownProducts.has(modelKey); isNew = !isChecked; }
@@ -108,6 +102,38 @@ var BrandPicker = {
 
         this._updateSelection(brand);
         this._updateSummary(brand);
+    },
+
+    // ========== "IS THIS ALREADY ON SHOPIFY" ==========
+    // One decision, used both for the initial checkbox state and for the
+    // "On Shopify" button, so the two can never disagree.
+    //
+    // TWO SIGNALS, IN THIS ORDER:
+    //
+    //   1. HANDLES. Every scraped colorway carries the live product handle (that
+    //      is how its inventory row lands on the right product at all), and the
+    //      catalog knows every handle on the store. A hit is direct evidence, no
+    //      name parsing involved. This is what makes ASICS and Brooks, whose
+    //      feeds come from a curated link list of products we already carry,
+    //      come up fully selected.
+    //   2. MODEL NAME. For feeds with no handle (Hoka's picker builds model rows
+    //      only), fall back to the canonical model key. See _canonModel.
+    //
+    // A model counts as carried if ANY of its colorways is, because the picker
+    // row IS the model: one genuinely new colorway of a carried model must not
+    // uncheck the model and drop the rest of its stock from the push.
+    //
+    // Returns null when the catalog is unavailable, so the caller falls back to
+    // the converter's old signal rather than reading "no match" as "brand new".
+    _onShopify: function (brand, product) {
+        if (typeof CatalogClient === 'undefined') return null;
+        var handles = (product.colorways || []).map(function (c) { return c && c.handle; }).filter(Boolean);
+        if (handles.length && CatalogClient.isCarriedByHandles) {
+            var byHandle = CatalogClient.isCarriedByHandles(brand, handles);
+            if (byHandle === true) return true;
+        }
+        if (!CatalogClient.isOnShopify) return null;
+        return CatalogClient.isOnShopify(brand, product.model || product.name);
     },
 
     // ========== SELECTION / SUMMARY ==========
@@ -157,13 +183,19 @@ var BrandPicker = {
     // carry is checked, everything new is unchecked. No saved list, so it is
     // always current with the store.
     selectDefaults: function(brand) {
+        var self = this;
         var config = this.configs[brand];
         var knownProducts = config.converter._knownProducts;
         if (brand === 'hoka' && typeof InventoryTracker !== 'undefined') knownProducts = InventoryTracker.getKnownModels('hoka');
-        var useReliable = (typeof CatalogClient !== 'undefined' && CatalogClient.isOnShopify);
+        // Index the scanned products by their checkbox label, so this decides
+        // with the same handles the initial render used.
+        var byName = {};
+        (this.scannedProducts[brand] || []).forEach(function (p) { byName[p.name] = p; });
         document.querySelectorAll('.' + config.checkboxClass).forEach(function(cb) {
-            var key = cb.getAttribute('data-model-base') || cb.getAttribute('data-model');
-            var on = useReliable ? CatalogClient.isOnShopify(brand, key) : null;
+            var name = cb.getAttribute('data-model');
+            var key = cb.getAttribute('data-model-base') || name;
+            var product = byName[name] || { model: key, name: name };
+            var on = self._onShopify(brand, product);
             if (on !== null) cb.checked = on;
             else cb.checked = knownProducts ? knownProducts.has(key) : true;
         });

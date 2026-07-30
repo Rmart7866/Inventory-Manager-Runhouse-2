@@ -274,6 +274,7 @@ var CatalogClient = {
         var shopifyModels = new Set();                 // reliable: normalized genderless model names carried on Shopify
         var existingSkus = new Set();                  // every SKU on Shopify (ACTIVE or DRAFT), for new-suppression
         var existingCwKeys = new Set();                // title-derived colorway keys (ACTIVE or DRAFT), suppresses SKU-less products
+        var existingHandles = new Set();               // every handle on Shopify (ACTIVE or DRAFT), the picker's primary signal
         var vendorTok = this.VENDOR_BY_BRAND[toolBrand] || '';
         var inherit = new Map();                       // modelName|widthClass -> inheritance record
         var byModel = (catalog && catalog.byModel) || {};
@@ -309,6 +310,13 @@ var CatalogClient = {
             if (st === 'ACTIVE' || st === 'DRAFT') {
                 var nmAll = this._normModel(p.modelKey);
                 if (nmAll) shopifyModels.add(nmAll);
+                // The canonical key too, which is what a converter's model label
+                // can actually match (see _canonModel). Both are recorded so the
+                // old key keeps working for the brands it already worked for.
+                var cnAll = this._canonModel(p.modelKey, toolBrand);
+                if (cnAll) shopifyModels.add(cnAll);
+                // Handles are the picker's primary signal, see isCarriedByHandles.
+                if (p.handle) existingHandles.add(String(p.handle).toLowerCase());
                 // Every SKU already on the store, so new-detection does not keep
                 // re-offering a product that was created last time (drafts land
                 // via Stage 4 and would otherwise reappear as new each scan, then
@@ -376,7 +384,7 @@ var CatalogClient = {
                 } catch (e) { /* identify is best effort, never fatal */ }
             }
         }
-        return { models: models, colorways: colorways, inherit: inherit, shopifyModels: shopifyModels, existingSkus: existingSkus, existingCwKeys: existingCwKeys };
+        return { models: models, colorways: colorways, inherit: inherit, shopifyModels: shopifyModels, existingSkus: existingSkus, existingCwKeys: existingCwKeys, existingHandles: existingHandles };
     },
 
     // Stage 4 WRITE. POST a batch of product specs to the Worker, which creates
@@ -593,6 +601,7 @@ var CatalogClient = {
             self._shopifyModelsByBrand[toolBrand] = res.shopifyModels || new Set();
             self._existingSkusByBrand[toolBrand] = res.existingSkus || new Set();
             self._existingCwKeysByBrand[toolBrand] = res.existingCwKeys || new Set();
+            self._existingHandlesByBrand[toolBrand] = res.existingHandles || new Set();
             return res;
         });
     },
@@ -623,13 +632,17 @@ var CatalogClient = {
         var sset = this._existingSkusByBrand[toolBrand] || (this._existingSkusByBrand[toolBrand] = new Set());
         var mset = this._shopifyModelsByBrand[toolBrand] || (this._shopifyModelsByBrand[toolBrand] = new Set());
         var cset = this._existingCwKeysByBrand[toolBrand] || (this._existingCwKeysByBrand[toolBrand] = new Set());
+        var hset = this._existingHandlesByBrand[toolBrand] || (this._existingHandlesByBrand[toolBrand] = new Set());
         var vendor = this.VENDOR_BY_BRAND[toolBrand] || '';
         var self = this;
         (specs || []).forEach(function (s) {
             (s.variants || []).forEach(function (v) { if (v && v.sku) sset.add(String(v.sku).toUpperCase()); });
+            if (s.handle) hset.add(String(s.handle).toLowerCase());
             var m = self.modelFromTitle && s.title ? self.modelFromTitle(s.title, vendor) : null;
             var nm = m ? self._normModel(m) : null;
             if (nm) mset.add(nm);
+            var cn = s.title ? self._canonModel(m || s.title, toolBrand) : null;
+            if (cn) mset.add(cn);
             // Register the colorway key too, so a just-created product suppresses
             // even if it was created without SKUs.
             var ck = self.colorwayKeyFromTitle(s.title, vendor);
@@ -647,13 +660,97 @@ var CatalogClient = {
             .trim();
     },
 
+    // Canonical model key, brand aware. This is the SAME function on both sides
+    // of the picker's "already on Shopify" check, which is the whole point:
+    // the catalog side feeds it the Worker's modelKey and the feed side feeds it
+    // whatever label the brand's converter built, and both must land on one
+    // string.
+    //
+    // WHY _normModel WAS NOT ENOUGH. It only uppercases and strips a LEADING
+    // gender word, and the converter labels break every one of those
+    // assumptions. Measured against the live catalog, the picker auto-checked
+    // 6 of 167 ASICS rows and 2 of 178 Brooks rows, so almost the whole feed
+    // read as new. Four separate leaks, all handled below:
+    //
+    //   vendor    "ASICS MENS GEL-KAYANO 29"  The store's titles put the vendor
+    //             FIRST, so the leading-gender strip never fires and the vendor
+    //             word survives into the key. Catalog side: "Gel-Kayano 29".
+    //   gender    same, "MENS" is not leading, so it stayed.
+    //   color     "GEL-KAYANO 29- SHEET ROCK/AMBER (1011B440-020)". Converters
+    //             cut color at " - " (spaces both sides), but most titles are
+    //             "29- Color" with no space before the dash, so the colorway and
+    //             the style code became part of the "model".
+    //   width     "GHOST 15 WIDE", "Cloud 6 Wide". Width is a separate axis on
+    //             the catalog side, so it must come off here. This also repairs
+    //             the catalog side's own leftover, "GT-2000 11 Extra", where the
+    //             Worker's parse dropped WIDE and left EXTRA behind.
+    //
+    // Deliberately blunt: it is only ever compared against another output of
+    // itself, so over-normalizing costs nothing as long as it is symmetric.
+    _canonModel: function (name, toolBrand) {
+        var s = String(name || '').replace(/[’‘`´]/g, "'");
+        s = s.replace(/\([^)]*\)/g, ' ');                 // (1011B440-020), (Wide), (2E)
+        // Cut the color off at the first dash that has whitespace on EITHER side,
+        // so "29- Sheet Rock" and "9 -WHITE" both cut, while an internal model
+        // dash with no space at all ("Gel-Kayano", "GT-2000") is kept.
+        var m = s.match(/^(.*?)(?:\s+[-–—]|[-–—]\s+)/);
+        // The store also has titles with NO space at all around the color dash,
+        // "Gel Resolution 9-White/Blue" and "Gel Kayano 32 Wide-Black/White". A
+        // bare dash cannot be cut blindly ("Gel-Kayano" is the same shape), so
+        // cut only when what precedes it is a digit or a width word, which is
+        // never the tail of a model name but is always the tail of the model
+        // portion of a title.
+        if (!m || !m[1].trim()) m = s.match(/^(.*?(?:\d|\bwide|\bnarrow))[-–—](?=\S)/i);
+        if (m && m[1].trim()) s = m[1];
+        // Gender anywhere, not just leading: the vendor usually comes first.
+        s = s.replace(/\b(men'?s|women'?s|mens|womens|unisex|kids?'?s?|youth|boys?'?|girls?'?)\b/ig, ' ');
+        var vendor = this.VENDOR_BY_BRAND[toolBrand] || '';
+        if (vendor) {
+            // Leading only. A vendor token that reads like English ("On") must
+            // not be stripped out of the middle of a color or model name.
+            s = s.replace(new RegExp('^\\s*' + vendor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'), ' ');
+        }
+        s = s.replace(/\b(extra[\s-]?wide|x[\s-]?wide|xwide|wide|narrow|2e|4e)\b/ig, ' ');
+        s = s.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+        // "EXTRA" left dangling at the end is a width remnant, never a model word.
+        return s.replace(/\s+EXTRA$/, '').trim();
+    },
+
     // Is this model already carried on Shopify? name is the picker's model label.
     // Returns null when the set has not been built for the brand (caller should
     // then fall back to its old signal), true/false otherwise.
+    //
+    // Both keys are checked because buildKnownSets records both: the canonical
+    // key (what actually matches) and the old _normModel key (so a converter
+    // label that only ever worked under the old rule keeps working).
     isOnShopify: function(toolBrand, name) {
         var set = this._shopifyModelsByBrand[toolBrand];
         if (!set) return null;
-        return set.has(this._normModel(name));
+        if (set.has(this._normModel(name))) return true;
+        var canon = this._canonModel(name, toolBrand);
+        return !!canon && set.has(canon);
+    },
+
+    // Every handle on Shopify (ACTIVE or DRAFT) for this brand, or null if the
+    // set has not been built. See isCarriedByHandles.
+    _existingHandlesByBrand: {},
+    existingHandles: function (toolBrand) { return this._existingHandlesByBrand[toolBrand] || null; },
+
+    // Do any of these feed handles already exist on Shopify? This is a STRONGER
+    // signal than the model-name match above, and it is the primary one for the
+    // picker: the scraper feeds carry the live product handle per colorway (that
+    // is how their inventory rows land on the right product at all), so a handle
+    // hit is direct evidence we carry it, with no name parsing in the path.
+    //
+    // Returns null when the set is not built, so callers fall back rather than
+    // reading "no handles matched" as "brand new".
+    isCarriedByHandles: function (toolBrand, handles) {
+        var set = this._existingHandlesByBrand[toolBrand];
+        if (!set || !handles || !handles.length) return null;
+        for (var i = 0; i < handles.length; i++) {
+            if (handles[i] && set.has(String(handles[i]).toLowerCase())) return true;
+        }
+        return false;
     }
 };
 
