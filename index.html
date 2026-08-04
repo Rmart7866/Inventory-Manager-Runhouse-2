@@ -933,6 +933,7 @@
                             <li>Use Chrome to run the ON scraper</li>
                             <li>Download Men's and Women's inventory CSVs</li>
                             <li>Upload both files below</li>
+                            <li>Unisex is optional: add that CSV too if you have one</li>
                         </ol>
                     </div>
                     <div class="dropzone" id="on-men-dropzone">
@@ -954,6 +955,16 @@
                     <div class="uploaded" id="on-women-uploaded" style="display:none;">
                         <div class="uploaded-info"><strong id="on-women-filename"></strong></div>
                         <button class="clear-btn" onclick="clearOnFile('women')">Clear</button>
+                    </div>
+                    <div class="dropzone" id="on-unisex-dropzone" style="margin-top:8px;">
+                        <h3>Drop ON Unisex CSV</h3>
+                        <p>Optional: unisex shoes</p>
+                        <div class="csv-note">Pre-formatted from scraper</div>
+                        <input type="file" class="file-input" id="on-unisex-file" accept=".csv">
+                    </div>
+                    <div class="uploaded" id="on-unisex-uploaded" style="display:none;">
+                        <div class="uploaded-info"><strong id="on-unisex-filename"></strong></div>
+                        <button class="clear-btn" onclick="clearOnFile('unisex')">Clear</button>
                     </div>
                     <div class="dropzone" id="on-upc-dropzone" style="margin-top:8px;">
                         <h3>ON Barcodes — built in ✓</h3>
@@ -1064,19 +1075,17 @@
                 }
             } catch (e) {}
         });
+        // One slot's Clear button. The slots are men / women / unisex, see
+        // BrandConverter.ON_SLOTS; clearing one leaves the others loaded.
         function clearOnFile(gender) {
-            if (gender === 'men') {
-                BrandConverter.brands.on.menFile = null;
-                document.getElementById('on-men-file').value = '';
-                document.getElementById('on-men-uploaded').style.display = 'none';
-                document.getElementById('on-men-dropzone').style.display = 'flex';
-            } else {
-                BrandConverter.brands.on.womenFile = null;
-                document.getElementById('on-women-file').value = '';
-                document.getElementById('on-women-uploaded').style.display = 'none';
-                document.getElementById('on-women-dropzone').style.display = 'flex';
-            }
-            if (!BrandConverter.brands.on.menFile && !BrandConverter.brands.on.womenFile) {
+            BrandConverter.brands.on[gender + 'File'] = null;
+            var input = document.getElementById('on-' + gender + '-file');
+            if (input) input.value = '';
+            var uploaded = document.getElementById('on-' + gender + '-uploaded');
+            if (uploaded) uploaded.style.display = 'none';
+            var zone = document.getElementById('on-' + gender + '-dropzone');
+            if (zone) zone.style.display = 'flex';
+            if (!BrandConverter.hasOnFile()) {
                 document.getElementById('on-convert').style.display = 'none';
                 document.getElementById('on-picker-container').style.display = 'none';
                 document.getElementById('on-tracker-report').style.display = 'none';
@@ -1091,7 +1100,7 @@
             document.getElementById('on-upc-uploaded').style.display = 'none';
             document.getElementById('on-upc-dropzone').style.display = 'flex';
             document.getElementById('on-upc-count').textContent = '';
-            if (BrandConverter.brands.on.menFile || BrandConverter.brands.on.womenFile) BrandConverter._scanBrand('on');
+            if (BrandConverter.hasOnFile()) BrandConverter._scanBrand('on');
         }
 
         function clearAsicsUpc() {
@@ -1120,7 +1129,7 @@
     <script src="inventory-tracker.js?v=11"></script>
     <script src="puma-converter.js?v=2"></script>
     <script src="newbalance-converter.js"></script>
-    <script src="on-converter.js?v=4"></script>
+    <script src="on-converter.js?v=5"></script>
     <script src="asics-converter.js?v=4"></script>
     <script src="brooks-converter.js"></script>
     <script src="brand-picker.js?v=8"></script>
@@ -1130,6 +1139,6 @@
     <script src="product-library.js?v=8"></script>
     <script src="catalog-ui.js?v=7"></script>
 
-    <script src="main.js?v=9"></script>
+    <script src="main.js?v=10"></script>
 </body>
 </html>

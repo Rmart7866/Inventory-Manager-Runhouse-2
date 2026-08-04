@@ -275,14 +275,23 @@ var OnConverter = {
         return { gender: gender, model: model, color: color, category: category };
     },
 
-    // Scan both files and return product list for picker
-    scanFiles: function(file1, file2) {
+    // Every file the caller passed, in order, with the empty slots dropped.
+    // Accepts either an array or a plain argument list, so the older two file
+    // calls, scanFiles(menFile, womenFile), still work unchanged. ON's feeds are
+    // one file per gender and the store now carries unisex models too, so the
+    // count is no longer fixed at two.
+    _fileList: function(args) {
+        var list = (args.length === 1 && Array.isArray(args[0])) ? args[0] : Array.prototype.slice.call(args);
+        return list.filter(Boolean);
+    },
+
+    // Scan every uploaded file and return the product list for the picker.
+    scanFiles: function(/* file, file, ... | [file, ...] */) {
         var self = this;
+        var files = this._fileList(arguments);
 
         return new Promise(function(resolve, reject) {
-            var promises = [];
-            if (file1) promises.push(file1.text());
-            if (file2) promises.push(file2.text());
+            var promises = files.map(function(f) { return f.text(); });
 
             Promise.all(promises).then(function(texts) {
                 var allRows = [];
@@ -363,14 +372,14 @@ var OnConverter = {
         });
     },
 
-    // Convert: process files, apply handle replacement, filter by picker
-    convert: function(file1, file2) {
+    // Convert: process files, apply handle replacement, filter by picker.
+    // Same variadic signature as scanFiles, see _fileList.
+    convert: function(/* file, file, ... | [file, ...] */) {
         var self = this;
+        var files = this._fileList(arguments);
 
         return new Promise(function(resolve, reject) {
-            var promises = [];
-            if (file1) promises.push(file1.text());
-            if (file2) promises.push(file2.text());
+            var promises = files.map(function(f) { return f.text(); });
 
             Promise.all(promises).then(function(texts) {
                 var allRows = [];

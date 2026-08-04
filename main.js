@@ -33,7 +33,7 @@ function applyAsicsPostProcessing(inventory) {
 // ========== BRAND CONFIGURATION ==========
 var BRAND_CONFIG = {
     hoka:     { displayName: 'HOKA',       converter: function() { return typeof HokaConverter !== 'undefined' ? HokaConverter : null; },     comparisonKey: '_hokaTrackerComparison',     hasPicker: true },
-    on:       { displayName: 'ON Running', converter: function() { return typeof OnConverter !== 'undefined' ? OnConverter : null; },         comparisonKey: '_onTrackerComparison',       hasPicker: true, twoFile: true },
+    on:       { displayName: 'ON Running', converter: function() { return typeof OnConverter !== 'undefined' ? OnConverter : null; },         comparisonKey: '_onTrackerComparison',       hasPicker: true, multiFile: true },
     asics:    { displayName: 'ASICS',      converter: function() { return typeof AsicsConverter !== 'undefined' ? AsicsConverter : null; },   comparisonKey: '_asicsTrackerComparison',    hasPicker: true, postProcess: applyAsicsPostProcessing },
     brooks:   { displayName: 'Brooks',     converter: function() { return typeof BrooksConverter !== 'undefined' ? BrooksConverter : null; }, comparisonKey: '_brooksTrackerComparison',   hasPicker: true },
     puma:     { displayName: 'Puma',       converter: function() { return typeof PumaConverter !== 'undefined' ? PumaConverter : null; },     comparisonKey: '_pumaTrackerComparison',     hasPicker: true },
@@ -59,8 +59,24 @@ var BrandConverter = {
         newbalance: { file: null, inventory: [], csv: '' },
         asics: { file: null, inventory: [], csv: '', scanned: false },
         brooks: { file: null, inventory: [], csv: '', scanned: false },
-        on: { menFile: null, womenFile: null, inventory: [], csv: '', scanned: false }
+        on: { menFile: null, womenFile: null, unisexFile: null, inventory: [], csv: '', scanned: false }
     },
+
+    // ON uploads one scraper file per gender. Men's and women's are the normal
+    // pair; unisex is OPTIONAL and most weeks is simply not uploaded, so every
+    // check below is "any slot filled", never "all slots filled". Adding another
+    // gender later means adding it to this list and to the card markup, nothing
+    // else: the dropzone wiring, the clear buttons, the scan and the convert all
+    // read this list.
+    ON_SLOTS: ['men', 'women', 'unisex'],
+
+    // The files currently uploaded, in slot order, empty slots dropped.
+    onFiles: function() {
+        var b = this.brands.on;
+        return this.ON_SLOTS.map(function(slot) { return b[slot + 'File']; }).filter(Boolean);
+    },
+
+    hasOnFile: function() { return this.onFiles().length > 0; },
 
     init: function() {
         var self = this;
@@ -68,7 +84,7 @@ var BrandConverter = {
         ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks'].forEach(function(brand) {
             self._setupDropzone(brand);
         });
-        // ON has two dropzones
+        // ON has one dropzone per gender slot
         this._setupOnDropzones();
         // ASICS optional barcode upload (multi-file)
         this._setupAsicsUpc();
@@ -124,7 +140,7 @@ var BrandConverter = {
 
     _setupOnDropzones: function() {
         var self = this;
-        ['men', 'women'].forEach(function(gender) {
+        this.ON_SLOTS.forEach(function(gender) {
             var dropZone = document.getElementById('on-' + gender + '-dropzone');
             var fileInput = document.getElementById('on-' + gender + '-file');
             if (!dropZone || !fileInput) return;
@@ -170,7 +186,7 @@ var BrandConverter = {
             var n = map ? Object.keys(map).length : 0;
             document.getElementById('on-upc-count').textContent = '· ' + n.toLocaleString() + ' barcodes';
             // Re-scan if feeds are already loaded, so barcodes flow through.
-            if (BrandConverter.brands.on.menFile || BrandConverter.brands.on.womenFile) BrandConverter._scanBrand('on');
+            if (BrandConverter.hasOnFile()) BrandConverter._scanBrand('on');
         }).catch(function(e) {
             document.getElementById('on-upc-count').textContent = '· failed to read';
             console.warn('[ON] pricat load failed:', e);
@@ -179,22 +195,16 @@ var BrandConverter = {
 
     // ========== ON FILE HANDLING ==========
     handleOnFile: function(gender, file) {
-        if (gender === 'men') {
-            this.brands.on.menFile = file;
-            document.getElementById('on-men-filename').textContent = file.name;
-            document.getElementById('on-men-uploaded').style.display = 'flex';
-            document.getElementById('on-men-dropzone').style.display = 'none';
-        } else {
-            this.brands.on.womenFile = file;
-            document.getElementById('on-women-filename').textContent = file.name;
-            document.getElementById('on-women-uploaded').style.display = 'flex';
-            document.getElementById('on-women-dropzone').style.display = 'none';
-        }
+        if (this.ON_SLOTS.indexOf(gender) === -1) return;
+        this.brands.on[gender + 'File'] = file;
+        document.getElementById('on-' + gender + '-filename').textContent = file.name;
+        document.getElementById('on-' + gender + '-uploaded').style.display = 'flex';
+        document.getElementById('on-' + gender + '-dropzone').style.display = 'none';
         this.hideStatus('on');
 
-        if (this.brands.on.menFile || this.brands.on.womenFile) {
-            this._scanBrand('on');
-        }
+        // Re-scan on every drop, so a file added after the first one is folded
+        // into the same picker rather than needing a clear and re-upload.
+        if (this.hasOnFile()) this._scanBrand('on');
     },
 
     // ========== GENERIC FILE HANDLING ==========
@@ -244,8 +254,8 @@ var BrandConverter = {
             ? BrandPicker.loadPickerDefaults(brand) : Promise.resolve();
 
         loadModels.then(function() { return loadDefaults; }).then(function() {
-            if (config.twoFile) {
-                return converter.scanFiles(self.brands.on.menFile, self.brands.on.womenFile);
+            if (config.multiFile) {
+                return converter.scanFiles(self.onFiles());
             } else {
                 return converter.scanFile(self.brands[brand].file);
             }
@@ -425,18 +435,19 @@ function showToast(message) {
 // ========== CLEAR FILE ==========
 function clearFile(brand) {
     if (brand === 'on') {
-        BrandConverter.brands.on.menFile = null;
-        BrandConverter.brands.on.womenFile = null;
         BrandConverter.brands.on.inventory = [];
         BrandConverter.brands.on.csv = '';
         BrandConverter.brands.on.scanned = false;
 
-        document.getElementById('on-men-file').value = '';
-        document.getElementById('on-women-file').value = '';
-        document.getElementById('on-men-uploaded').style.display = 'none';
-        document.getElementById('on-women-uploaded').style.display = 'none';
-        document.getElementById('on-men-dropzone').style.display = 'flex';
-        document.getElementById('on-women-dropzone').style.display = 'flex';
+        BrandConverter.ON_SLOTS.forEach(function(slot) {
+            BrandConverter.brands.on[slot + 'File'] = null;
+            var input = document.getElementById('on-' + slot + '-file');
+            if (input) input.value = '';
+            var uploaded = document.getElementById('on-' + slot + '-uploaded');
+            if (uploaded) uploaded.style.display = 'none';
+            var zone = document.getElementById('on-' + slot + '-dropzone');
+            if (zone) zone.style.display = 'flex';
+        });
         document.getElementById('on-convert').style.display = 'none';
         BrandConverter.hideStatus('on');
 
@@ -483,8 +494,8 @@ async function convertBrand(brand) {
     var brandData = BrandConverter.brands[brand];
 
     // Validate file uploaded
-    if (config.twoFile) {
-        if (!brandData.menFile && !brandData.womenFile) {
+    if (config.multiFile) {
+        if (!BrandConverter.hasOnFile()) {
             BrandConverter.showStatus(brand, 'Please upload at least one file!', 'error');
             return;
         }
@@ -514,8 +525,8 @@ async function convertBrand(brand) {
     try {
         // Step 1: Convert
         var inventory;
-        if (config.twoFile) {
-            inventory = await converter.convert(brandData.menFile, brandData.womenFile);
+        if (config.multiFile) {
+            inventory = await converter.convert(BrandConverter.onFiles());
         } else if (converter) {
             inventory = await converter.convert(brandData.file);
         }
