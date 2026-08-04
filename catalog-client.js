@@ -262,6 +262,75 @@ var CatalogClient = {
         });
     },
 
+    // ---------- size alignment ----------
+    //
+    // THE STORE WRITES A WHOLE SIZE TWO WAYS. Measured on the live catalog, the
+    // same size 9 is stored as "9" on some products and "9.0" on others, and 24
+    // ASICS products use both forms inside ONE product. Half sizes have only one
+    // form, "9.5", on every product.
+    //
+    // That asymmetry is the bug staff see as "it only updated the half sizes".
+    // Every match in this pipeline is string equality on the size (or on a SKU
+    // with the size baked into it), so a feed row is silently dropped whenever
+    // its form disagrees with the form that product happens to use. Half sizes
+    // agree by construction, so they always land. Whole sizes are a coin flip
+    // per product, which is why it looks random.
+    //
+    // Blast radius, whole-size Needham variants stored in the MINORITY form for
+    // their brand: Saucony 215, Brooks 511, HOKA 630, ASICS 292, ON 74.
+    //
+    // The fix is to stop comparing the strings. normalizeSize collapses both
+    // forms to one key, and variantFor looks up what the store ACTUALLY calls
+    // that size on that product, so the tool can align to it before writing.
+    normalizeSize: function (size) {
+        var s = String(size == null ? '' : size).trim();
+        if (!s) return '';
+        // Per numeric token, so dual-gender labels ("M9.0/W10.5") normalize too.
+        return s.replace(/\d+(?:\.\d+)?/g, function (num) {
+            var n = parseFloat(num);
+            return isNaN(n) ? num : String(n); // "9.0" and "09" both become "9"
+        }).toUpperCase().replace(/\s+/g, '');
+    },
+
+    // handle -> { normalizedSize: { size, sku, quantity } }, built once per
+    // catalog fetch from needhamVariants, which is the dropship scope we write
+    // to. Rebuilt when the catalog object changes identity.
+    _variantIndex: null,
+    _variantIndexFor: null,
+    variantIndex: function () {
+        var cat = this._catalog;
+        if (!cat) return null;
+        if (this._variantIndex && this._variantIndexFor === cat) return this._variantIndex;
+        var idx = {};
+        var products = cat.products || [];
+        for (var i = 0; i < products.length; i++) {
+            var p = products[i];
+            var nv = p.needhamVariants;
+            if (!p.handle || !nv) continue;
+            var bySize = idx[p.handle] || (idx[p.handle] = {});
+            for (var size in nv) {
+                if (!Object.prototype.hasOwnProperty.call(nv, size)) continue;
+                var key = this.normalizeSize(size);
+                if (!key || bySize[key]) continue; // first wins, see the mixed-form products
+                bySize[key] = { size: size, sku: (nv[size] || {}).sku || '', quantity: (nv[size] || {}).quantity };
+            }
+        }
+        this._variantIndex = idx;
+        this._variantIndexFor = cat;
+        return idx;
+    },
+
+    // What the store actually calls this size on this product, or null if the
+    // product or the size is not in the catalog (a genuinely new colorway, or a
+    // size we do not carry). Null means "no opinion": leave the row alone.
+    variantFor: function (handle, size) {
+        var idx = this.variantIndex();
+        if (!idx || !handle) return null;
+        var bySize = idx[String(handle).toLowerCase()] || idx[handle];
+        if (!bySize) return null;
+        return bySize[this.normalizeSize(size)] || null;
+    },
+
     // PURE. Build the { models, colorways } shape InventoryTracker expects, from a
     // catalog payload, for one tool brand. Kept pure (no fetch, no globals) so it
     // is unit-testable in node. identifyFn is optional and only feeds knownModels,

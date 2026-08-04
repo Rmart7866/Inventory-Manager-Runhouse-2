@@ -432,6 +432,58 @@ function showToast(message) {
     }, 3000);
 }
 
+// ========== SIZE ALIGNMENT ==========
+// "It only updated the half sizes." The store writes a whole size two ways,
+// "9" on some products and "9.0" on others (and both inside one product, 24
+// times over). Half sizes have one form only, "9.5", so they always match and
+// whole sizes match by luck, per product. See CatalogClient.normalizeSize.
+//
+// So before any row leaves the pipeline, rewrite it to the store's own strings
+// for that product: its exact size label (the CSV import matches handle plus
+// size) and its exact SKU (the direct write matches SKU). A row the catalog has
+// no opinion on, a new colorway or a size we do not carry, is left untouched.
+//
+// This does NOT invent variants. It only ever renames a size we already carry
+// to the spelling that product uses, so it cannot create a stray variant on
+// import; it stops one being created.
+function alignInventoryToCatalog(brand, inventory) {
+    if (!Array.isArray(inventory) || !inventory.length) return inventory;
+    if (typeof CatalogClient === 'undefined' || typeof CatalogClient.variantFor !== 'function') return inventory;
+    if (!CatalogClient.variantIndex()) return inventory; // catalog not loaded, leave the rows alone
+
+    var sizesFixed = 0, skusFixed = 0;
+    var out = inventory.map(function (row) {
+        var handle = row.Handle;
+        var size = row['Option1 Value'];
+        if (!handle || !size) return row;
+        var live = CatalogClient.variantFor(handle, size);
+        if (!live) return row;
+
+        var r = row;
+        if (live.size && live.size !== size) {
+            r = Object.assign({}, r);
+            r['Option1 Value'] = live.size;
+            sizesFixed++;
+        }
+        // The SKU is how the direct write finds the variant, and several brands
+        // bake the size into it ("...-07B", "....070", "...-555"), so the same
+        // disagreement lands there too. The store's own SKU is by definition the
+        // one that resolves.
+        if (live.sku && live.sku !== r.SKU) {
+            if (r === row) r = Object.assign({}, r);
+            r.SKU = live.sku;
+            skusFixed++;
+        }
+        return r;
+    });
+
+    if (sizesFixed || skusFixed) {
+        console.log('[' + brand + '] aligned to the live catalog: ' + sizesFixed + ' size label'
+            + (sizesFixed !== 1 ? 's' : '') + ', ' + skusFixed + ' SKU' + (skusFixed !== 1 ? 's' : ''));
+    }
+    return out;
+}
+
 // ========== CLEAR FILE ==========
 function clearFile(brand) {
     if (brand === 'on') {
@@ -530,6 +582,12 @@ async function convertBrand(brand) {
         } else if (converter) {
             inventory = await converter.convert(brandData.file);
         }
+
+        // Align every row's size to what the store actually calls that size on
+        // that product, BEFORE anything downstream reads the rows. Done here, in
+        // one place, because both consumers match on these fields: the CSV
+        // import matches handle plus size, and the direct write matches SKU.
+        inventory = alignInventoryToCatalog(brand, inventory);
 
         brandData.inventory = inventory;
 
