@@ -276,6 +276,62 @@ var BrooksConverter = {
         }
     },
 
+    // ========== BARCODES ==========
+    // The Brooks scraper CSV has no barcode column, so until this every Brooks
+    // product the tool created went to Shopify bare, which is a shoe that cannot
+    // be scanned at the till. Measured 2026-08-04: all 314 variants across the 20
+    // Ghost Max 4 products created that day had no barcode.
+    //
+    // The barcodes come from the supplier UPC workbook, bundled into
+    // barcode-data.js by tools/build-barcodes.py exactly like ASICS and ON.
+    // Existing products were filled in by tools/backfill-brooks-barcodes.mjs.
+    //
+    // TWO SKU DIALECTS. Brooks keys its workbook by ITEM_NUMBER, which is also
+    // the SKU on the store's older hand-made products:
+    //
+    //     1104962E020.070  =  style 110464 | dim 2E | color 020 | size 7.0
+    //
+    // The scraper, and therefore everything this converter emits, uses its own:
+    //
+    //     110496015-020-750-2E  =  style 110496 + suffix | color 020
+    //                              | size 7.0 as "750" | dim 2E
+    //
+    // which is why an earlier attempt at this join looked like it did not line
+    // up. Decode first and it does: 314 of 314 on the Ghost Max 4 batch, and
+    // 5,844 of 6,024 tool-format Brooks SKUs across the whole live catalog.
+    //
+    // Width is written "1D" / "1B" in the workbook, so a single letter picks up
+    // the implicit 1. Size is tenths there ("070") against whole-plus-50-or-55
+    // here ("750"). A SKU that does not decode returns null, and the caller
+    // leaves the barcode empty rather than guessing: a wrong barcode is worse
+    // than none, it scans as a different shoe.
+    _brooksItemNumber: function(sku) {
+        var s = String(sku || '').trim().toUpperCase();
+        if (!s) return null;
+        if (/^\d{6}[0-9][A-Z]\d{3}\.\d{3}$/.test(s)) return s; // already Brooks's own code
+        var m = /^(\d{6})\d*-(\d{3})-(\d+)-([A-Z0-9]{1,2})$/.exec(s);
+        if (!m) return null;
+        var style = m[1], color = m[2], sizeCode = m[3], dim = m[4];
+        var dimCode = dim.length === 2 ? dim : '1' + dim;
+        var whole = sizeCode.slice(0, -2), tail = sizeCode.slice(-2);
+        if (!whole || (tail !== '50' && tail !== '55')) return null;
+        var size = parseFloat(whole) + (tail === '55' ? 0.5 : 0);
+        if (!isFinite(size)) return null;
+        var tenths = String(Math.round(size * 10));
+        while (tenths.length < 3) tenths = '0' + tenths;
+        return style + dimCode + color + '.' + tenths;
+    },
+
+    // A barcode already on the feed row always wins. Otherwise look the SKU up
+    // in the bundled map. Empty string when there is nothing to say.
+    _barcodeFor: function(feedBarcode, sku) {
+        if (feedBarcode) return String(feedBarcode);
+        var map = (typeof BarcodeData !== 'undefined' && BarcodeData.brooks) || null;
+        if (!map) return '';
+        var item = this._brooksItemNumber(sku);
+        return (item && map[item]) || '';
+    },
+
     // ========== PARSE TITLE ==========
     parseTitle: function(title, handle) {
         if (!title) return { gender: '', model: '', color: '', width: '' };
@@ -498,6 +554,7 @@ var BrooksConverter = {
                     }
 
                     var qty = row['On hand (new)'] || '0';
+                    var barcode = self._barcodeFor(row.Barcode, row.SKU);
 
                     var inventoryRow = {
                         'Handle': canonicalHandle,
@@ -509,7 +566,7 @@ var BrooksConverter = {
                         'Option3 Name': row['Option3 Name'] || '',
                         'Option3 Value': row['Option3 Value'] || '',
                         'SKU': row.SKU || '',
-                        'Barcode': row.Barcode || '',
+                        'Barcode': barcode,
                         'HS Code': row['HS Code'] || '',
                         'COO': row.COO || '',
                         'Location': row.Location || 'Needham',
@@ -530,7 +587,7 @@ var BrooksConverter = {
                         sku: row.SKU || '',
                         size: row['Option1 Value'] || '',
                         quantity: qty,
-                        barcode: row.Barcode || ''
+                        barcode: barcode
                     }]);
                 });
 

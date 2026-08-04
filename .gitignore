@@ -60,3 +60,10 @@ saucony-sku-rollback-*.json
 
 # Run artifacts from tools/set-shoe-weights.mjs
 shoe-weight-rollback-*.json
+
+# Brooks barcodes. The feed is generated from the supplier UPC workbook by
+# tools/build-brooks-barcode-feed.py and holds barcodes only, no pricing, but it
+# is 1.6 MB of derived supplier data and regenerating it is one command, so it
+# does not belong in a public repo. The rollback file is per-run undo state.
+brooks-barcode-feed.json
+brooks-barcode-rollback-*.json
