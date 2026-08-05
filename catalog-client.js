@@ -262,6 +262,33 @@ var CatalogClient = {
         });
     },
 
+    // The apparel catalog, a SEPARATE value in KV built by the same cron as the
+    // footwear one. It is fetched only by the apparel page, so the footwear tool
+    // never pays for it, and buildKnownSets below can never see a garment.
+    //
+    // Returns null when the Worker has not built one yet (503 on a cold key, or an
+    // older Worker with no such route), so the caller can fall back rather than
+    // break. Not cached against TTL like the footwear catalog: the apparel page is
+    // opened rarely and loads once.
+    _apparelCatalog: null,
+    fetchApparelCatalog: function (force) {
+        var self = this;
+        if (!force && this._apparelCatalog) return Promise.resolve(this._apparelCatalog);
+        return fetch(this.WORKER_URL + '/catalog/apparel', {
+            headers: { 'Authorization': 'Bearer ' + this.CATALOG_TOKEN }
+        }).then(function (res) {
+            if (res.status === 503 || res.status === 404) return null;   // not built, or Worker predates it
+            if (!res.ok) throw new Error('Apparel catalog fetch failed: HTTP ' + res.status);
+            return res.json();
+        }).then(function (cat) {
+            if (cat) self._apparelCatalog = cat;
+            return cat;
+        }).catch(function (e) {
+            console.warn('[CatalogClient] apparel catalog unavailable:', e && e.message);
+            return null;
+        });
+    },
+
     // ---------- size alignment ----------
     //
     // THE STORE WRITES A WHOLE SIZE TWO WAYS. Measured on the live catalog, the

@@ -34,6 +34,7 @@ import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
+  readApparel, readApparelMeta, writeApparel,
   acquireBuildLock, releaseBuildLock,
   requestRefresh, isRefreshRequested, clearRefresh,
 } from './store.js';
@@ -84,14 +85,25 @@ function rawCatalog(body, request, env, cacheState) {
 }
 
 // Build the catalog and store it. Shared by the cron and by ?fresh=1.
+//
+// One pass over the store produces two payloads, footwear and apparel, written to
+// two separate KV keys. The footwear write happens FIRST and is the one that
+// matters: if the apparel write then fails, the footwear catalog is already safely
+// in place and the tool carries on exactly as before with a stale apparel copy.
 async function rebuild(env, scope) {
   const client = createShopifyClient(env);
-  const payload = await buildCatalog(client, {
+  const { footwear, apparel } = await buildCatalog(client, {
     activeOnly: scope === 'active',
     needhamLocationId: env.NEEDHAM_LOCATION_ID || null,
   });
-  const meta = await writeCatalog(env, scope, payload);
-  return { payload, meta };
+  const meta = await writeCatalog(env, scope, footwear);
+  let apparelMeta = null;
+  try {
+    apparelMeta = await writeApparel(env, scope, apparel);
+  } catch (err) {
+    console.error('apparel write failed, footwear catalog is unaffected:', err?.stack || String(err));
+  }
+  return { payload: footwear, meta, apparelMeta };
 }
 
 async function handleCatalog(request, env, ctx) {
@@ -109,13 +121,13 @@ async function handleCatalog(request, env, ctx) {
       return json({ error: 'limit must be a positive number' }, 400, request, env);
     }
     const client = createShopifyClient(env);
-    const payload = await buildCatalog(client, {
+    const { footwear } = await buildCatalog(client, {
       limit,
       activeOnly: scope === 'active',
       needhamLocationId: env.NEEDHAM_LOCATION_ID || null,
     });
-    payload.truncated = true;
-    return rawCatalog(JSON.stringify(payload), request, env, 'bypass-limit');
+    footwear.truncated = true;
+    return rawCatalog(JSON.stringify(footwear), request, env, 'bypass-limit');
   }
 
   // fresh=1 requests an on-demand refresh, for "I just added products and want
@@ -327,6 +339,34 @@ async function handleProductMedia(request, env) {
   return json(result, result.ok ? 200 : 400, request, env);
 }
 
+// GET /catalog/apparel : the apparel catalog, for the apparel page. Read only,
+// same bearer as /catalog. Kept a separate route rather than a flag on /catalog
+// so the footwear payload is never even optionally larger.
+async function handleApparel(request, env) {
+  const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
+  const hit = await readApparel(env, scope);
+  if (hit) return rawCatalog(hit, request, env, 'hit');
+  // Apparel is written by the same build as the footwear catalog, so a miss means
+  // no build has run since this shipped. Ask for one, same as the cold path.
+  await requestRefresh(env, scope);
+  return json(
+    {
+      error: 'Apparel catalog not built yet',
+      building: true,
+      hint: 'The apparel catalog is built alongside the main one. It appears after the next rebuild, within a few minutes.',
+    },
+    503, request, env, { 'Retry-After': '60' }
+  );
+}
+
+async function handleApparelStatus(request, env) {
+  const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
+  const meta = await readApparelMeta(env, scope);
+  if (!meta) return json({ built: false, scope }, 200, request, env);
+  const ageSeconds = Math.max(0, Math.round((Date.now() - Date.parse(meta.generatedAt)) / 1000));
+  return json({ built: true, scope, ageSeconds, ...meta }, 200, request, env);
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -350,6 +390,9 @@ export default {
     const routes = {
       '/catalog': { handler: handleCatalog, forWrite: false, methods: ['GET'] },
       '/catalog/status': { handler: handleStatus, forWrite: false, methods: ['GET'] },
+      // Apparel, its own read-only value in KV, built by the same cron.
+      '/catalog/apparel': { handler: handleApparel, forWrite: false, methods: ['GET'] },
+      '/catalog/apparel/status': { handler: handleApparelStatus, forWrite: false, methods: ['GET'] },
       // Stage 4 WRITE. forWrite:true, so auth.js refuses it in bearer mode (501).
       // Inert in production until AUTH_MODE becomes a real identity/secret gate.
       '/products': { handler: handleCreateProducts, forWrite: true, methods: ['POST'] },
@@ -433,12 +476,15 @@ export default {
 
         const started = Date.now();
         try {
-          const { meta } = await rebuild(env, scope);
+          const { meta, apparelMeta } = await rebuild(env, scope);
           await clearRefresh(env, scope);
           console.log(
             `${isDaily ? 'daily' : 'requested'} rebuild ok in ${Math.round((Date.now() - started) / 1000)}s`,
             JSON.stringify(meta.counts),
-            `${(meta.sizeBytes / 1048576).toFixed(2)} MB`
+            `${(meta.sizeBytes / 1048576).toFixed(2)} MB`,
+            apparelMeta
+              ? `apparel ${apparelMeta.counts.products}p/${apparelMeta.counts.variants}v ${(apparelMeta.sizeBytes / 1048576).toFixed(2)} MB`
+              : 'apparel NOT written'
           );
         } catch (err) {
           // Leave the previous catalog in place. A stale catalog beats none, and

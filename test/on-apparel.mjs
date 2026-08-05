@@ -124,6 +124,47 @@ eq('summary counts apparel colorways', sum.colorways, 2);
 eq('summary counts matches', sum.matched, 1);
 eq('summary counts units', sum.units, 37);
 
+console.log('\nThe live catalog replaces the baked snapshot');
+// Shaped like GET /catalog/apparel: a product the snapshot has never heard of,
+// plus a code the store claims twice.
+const liveCatalog = {
+  generatedAt: new Date().toISOString(),
+  counts: { products: 2, codes: 1, ambiguousCodes: 1 },
+  products: [
+    { handle: 'on-brand-new-thing-women-1wf19990001', title: 'New Thing', productType: 'Shorts', status: 'ACTIVE', codes: ['1WF19990001'], sizes: ['X-Small', 'Small', 'Medium'] },
+    { handle: 'on-shared-code-a', title: 'Shared A', productType: 'Sports Bras', status: 'DRAFT', codes: ['1WE10400553'], sizes: ['Small'] },
+  ],
+  byCode: { '1WF19990001': 'on-brand-new-thing-women-1wf19990001' },
+  ambiguousCodes: [{ code: '1WE10400553', handles: ['on-shared-code-a', 'on-shared-code-b'] }],
+};
+check('source is the snapshot before anything is loaded', C.source() === 'snapshot');
+check('useLiveCatalog accepts the payload', C.useLiveCatalog(liveCatalog) === true);
+eq('source flips to live', C.source(), 'live');
+
+const liveProducts = C.parse(good);
+const nowMatched = liveProducts.find((p) => p.code === '1WF19990001');
+check('a product the snapshot never knew now matches', !!nowMatched.store, nowMatched.store);
+eq('and picks up its live handle', nowMatched.store.handle, 'on-brand-new-thing-women-1wf19990001');
+// The feed spells this one "XS" and "M" where the live product says "X-Small"
+// and "Medium", which is the case the rewrite exists for.
+const liveFeed = [HEAD,
+  'on-womens-new-thing-red,"ON Women\'s New Thing - Red",Size,XS,Color,"Red",,,ON-1WF19990001-RED-XS,,,Needham,,,,,,,4',
+  'on-womens-new-thing-red,"ON Women\'s New Thing - Red",Size,M,Color,"Red",,,ON-1WF19990001-RED-M,,,Needham,,,,,,,9',
+].join('\n');
+const liveRows = C.buildRows(C.parse(liveFeed), {});
+eq('a feed "XS" is rewritten to the live "X-Small"', liveRows[0]['Option1 Value'], 'X-Small');
+eq('a feed "M" is rewritten to the live "Medium"', liveRows[1]['Option1 Value'], 'Medium');
+eq('and the row carries the live handle', liveRows[0].Handle, 'on-brand-new-thing-women-1wf19990001');
+check('both rows are flagged as realigned', liveRows.every((r) => r._sizeAligned));
+const goneStale = liveProducts.find((p) => p.code === '1WE11860553');
+check('a snapshot-only product is NOT matched once live data is in charge', !goneStale.store);
+check('an ambiguous code is still flagged, not silently resolved', C._storeFor('1WE10400553').ambiguous === true);
+
+// back to the snapshot for the remaining assertions
+C.useLiveCatalog(null);
+eq('a null payload falls back to the snapshot', C.source(), 'snapshot');
+check('and the snapshot still matches', !!C.parse(good).find((p) => p.code === '1WE11860553').store);
+
 console.log('\nNothing is ever zeroed for being absent');
 const shrunk = C.parse([HEAD, good.split('\n')[1]].join('\n'));
 const shrunkRows = C.buildRows(shrunk, {});

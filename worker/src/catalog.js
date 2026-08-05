@@ -79,7 +79,7 @@ async function fetchAll(client, limit, activeOnly) {
     const body = await client.graphql(QUERY, { cursor, q });
     const conn = body.data.products;
     for (const n of conn.nodes) {
-      if (!/shoes$/i.test(n.productType || '')) continue; // footwear only
+      if (classify(n.productType, n.vendor) !== 'footwear') continue; // footwear only
       out.push(n);
       if (out.length >= limit) return out;
     }
@@ -137,6 +137,66 @@ function sizeOf(selectedOptions) {
   return (size && size.value) || (opts[0] && opts[0].value) || '';
 }
 
+// ---------------------------------------------------------------------------
+// What belongs in which catalog
+// ---------------------------------------------------------------------------
+// The store is 17,469 products and 242,909 variants (measured 2026-08-05).
+// Footwear is 3,954 of those products and about 4.5 MB of JSON, which is the
+// payload the tool has always fetched. Carrying everything would be roughly four
+// times that, close to KV's 25 MB ceiling and a large download for every staff
+// member, so nothing is widened blindly.
+//
+// FOOTWEAR is the type ending in "shoes", as before, PLUS "Athletic Footwear"
+// and "Footwear". Those two are 161 supplier products (2,509 variants) of real
+// running shoes that the /shoes$/i gate has never matched, so the tool could not
+// see them: it can offer one as new and create a duplicate. They cannot be
+// zeroed by adding them here, because the client's dropship filter still demands
+// a gendered "* Shoes" type before anything enters the removal set. This is a
+// suppression fix, not a new write path.
+//
+// APPAREL is supplier-brand non-footwear, and only supplier brands. Half the
+// store is The Run House's own printed apparel (7,329 products with no product
+// type at all), which has nothing to do with a supplier feed. Scoping to the
+// brands parsers.js knows keeps this at 1,732 products and about 1 MB.
+//
+// Anything else, including blank types and one-off categories, stays out of both.
+const FOOTWEAR_TYPE_RE = /(shoes$|^athletic footwear$|^footwear$)/i;
+
+// The garment types the supplier brands actually use on this store. An allowlist
+// rather than "not footwear", so a new category cannot quietly balloon the
+// payload. Spikes and Sandals are deliberately absent: they are shoes but not
+// dropship, so neither catalog has a use for them yet.
+const APPAREL_TYPE_RE = new RegExp('^(' + [
+  'tanks?', 'hoodies', 'sweatshirts', 't-shirts?', 'short sleeve', 'long sleeves',
+  'crewnecks', 'half-zips', 'full zips', 'jackets?', 'vests', 'shorts', 'pants',
+  'sweatpants', 'joggers', 'tights/leggings', 'skorts', 'sports bras', 'socks',
+  'gloves', 'headwear', 'uniforms', 'compression', 'active dress',
+].join('|') + ')$', 'i');
+
+// 'footwear' | 'apparel' | null. brandFor returns UNKNOWN for a vendor that is
+// not one of the supplier brands, which is exactly the apparel scope test.
+export function classify(productType, vendor) {
+  const t = String(productType || '').trim();
+  if (FOOTWEAR_TYPE_RE.test(t)) return 'footwear';
+  if (APPAREL_TYPE_RE.test(t) && brandFor(vendor).key !== 'UNKNOWN') return 'apparel';
+  return null;
+}
+
+// The ON style article code, which appears in both a supplier SKU and, for the
+// apparel already on this store, in the handle. Footwear is 3xx and apparel 1xx.
+// This is what lets the apparel tool join a feed row to a live product without
+// guessing from a name.
+function articleCodesOf(product) {
+  const found = new Set();
+  const add = (s) => {
+    const m = String(s || '').toUpperCase().match(/[13][WMU][A-Z]\d{6,}/);
+    if (m) found.add(m[0]);
+  };
+  add(product.handle);
+  for (const v of (product.variants && product.variants.nodes) || []) add(v.sku);
+  return [...found];
+}
+
 // Reassembler for the flat JSONL. Bulk emits parents before children: a product
 // line (has `handle`), then its variant lines (__parentId = product), then each
 // variant's inventory-level lines (__parentId = variant, has a `location`). We
@@ -145,21 +205,26 @@ function sizeOf(selectedOptions) {
 // The on-hand map doubles as the presence set: a Needham level, even at 0, puts
 // the handle in the map.
 function makeBulkAssembler(needhamLocationId) {
-  const productsById = new Map();  // footwear product id -> node
-  const variantInfo = new Map();   // footwear variant id -> { productId, sku, size }
+  const productsById = new Map();  // kept product id -> node (footwear AND apparel)
+  const variantInfo = new Map();   // kept variant id -> { productId, sku, size }
   // needham (null when scoping off): per-handle on-hand total and per-size detail.
   // onHand doubles as the presence set (a Needham level, even 0, adds the handle).
   const needham = needhamLocationId ? { onHand: new Map(), variants: new Map() } : null;
 
   const onObject = (o) => {
     if ('handle' in o) {
-      if (!/shoes$/i.test(o.productType || '')) return; // footwear only
+      // One pass over the bulk file feeds both catalogs. Apparel rides along at no
+      // extra cost to Shopify, and the two payloads are split apart afterwards so
+      // the footwear one keeps exactly the shape it has always had.
+      const kind = classify(o.productType, o.vendor);
+      if (!kind) return;
       productsById.set(o.id, {
         id: o.id, handle: o.handle, title: o.title, vendor: o.vendor,
         productType: o.productType, status: o.status, tags: o.tags || [],
         descriptionHtml: o.descriptionHtml || '', category: o.category || null,
         image: (o.featuredImage && o.featuredImage.url) || '',
         updatedAt: o.updatedAt || '',
+        _kind: kind,
         _total: 0,
         variants: { nodes: [] },
       });
@@ -191,12 +256,22 @@ function makeBulkAssembler(needhamLocationId) {
       (p._mf = p._mf || {})[o.key] = o.value;
     } else {
       const p = productsById.get(o.__parentId);
-      if (!p) return; // variant of a non-footwear product
-      p.variants.nodes.push({ sku: o.sku, price: o.price });
-      variantInfo.set(o.id, { productId: o.__parentId, sku: o.sku, size: sizeOf(o.selectedOptions) });
+      if (!p) return; // variant of a product neither catalog keeps
+      const size = sizeOf(o.selectedOptions);
+      // Apparel needs the size on the variant itself: its sizes are words, there
+      // is no width axis, and the join back to a feed row is handle plus size.
+      p.variants.nodes.push(p._kind === 'apparel' ? { sku: o.sku, price: o.price, size } : { sku: o.sku, price: o.price });
+      variantInfo.set(o.id, { productId: o.__parentId, sku: o.sku, size });
     }
   };
-  const result = () => ({ raw: [...productsById.values()], needham });
+  const result = () => {
+    const all = [...productsById.values()];
+    return {
+      raw: all.filter((p) => p._kind === 'footwear'),
+      apparelRaw: all.filter((p) => p._kind === 'apparel'),
+      needham,
+    };
+  };
   return { onObject, result };
 }
 
@@ -216,21 +291,107 @@ async function fetchCatalogViaBulk(client, activeOnly, needhamLocationId) {
   return a.result();
 }
 
-// buildCatalog(client, opts) -> the /catalog payload. Full builds fetch via one
-// bulk operation; a `limit` (dev peek) uses the quick paginated path with no
-// Needham detail. Either way the pure buildCatalogFrom does the rest.
+// buildCatalog(client, opts) -> { footwear, apparel }, two SEPARATE payloads from
+// one pass over the store. Full builds fetch via one bulk operation; a `limit`
+// (dev peek) uses the quick paginated path with no Needham detail and no apparel.
+//
+// They are separate values, not one payload with a flag, and that is the whole
+// safety argument for this change: the footwear catalog every staff browser
+// fetches keeps exactly the shape and roughly the size it has always had, and
+// nothing in the footwear known set can encounter a garment even by accident.
 export async function buildCatalog(client, opts = {}) {
   const activeOnly = !!opts.activeOnly;
   const needhamLocationId = opts.needhamLocationId || null;
 
-  let raw, needham;
+  let raw, apparelRaw = [], needham;
   if (opts.limit) {
     raw = await fetchAll(client, opts.limit, activeOnly);
     needham = null; // bulk is overkill for a truncated dev peek
   } else {
-    ({ raw, needham } = await fetchCatalogViaBulk(client, activeOnly, needhamLocationId));
+    ({ raw, apparelRaw, needham } = await fetchCatalogViaBulk(client, activeOnly, needhamLocationId));
   }
-  return buildCatalogFrom(raw, needham, { activeOnly, needhamLocationId, shop: client.SHOP });
+  const meta = { activeOnly, needhamLocationId, shop: client.SHOP };
+  return {
+    footwear: buildCatalogFrom(raw, needham, meta),
+    apparel: buildApparelFrom(apparelRaw, needham, meta),
+  };
+}
+
+// PURE. The apparel payload. Deliberately much smaller than the footwear one:
+// apparel has no width axis, no swatch grouping, no cw-group tag and no
+// inheritance record, so none of that is computed or carried. What it does carry
+// is the join key the apparel tool needs, the article code, plus each product's
+// own spelling of its sizes, because the store spells one size several ways and
+// an inventory import that does not match the spelling silently does nothing.
+export function buildApparelFrom(raw, needham, opts = {}) {
+  const products = [];
+  const byCode = {};          // article code -> handle, unambiguous only
+  const codeOwners = {};      // article code -> [handle, ...], to detect collisions
+  const byType = {};
+  const byBrand = {};
+
+  for (const n of raw || []) {
+    const brand = brandFor(n.vendor).key;
+    const codes = articleCodesOf(n);
+    const hasNeedham = needham ? needham.onHand.has(n.handle) : false;
+
+    for (const c of codes) (codeOwners[c] = codeOwners[c] || []).push(n.handle);
+
+    byType[n.productType] = (byType[n.productType] || 0) + 1;
+    byBrand[brand] = (byBrand[brand] || 0) + 1;
+
+    products.push({
+      id: n.id,
+      handle: n.handle,
+      title: n.title,
+      vendor: n.vendor,
+      brand,
+      productType: n.productType,
+      status: n.status,
+      updatedAt: n.updatedAt || '',
+      image: n.image || '',
+      codes,
+      // Every size this product carries, in Shopify's own spelling and order.
+      sizes: (n.variants?.nodes || []).map((v) => v.size).filter(Boolean),
+      skus: (n.variants?.nodes || []).map((v) => v.sku).filter(Boolean),
+      price: (n.variants?.nodes?.[0]?.price) || '',
+      totalOnHand: (typeof n._total === 'number') ? n._total : null,
+      needham: needham ? hasNeedham : null,
+      needhamOnHand: needham ? (hasNeedham ? needham.onHand.get(n.handle) : 0) : null,
+    });
+  }
+
+  // A code claimed by more than one product is not a usable join. The store has a
+  // couple, from a duplicated product keeping the original's code, so they are
+  // published as ambiguous rather than silently resolving to whichever came first.
+  const ambiguousCodes = [];
+  for (const [code, handles] of Object.entries(codeOwners)) {
+    const uniq = [...new Set(handles)];
+    if (uniq.length === 1) byCode[code] = uniq[0];
+    else ambiguousCodes.push({ code, handles: uniq });
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    shop: opts.shop || '',
+    scope: opts.activeOnly ? 'active' : 'all',
+    needhamScoped: !!opts.needhamLocationId,
+    counts: {
+      products: products.length,
+      // Sizes, not SKUs. Most apparel on this store carries no SKU at all (97 of
+      // 1,397 products have one, measured 2026-08-05), so counting SKUs made the
+      // build log read as though the variants were missing when they were not.
+      variants: products.reduce((t, p) => t + p.sizes.length, 0),
+      withSku: products.filter((p) => p.skus.length).length,
+      codes: Object.keys(byCode).length,
+      ambiguousCodes: ambiguousCodes.length,
+      byType,
+      byBrand,
+    },
+    products,
+    byCode,
+    ambiguousCodes,
+  };
 }
 
 // PURE. Turn fetched product nodes + the Needham data into the /catalog payload.

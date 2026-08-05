@@ -131,6 +131,8 @@
                 written for it. Only what is in the file gets exported.
             </div>
 
+            <div class="note" id="src-note" style="border-left-color:var(--muted-2)">Checking what apparel is on Shopify...</div>
+
             <div class="card">
                 <div class="card-head">
                     <h2>1. Drop the ON apparel scrape</h2>
@@ -184,7 +186,8 @@
         </div>
     </div>
 
-    <script src="on-apparel-converter.js?v=1"></script>
+    <script src="catalog-client.js?v=19"></script>
+    <script src="on-apparel-converter.js?v=2"></script>
     <script>
         // Shares the session unlock with index.html, so unlocking one unlocks both.
         var CORRECT_PASSWORD = "runhouse15west";
@@ -317,7 +320,37 @@
             a.click();
         }
 
+        // Pull the live apparel catalog if the Worker has one. Until it is deployed
+        // and a rebuild has run, this returns null and the converter falls back to
+        // its baked snapshot, which is why the page says which one it used: a
+        // "not on Shopify" from a stale snapshot means something different from
+        // one checked against the live store.
+        function loadCatalog() {
+            var note = document.getElementById('src-note');
+            if (typeof CatalogClient === 'undefined' || !CatalogClient.fetchApparelCatalog) {
+                note.innerHTML = '<strong>Using the built-in list.</strong> The live catalog is unavailable, so matching uses the snapshot baked into this page.';
+                return Promise.resolve();
+            }
+            return CatalogClient.fetchApparelCatalog().then(function (cat) {
+                var live = cat && OnApparelConverter.useLiveCatalog(cat);
+                if (live) {
+                    var mins = Math.max(0, Math.round((Date.now() - Date.parse(cat.generatedAt)) / 60000));
+                    note.style.borderLeftColor = 'var(--ok)';
+                    note.innerHTML = '<strong>Live from Shopify.</strong> ' + cat.counts.products
+                        + ' apparel products, ' + cat.counts.codes + ' matchable by article code'
+                        + (cat.counts.ambiguousCodes ? ', ' + cat.counts.ambiguousCodes + ' code(s) claimed by two products' : '')
+                        + '. Synced ' + (mins < 1 ? 'just now' : mins + ' min ago') + '.';
+                } else {
+                    note.style.borderLeftColor = 'var(--warn)';
+                    note.innerHTML = '<strong>Using the built-in list.</strong> The Worker has no apparel catalog yet, '
+                        + 'so only the 15 products baked into this page can be matched. Everything else will read as new.';
+                }
+                if (STATE.products) render();
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
+            loadCatalog();
             if (sessionStorage.getItem('authenticated') === 'true') {
                 document.getElementById('password-screen').style.display = 'none';
                 document.getElementById('app').style.display = 'block';

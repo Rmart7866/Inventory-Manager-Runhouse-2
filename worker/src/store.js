@@ -26,6 +26,13 @@ export function catalogKey(scope) {
   return `${KEY_PREFIX}:${scope}`;
 }
 
+// Apparel is its own value, written by the same build. Keeping it out of the
+// footwear key is what stops the payload every staff browser fetches from
+// growing, and what guarantees the footwear known set never meets a garment.
+export function apparelKey(scope) {
+  return `${KEY_PREFIX}:apparel:${scope}`;
+}
+
 function lockKey(scope) {
   return `${KEY_PREFIX}:lock:${scope}`;
 }
@@ -53,6 +60,28 @@ export async function writeCatalog(env, scope, payload) {
     sizeBytes: body.length,
   };
   await env.CATALOG.put(catalogKey(scope), body, { metadata: meta });
+  return meta;
+}
+
+// The apparel catalog. Same shape of call, its own key, so a failure to write it
+// cannot corrupt or truncate the footwear catalog.
+export async function readApparel(env, scope) {
+  return env.CATALOG.get(apparelKey(scope), 'text');
+}
+
+export async function readApparelMeta(env, scope) {
+  const { metadata } = await env.CATALOG.getWithMetadata(apparelKey(scope), { type: 'stream' });
+  return metadata || null;
+}
+
+export async function writeApparel(env, scope, payload) {
+  const body = JSON.stringify(payload);
+  const meta = {
+    generatedAt: payload.generatedAt,
+    counts: payload.counts,
+    sizeBytes: body.length,
+  };
+  await env.CATALOG.put(apparelKey(scope), body, { metadata: meta });
   return meta;
 }
 

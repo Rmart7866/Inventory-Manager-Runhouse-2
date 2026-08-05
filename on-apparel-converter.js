@@ -49,6 +49,44 @@ var OnApparelConverter = {
         '1WE11930553': { handle: 'on-performance-tights-w-black-women-1we11930553', type: 'Tights/Leggings', status: 'ACTIVE', sizes: ['X-Small', 'Small', 'Medium', 'Large', 'X-Large'] }
     },
 
+    // ===== The live catalog, when there is one =====
+    //
+    // The Worker now builds an apparel catalog alongside the footwear one, so the
+    // snapshot above is a fallback rather than the source. Hand it the payload
+    // from GET /catalog/apparel and every join below uses live data instead:
+    // every apparel product, not just the 22 that happened to be mapped by hand,
+    // with each product's current sizes, status and type.
+    //
+    // source() reports which one is in play, so the page can say so rather than
+    // leaving staff to guess whether a "not on Shopify" really means that.
+    _live: null,
+    useLiveCatalog: function (catalog) {
+        if (!catalog || !catalog.byCode) { this._live = null; return false; }
+        var byCode = {};
+        var byHandle = {};
+        (catalog.products || []).forEach(function (p) { byHandle[p.handle] = p; });
+        Object.keys(catalog.byCode).forEach(function (code) {
+            var p = byHandle[catalog.byCode[code]];
+            if (!p) return;
+            byCode[code] = { handle: p.handle, type: p.productType, status: p.status, sizes: p.sizes || [] };
+        });
+        // Codes the store claims twice are carried through as ambiguous, so the
+        // page keeps flagging them instead of silently picking one.
+        (catalog.ambiguousCodes || []).forEach(function (a) {
+            var p = byHandle[a.handles[0]];
+            if (!p) return;
+            byCode[a.code] = { handle: p.handle, type: p.productType, status: p.status, sizes: p.sizes || [], ambiguous: true };
+        });
+        this._live = { byCode: byCode, generatedAt: catalog.generatedAt, count: (catalog.products || []).length };
+        return true;
+    },
+    source: function () { return this._live ? 'live' : 'snapshot'; },
+    _storeFor: function (code) {
+        if (!code) return null;
+        if (this._live) return this._live.byCode[code] || null;
+        return this.STORE_BY_CODE[code] || null;
+    },
+
     // ===== Sizes =====
     //
     // The store spells one size four ways: "X-Small", "XS", "XSmall", and for the
@@ -134,7 +172,7 @@ var OnApparelConverter = {
         byHandle.forEach(function (p) {
             p.units = p.variants.reduce(function (t, v) { return t + v.quantity; }, 0);
             p.inStock = p.variants.filter(function (v) { return v.quantity > 0; }).length;
-            p.store = p.code ? (self.STORE_BY_CODE[p.code] || null) : null;
+            p.store = self._storeFor(p.code);
             p.gender = /1W/.test(p.code) ? "Women's" : /1M/.test(p.code) ? "Men's" : /1U/.test(p.code) ? 'Unisex' : '';
             products.push(p);
         });

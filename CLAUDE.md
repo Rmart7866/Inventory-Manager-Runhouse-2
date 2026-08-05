@@ -175,16 +175,13 @@ starts in its own lane rather than bending rules the live tool depends on.
 
 Consequences worth knowing:
 
-- **All 57 ON apparel products on the store are invisible to `/catalog`**, along
-  with 16 more sitting on `Athletic Footwear` / `Footwear` that the `/shoes$/i`
-  gate also misses. Widening that gate is the next phase, not done yet.
 - The page **never zeroes anything**. Apparel is not dropshipped yet (the goal is
   that it will be), so a garment missing from a scrape means nothing. Only what
   is in the file gets a row.
-- Nothing here reads or writes Shopify. It parses a scrape and downloads a CSV.
-- `OnApparelConverter.STORE_BY_CODE` is a hand-baked snapshot of the apparel
-  already on Shopify, keyed by ON article code, because there is no live catalog
-  to ask. **Delete it once apparel joins the catalog build**, do not maintain it.
+- The page reads `GET /catalog/apparel` and writes nothing.
+- `OnApparelConverter.STORE_BY_CODE` is a hand-baked snapshot of 15 products, now
+  only a **fallback** for when the Worker has no apparel catalog yet.
+  `useLiveCatalog()` supersedes it and the page says which source is in play.
 - Article codes route the two pipelines: footwear is `3xx`, apparel is `1xx`, and
   the second character is the gender (`3WF...` women's shoe, `1ME...` men's tee).
 - Apparel sizes are words, and the store spells one size up to four ways
@@ -205,6 +202,17 @@ column position. Files from that build look valid and are entirely wrong;
   Operation** (about 2 to 3 minutes, a ~120 MB JSONL file stream-parsed in
   `bulk.js`), because paging the store plus inventory levels is 250+ throttled
   requests. A fetch handler cannot run that, so the build lives in `scheduled()`.
+- **One build, two payloads, two KV keys.** `buildCatalog` returns
+  `{ footwear, apparel }` from the same pass, and `rebuild` writes footwear first
+  so a failed apparel write cannot disturb it. `classify()` decides which:
+  footwear is `shoes$` plus `Athletic Footwear` and `Footwear`; apparel is an
+  allowlist of garment types **and only supplier brands**, because half the store
+  is The Run House's own printed apparel. Everything else stays out of both.
+- **Watch the payload.** Measured 2026-08-05: the store is 17,469 products and
+  242,909 variants; footwear is 4,090 products and **12.76 MB**, against a KV
+  limit of 25 MB. Carrying the whole store would be roughly 4x and would not fit.
+  That is why apparel (1,397 products, 0.77 MB) is a separate key, and why any
+  future widening needs measuring first.
 - Two crons: daily at 09:00 UTC always rebuilds; every 5 minutes rebuilds only if
   the Refresh button set the flag. `?fresh=1` sets that flag and returns 202.
 - A failed rebuild keeps the previous catalog. Stale beats absent.

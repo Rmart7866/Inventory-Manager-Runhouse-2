@@ -12,7 +12,8 @@
     "test:auth": "node test/auth.mjs",
     "test:needham": "node test/needham.mjs",
     "test:known-set": "node test/known-set.mjs",
-    "test": "node test/auth.mjs && node test/needham.mjs && node test/known-set.mjs && node test/parity.mjs"
+    "test:apparel": "node test/apparel-catalog.mjs",
+    "test": "node test/auth.mjs && node test/needham.mjs && node test/known-set.mjs && node test/apparel-catalog.mjs && node test/parity.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.61.1"
