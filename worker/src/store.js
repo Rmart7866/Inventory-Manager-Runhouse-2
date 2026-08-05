@@ -53,15 +53,28 @@ export async function readCatalogMeta(env, scope) {
 }
 
 // KV metadata is capped at 1024 BYTES, which is small and easy to grow into
-// without noticing: the breakdowns in `counts` are maps keyed by product type and
-// brand, so they widen every time a supplier uses a new category. Over the cap the
-// put fails, the build throws, and the catalog silently stops updating, which is
-// the one failure this system is worst at showing. So metadata carries the scalar
-// counters only. The full breakdowns stay in the payload body, where they cost
-// nothing and nobody has to think about them.
+// without noticing. Over the cap the put fails, the build throws, and the catalog
+// silently stops updating, which is the one failure this system is worst at
+// showing, because a stale catalog still serves.
+//
+// The hazard is specifically an UNBOUNDED map. counts.byType is keyed by product
+// type and counts.byBrand by vendor, so both widen every time a supplier uses a
+// new category: they were 324 and 96 bytes on the first apparel build and there
+// is no ceiling on them. Those stay in the payload body only.
+//
+// A map with a fixed, known set of keys is not the hazard and is worth keeping,
+// because /catalog/status is the ONLY cheap way to read it. byStatus is the
+// example: Shopify has exactly three statuses, so it is about 50 bytes forever,
+// and it exists to make a drift like a bulk archive visible without pulling the
+// 12.76 MB body. Dropping it defeated the reason it is computed.
+const BOUNDED_MAPS = new Set(['byStatus']);
+
 function metaCounts(counts) {
   const out = {};
-  for (const [k, v] of Object.entries(counts || {})) if (typeof v !== 'object' || v === null) out[k] = v;
+  for (const [k, v] of Object.entries(counts || {})) {
+    if (typeof v !== 'object' || v === null) out[k] = v;
+    else if (BOUNDED_MAPS.has(k)) out[k] = v;
+  }
   return out;
 }
 
