@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 320px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      background: #fafafa;
+    }
+    
+    h3 {
+      margin: 0 0 20px 0;
+      color: #111827;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .btn {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 14px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      margin: 10px 0;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    
+    .btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+    }
+    
+    .btn:disabled {
+      background: #e5e7eb;
+      color: #9ca3af;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .btn.secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
+    
+    .btn.secondary:hover {
+      background: #e5e7eb;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn.fixed {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn.fixed:hover {
+      background: #218838;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.15);
+    }
+    
+    .status {
+      margin: 16px 0;
+      padding: 12px 16px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid;
+    }
+    
+    .success { 
+      background: #ecfdf5; 
+      color: #065f46; 
+      border-color: #10b981;
+    }
+    
+    .error { 
+      background: #fef2f2; 
+      color: #991b1b; 
+      border-color: #f87171;
+    }
+    
+    .info {
+      background: #eff6ff;
+      color: #1e40af;
+      border-color: #3b82f6;
+    }
+    
+    .fixed-info {
+      background: #d4edda;
+      color: #155724;
+      border-color: #28a745;
+    }
+    
+    .footer {
+      margin-top: 20px;
+      font-size: 11px;
+      color: #6b7280;
+      line-height: 1.5;
+      text-align: center;
+    }
+    
+    .logo {
+      color: #111827;
+      font-weight: 700;
+      font-size: 20px;
+    }
+    
+    .version {
+      font-size: 10px;
+      color: #9ca3af;
+      font-weight: 400;
+    }
+    
+    .fixed-badge {
+      background: #28a745;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <h3>
+    <span class="logo">PUMA</span> 
+    <span class="version">v2.1.0</span>
+    <span class="fixed-badge">FIXED</span>
+  </h3>
+  
+  <button id="exportBtn" class="btn fixed">Export Current Page (FIXED)</button>
+  <button id="watchingBtn" class="btn secondary">Manual Watching (FIXED)</button>
+  
+  <div id="status"></div>
+  
+  <div class="status fixed-info">
+    <strong>FIXED Issues:</strong><br>
+    ✅ Colors now in product names<br>
+    ✅ Proper Shopify CSV format<br>
+    ✅ Upload compatibility fixed
+  </div>
+  
+  <div class="footer">
+    Navigate to Puma B2B product pages. Use Manual Watching to scroll and capture products automatically, or export current page directly. 
+    <br><br>
+    <strong>FIXED:</strong> Now generates proper Shopify-compatible CSV files with colors in product names!
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

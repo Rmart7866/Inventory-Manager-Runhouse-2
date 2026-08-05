@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 380px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+      color: white;
+      margin: 0;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .header h3 {
+      margin: 0 0 5px 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .header p {
+      margin: 0;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    
+    .section {
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      opacity: 0.95;
+    }
+    
+    textarea {
+      width: 100%;
+      min-height: 80px;
+      padding: 10px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: monospace;
+      background: rgba(255,255,255,0.95);
+      color: #333;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+    
+    textarea::placeholder {
+      color: #999;
+    }
+    
+    .btn {
+      background: rgba(255,255,255,0.9);
+      color: #ff6b35;
+      border: 2px solid white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      margin: 8px 0;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    
+    .btn:hover {
+      background: white;
+      color: #e55a2b;
+      transform: translateY(-1px);
+    }
+    
+    .btn:active {
+      transform: translateY(0);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .status {
+      margin: 15px 0;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 500;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(10px);
+    }
+    
+    .success { 
+      background: rgba(76, 175, 80, 0.9);
+      border-color: rgba(76, 175, 80, 0.5);
+    }
+    
+    .error { 
+      background: rgba(244, 67, 54, 0.9);
+      border-color: rgba(244, 67, 54, 0.5);
+    }
+    
+    .info {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 10px;
+      font-size: 11px;
+      line-height: 1.4;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>🏃‍♂️ Shipping Form Filler</h3>
+    <p>Auto-fill B2B shipping forms from Shopify</p>
+  </div>
+  
+  <!-- SHIPPING FORM FILLER SECTION -->
+  <div class="section">
+    <div class="section-title">📦 Paste Shipping Info</div>
+    <textarea id="shippingInput" placeholder="Auto-loads from Shopify or paste manually:
+Bradley Bannister, 475 S 200 W, Hartford City Indiana 47348, United States, +17657021089"></textarea>
+    
+    <button id="fillFormBtn" class="btn">
+      Auto-Fill Form
+    </button>
+    
+    <div class="info">
+      <strong>Workflow:</strong><br>
+      1. On Shopify order page → Click "Copy for B2B Form"<br>
+      2. On B2B order form → Data auto-loads here → Click to fill
+    </div>
+  </div>
+  
+  <div id="status"></div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+/* New Balance Extension Styles */
+.nb-export-btn, .nb-settings-btn, .nb-auto-scraper-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    font-weight: bold !important;
+    cursor: pointer !important;
+    margin: 10px 0 !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
+    transition: all 0.3s ease !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+.nb-export-btn:hover, .nb-settings-btn:hover, .nb-auto-scraper-btn:hover {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3) !important;
+}
+
+.nb-export-success {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%) !important;
+    color: white !important;
+    padding: 15px 25px !important;
+    border-radius: 10px !important;
+    font-weight: bold !important;
+    z-index: 10000 !important;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2) !important;
+    animation: slideInRight 0.4s ease, pulse 2s infinite !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+}
+
+/* Enhanced modal styles for New Balance */
+.nb-modal {
+    backdrop-filter: blur(5px) !important;
+}
+
+.nb-modal-content {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+    border: 1px solid rgba(102, 126, 234, 0.2) !important;
+}
+
+/* Table highlighting for New Balance inventory tables */
+table.sc-iDsUSg.elFGTT {
+    border: 2px solid rgba(102, 126, 234, 0.3) !important;
+    border-radius: 8px !important;
+}
+
+table.sc-iDsUSg.elFGTT thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+}
+
+table.sc-iDsUSg.elFGTT tbody tr:hover {
+    background: rgba(102, 126, 234, 0.1) !important;
+}
+
+/* Quantity input highlighting */
+input.sc-lmrgJh.gQDDtx.StyledInput {
+    border: 2px solid rgba(102, 126, 234, 0.3) !important;
+    border-radius: 4px !important;
+}
+
+input.sc-lmrgJh.gQDDtx.StyledInput:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+}
+
+/* Progress indicators */
+.nb-progress-bar {
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%) !important;
+    border-radius: 10px !important;
+    height: 8px !important;
+    animation: progressGlow 2s ease-in-out infinite alternate !important;
+}
+
+/* Animations */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%) !important;
+        opacity: 0 !important;
+    }
+    to {
+        transform: translateX(0) !important;
+        opacity: 1 !important;
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1) !important;
+    }
+    50% {
+        transform: scale(1.02) !important;
+    }
+}
+
+@keyframes progressGlow {
+    from {
+        box-shadow: 0 0 5px rgba(102, 126, 234, 0.5) !important;
+    }
+    to {
+        box-shadow: 0 0 20px rgba(118, 75, 162, 0.8) !important;
+    }
+}
+
+/* Auto-scraper specific styles */
+.nb-auto-scraper-modal {
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 2px solid rgba(102, 126, 234, 0.3) !important;
+}
+
+/* Product highlighting when extension is active */
+.nb-product-detected {
+    outline: 3px solid rgba(102, 126, 234, 0.5) !important;
+    outline-offset: 2px !important;
+    border-radius: 8px !important;
+    animation: detectPulse 3s ease-in-out !important;
+}
+
+@keyframes detectPulse {
+    0%, 100% {
+        outline-color: rgba(102, 126, 234, 0.5) !important;
+    }
+    50% {
+        outline-color: rgba(118, 75, 162, 0.8) !important;
+    }
+}
+
+/* Settings panel enhancements */
+.nb-settings-panel input, .nb-settings-panel select, .nb-settings-panel textarea {
+    border: 2px solid rgba(102, 126, 234, 0.2) !important;
+    border-radius: 6px !important;
+    transition: border-color 0.3s ease !important;
+}
+
+.nb-settings-panel input:focus, .nb-settings-panel select:focus, .nb-settings-panel textarea:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+    outline: none !important;
+}
+
+/* Status indicators */
+.nb-status-ready {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+}
+
+.nb-status-processing {
+    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%) !important;
+}
+
+.nb-status-error {
+    background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%) !important;
+}
+
+/* Quantity cell highlighting based on availability */
+.nb-quantity-available {
+    background: rgba(40, 167, 69, 0.1) !important;
+    border-left: 4px solid #28a745 !important;
+}
+
+.nb-quantity-low {
+    background: rgba(255, 193, 7, 0.1) !important;
+    border-left: 4px solid #ffc107 !important;
+}
+
+.nb-quantity-empty {
+    background: rgba(220, 53, 69, 0.1) !important;
+    border-left: 4px solid #dc3545 !important;
+}

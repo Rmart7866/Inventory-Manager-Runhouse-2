@@ -1,0 +1,143 @@
+/* styles.css - Brooks FastTrack Scraper */
+
+/* Auto-Scraper Button with toggle functionality */
+.brooks-auto-scraper-btn {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  z-index: 10000 !important;
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+  color: white !important;
+  border: none !important;
+  padding: 12px 44px 12px 20px !important; /* Extra padding-right for close button */
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3) !important;
+  transition: all 0.3s ease !important;
+  backdrop-filter: blur(10px) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  min-width: 140px !important;
+  text-align: center !important;
+}
+
+.brooks-auto-scraper-btn:hover {
+  background: linear-gradient(135deg, #0056b3 0%, #004085 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4) !important;
+}
+
+.brooks-auto-scraper-btn:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3) !important;
+}
+
+/* Reopen Button (shown when scraper is hidden) - Circular Refresh Icon */
+.brooks-reopen-btn {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  z-index: 10000 !important;
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%) !important;
+  color: white !important;
+  border: none !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 3px 12px rgba(40, 167, 69, 0.4) !important;
+  transition: all 0.2s ease !important;
+  backdrop-filter: blur(10px) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.brooks-reopen-btn:hover {
+  background: linear-gradient(135deg, #1e7e34 0%, #155724 100%) !important;
+  transform: rotate(180deg) scale(1.15) !important;
+  box-shadow: 0 5px 18px rgba(40, 167, 69, 0.6) !important;
+}
+
+.brooks-reopen-btn:active {
+  transform: rotate(180deg) scale(1) !important;
+  box-shadow: 0 3px 12px rgba(40, 167, 69, 0.4) !important;
+}
+
+/* Legacy export button styles (kept for compatibility) */
+.brooks-export-btn {
+    background: #1a1a1a !important;
+    color: white !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    font-weight: bold !important;
+    cursor: pointer !important;
+    margin: 10px 0 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    transition: all 0.2s ease !important;
+    z-index: 10000 !important;
+    position: relative !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  }
+  
+  .brooks-export-btn:hover {
+    background: #333 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+  }
+  
+  .brooks-export-btn:active {
+    transform: translateY(0) !important;
+    background: #000 !important;
+  }
+  
+  .brooks-export-success {
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    background: #1a1a1a !important;
+    color: white !important;
+    padding: 12px 20px !important;
+    border-radius: 6px !important;
+    font-weight: bold !important;
+    z-index: 10000 !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    animation: slideIn 0.3s ease !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    border: 2px solid #333 !important;
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%) !important;
+      opacity: 0 !important;
+    }
+    to {
+      transform: translateX(0) !important;
+      opacity: 1 !important;
+    }
+  }
+  
+  /* Additional styling for Brooks-specific elements */
+  .brooks-export-btn::before {
+    content: "🏃‍♂️ " !important;
+    margin-right: 8px !important;
+  }
+  
+  /* Make sure button is visible on Brooks' dark interface */
+  .config-strip-toolbar .brooks-export-btn {
+    background: #ff6b35 !important;
+    border: 2px solid #fff !important;
+  }
+  
+  .config-strip-toolbar .brooks-export-btn:hover {
+    background: #e55a2b !important;
+  }

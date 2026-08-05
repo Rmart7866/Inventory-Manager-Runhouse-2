@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "New Balance Inventory Exporter",
+  "version": "1.1.0",
+  "description": "Export New Balance B2B inventory data to Shopify CSV format with enhanced structure-based extraction",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.newbalance.com/*",
+    "*://*.nb.com/*",
+    "*://newbalance.com/*",
+    "*://nb.com/*",
+    "*://b2b.newbalance.com/*",
+    "*://newbalanceus.elasticsuite.com/*",
+    "*://*.newbalanceus.elasticsuite.com/*",
+    "*://*.newbalanceb2b.com/*",
+    "*://newbalanceb2b.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.newbalance.com/*",
+        "*://*.nb.com/*",
+        "*://newbalance.com/*",
+        "*://nb.com/*",
+        "*://b2b.newbalance.com/*",
+        "*://newbalanceus.elasticsuite.com/*",
+        "*://*.newbalanceus.elasticsuite.com/*",
+        "*://*.newbalanceb2b.com/*",
+        "*://newbalanceb2b.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "New Balance Inventory Exporter"
+  }
+}

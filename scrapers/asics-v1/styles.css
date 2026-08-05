@@ -1,0 +1,490 @@
+/* ASICS Extension Clean Button Styles - Professional Design */
+
+/* Auto-Scraper Button */
+.asics-auto-scraper-btn {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  z-index: 10000 !important;
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+  color: white !important;
+  border: none !important;
+  padding: 12px 44px 12px 20px !important; /* Extra padding-right for close button */
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3) !important;
+  transition: all 0.3s ease !important;
+  backdrop-filter: blur(10px) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  min-width: 140px !important;
+  text-align: center !important;
+}
+
+.asics-auto-scraper-btn:hover {
+  background: linear-gradient(135deg, #0056b3 0%, #004085 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4) !important;
+}
+
+.asics-auto-scraper-btn:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3) !important;
+}
+
+/* Reopen Button (shown when scraper is hidden) - Circular Refresh Icon */
+.asics-reopen-btn {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  z-index: 10000 !important;
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%) !important;
+  color: white !important;
+  border: none !important;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 3px 12px rgba(40, 167, 69, 0.4) !important;
+  transition: all 0.2s ease !important;
+  backdrop-filter: blur(10px) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.asics-reopen-btn:hover {
+  background: linear-gradient(135deg, #1e7e34 0%, #155724 100%) !important;
+  transform: rotate(180deg) scale(1.15) !important;
+  box-shadow: 0 5px 18px rgba(40, 167, 69, 0.6) !important;
+}
+
+.asics-reopen-btn:active {
+  transform: rotate(180deg) scale(1) !important;
+  box-shadow: 0 3px 12px rgba(40, 167, 69, 0.4) !important;
+}
+
+/* Settings Button */
+.asics-settings-btn {
+  position: fixed !important;
+  top: 70px !important;
+  right: 20px !important;
+  z-index: 10000 !important;
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%) !important;
+  color: white !important;
+  border: none !important;
+  padding: 8px 16px !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3) !important;
+  transition: all 0.3s ease !important;
+  backdrop-filter: blur(10px) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  min-width: 80px !important;
+  text-align: center !important;
+}
+
+.asics-settings-btn:hover {
+  background: linear-gradient(135deg, #495057 0%, #343a40 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4) !important;
+}
+
+.asics-settings-btn:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3) !important;
+}
+
+/* Success Notification */
+.asics-export-success {
+  position: fixed !important;
+  top: 120px !important;
+  right: 20px !important;
+  z-index: 10000 !important;
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%) !important;
+  color: white !important;
+  padding: 12px 16px !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3) !important;
+  max-width: 300px !important;
+  word-wrap: break-word !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  animation: slideInRight 0.3s ease !important;
+}
+
+/* Progress Modal */
+.asics-auto-scraper-modal {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  z-index: 30000 !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  padding: 20px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+  min-width: 300px !important;
+  max-width: 400px !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Modal Content Styles */
+.asics-auto-scraper-modal h4 {
+  margin: 0 0 15px 0 !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #333 !important;
+}
+
+.asics-auto-scraper-modal div {
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+}
+
+/* Progress Bar Container */
+.asics-progress-container {
+  margin-bottom: 15px !important;
+}
+
+.asics-progress-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 8px !important;
+}
+
+.asics-progress-label {
+  font-size: 13px !important;
+  color: #666 !important;
+  font-weight: 500 !important;
+}
+
+.asics-progress-percent {
+  font-size: 13px !important;
+  color: #666 !important;
+  font-weight: 600 !important;
+}
+
+.asics-progress-track {
+  background: #e9ecef !important;
+  height: 8px !important;
+  border-radius: 4px !important;
+  overflow: hidden !important;
+}
+
+.asics-progress-fill {
+  background: linear-gradient(90deg, #007bff, #0056b3) !important;
+  height: 100% !important;
+  width: 0% !important;
+  transition: width 0.5s ease !important;
+  border-radius: 4px !important;
+}
+
+/* Status Grid */
+.asics-status-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  margin-bottom: 15px !important;
+}
+
+.asics-status-card {
+  background: rgba(255, 255, 255, 0.8) !important;
+  padding: 12px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.asics-status-label {
+  font-size: 11px !important;
+  color: #666 !important;
+  text-transform: uppercase !important;
+  margin-bottom: 4px !important;
+  font-weight: 500 !important;
+}
+
+.asics-status-value {
+  font-size: 13px !important;
+  color: #333 !important;
+  font-weight: 500 !important;
+}
+
+.asics-status-value.format {
+  color: #007bff !important;
+}
+
+.asics-status-value.success {
+  color: #28a745 !important;
+}
+
+.asics-status-value.warning {
+  color: #ffc107 !important;
+}
+
+.asics-status-value.error {
+  color: #dc3545 !important;
+}
+
+/* Current URL Card */
+.asics-current-url-card {
+  background: rgba(255, 255, 255, 0.8) !important;
+  padding: 12px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  margin-bottom: 15px !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.asics-current-url {
+  font-size: 12px !important;
+  color: #333 !important;
+  word-break: break-all !important;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace !important;
+}
+
+/* Animations */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%) !important;
+    opacity: 0 !important;
+  }
+  to {
+    transform: translateX(0) !important;
+    opacity: 1 !important;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0) !important;
+    opacity: 1 !important;
+  }
+  to {
+    transform: translateX(100%) !important;
+    opacity: 0 !important;
+  }
+}
+
+/* Button ripple effect on click */
+.asics-auto-scraper-btn::after,
+.asics-settings-btn::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: 0 !important;
+  height: 0 !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.3) !important;
+  transform: translate(-50%, -50%) !important;
+  transition: width 0.6s, height 0.6s !important;
+  pointer-events: none !important;
+}
+
+.asics-auto-scraper-btn:active::after,
+.asics-settings-btn:active::after {
+  width: 200px !important;
+  height: 200px !important;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+  .asics-auto-scraper-btn,
+  .asics-settings-btn {
+    right: 15px !important;
+    padding: 10px 16px !important;
+    font-size: 13px !important;
+    min-width: 100px !important;
+  }
+  
+  .asics-export-success {
+    right: 15px !important;
+    max-width: 280px !important;
+    padding: 10px 14px !important;
+    font-size: 12px !important;
+  }
+  
+  .asics-auto-scraper-modal {
+    right: 15px !important;
+    left: 15px !important;
+    width: auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+  }
+  
+  .asics-status-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Focus states for accessibility */
+.asics-auto-scraper-btn:focus,
+.asics-settings-btn:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.5) !important;
+}
+
+/* Disabled state */
+.asics-auto-scraper-btn:disabled,
+.asics-settings-btn:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.asics-auto-scraper-btn:disabled:hover,
+.asics-settings-btn:disabled:hover {
+  transform: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Loading state */
+.asics-loading {
+  position: relative !important;
+  color: transparent !important;
+}
+
+.asics-loading::after {
+  content: "" !important;
+  position: absolute !important;
+  width: 16px !important;
+  height: 16px !important;
+  top: 50% !important;
+  left: 50% !important;
+  margin-left: -8px !important;
+  margin-top: -8px !important;
+  border: 2px solid transparent !important;
+  border-top-color: currentColor !important;
+  border-radius: 50% !important;
+  animation: spin 1s linear infinite !important;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg) !important;
+  }
+  100% {
+    transform: rotate(360deg) !important;
+  }
+}
+
+/* Glass morphism effect for modern look */
+.asics-auto-scraper-btn,
+.asics-settings-btn {
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
+
+/* Dark mode compatibility */
+@media (prefers-color-scheme: dark) {
+  .asics-auto-scraper-modal {
+    background: rgba(17, 24, 39, 0.95) !important;
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+  
+  .asics-status-card,
+  .asics-current-url-card {
+    background: rgba(31, 41, 55, 0.8) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+  
+  .asics-status-label {
+    color: #9ca3af !important;
+  }
+  
+  .asics-status-value {
+    color: #f9fafb !important;
+  }
+  
+  .asics-current-url {
+    color: #e5e7eb !important;
+  }
+  
+  .asics-progress-track {
+    background: #374151 !important;
+  }
+}
+
+/* Ensure buttons stay above all ASICS page elements */
+.asics-auto-scraper-btn,
+.asics-settings-btn,
+.asics-export-success,
+.asics-auto-scraper-modal {
+  z-index: 2147483647 !important; /* Maximum z-index value */
+}
+
+/* Modal specific styles */
+.asics-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  z-index: 20000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.asics-modal-content {
+  background: white !important;
+  padding: 30px !important;
+  border-radius: 10px !important;
+  max-width: 700px !important;
+  width: 90% !important;
+  max-height: 80% !important;
+  overflow-y: auto !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Button styles within modals */
+.asics-modal-button {
+  background: #007bff !important;
+  color: white !important;
+  border: none !important;
+  padding: 12px 24px !important;
+  border-radius: 5px !important;
+  cursor: pointer !important;
+  font-weight: bold !important;
+  margin-right: 10px !important;
+  transition: background-color 0.3s ease !important;
+}
+
+.asics-modal-button:hover {
+  background: #0056b3 !important;
+}
+
+.asics-modal-button.success {
+  background: #28a745 !important;
+}
+
+.asics-modal-button.success:hover {
+  background: #1e7e34 !important;
+}
+
+.asics-modal-button.secondary {
+  background: #6c757d !important;
+}
+
+.asics-modal-button.secondary:hover {
+  background: #545b62 !important;
+}

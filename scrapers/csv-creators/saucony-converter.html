@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saucony Shopify CSV Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            padding: 50px 30px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 15px;
+        }
+        
+        .header p {
+            font-size: 18px;
+            color: #6e6e73;
+        }
+        
+        .converter-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            padding: 30px;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #dee2e6;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .drop-zone:hover {
+            border-color: #FF6B35;
+            background: #fff5f2;
+        }
+        
+        .drop-zone.dragover {
+            border-color: #28a745;
+            background: #e8f5e9;
+            transform: scale(1.02);
+        }
+        
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .drop-zone h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 8px;
+        }
+        
+        .drop-zone p {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .uploaded-file {
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            display: none;
+            color: white;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .uploaded-file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .uploaded-file strong {
+            font-size: 14px;
+        }
+        
+        .clear-btn {
+            background: rgba(255, 255, 255, 0.3);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .clear-btn:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+        
+        .convert-section {
+            display: none;
+            margin-top: 15px;
+        }
+        
+        .convert-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .convert-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 107, 53, 0.4);
+        }
+        
+        .convert-btn:active {
+            transform: translateY(0);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 12px;
+            margin: 15px 0;
+            display: none;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .download-section {
+            display: none;
+            margin-top: 15px;
+        }
+        
+        .download-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #28a745 0%, #34ce57 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(40, 167, 69, 0.4);
+        }
+        
+        .download-btn:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🟠 SAUCONY</h1>
+            <p>Shopify CSV Converter</p>
+        </div>
+        
+        <div class="converter-card">
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📁</div>
+                <h3>Drop Saucony File Here</h3>
+                <p>or click to browse</p>
+            </div>
+            <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls,.csv,.txt">
+            
+            <div class="uploaded-file" id="uploadedFile">
+                <div class="uploaded-file-info">
+                    <span>📄</span>
+                    <strong id="fileName"></strong>
+                </div>
+                <button class="clear-btn" onclick="clearFile()">Clear</button>
+            </div>
+            
+            <div class="convert-section" id="convertSection">
+                <button class="convert-btn" id="convertBtn" onclick="convertFile()">
+                    Convert Saucony File
+                </button>
+            </div>
+            
+            <div class="status" id="status"></div>
+            
+            <div class="download-section" id="downloadSection">
+                <button class="download-btn" onclick="downloadFile('products')">
+                    ⬇️ Download Products CSV
+                </button>
+                <button class="download-btn" onclick="downloadFile('inventory')">
+                    ⬇️ Download Inventory CSV
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let uploadedFile = null;
+        let productsData = [];
+        let inventoryData = [];
+        let productsCSV = '';
+        let inventoryCSV = '';
+        
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadedFileDiv = document.getElementById('uploadedFile');
+        const convertSection = document.getElementById('convertSection');
+        const statusDiv = document.getElementById('status');
+        const downloadSection = document.getElementById('downloadSection');
+        
+        // Saucony Product Prices
+        const sauconyProductPrices = {
+            'Endorphin Pro 4': 240,
+            'Endorphin Elite 2': 290,
+            'Guide 18': 150,
+            'Ride 18': 145,
+            'Triumph 23': 170,
+            'Triumph 23 GTX': 190
+        };
+
+        // Saucony Product Descriptions
+        const sauconyProductDescriptions = {
+            'Endorphin Pro 4': 'Elite carbon-plated racing shoe featuring revolutionary dual-foam technology with PWRRUN HG and PWRRUN PB foam for maximum energy return. Engineered for marathon and half-marathon racing with an 8mm drop and weighing just 7.5oz. The full-length carbon fiber plate and SPEEDROLL technology deliver explosive propulsion while maintaining exceptional comfort for long-distance performance.',
+            'Endorphin Elite 2': 'Ultimate racing shoe with full PWRRUN HG foam midsole delivering unmatched energy return. Features aggressive carbon plate geometry and ultralight construction. Designed for elite runners seeking maximum performance in races from 5K to marathon.',
+            'Guide 18': 'Stability daily trainer featuring CenterPath Technology for natural support and guidance. PWRRUN foam cushioning with 6mm drop provides comfortable protection for daily miles. The engineered mesh upper offers breathability while the stability features help control pronation.',
+            'Ride 18': 'Versatile neutral daily trainer with PWRRUN+ cushioning for responsive comfort. Features 8mm drop for a natural stride. Enhanced breathability and durability make it perfect for daily training, long runs, and everything in between.',
+            'Triumph 23': 'Premium max-cushioned trainer featuring soft and responsive PWRRUN PB foam for ultimate comfort. 10mm drop with 37mm heel stack provides plush protection for long runs. Features Super Responsive Sockliner for added energy return.',
+            'Triumph 23 GTX': 'Waterproof version of the premium max-cushioned Triumph 23 featuring GORE-TEX protection. Soft and responsive PWRRUN PB foam provides plush protection in any weather.'
+        };
+        
+        function getSauconyProductPrice(productName) {
+            if (!productName) return 140;
+            for (let key in sauconyProductPrices) {
+                if (productName.toLowerCase() === key.toLowerCase()) {
+                    return sauconyProductPrices[key];
+                }
+            }
+            for (let key in sauconyProductPrices) {
+                if (productName.toLowerCase().includes(key.toLowerCase())) {
+                    return sauconyProductPrices[key];
+                }
+            }
+            return 140;
+        }
+
+        function getSauconyProductDescription(productName) {
+            if (!productName) return 'High-performance Saucony running shoe.';
+            for (let key in sauconyProductDescriptions) {
+                if (productName.toLowerCase() === key.toLowerCase()) {
+                    return sauconyProductDescriptions[key];
+                }
+            }
+            for (let key in sauconyProductDescriptions) {
+                if (productName.toLowerCase().includes(key.toLowerCase())) {
+                    return sauconyProductDescriptions[key];
+                }
+            }
+            return 'High-performance Saucony running shoe designed for optimal comfort and performance.';
+        }
+        
+        function formatSauconyProductName(name) {
+            if (!name) return name;
+            const specialCases = {
+                'endorphin pro': 'Endorphin Pro',
+                'endorphin elite': 'Endorphin Elite',
+                'guide': 'Guide',
+                'ride': 'Ride',
+                'triumph': 'Triumph',
+                'gtx': 'GTX'
+            };
+            let formatted = name.toLowerCase();
+            for (let [key, value] of Object.entries(specialCases)) {
+                const regex = new RegExp('\\b' + key + '\\b', 'gi');
+                formatted = formatted.replace(regex, value);
+            }
+            formatted = formatted.replace(/\b\w/g, l => l.toUpperCase());
+            formatted = formatted.replace(/\s+(\d+)/g, ' $1');
+            return formatted;
+        }
+        
+        function formatSauconyColorName(color) {
+            if (!color) return color;
+            return color.toLowerCase()
+                .split(/[\s\/-]+/)
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        }
+        
+        // Event handlers
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            uploadedFile = file;
+            document.getElementById('fileName').textContent = file.name;
+            uploadedFileDiv.style.display = 'flex';
+            convertSection.style.display = 'block';
+            dropZone.style.display = 'none';
+            hideStatus();
+        }
+        
+        function clearFile() {
+            uploadedFile = null;
+            productsData = [];
+            inventoryData = [];
+            productsCSV = '';
+            inventoryCSV = '';
+            fileInput.value = '';
+            uploadedFileDiv.style.display = 'none';
+            convertSection.style.display = 'none';
+            downloadSection.style.display = 'none';
+            dropZone.style.display = 'flex';
+            hideStatus();
+        }
+        
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.style.display = 'block';
+        }
+        
+        function hideStatus() {
+            statusDiv.style.display = 'none';
+        }
+        
+        async function convertFile() {
+            if (!uploadedFile) {
+                showStatus('Please select a file first!', 'error');
+                return;
+            }
+            
+            showStatus('Converting...', 'success');
+            
+            try {
+                await convertSaucony(uploadedFile);
+                showStatus('Conversion successful! Ready to download.', 'success');
+                downloadSection.style.display = 'block';
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+                console.error('Conversion error:', error);
+            }
+        }
+        
+        async function convertSaucony(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer);
+            
+            let sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                header: 1,
+                range: 1
+            });
+            
+            const products = jsonData.filter(row => row && row[1] && row[1] !== null && row[1] !== "");
+            
+            const shopifyProducts = [];
+            const shopifyInventory = [];
+            
+            for (let rowIndex = 0; rowIndex < products.length; rowIndex++) {
+                const product = products[rowIndex];
+                const styleNumber = product[1];
+                const productName = product[2];
+                const color = product[3];
+                const gender = product[4];
+                const width = product[7] || 'M';
+                
+                if (!productName || productName.toString().toLowerCase().includes('product name')) {
+                    continue;
+                }
+                
+                const isEndorphinElite = productName && productName.toString().toLowerCase().includes('endorphin elite');
+                
+                const formattedProductName = formatSauconyProductName(productName);
+                const formattedColorName = formatSauconyColorName(color);
+                
+                let genderPrefix = '';
+                let sizeColumns = [];
+                
+                if (isEndorphinElite) {
+                    genderPrefix = "Unisex ";
+                    sizeColumns = [
+                        {col: 8, size: "M3.5/W5.0"}, {col: 9, size: "M4.0/W5.5"}, {col: 10, size: "M4.5/W6.0"},
+                        {col: 11, size: "M5.0/W6.5"}, {col: 12, size: "M5.5/W7.0"}, {col: 13, size: "M6.0/W7.5"},
+                        {col: 14, size: "M6.5/W8.0"}, {col: 15, size: "M7.0/W8.5"}, {col: 16, size: "M7.5/W9.0"},
+                        {col: 17, size: "M8.0/W9.5"}, {col: 18, size: "M8.5/W10.0"}, {col: 19, size: "M9.0/W10.5"},
+                        {col: 20, size: "M9.5/W11.0"}, {col: 21, size: "M10.0/W11.5"}, {col: 22, size: "M10.5/W12.0"},
+                        {col: 23, size: "M11.0/W12.5"}, {col: 24, size: "M11.5/W13.0"}, {col: 25, size: "M12.0/W13.5"},
+                        {col: 26, size: "M12.5/W14.0"}, {col: 27, size: "M13.0/W14.5"}, {col: 28, size: "M13.5/W15.0"},
+                        {col: 29, size: "M14.0/W15.5"}
+                    ];
+                } else if (gender && gender.toString().toLowerCase().includes('women')) {
+                    genderPrefix = "Women's ";
+                    sizeColumns = [
+                        {col: 9, size: "5.0"}, {col: 10, size: "5.5"}, {col: 11, size: "6.0"},
+                        {col: 12, size: "6.5"}, {col: 13, size: "7.0"}, {col: 14, size: "7.5"},
+                        {col: 15, size: "8.0"}, {col: 16, size: "8.5"}, {col: 17, size: "9.0"},
+                        {col: 18, size: "9.5"}, {col: 19, size: "10.0"}, {col: 20, size: "10.5"},
+                        {col: 21, size: "11.0"}, {col: 22, size: "11.5"}, {col: 23, size: "12.0"}
+                    ];
+                } else {
+                    genderPrefix = "Men's ";
+                    sizeColumns = [
+                        {col: 8, size: "7.0"}, {col: 9, size: "7.5"}, {col: 10, size: "8.0"},
+                        {col: 11, size: "8.5"}, {col: 12, size: "9.0"}, {col: 13, size: "9.5"},
+                        {col: 14, size: "10.0"}, {col: 15, size: "10.5"}, {col: 16, size: "11.0"},
+                        {col: 17, size: "11.5"}, {col: 18, size: "12.0"}, {col: 19, size: "12.5"},
+                        {col: 20, size: "13.0"}, {col: 21, size: "14.0"}, {col: 22, size: "15.0"}
+                    ];
+                }
+                
+                const productTitle = genderPrefix + "Saucony " + formattedProductName + " - " + formattedColorName;
+                const handle = (formattedProductName + "-" + formattedColorName).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                const price = getSauconyProductPrice(productName);
+                const description = getSauconyProductDescription(productName);
+                
+                const finalDescription = isEndorphinElite 
+                    ? description + " Unisex sizing with both Men's and Women's size equivalents (M3.5/W5.0 - M14.0/W15.5)."
+                    : description;
+                
+                let isFirstVariant = true;
+                
+                for (let sizeInfo of sizeColumns) {
+                    const quantity = product[sizeInfo.col];
+                    if (!quantity && quantity !== 0) continue;
+                    
+                    const actualQuantity = quantity === "100+" ? 100 : parseInt(quantity) || 0;
+                    const variantSKU = styleNumber + '-' + sizeInfo.size.replace(/\//g, '-');
+                    
+                    shopifyProducts.push({
+                        'Handle': handle,
+                        'Title': isFirstVariant ? productTitle : '',
+                        'Body (HTML)': isFirstVariant ? '<p>' + finalDescription + '</p>' : '',
+                        'Vendor': isFirstVariant ? 'Saucony' : '',
+                        'Product Category': isFirstVariant ? 'Athletic Shoes' : '',
+                        'Type': isFirstVariant ? 'Running Shoes' : '',
+                        'Tags': isFirstVariant ? genderPrefix.trim() + ', ' + productName + ', ' + color + (isEndorphinElite ? ', Unisex' : '') : '',
+                        'Published': isFirstVariant ? 'FALSE' : '',
+                        'Option1 Name': isFirstVariant ? 'Size' : '',
+                        'Option1 Value': sizeInfo.size,
+                        'Option2 Name': '',
+                        'Option2 Value': '',
+                        'Option3 Name': '',
+                        'Option3 Value': '',
+                        'Variant SKU': variantSKU,
+                        'Variant Grams': 280,
+                        'Variant Inventory Tracker': 'shopify',
+                        'Variant Inventory Qty': actualQuantity,
+                        'Variant Inventory Policy': 'deny',
+                        'Variant Fulfillment Service': 'manual',
+                        'Variant Price': price.toFixed(2),
+                        'Variant Compare At Price': (price * 1.2).toFixed(2),
+                        'Variant Requires Shipping': 'TRUE',
+                        'Variant Taxable': 'FALSE',
+                        'Variant Barcode': '',
+                        'Image Src': '',
+                        'Image Position': '',
+                        'Image Alt Text': '',
+                        'Gift Card': 'FALSE',
+                        'SEO Title': '',
+                        'SEO Description': '',
+                        'Google Shopping / Google Product Category': '',
+                        'Google Shopping / Gender': '',
+                        'Google Shopping / Age Group': '',
+                        'Google Shopping / MPN': '',
+                        'Google Shopping / Condition': '',
+                        'Google Shopping / Custom Product': '',
+                        'Variant Image': '',
+                        'Variant Weight Unit': 'g',
+                        'Variant Tax Code': '',
+                        'Cost per item': '',
+                        'Included / United States': '',
+                        'Price / United States': '',
+                        'Compare At Price / United States': '',
+                        'Included / International': '',
+                        'Price / International': '',
+                        'Compare At Price / International': '',
+                        'Status': isFirstVariant ? 'draft' : ''
+                    });
+                    
+                    shopifyInventory.push({
+                        'Handle': handle,
+                        'Title': productTitle,
+                        'Option1 Name': 'Size',
+                        'Option1 Value': sizeInfo.size,
+                        'Option2 Name': '',
+                        'Option2 Value': '',
+                        'Option3 Name': '',
+                        'Option3 Value': '',
+                        'SKU': variantSKU,
+                        'Barcode': '',
+                        'HS Code': '',
+                        'COO': '',
+                        'Location': 'Needham',
+                        'Bin name': '',
+                        'Incoming (not editable)': '',
+                        'Unavailable (not editable)': '',
+                        'Committed (not editable)': '',
+                        'Available (not editable)': '',
+                        'On hand (current)': '',
+                        'On hand (new)': actualQuantity
+                    });
+                    
+                    isFirstVariant = false;
+                }
+            }
+            
+            productsData = shopifyProducts;
+            inventoryData = shopifyInventory;
+            productsCSV = Papa.unparse(shopifyProducts);
+            
+            // Format inventory CSV
+            const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
+                           '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
+                           '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
+                           '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
+            
+            const csvRows = [inventoryHeaders.join(',')];
+            
+            shopifyInventory.forEach(row => {
+                const csvRow = [
+                    row.Handle,
+                    `"${row.Title}"`,
+                    row['Option1 Name'],
+                    row['Option1 Value'],
+                    row['Option2 Name'] || '',
+                    row['Option2 Value'] || '',
+                    row['Option3 Name'] || '',
+                    row['Option3 Value'] || '',
+                    row.SKU,
+                    row.Barcode,
+                    '', '',
+                    row.Location,
+                    '', '', '', '', '', '',
+                    row['On hand (new)']
+                ];
+                csvRows.push(csvRow.join(','));
+            });
+            
+            inventoryCSV = csvRows.join('\n');
+        }
+        
+        function downloadFile(type) {
+            const date = new Date().toISOString().split('T')[0];
+            const csvData = type === 'products' ? productsCSV : inventoryCSV;
+            const filename = `saucony-${type}-${date}.csv`;
+            
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>

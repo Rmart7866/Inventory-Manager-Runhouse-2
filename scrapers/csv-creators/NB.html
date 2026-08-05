@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Balance Product Filter - Shopify CSV Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #ffcc00 0%, #ff9900 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #ffcc00 0%, #ff9900 100%);
+            padding: 40px 30px;
+            color: white;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .filter-section {
+            background: #f8f9fa;
+            padding: 25px 30px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .filter-section h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 15px;
+        }
+        
+        .product-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        
+        .product-chip {
+            background: white;
+            border: 2px solid #e60012;
+            border-radius: 25px;
+            padding: 10px 16px;
+            text-align: center;
+            font-weight: 500;
+            color: #e60012;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .product-chip:hover {
+            background: #e60012;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(230, 0, 18, 0.3);
+        }
+        
+        .product-chip .count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #28a745;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            display: none;
+        }
+        
+        .product-chip.has-data .count {
+            display: flex;
+        }
+        
+        .main-content {
+            padding: 30px;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #dee2e6;
+            border-radius: 15px;
+            padding: 60px 30px;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .drop-zone:hover {
+            border-color: #e60012;
+            background: #fff5f5;
+        }
+        
+        .drop-zone.dragover {
+            border-color: #28a745;
+            background: #e8f5e9;
+            transform: scale(1.02);
+        }
+        
+        .drop-zone-icon {
+            font-size: 48px;
+            color: #e60012;
+            margin-bottom: 20px;
+        }
+        
+        .drop-zone h3 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 10px;
+        }
+        
+        .drop-zone p {
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        
+        .drop-zone small {
+            color: #adb5bd;
+            font-size: 13px;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .uploaded-file {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+        }
+        
+        .uploaded-file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .uploaded-file-icon {
+            font-size: 32px;
+        }
+        
+        .uploaded-file strong {
+            display: block;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        
+        .uploaded-file small {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .status {
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            font-weight: 500;
+            display: none;
+        }
+        
+        .status.processing {
+            background: linear-gradient(135deg, #e60012 0%, #333333 100%);
+            color: white;
+        }
+        
+        .status.success {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            color: white;
+        }
+        
+        .status.error {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .status.warning {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+        
+        .debug-section {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .debug-section h4 {
+            margin-bottom: 10px;
+            color: #495057;
+        }
+        
+        .debug-output {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #e60012 0%, #b30010 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(230, 0, 18, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(230, 0, 18, 0.4);
+        }
+        
+        button:disabled {
+            background: #dee2e6;
+            color: #adb5bd;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        
+        button.remove-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        button.download-btn {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            margin: 10px 10px 10px 0;
+        }
+        
+        .download-section {
+            display: none;
+            margin-top: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+        
+        .download-section h3 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 25px;
+            color: #212529;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #e60012;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .label {
+            color: #6c757d;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .file-info {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        .file-info strong {
+            display: block;
+            margin-bottom: 6px;
+            color: #212529;
+            font-size: 16px;
+        }
+        
+        .file-info small {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .preview {
+            background: #212529;
+            color: #00ff00;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .preview h4 {
+            color: #00ff00;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .product-list {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>New Balance Product Filter</h1>
+            <p>Convert selected New Balance products to Shopify-compatible CSV format</p>
+        </div>
+        
+        <div class="filter-section">
+            <h3>Products to Include</h3>
+            <div class="product-list">
+                <div class="product-chip" data-product="Rebel V5">
+                    Rebel V5
+                    <span class="count">0</span>
+                </div>
+                <div class="product-chip" data-product="880v15">
+                    880v15
+                    <span class="count">0</span>
+                </div>
+                <div class="product-chip" data-product="860v14">
+                    860v14
+                    <span class="count">0</span>
+                </div>
+                <div class="product-chip" data-product="1080v14">
+                    1080v14
+                    <span class="count">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📁</div>
+                <h3>Drop your New Balance inventory file here</h3>
+                <p>or click to browse files</p>
+                <small>Supports .txt, .tsv, .csv, or .xlsx files</small>
+            </div>
+            
+            <input type="file" id="fileInput" class="file-input" accept=".txt,.tsv,.csv,.xlsx,.xls" />
+            
+            <div id="uploadedFile" class="uploaded-file">
+                <div class="uploaded-file-info">
+                    <div class="uploaded-file-icon">📄</div>
+                    <div>
+                        <strong id="fileName"></strong>
+                        <small id="fileSize"></small>
+                    </div>
+                </div>
+                <button onclick="clearFile()" class="remove-btn">Remove</button>
+            </div>
+            
+            <div id="debugSection" class="debug-section">
+                <h4>Debug Information</h4>
+                <div id="debugOutput" class="debug-output"></div>
+            </div>
+            
+            <div id="convertSection" style="display: none; text-align: center; margin: 30px 0;">
+                <button onclick="convertFile()" id="convertBtn">
+                    <span id="convertBtnText">Convert to Shopify CSV</span>
+                </button>
+            </div>
+            
+            <div id="status" class="status"></div>
+            
+            <div id="downloadSection" class="download-section">
+                <h3>Conversion Results</h3>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="number" id="totalProducts">0</div>
+                        <div class="label">Total Products</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="totalVariants">0</div>
+                        <div class="label">Total Variants</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="totalFiltered">0</div>
+                        <div class="label">Filtered Items</div>
+                    </div>
+                </div>
+                
+                <div class="file-info">
+                    <strong>All Products CSV</strong>
+                    <small>Contains all filtered products with complete information for Shopify import</small>
+                </div>
+                <button onclick="downloadProducts()" class="download-btn">Download All Products CSV</button>
+                
+                <div class="file-info">
+                    <strong>Products by Gender & Model</strong>
+                    <small>Download individual CSV files for specific gender and model combinations</small>
+                </div>
+                <div id="genderModelDownloads" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 20px;">
+                    <!-- Buttons will be generated here -->
+                </div>
+                
+                <div class="file-info">
+                    <strong>Inventory CSV</strong>
+                    <small>Contains SKUs and inventory levels for each size variant</small>
+                </div>
+                <button onclick="downloadInventory()" class="download-btn">Download Inventory CSV</button>
+                
+                <div id="preview"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Product specifications and descriptions for New Balance models
+        const PRODUCT_INFO = {
+            'Rebel V5': {
+                description: 'Built to propel you forward with every step, the FuelCell Rebel v5 features high-rebound FuelCell foam that delivers an energetic ride. This lightweight daily trainer combines speed and comfort with its responsive cushioning and sleek engineered mesh upper. The redesigned geometry provides a smooth transition while the wider platform offers improved stability. Perfect for tempo runs, speed work, or any run where you want to pick up the pace.',
+                specs: { 
+                    stack: '30/24mm', 
+                    drop: '6mm', 
+                    weight: '7.8 oz',
+                    technology: 'FuelCell foam midsole, Engineered mesh upper, NDurance rubber outsole',
+                    bestFor: 'Tempo runs, daily training, speed workouts'
+                }
+            },
+            '880v15': {
+                description: 'The Fresh Foam X 880v15 continues the legacy of consistent, reliable comfort. Featuring the latest Fresh Foam X cushioning for a soft, smooth ride, this neutral daily trainer is built for logging miles day after day. The engineered mesh upper provides breathability and a secure fit, while the blown rubber outsole delivers durability where you need it most. A versatile workhorse that\'s ready for any run, from easy miles to long runs.',
+                specs: { 
+                    stack: '35/27mm', 
+                    drop: '8mm', 
+                    weight: '10.1 oz',
+                    technology: 'Fresh Foam X midsole, Engineered mesh upper, Blown rubber outsole',
+                    bestFor: 'Daily training, long runs, easy miles'
+                }
+            },
+            '860v14': {
+                description: 'Experience stability without sacrifice in the 860v14. Engineered with dual-density Fresh Foam X cushioning and a medial post for reliable support, this stability trainer delivers a smooth, controlled ride. The structured engineered mesh upper provides targeted support while maintaining breathability. Perfect for runners who need moderate stability features without feeling restricted, offering the ideal balance of cushioning and guidance.',
+                specs: { 
+                    stack: '34/26mm', 
+                    drop: '8mm', 
+                    weight: '10.4 oz',
+                    technology: 'Dual-density Fresh Foam X, Medial post support, Structured mesh upper',
+                    bestFor: 'Daily training for overpronators, long runs with stability'
+                }
+            },
+            '1080v14': {
+                description: 'Maximum cushioning meets cutting-edge comfort in the Fresh Foam X 1080v14. Our most cushioned daily trainer features the pinnacle of Fresh Foam X technology, delivering luxurious softness without sacrificing responsiveness. The Hypoknit upper adapts to your foot for a personalized fit, while the rocker profile promotes smooth transitions. Built for runners who want premium cushioning for daily miles, recovery runs, or all-day comfort.',
+                specs: { 
+                    stack: '38/32mm', 
+                    drop: '6mm', 
+                    weight: '9.9 oz',
+                    technology: 'Fresh Foam X Plus cushioning, Hypoknit upper, Rocker geometry',
+                    bestFor: 'Long runs, recovery runs, maximum cushioning needs'
+                }
+            }
+        };
+        
+        // Allowed products (case-insensitive matching)
+        const ALLOWED_PRODUCTS = Object.keys(PRODUCT_INFO);
+        
+        let uploadedFile = null;
+        let productsCsvData = '';
+        let inventoryCsvData = '';
+        let productsByGenderModel = {}; // Store products by gender/model combination
+        let productCounts = {};
+        let debugMode = true; // Enable debug mode to see what's being parsed
+        
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadedFileDiv = document.getElementById('uploadedFile');
+        const convertSection = document.getElementById('convertSection');
+        const statusDiv = document.getElementById('status');
+        const debugSection = document.getElementById('debugSection');
+        const debugOutput = document.getElementById('debugOutput');
+        
+        // Initialize product counts
+        ALLOWED_PRODUCTS.forEach(product => {
+            productCounts[product] = 0;
+        });
+        
+        // Debug logging function
+        function debugLog(message) {
+            if (debugMode) {
+                console.log(message);
+                if (debugOutput) {
+                    debugOutput.innerHTML += message + '<br>';
+                    debugOutput.scrollTop = debugOutput.scrollHeight;
+                }
+            }
+        }
+        
+        // Check if product name matches any allowed product
+        function isAllowedProduct(productName) {
+            try {
+                if (!productName && productName !== 0) return false;
+                
+                // Ensure productName is a string
+                let nameStr = '';
+                if (typeof productName === 'string') {
+                    nameStr = productName;
+                } else if (productName !== null && productName !== undefined) {
+                    nameStr = String(productName);
+                }
+                
+                if (!nameStr) return false;
+                
+                const nameLower = nameStr.toLowerCase().replace(/[^a-z0-9]/g, '');
+                
+                return ALLOWED_PRODUCTS.some(allowed => {
+                    const allowedLower = allowed.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return nameLower.includes(allowedLower) || 
+                           (allowed === 'Rebel V5' && (nameLower.includes('rebel') && (nameLower.includes('v5') || nameLower.includes('5')))) ||
+                           (allowed === '880v15' && (nameLower.includes('880') && (nameLower.includes('v15') || nameLower.includes('15')))) ||
+                           (allowed === '860v14' && (nameLower.includes('860') && (nameLower.includes('v14') || nameLower.includes('14')))) ||
+                           (allowed === '1080v14' && (nameLower.includes('1080') && (nameLower.includes('v14') || nameLower.includes('14'))));
+                });
+            } catch (e) {
+                console.error('Error in isAllowedProduct:', e, 'productName:', productName);
+                return false;
+            }
+        }
+        
+        // Get the matching allowed product name
+        function getMatchingProduct(productName) {
+            try {
+                if (!productName && productName !== 0) return null;
+                
+                let nameStr = '';
+                if (typeof productName === 'string') {
+                    nameStr = productName;
+                } else if (productName !== null && productName !== undefined) {
+                    nameStr = String(productName);
+                }
+                
+                if (!nameStr) return null;
+                
+                const nameLower = nameStr.toLowerCase().replace(/[^a-z0-9]/g, '');
+                
+                for (const allowed of ALLOWED_PRODUCTS) {
+                    const allowedLower = allowed.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (nameLower.includes(allowedLower) || 
+                        (allowed === 'Rebel V5' && (nameLower.includes('rebel') && (nameLower.includes('v5') || nameLower.includes('5')))) ||
+                        (allowed === '880v15' && (nameLower.includes('880') && (nameLower.includes('v15') || nameLower.includes('15')))) ||
+                        (allowed === '860v14' && (nameLower.includes('860') && (nameLower.includes('v14') || nameLower.includes('14')))) ||
+                        (allowed === '1080v14' && (nameLower.includes('1080') && (nameLower.includes('v14') || nameLower.includes('14'))))) {
+                        return allowed;
+                    }
+                }
+                return null;
+            } catch (e) {
+                console.error('Error in getMatchingProduct:', e, 'productName:', productName);
+                return null;
+            }
+        }
+        
+        // Format gender display
+        function formatGender(gender) {
+            if (!gender) return 'Unisex';
+            const genderStr = gender.toString().trim().toLowerCase();
+            if (genderStr === 'mens' || genderStr === 'men' || genderStr === 'male' || genderStr === 'm') return 'Mens';
+            if (genderStr === 'womens' || genderStr === 'women' || genderStr === 'female' || genderStr === 'w' || genderStr === 'f') return 'Womens';
+            if (genderStr === 'youth' || genderStr === 'kids' || genderStr === 'children' || genderStr === 'y' || genderStr === 'k') return 'Youth';
+            if (genderStr === 'unisex' || genderStr === 'u') return 'Unisex';
+            return 'Unisex';
+        }
+        
+        // Format width from Alt Size column (gender-specific)
+        function formatWidth(altSize, gender) {
+            if (!altSize) return 'Standard';
+            const widthStr = altSize.toString().trim().toUpperCase();
+            const formattedGender = formatGender(gender);
+            
+            // Women's width codes are different from men's
+            if (formattedGender === 'Womens') {
+                // Women's: 2A=Narrow, B=Standard, D=Wide, 2E=Extra Wide
+                if (widthStr === '2A' || widthStr === 'AA' || widthStr === 'NARROW') return 'Narrow';
+                if (widthStr === 'B' || widthStr === 'STANDARD' || widthStr === 'MEDIUM') return 'Standard';
+                if (widthStr === 'D' || widthStr === 'WIDE') return 'Wide';
+                if (widthStr === '2E' || widthStr === 'EE' || widthStr === 'EXTRA WIDE') return 'Extra Wide';
+            } else {
+                // Men's/Unisex/Youth: B=Narrow, D=Standard, 2E=Wide, 4E=Extra Wide
+                if (widthStr === 'B' || widthStr === 'NARROW') return 'Narrow';
+                if (widthStr === 'D' || widthStr === 'M' || widthStr === 'STANDARD' || widthStr === 'MEDIUM') return 'Standard';
+                if (widthStr === '2E' || widthStr === 'EE' || widthStr === 'WIDE') return 'Wide';
+                if (widthStr === '4E' || widthStr === 'EEEE' || widthStr === 'EXTRA WIDE') return 'Extra Wide';
+            }
+            
+            // Return the original if not recognized
+            return widthStr;
+        }
+        
+        // Format size value properly
+        function formatSize(sizeValue) {
+            if (!sizeValue && sizeValue !== 0) return 'Unknown';
+            
+            // Convert to string and trim
+            let size = String(sizeValue).trim();
+            
+            // Remove any leading zeros but keep them for decimal values
+            // "07" -> "7", "075" -> "7.5", "10" -> "10", "105" -> "10.5"
+            
+            // Handle special cases for half sizes
+            if (size === '045' || size === '45') return '4.5';
+            if (size === '055' || size === '55') return '5.5';
+            if (size === '065' || size === '65') return '6.5';
+            if (size === '075' || size === '75') return '7.5';
+            if (size === '085' || size === '85') return '8.5';
+            if (size === '095' || size === '95') return '9.5';
+            if (size === '105') return '10.5';
+            if (size === '115') return '11.5';
+            if (size === '125') return '12.5';
+            if (size === '135') return '13.5';
+            if (size === '145') return '14.5';
+            if (size === '155') return '15.5';
+            
+            // Handle whole sizes with leading zeros
+            if (size === '04' || size === '4') return '4';
+            if (size === '05' || size === '5') return '5';
+            if (size === '06' || size === '6') return '6';
+            if (size === '07' || size === '7') return '7';
+            if (size === '08' || size === '8') return '8';
+            if (size === '09' || size === '9') return '9';
+            if (size === '10') return '10';
+            if (size === '11') return '11';
+            if (size === '12') return '12';
+            if (size === '13') return '13';
+            if (size === '14') return '14';
+            if (size === '15') return '15';
+            if (size === '16') return '16';
+            
+            // If none of the above, return as is
+            return size;
+        }
+        
+        // Event handlers
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        function highlight() {
+            dropZone.classList.add('dragover');
+        }
+        
+        function unhighlight() {
+            dropZone.classList.remove('dragover');
+        }
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+        
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            handleFiles(files);
+        }
+        
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                uploadedFile = file;
+                showUploadedFile(file);
+                hideStatus();
+            }
+        }
+        
+        function showUploadedFile(file) {
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+            uploadedFileDiv.style.display = 'flex';
+            convertSection.style.display = 'block';
+            dropZone.style.display = 'none';
+            
+            // Show debug section
+            if (debugMode) {
+                debugSection.style.display = 'block';
+            }
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        function clearFile() {
+            uploadedFile = null;
+            fileInput.value = '';
+            uploadedFileDiv.style.display = 'none';
+            convertSection.style.display = 'none';
+            dropZone.style.display = 'block';
+            document.getElementById('downloadSection').style.display = 'none';
+            debugSection.style.display = 'none';
+            debugOutput.innerHTML = '';
+            hideStatus();
+            resetProductCounts();
+            productsByGenderModel = {};
+        }
+        
+        function resetProductCounts() {
+            ALLOWED_PRODUCTS.forEach(product => {
+                productCounts[product] = 0;
+                const chip = document.querySelector(`[data-product="${product}"]`);
+                if (chip) {
+                    chip.classList.remove('has-data');
+                    chip.querySelector('.count').textContent = '0';
+                }
+            });
+        }
+        
+        function updateProductCount(productName) {
+            const matchingProduct = getMatchingProduct(productName);
+            if (matchingProduct) {
+                productCounts[matchingProduct]++;
+            }
+        }
+        
+        function displayProductCounts() {
+            ALLOWED_PRODUCTS.forEach(product => {
+                const chip = document.querySelector(`[data-product="${product}"]`);
+                if (chip) {
+                    const count = productCounts[product];
+                    if (count > 0) {
+                        chip.classList.add('has-data');
+                        chip.querySelector('.count').textContent = count;
+                    }
+                }
+            });
+        }
+        
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.style.display = 'block';
+        }
+        
+        function hideStatus() {
+            statusDiv.style.display = 'none';
+        }
+        
+        function downloadCSV(csvData, filename) {
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+        
+        async function convertFile() {
+            if (!uploadedFile) {
+                showStatus('Please upload a file first', 'error');
+                return;
+            }
+            
+            const convertBtn = document.getElementById('convertBtn');
+            const convertBtnText = document.getElementById('convertBtnText');
+            const downloadSection = document.getElementById('downloadSection');
+            
+            try {
+                convertBtn.disabled = true;
+                convertBtnText.innerHTML = '<span class="loading-spinner"></span> Processing...';
+                showStatus('Reading file and analyzing structure...', 'processing');
+                
+                // Clear debug output
+                debugOutput.innerHTML = '';
+                resetProductCounts();
+                productsByGenderModel = {};
+                
+                let data = [];
+                let headers = [];
+                
+                // Check if it's an Excel file or text/csv
+                if (uploadedFile.name.toLowerCase().endsWith('.xlsx') || 
+                    uploadedFile.name.toLowerCase().endsWith('.xls')) {
+                    
+                    debugLog('Processing Excel file...');
+                    const arrayBuffer = await uploadedFile.arrayBuffer();
+                    const workbook = XLSX.read(arrayBuffer);
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    
+                    // Convert to array format
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    headers = rawData[0] || [];
+                    data = rawData.slice(1); // Remove header row
+                    
+                    debugLog(`Found ${headers.length} columns and ${data.length} data rows`);
+                    debugLog('Headers: ' + headers.join(', '));
+                    
+                    // Log first few rows for debugging
+                    debugLog('\nFirst 3 data rows (Size column = index 5, Alt Size column = index 6):');
+                    for (let i = 0; i < Math.min(3, data.length); i++) {
+                        debugLog(`Row ${i+1}: Size="${data[i][5]}", Alt Size="${data[i][6]}", Product="${data[i][0]}"`);
+                    }
+                    
+                } else {
+                    debugLog('Processing text/CSV file...');
+                    const text = await uploadedFile.text();
+                    
+                    // Try tab-delimited first, then comma
+                    let parseResult = Papa.parse(text, {
+                        delimiter: '\t',
+                        header: false,
+                        skipEmptyLines: true,
+                        dynamicTyping: false // Keep as strings to preserve leading zeros
+                    });
+                    
+                    if (!parseResult.data || parseResult.data.length === 0 || parseResult.data[0].length < 3) {
+                        parseResult = Papa.parse(text, {
+                            delimiter: ',',
+                            header: false,
+                            skipEmptyLines: true,
+                            dynamicTyping: false
+                        });
+                    }
+                    
+                    if (parseResult.data && parseResult.data.length > 0) {
+                        headers = parseResult.data[0];
+                        data = parseResult.data.slice(1);
+                    }
+                    
+                    debugLog(`Parsed ${data.length} data rows`);
+                }
+                
+                // Use hardcoded column positions based on the New Balance file structure
+                const styleNameIdx = 0;    // Column A - Style Name
+                const styleNumberIdx = 1;  // Column B - Style Number
+                const colorNameIdx = 2;    // Column C - Color Name
+                const colorCodeIdx = 3;    // Column D - Color Code
+                const droppedIdx = 4;      // Column E - Dropped from Catalog
+                const sizeIdx = 5;         // Column F - SIZE
+                const altSizeIdx = 6;      // Column G - Alt Size (WIDTH)
+                const upcIdx = 7;          // Column H - UPC/EAN
+                const skuIdx = 8;          // Column I - SKU
+                const currencyIdx = 9;     // Column J - Currency
+                const wholesaleIdx = 10;   // Column K - Wholesale Price
+                const retailIdx = 11;      // Column L - Retail Price
+                const quantityIdx = 14;    // Column O - Quantity Available
+                const genderIdx = 17;      // Column R - Gender
+                
+                debugLog('\nColumn mapping:');
+                debugLog(`Size column: ${sizeIdx} (Column F)`);
+                debugLog(`Alt Size (Width) column: ${altSizeIdx} (Column G)`);
+                
+                showStatus('Filtering for allowed products...', 'processing');
+                
+                // Filter for allowed products
+                const filteredProducts = [];
+                let sampleCount = 0;
+                
+                for (let i = 0; i < data.length; i++) {
+                    const row = data[i];
+                    if (!row || row.length === 0) continue;
+                    
+                    const styleName = row[styleNameIdx];
+                    
+                    if (isAllowedProduct(styleName)) {
+                        filteredProducts.push(row);
+                        
+                        // Log some samples for debugging
+                        if (sampleCount < 5) {
+                            const size = row[sizeIdx];
+                            const altSize = row[altSizeIdx];
+                            const gender = row[genderIdx];
+                            debugLog(`Sample ${sampleCount + 1}: Product="${styleName}", Size="${size}", Alt Size="${altSize}", Gender="${gender}"`);
+                            sampleCount++;
+                        }
+                    }
+                }
+                
+                const totalScanned = data.length;
+                const totalFiltered = filteredProducts.length;
+                
+                debugLog(`\nFiltered ${totalFiltered} products from ${totalScanned} total rows`);
+                
+                if (totalFiltered === 0) {
+                    showStatus(`Warning: No matching products found. Scanned ${totalScanned} rows but none matched: ${ALLOWED_PRODUCTS.join(', ')}`, 'warning');
+                    return;
+                }
+                
+                showStatus(`Processing ${totalFiltered} matching items...`, 'processing');
+                
+                const shopifyProducts = [];
+                const shopifyInventory = [];
+                const processedVariants = new Map();
+                const processedProducts = new Set();
+                
+                // Process filtered products
+                for (let i = 0; i < filteredProducts.length; i++) {
+                    const row = filteredProducts[i];
+                    
+                    // Extract data from specific columns
+                    const styleName = row[styleNameIdx];
+                    const styleNumber = row[styleNumberIdx];
+                    const colorName = row[colorNameIdx];
+                    const colorCode = row[colorCodeIdx];
+                    const rawSize = row[sizeIdx];
+                    const rawAltSize = row[altSizeIdx];
+                    const upc = row[upcIdx];
+                    const sku = row[skuIdx];
+                    const wholesale = row[wholesaleIdx];
+                    const retail = row[retailIdx];
+                    const quantity = row[quantityIdx];
+                    const gender = row[genderIdx];
+                    
+                    // Get matching product info
+                    const matchingProduct = getMatchingProduct(styleName);
+                    if (!matchingProduct) continue;
+                    
+                    const productInfo = PRODUCT_INFO[matchingProduct] || {};
+                    
+                    // Format values
+                    const formattedGender = formatGender(gender);
+                    const formattedWidth = formatWidth(rawAltSize, gender);
+                    const formattedSize = formatSize(rawSize);
+                    
+                    // Log the first few size conversions
+                    if (i < 10) {
+                        debugLog(`Converting: Raw size="${rawSize}" -> Formatted="${formattedSize}", Width="${formattedWidth}" (Gender: ${formattedGender})`);
+                    }
+                    
+                    // Create unique variant key
+                    const variantKey = `${formattedGender}-${matchingProduct}-${colorName}-${formattedSize}-${formattedWidth}`;
+                    
+                    // Parse quantity
+                    let actualQuantity = 0;
+                    if (typeof quantity === 'string') {
+                        if (quantity.includes('+')) {
+                            actualQuantity = parseInt(quantity.replace(/[^0-9]/g, '')) || 100;
+                        } else {
+                            actualQuantity = parseInt(quantity.replace(/[^0-9]/g, '')) || 0;
+                        }
+                    } else if (typeof quantity === 'number') {
+                        actualQuantity = quantity;
+                    }
+                    
+                    // If this variant already exists, sum quantities
+                    if (processedVariants.has(variantKey)) {
+                        const existing = processedVariants.get(variantKey);
+                        existing.quantity += actualQuantity;
+                        continue;
+                    }
+                    
+                    // Store variant data
+                    processedVariants.set(variantKey, {
+                        styleName,
+                        styleNumber,
+                        colorName,
+                        colorCode,
+                        size: formattedSize,
+                        width: formattedWidth,
+                        sku,
+                        upc,
+                        wholesale,
+                        retail,
+                        quantity: actualQuantity,
+                        formattedGender,
+                        formattedWidth,
+                        matchingProduct,
+                        productInfo
+                    });
+                    
+                    updateProductCount(styleName);
+                }
+                
+                debugLog(`\nCreated ${processedVariants.size} unique variants`);
+                
+                // Sort variants
+                const sortedVariants = Array.from(processedVariants.entries()).sort((a, b) => {
+                    const [keyA, dataA] = a;
+                    const [keyB, dataB] = b;
+                    
+                    // Sort by product, gender, color, width, then size
+                    if (dataA.matchingProduct !== dataB.matchingProduct) {
+                        const productOrder = ['Rebel V5', '860v14', '880v15', '1080v14'];
+                        const indexA = productOrder.indexOf(dataA.matchingProduct);
+                        const indexB = productOrder.indexOf(dataB.matchingProduct);
+                        if (indexA !== -1 && indexB !== -1) {
+                            return indexA - indexB;
+                        }
+                        return dataA.matchingProduct.localeCompare(dataB.matchingProduct);
+                    }
+                    
+                    if (dataA.formattedGender !== dataB.formattedGender) {
+                        if (dataA.formattedGender === 'Mens') return -1;
+                        if (dataB.formattedGender === 'Mens') return 1;
+                        return dataA.formattedGender.localeCompare(dataB.formattedGender);
+                    }
+                    
+                    if (dataA.colorName !== dataB.colorName) {
+                        return (dataA.colorName || '').localeCompare(dataB.colorName || '');
+                    }
+                    
+                    if (dataA.formattedWidth !== dataB.formattedWidth) {
+                        const widthOrder = ['Narrow', 'Standard', 'Wide', 'Extra Wide'];
+                        const indexA = widthOrder.indexOf(dataA.formattedWidth);
+                        const indexB = widthOrder.indexOf(dataB.formattedWidth);
+                        if (indexA !== -1 && indexB !== -1) {
+                            return indexA - indexB;
+                        }
+                        return dataA.formattedWidth.localeCompare(dataB.formattedWidth);
+                    }
+                    
+                    const sizeA = parseFloat(dataA.size) || 0;
+                    const sizeB = parseFloat(dataB.size) || 0;
+                    return sizeA - sizeB;
+                });
+                
+                // Generate Shopify CSV rows
+                for (const [variantKey, variantData] of sortedVariants) {
+                    const {
+                        formattedGender,
+                        formattedWidth,
+                        matchingProduct,
+                        colorName,
+                        colorCode,
+                        styleNumber,
+                        size,
+                        sku,
+                        upc,
+                        quantity: actualQuantity,
+                        wholesale,
+                        retail,
+                        productInfo
+                    } = variantData;
+                    
+                    // Parse prices
+                    let wholesalePrice = wholesale;
+                    let retailPrice = retail;
+                    
+                    if (typeof wholesalePrice === 'string') {
+                        wholesalePrice = wholesalePrice.replace(/[$\s,]/g, '');
+                        wholesalePrice = parseFloat(wholesalePrice) || 0;
+                    } else if (typeof wholesalePrice === 'number') {
+                        wholesalePrice = wholesalePrice || 0;
+                    } else {
+                        wholesalePrice = 0;
+                    }
+                    
+                    if (typeof retailPrice === 'string') {
+                        retailPrice = retailPrice.replace(/[$\s,]/g, '');
+                        retailPrice = parseFloat(retailPrice) || 0;
+                    } else if (typeof retailPrice === 'number') {
+                        retailPrice = retailPrice || 0;
+                    } else {
+                        retailPrice = 0;
+                    }
+                    
+                    // Format product title
+                    let productTitle = `${formattedGender} ${matchingProduct} - ${colorName}`;
+                    if (formattedWidth !== 'Standard') {
+                        productTitle += ` (${formattedWidth})`;
+                    }
+                    
+                    // Create handle
+                    let baseHandle = `${formattedGender}-${matchingProduct}-${colorName}`.toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/^-+|-+$/g, '');
+                    
+                    if (formattedWidth !== 'Standard') {
+                        baseHandle += `-${formattedWidth.toLowerCase().replace(/\s+/g, '-')}`;
+                    }
+                    
+                    const productKey = `${formattedGender}-${styleNumber}-${colorName}-${formattedWidth}`;
+                    const isFirstVariant = !processedProducts.has(productKey);
+                    
+                    if (isFirstVariant) {
+                        processedProducts.add(productKey);
+                    }
+                    
+                    // Generate product description
+                    let descriptionHtml = `<p>${productInfo.description}</p>`;
+                    if (productInfo.specs) {
+                        descriptionHtml += '<p><strong>Specifications:</strong></p><ul>';
+                        if (productInfo.specs.stack) descriptionHtml += `<li>Stack Height: ${productInfo.specs.stack}</li>`;
+                        if (productInfo.specs.drop) descriptionHtml += `<li>Drop: ${productInfo.specs.drop}</li>`;
+                        if (productInfo.specs.weight) descriptionHtml += `<li>Weight: ${productInfo.specs.weight}</li>`;
+                        if (productInfo.specs.technology) descriptionHtml += `<li>Technology: ${productInfo.specs.technology}</li>`;
+                        if (productInfo.specs.bestFor) descriptionHtml += `<li>Best For: ${productInfo.specs.bestFor}</li>`;
+                        descriptionHtml += '</ul>';
+                    }
+                    
+                    // Generate tags
+                    let tags = `${formattedGender}, ${colorName}, ${matchingProduct}, Running, Athletic, New Balance`;
+                    if (formattedWidth !== 'Standard') {
+                        tags += `, ${formattedWidth}`;
+                    }
+                    
+                    // Create product row object
+                    const productRow = {
+                        Handle: baseHandle,
+                        Title: isFirstVariant ? productTitle : '',
+                        'Body (HTML)': isFirstVariant ? descriptionHtml : '',
+                        Vendor: isFirstVariant ? 'New Balance' : '',
+                        'Product Category': isFirstVariant ? 'Athletic Shoes' : '',
+                        Type: isFirstVariant ? 'Running Shoes' : '',
+                        Tags: isFirstVariant ? tags : '',
+                        Published: isFirstVariant ? 'TRUE' : '',
+                        'Option1 Name': isFirstVariant ? 'Size' : '',
+                        'Option1 Value': size,
+                        'Option2 Name': isFirstVariant && formattedWidth !== 'Standard' ? 'Width' : '',
+                        'Option2 Value': formattedWidth !== 'Standard' ? formattedWidth : '',
+                        'Option3 Name': '',
+                        'Option3 Value': '',
+                        'Variant SKU': sku || `${styleNumber}-${colorCode}-${size}-${formattedWidth.charAt(0)}`,
+                        'Variant Grams': 500,
+                        'Variant Inventory Tracker': 'shopify',
+                        'Variant Inventory Qty': actualQuantity,
+                        'Variant Inventory Policy': 'deny',
+                        'Variant Fulfillment Service': 'manual',
+                        'Variant Price': retailPrice.toFixed(2),
+                        'Variant Compare At Price': '',
+                        'Variant Requires Shipping': 'TRUE',
+                        'Variant Taxable': retailPrice > 175 ? 'TRUE' : 'FALSE',
+                        'Variant Barcode': upc || '',
+                        'Image Src': '',
+                        'Image Position': '',
+                        'Image Alt Text': '',
+                        'Gift Card': 'FALSE',
+                        'SEO Title': isFirstVariant ? `${productTitle} | New Balance Running Shoes` : '',
+                        'SEO Description': isFirstVariant ? productInfo.description.substring(0, 160) : '',
+                        'Google Shopping / Google Product Category': '',
+                        'Google Shopping / Gender': isFirstVariant ? formattedGender : '',
+                        'Google Shopping / Age Group': isFirstVariant ? 'Adult' : '',
+                        'Google Shopping / MPN': isFirstVariant ? styleNumber : '',
+                        'Google Shopping / Condition': isFirstVariant ? 'New' : '',
+                        'Google Shopping / Custom Product': isFirstVariant ? 'FALSE' : '',
+                        'Variant Image': '',
+                        'Variant Weight Unit': 'g',
+                        'Variant Tax Code': '',
+                        'Cost per item': wholesalePrice.toFixed(2),
+                        'Included / United States': 'TRUE',
+                        'Price / United States': retailPrice.toFixed(2),
+                        'Compare At Price / United States': '',
+                        'Included / International': 'TRUE',
+                        'Price / International': retailPrice.toFixed(2),
+                        'Compare At Price / International': '',
+                        Status: isFirstVariant ? 'active' : ''
+                    };
+                    
+                    // Add to main products array
+                    shopifyProducts.push(productRow);
+                    
+                    // Store by gender/model combination
+                    const genderModelKey = `${formattedGender}-${matchingProduct}`;
+                    if (!productsByGenderModel[genderModelKey]) {
+                        productsByGenderModel[genderModelKey] = [];
+                    }
+                    productsByGenderModel[genderModelKey].push(productRow);
+                    
+                    // Add to inventory
+                    shopifyInventory.push({
+                        Handle: baseHandle,
+                        Title: productTitle,
+                        'Option1 Name': 'Size',
+                        'Option1 Value': size,
+                        'Option2 Name': formattedWidth !== 'Standard' ? 'Width' : '',
+                        'Option2 Value': formattedWidth !== 'Standard' ? formattedWidth : '',
+                        'Option3 Name': '',
+                        'Option3 Value': '',
+                        SKU: sku || `${styleNumber}-${colorCode}-${size}-${formattedWidth.charAt(0)}`,
+                        Barcode: upc || '',
+                        'HS Code': '',
+                        COO: '',
+                        Location: 'Needham',
+                        'Bin name': '',
+                        'Incoming (not editable)': '',
+                        'Unavailable (not editable)': '',
+                        'Committed (not editable)': '',
+                        'Available (not editable)': '',
+                        'On hand (current)': '',
+                        'On hand (new)': actualQuantity
+                    });
+                }
+                
+                // Convert to CSV
+                productsCsvData = Papa.unparse(shopifyProducts, {
+                    quotes: true,
+                    quoteChar: '"',
+                    delimiter: ','
+                });
+                
+                // Convert inventory to CSV with Shopify's exact format
+                const inventoryHeaders = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
+                               '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
+                               '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
+                               '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
+                
+                const csvRows = [inventoryHeaders.join(',')];
+                
+                shopifyInventory.forEach(row => {
+                    const csvRow = [
+                        row.Handle,
+                        `"${row.Title}"`,
+                        row['Option1 Name'],
+                        row['Option1 Value'],
+                        row['Option2 Name'] || '',
+                        row['Option2 Value'] || '',
+                        '', '',
+                        row.SKU,
+                        row.Barcode || '',
+                        '', '',
+                        row.Location,
+                        '', '', '', '', '', '',
+                        row['On hand (new)']
+                    ];
+                    csvRows.push(csvRow.join(','));
+                });
+                
+                inventoryCsvData = csvRows.join('\n');
+                
+                // Update stats
+                document.getElementById('totalProducts').textContent = processedProducts.size;
+                document.getElementById('totalVariants').textContent = shopifyProducts.length;
+                document.getElementById('totalFiltered').textContent = totalFiltered;
+                
+                // Display product counts
+                displayProductCounts();
+                
+                // Generate gender/model download buttons
+                generateGenderModelDownloads();
+                
+                // Show download section
+                downloadSection.style.display = 'block';
+                
+                // Show preview
+                const previewDiv = document.getElementById('preview');
+                const previewLines = productsCsvData.split('\n').slice(0, 4).join('\n');
+                previewDiv.innerHTML = '<div class="preview"><h4>CSV Preview (First 3 Rows)</h4>' + previewLines + '</div>';
+                
+                showStatus(`Successfully converted ${shopifyProducts.length} variants from ${processedProducts.size} products!`, 'success');
+                
+                debugLog(`\nConversion complete! ${shopifyProducts.length} variants created.`);
+                
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+                console.error('Conversion error:', error);
+                debugLog('ERROR: ' + error.message);
+            } finally {
+                convertBtn.disabled = false;
+                convertBtnText.innerHTML = 'Convert to Shopify CSV';
+            }
+        }
+        
+        function downloadProducts() {
+            const date = new Date().toISOString().split('T')[0];
+            downloadCSV(productsCsvData, `new-balance-filtered-products-${date}.csv`);
+        }
+        
+        function downloadInventory() {
+            const date = new Date().toISOString().split('T')[0];
+            downloadCSV(inventoryCsvData, `new-balance-filtered-inventory-${date}.csv`);
+        }
+        
+        function generateGenderModelDownloads() {
+            const container = document.getElementById('genderModelDownloads');
+            container.innerHTML = '';
+            
+            // Sort keys for consistent display
+            const sortedKeys = Object.keys(productsByGenderModel).sort((a, b) => {
+                const [genderA, modelA] = a.split('-');
+                const [genderB, modelB] = b.split('-');
+                
+                // Mens first, then Womens
+                if (genderA !== genderB) {
+                    if (genderA === 'Mens') return -1;
+                    if (genderB === 'Mens') return 1;
+                    return genderA.localeCompare(genderB);
+                }
+                
+                // Then by model
+                const modelOrder = ['Rebel V5', '860v14', '880v15', '1080v14'];
+                const fullModelA = modelA.includes('Rebel') ? 'Rebel V5' : 
+                                   modelA.includes('860') ? '860v14' :
+                                   modelA.includes('880') ? '880v15' :
+                                   modelA.includes('1080') ? '1080v14' : modelA;
+                const fullModelB = modelB.includes('Rebel') ? 'Rebel V5' : 
+                                   modelB.includes('860') ? '860v14' :
+                                   modelB.includes('880') ? '880v15' :
+                                   modelB.includes('1080') ? '1080v14' : modelB;
+                
+                const indexA = modelOrder.indexOf(fullModelA);
+                const indexB = modelOrder.indexOf(fullModelB);
+                if (indexA !== -1 && indexB !== -1) {
+                    return indexA - indexB;
+                }
+                return fullModelA.localeCompare(fullModelB);
+            });
+            
+            // Create download buttons
+            sortedKeys.forEach(key => {
+                const products = productsByGenderModel[key];
+                const [gender, ...modelParts] = key.split('-');
+                const model = modelParts.join(' ');
+                
+                const button = document.createElement('button');
+                button.className = 'download-btn';
+                button.style.margin = '0';
+                button.style.fontSize = '14px';
+                button.style.padding = '10px 16px';
+                button.textContent = `${gender} ${model} (${products.length})`;
+                button.onclick = () => downloadGenderModel(key);
+                
+                container.appendChild(button);
+            });
+        }
+        
+        function downloadGenderModel(genderModelKey) {
+            const products = productsByGenderModel[genderModelKey];
+            if (!products || products.length === 0) return;
+            
+            const csvData = Papa.unparse(products, {
+                quotes: true,
+                quoteChar: '"',
+                delimiter: ','
+            });
+            
+            const [gender, ...modelParts] = genderModelKey.split('-');
+            const model = modelParts.join('-');
+            const date = new Date().toISOString().split('T')[0];
+            const filename = `new-balance-${gender.toLowerCase()}-${model.toLowerCase()}-${date}.csv`;
+            
+            downloadCSV(csvData, filename);
+        }
+        
+        // Set up event listeners
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+        
+        dropZone.addEventListener('drop', handleDrop, false);
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+    </script>
+</body>
+</html>

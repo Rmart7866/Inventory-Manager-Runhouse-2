@@ -1,0 +1,32 @@
+{
+    "manifest_version": 3,
+    "name": "Hoka Inventory Scraper",
+    "version": "1.0",
+    "description": "Extract Hoka B2B inventory data to CSV",
+    "permissions": [
+      "activeTab",
+      "downloads",
+      "scripting"
+    ],
+    "host_permissions": [
+      "*://hokaus.deckersb2b.deckers.com/*",
+      "*://*.deckersb2b.deckers.com/*",
+      "*://*.deckers.com/*"
+    ],
+    "content_scripts": [
+      {
+        "matches": [
+          "*://hokaus.deckersb2b.deckers.com/*",
+          "*://*.deckersb2b.deckers.com/*",
+          "*://*.deckers.com/*"
+        ],
+        "js": ["content.js"],
+        "css": ["styles.css"],
+        "run_at": "document_end"
+      }
+    ],
+    "action": {
+      "default_popup": "popup.html",
+      "default_title": "Hoka Inventory Scraper"
+    }
+  }

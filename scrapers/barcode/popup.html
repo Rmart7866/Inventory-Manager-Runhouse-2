@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barcode Lookup</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 420px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: white;
+      color: #1a202c;
+    }
+    
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: -0.01em;
+    }
+    
+    .close-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      font-size: 24px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      line-height: 1;
+      padding: 0;
+    }
+    
+    .close-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: rotate(90deg);
+    }
+    
+    /* Content */
+    .content {
+      padding: 20px;
+    }
+    
+    /* Product Info */
+    .product-info {
+      margin-bottom: 20px;
+    }
+    
+    .product-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a202c;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+    
+    /* Size Selector */
+    .size-selector {
+      margin-bottom: 20px;
+    }
+    
+    .size-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #667eea;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+    
+    .size-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(55px, 1fr));
+      gap: 8px;
+    }
+    
+    .size-btn {
+      padding: 12px 8px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      background: white;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #1a202c;
+      font-family: inherit;
+    }
+    
+    .size-btn:hover {
+      border-color: #667eea;
+      background: rgba(102, 126, 234, 0.05);
+      transform: translateY(-2px);
+    }
+    
+    .size-btn.active {
+      border-color: #667eea;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Barcode Container */
+    .barcode-container {
+      background: #f7fafc;
+      border: 2px dashed rgba(102, 126, 234, 0.3);
+      border-radius: 12px;
+      padding: 24px 20px;
+      text-align: center;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    #barcode {
+      max-width: 100%;
+      height: auto;
+      display: none;
+      margin: 0 auto 12px;
+    }
+    
+    .barcode-number {
+      font-family: 'Courier New', monospace;
+      font-size: 16px;
+      font-weight: 700;
+      color: #1a202c;
+      letter-spacing: 1px;
+      margin-top: 8px;
+      display: none;
+    }
+    
+    .no-barcode {
+      color: #718096;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .success-message {
+      font-size: 12px;
+      color: #48bb78;
+      font-weight: 600;
+      margin-top: 12px;
+      display: none;
+    }
+    
+    /* Instructions */
+    .instructions {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #f7fafc;
+      border-radius: 8px;
+      border-left: 3px solid #667eea;
+    }
+    
+    .instructions-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #667eea;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    
+    .instructions-text {
+      font-size: 11px;
+      color: #4a5568;
+      line-height: 1.6;
+    }
+    
+    /* Refresh Button */
+    .refresh-btn {
+      width: 100%;
+      padding: 12px;
+      background: white;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #4a5568;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 12px;
+    }
+    
+    .refresh-btn:hover {
+      border-color: #667eea;
+      color: #667eea;
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Barcode Scanner</h1>
+    <button class="close-btn" id="close-btn" title="Close">×</button>
+  </div>
+  
+  <div class="content">
+    <div class="product-info">
+      <div class="product-title" id="product-title">Loading...</div>
+    </div>
+    
+    <div id="size-selector-container"></div>
+    
+    <div class="barcode-container">
+      <svg id="barcode"></svg>
+      <div id="barcode-number" class="barcode-number"></div>
+      <div id="no-barcode" class="no-barcode">Select a size to view barcode</div>
+      <div id="success-message" class="success-message"></div>
+    </div>
+    
+    <button class="refresh-btn" id="refresh-btn">Refresh Product</button>
+  </div>
+  
+  <script src="JsBarcode.all.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

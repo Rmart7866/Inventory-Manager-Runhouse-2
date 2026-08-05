@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hoka Product Filter - Shopify CSV Converter (UPDATED VERSION)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #00BFFF 0%, #1E90FF 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #00BFFF 0%, #1E90FF 100%);
+            padding: 40px 30px;
+            color: white;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .version-badge {
+            background: #FFD700;
+            color: #000;
+            padding: 5px 15px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        .format-section {
+            background: #f8f9fa;
+            padding: 25px 30px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .format-section h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 15px;
+        }
+        
+        .format-options {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .format-option {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .format-option:hover {
+            border-color: #00BFFF;
+        }
+        
+        .format-option.selected {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+        
+        .format-option input[type="radio"] {
+            margin-right: 12px;
+            transform: scale(1.3);
+            cursor: pointer;
+        }
+        
+        .format-option-content strong {
+            display: block;
+            color: #212529;
+            margin-bottom: 4px;
+        }
+        
+        .format-option-content small {
+            color: #6c757d;
+        }
+        
+        .product-options {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .product-options label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+        
+        .product-options label:last-of-type {
+            margin-bottom: 8px;
+        }
+        
+        .product-options input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.2);
+            cursor: pointer;
+        }
+        
+        .filter-section {
+            background: #f8f9fa;
+            padding: 25px 30px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .filter-section h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 15px;
+        }
+        
+        .product-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        
+        .product-chip {
+            background: white;
+            border: 2px solid #00BFFF;
+            border-radius: 25px;
+            padding: 10px 16px;
+            text-align: center;
+            font-weight: 500;
+            color: #00BFFF;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .product-chip:hover {
+            background: #00BFFF;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 191, 255, 0.3);
+        }
+        
+        .product-chip .count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #28a745;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .product-chip.has-data .count {
+            display: flex;
+        }
+        
+        .main-content {
+            padding: 30px;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #dee2e6;
+            border-radius: 15px;
+            padding: 60px 30px;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .drop-zone:hover {
+            border-color: #00BFFF;
+            background: #f0f9ff;
+        }
+        
+        .drop-zone.dragover {
+            border-color: #28a745;
+            background: #e8f5e9;
+            transform: scale(1.02);
+        }
+        
+        .drop-zone-icon {
+            font-size: 48px;
+            color: #00BFFF;
+            margin-bottom: 20px;
+        }
+        
+        .drop-zone h3 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 10px;
+        }
+        
+        .drop-zone p {
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        
+        .drop-zone small {
+            color: #adb5bd;
+            font-size: 13px;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .uploaded-file {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+        }
+        
+        .uploaded-file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .uploaded-file-icon {
+            font-size: 32px;
+        }
+        
+        .uploaded-file strong {
+            display: block;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        
+        .uploaded-file small {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .status {
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            font-weight: 500;
+            display: none;
+        }
+        
+        .status.processing {
+            background: linear-gradient(135deg, #00BFFF 0%, #1E90FF 100%);
+            color: white;
+        }
+        
+        .status.success {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            color: white;
+        }
+        
+        .status.error {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .status.warning {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #00BFFF 0%, #1E90FF 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 191, 255, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 191, 255, 0.4);
+        }
+        
+        button:disabled {
+            background: #dee2e6;
+            color: #adb5bd;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        
+        button.remove-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        button.download-btn {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            margin: 10px 10px 10px 0;
+        }
+        
+        .download-section {
+            display: none;
+            margin-top: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+        
+        .download-section h3 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 25px;
+            color: #212529;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #00BFFF;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .label {
+            color: #6c757d;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .file-info {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        
+        .file-info strong {
+            display: block;
+            margin-bottom: 6px;
+            color: #212529;
+            font-size: 16px;
+        }
+        
+        .file-info small {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .preview {
+            background: #212529;
+            color: #00ff00;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .preview h4 {
+            color: #00ff00;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .product-list {
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .format-options {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Hoka Product Filter</h1>
+            <p>Convert selected Hoka products to Shopify CSV format</p>
+            <div class="version-badge">UPDATED VERSION - BRIGHT BLUE</div>
+        </div>
+        
+        <div class="format-section">
+            <h3>Select CSV Format</h3>
+            <div class="format-options">
+                <label class="format-option selected" id="inventoryOption">
+                    <input type="radio" name="csvFormat" value="inventory" checked>
+                    <div class="format-option-content">
+                        <strong>Inventory CSV</strong>
+                        <small>Update quantities for existing products</small>
+                    </div>
+                </label>
+                
+                <label class="format-option" id="productOption">
+                    <input type="radio" name="csvFormat" value="product">
+                    <div class="format-option-content">
+                        <strong>Product CSV</strong>
+                        <small>Create new products with full details</small>
+                    </div>
+                </label>
+                
+                <label class="format-option" id="widthFixOption">
+                    <input type="radio" name="csvFormat" value="widthfix">
+                    <div class="format-option-content">
+                        <strong>Width Fixer</strong>
+                        <small>Fix existing women's width labels</small>
+                    </div>
+                </label>
+            </div>
+            
+            <div class="product-options" id="productOptions">
+                <label>
+                    <input type="checkbox" id="setActive" checked>
+                    <span style="font-weight: 500;">Set all products to Active status</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="publishOnline" checked>
+                    <span style="font-weight: 500;">Publish to Online Store channel</span>
+                </label>
+                <div style="margin-left: 30px;">
+                    <small style="color: #666;">Control product visibility and sales channels.</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="filter-section">
+            <h3>Products to Include</h3>
+            <div class="product-list">
+                <div class="product-chip" data-product="Mach 6">
+                    Mach 6
+                    <span class="count">0</span>
+                </div>
+                <div class="product-chip" data-product="Mach X 3">
+                    Mach X 3
+                    <span class="count">0</span>
+                </div>
+                <div class="product-chip" data-product="Skyward X">
+                    Skyward X
+                    <span class="count">0</span>
+                </div>
+                <div class="product-chip" data-product="Clifton 10">
+                    Clifton 10
+                    <span class="count">0</span>
+                </div>
+                <div class="product-chip" data-product="Bondi 9">
+                    Bondi 9
+                    <span class="count">0</span>
+                </div>
+                <div class="product-chip" data-product="Arahi 8">
+                    Arahi 8
+                    <span class="count">0</span>
+                </div>
+                <div class="product-chip" data-product="Skyflow">
+                    Skyflow
+                    <span class="count">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">📁</div>
+                <h3>Drop your Hoka inventory file here</h3>
+                <p>or click to browse files</p>
+                <small>Supports .txt, .tsv, .csv, or .xlsx files</small>
+            </div>
+            
+            <input type="file" id="fileInput" class="file-input" accept=".txt,.tsv,.csv,.xlsx,.xls" />
+            
+            <div id="uploadedFile" class="uploaded-file">
+                <div class="uploaded-file-info">
+                    <div class="uploaded-file-icon">📄</div>
+                    <div>
+                        <strong id="fileName"></strong>
+                        <small id="fileSize"></small>
+                    </div>
+                </div>
+                <button onclick="clearFile()" class="remove-btn">Remove</button>
+            </div>
+            
+            <div id="convertSection" style="display: none; text-align: center; margin: 30px 0;">
+                <button onclick="convertFile()" id="convertBtn">
+                    <span id="convertBtnText">Convert to Shopify CSV</span>
+                </button>
+            </div>
+            
+            <div id="status" class="status"></div>
+            
+            <div id="downloadSection" class="download-section">
+                <h3>Conversion Results</h3>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="number" id="totalProducts">0</div>
+                        <div class="label">Total Products</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="totalVariants">0</div>
+                        <div class="label">Total Variants</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="totalFiltered">0</div>
+                        <div class="label">Filtered Items</div>
+                    </div>
+                </div>
+                
+                <div class="file-info" id="inventoryFileInfo">
+                    <strong>Inventory CSV</strong>
+                    <small>20 columns - Updates quantities and barcodes for existing products. Import to: Products → Inventory → Import</small>
+                </div>
+                <button onclick="downloadInventory()" id="downloadInventoryBtn" class="download-btn">Download Inventory CSV</button>
+                
+                <div class="file-info" id="productFileInfo" style="display: none;">
+                    <strong>Product CSV</strong>
+                    <small>50+ columns - Creates new products with HOKA branding, SEO optimization, and barcodes. Import to: Products → Import</small>
+                </div>
+                <button onclick="downloadProducts()" id="downloadProductBtn" class="download-btn" style="display: none;">Download Product CSV</button>
+                
+                <div class="file-info" id="widthFixFileInfo" style="display: none;">
+                    <strong>All Width Products CSV</strong>
+                    <small>All Wide and Extra Wide products for both men's and women's. Quick way to add just width variations to your store.</small>
+                </div>
+                <button onclick="downloadWidthFix()" id="downloadWidthFixBtn" class="download-btn" style="display: none;">Download All Widths CSV</button>
+                
+                <div id="preview"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Product specifications and descriptions  
+        const PRODUCT_INFO = {
+            'Mach 6': {
+                description: 'Behold the lightest, most responsive Mach to date. This lively trainer has been fine-tuned for extra energy return with a super critical foam midsole and updated for enhanced durability with strategic rubber coverage in the outsole.',
+                specs: { stack: '37/32mm', drop: '5mm', weight: '8.1 oz' },
+                features: ['Lightweight design', 'Responsive cushioning', 'Daily trainer', 'Tempo runs'],
+                category: 'neutral daily trainer',
+                bestFor: 'Daily training, tempo runs, 5K to half marathon races'
+            },
+            'Mach X 3': {
+                description: 'A plated daily trainer that brings the heat to speedwork. Built for up-tempo training miles with an extra-resilient PEBA-topped midsole and snappy Pebax® plate.',
+                specs: { stack: '38/33mm', drop: '5mm', weight: '10.2 oz' },
+                features: ['Carbon plate', 'PEBA midsole', 'Speed training', 'Race day ready'],
+                category: 'plated performance trainer',
+                bestFor: 'Speed workouts, tempo runs, race day from 5K to marathon'
+            },
+            'Skyward X': {
+                description: 'Pushing soft and smooth to the extreme, this cushy trainer features a revolutionary suspension system with a convex carbon fiber plate.',
+                specs: { stack: '48/43mm', drop: '5mm', weight: '11.3 oz' },
+                features: ['Max cushioning', 'Carbon fiber plate', 'Suspension system', 'Long runs'],
+                category: 'max cushion trainer',
+                bestFor: 'Long runs, recovery runs, ultra-distance training'
+            },
+            'Clifton 10': {
+                description: 'A trusted trainer for daily maintenance miles. Ushering in a new era of plush performance with additional heel-to-toe drop.',
+                specs: { stack: '42/34mm', drop: '8mm', weight: '9.7 oz' },
+                features: ['Plush cushioning', 'Neutral support', 'Daily miles', 'Versatile trainer'],
+                category: 'neutral cushioned trainer',
+                bestFor: 'Daily training, easy runs, long runs, walking'
+            },
+            'Bondi 9': {
+                description: 'One of the hardest working shoes in the HOKA lineup. Delivers peak plushness for everyday miles with increased stack height.',
+                specs: { stack: '43/38mm', drop: '5mm', weight: '10.5 oz' },
+                features: ['Maximum cushioning', 'High stack height', 'Recovery runs', 'All-day comfort'],
+                category: 'max cushion trainer',
+                bestFor: 'Recovery runs, easy miles, walking, all-day wear'
+            },
+            'Arahi 8': {
+                description: 'Anything but your average stability shoe. Features enhanced H-frame™ technology for combating overpronation.',
+                specs: { stack: '39/31mm', drop: '8mm', weight: '9.8 oz' },
+                features: ['Stability support', 'H-Frame technology', 'Overpronation control', 'Daily trainer'],
+                category: 'stability trainer',
+                bestFor: 'Daily training for overpronators, long runs, marathon training'
+            },
+            'Skyflow': {
+                description: 'Designed to elevate your daily running practice. Combines premium geometry with upgraded foam compounds.',
+                specs: { stack: '40/35mm', drop: '5mm', weight: '10 oz' },
+                features: ['Balanced cushioning', 'Smooth ride', 'Daily versatility', 'Premium foam'],
+                category: 'neutral daily trainer',
+                bestFor: 'Daily training, base miles, tempo runs'
+            }
+        };
+        
+        const ALLOWED_PRODUCTS = ['Mach 6', 'Mach X 3', 'Skyward X', 'Clifton 10', 'Bondi 9', 'Arahi 8', 'Skyflow'];
+        
+        let uploadedFile = null;
+        let inventoryCsvData = '';
+        let productsCsvData = '';
+        let widthFixCsvData = '';
+        let productCounts = {};
+        
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadedFileDiv = document.getElementById('uploadedFile');
+        const convertSection = document.getElementById('convertSection');
+        const statusDiv = document.getElementById('status');
+        
+        // Initialize product counts
+        ALLOWED_PRODUCTS.forEach(product => {
+            productCounts[product] = 0;
+        });
+        
+        // Format selection handler
+        document.querySelectorAll('input[name="csvFormat"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const productOptions = document.getElementById('productOptions');
+                const inventoryOption = document.getElementById('inventoryOption');
+                const productOption = document.getElementById('productOption');
+                
+                if (e.target.value === 'product') {
+                    productOptions.style.display = 'block';
+                    inventoryOption.classList.remove('selected');
+                    productOption.classList.add('selected');
+                } else {
+                    productOptions.style.display = 'none';
+                    inventoryOption.classList.add('selected');
+                    productOption.classList.remove('selected');
+                }
+            });
+        });
+        
+        function isAllowedProduct(productName) {
+            if (!productName) return false;
+            let nameLower = productName.toLowerCase();
+            
+            // Strip width indicators from product name before matching
+            nameLower = nameLower.replace(/ wide$/, '').replace(/ x-wide$/, '');
+            
+            if (nameLower.includes('arahi')) {
+                return nameLower.includes('arahi 8') || nameLower.includes('arahi8');
+            }
+            return ALLOWED_PRODUCTS.some(allowed => {
+                const allowedLower = allowed.toLowerCase();
+                return nameLower.includes(allowedLower) || 
+                       nameLower.includes(allowedLower.replace(/\s+/g, ''));
+            });
+        }
+        
+        function getMatchingProduct(productName) {
+            if (!productName) return null;
+            let nameLower = productName.toLowerCase();
+            
+            // Strip width indicators from product name before matching
+            nameLower = nameLower.replace(/ wide$/, '').replace(/ x-wide$/, '');
+            
+            if (nameLower.includes('arahi')) {
+                if (nameLower.includes('arahi 8') || nameLower.includes('arahi8')) {
+                    return 'Arahi 8';
+                }
+                return null;
+            }
+            for (const allowed of ALLOWED_PRODUCTS) {
+                const allowedLower = allowed.toLowerCase();
+                if (nameLower.includes(allowedLower) || 
+                    nameLower.includes(allowedLower.replace(/\s+/g, ''))) {
+                    return allowed;
+                }
+            }
+            return null;
+        }
+        
+        function formatGender(division) {
+            if (!division) return '';
+            const divStr = division.toString().trim();
+            // Keep the apostrophe for handle generation
+            if (divStr.toLowerCase() === "women's" || divStr.toLowerCase() === "womens") return "Women's";
+            if (divStr.toLowerCase() === "men's" || divStr.toLowerCase() === "mens") return "Men's";
+            if (divStr.toLowerCase() === "youth" || divStr.toLowerCase() === "kids") return 'Youth';
+            if (divStr.toLowerCase() === "unisex") return 'Unisex';
+            // Return original if no match
+            return divStr;
+        }
+        
+        function getGenderCategory(division) {
+            const gender = formatGender(division);
+            if (gender === "Women's") return "Women's Shoes";
+            if (gender === "Men's") return "Men's Shoes";
+            if (gender === 'Youth') return "Youth Shoes";
+            if (gender === 'Unisex') return "Unisex Shoes";
+            return "Shoes";
+        }
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        function highlight() {
+            dropZone.classList.add('dragover');
+        }
+        
+        function unhighlight() {
+            dropZone.classList.remove('dragover');
+        }
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+        
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            handleFiles(files);
+        }
+        
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                uploadedFile = file;
+                showUploadedFile(file);
+                hideStatus();
+            }
+        }
+        
+        function showUploadedFile(file) {
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+            uploadedFileDiv.style.display = 'flex';
+            convertSection.style.display = 'block';
+            dropZone.style.display = 'none';
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        function clearFile() {
+            uploadedFile = null;
+            fileInput.value = '';
+            uploadedFileDiv.style.display = 'none';
+            convertSection.style.display = 'none';
+            dropZone.style.display = 'block';
+            document.getElementById('downloadSection').style.display = 'none';
+            hideStatus();
+            resetProductCounts();
+        }
+        
+        function resetProductCounts() {
+            ALLOWED_PRODUCTS.forEach(product => {
+                productCounts[product] = 0;
+                const chip = document.querySelector(`[data-product="${product}"]`);
+                if (chip) {
+                    chip.classList.remove('has-data');
+                    chip.querySelector('.count').textContent = '0';
+                }
+            });
+        }
+        
+        function updateProductCount(productName) {
+            const matchingProduct = getMatchingProduct(productName);
+            if (matchingProduct) {
+                productCounts[matchingProduct]++;
+            }
+        }
+        
+        function displayProductCounts() {
+            ALLOWED_PRODUCTS.forEach(product => {
+                const chip = document.querySelector(`[data-product="${product}"]`);
+                if (chip) {
+                    const count = productCounts[product];
+                    if (count > 0) {
+                        chip.classList.add('has-data');
+                        chip.querySelector('.count').textContent = count;
+                    }
+                }
+            });
+        }
+        
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.style.display = 'block';
+        }
+        
+        function hideStatus() {
+            statusDiv.style.display = 'none';
+        }
+        
+        function downloadCSV(csvData, filename) {
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+        
+        async function convertFile() {
+            if (!uploadedFile) {
+                showStatus('Please upload a file first', 'error');
+                return;
+            }
+            
+            const convertBtn = document.getElementById('convertBtn');
+            const convertBtnText = document.getElementById('convertBtnText');
+            const downloadSection = document.getElementById('downloadSection');
+            const selectedFormat = document.querySelector('input[name="csvFormat"]:checked').value;
+            const setActive = document.getElementById('setActive').checked;
+            const publishOnline = document.getElementById('publishOnline').checked;
+            
+            try {
+                convertBtn.disabled = true;
+                convertBtnText.innerHTML = '<span class="loading-spinner"></span> Processing...';
+                
+                // Handle width fix mode separately since it needs Shopify CSV format
+                if (selectedFormat === 'widthfix') {
+                    await generateWidthFixCSV();
+                    downloadSection.style.display = 'block';
+                    return;
+                }
+                
+                showStatus('Scanning for allowed products...', 'processing');
+                
+                resetProductCounts();
+                
+                let data = [];
+                
+                if (uploadedFile.name.toLowerCase().endsWith('.xlsx') || 
+                    uploadedFile.name.toLowerCase().endsWith('.xls')) {
+                    const arrayBuffer = await uploadedFile.arrayBuffer();
+                    const workbook = XLSX.read(arrayBuffer);
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                } else {
+                    const text = await uploadedFile.text();
+                    const parseResult = Papa.parse(text, {
+                        delimiter: '\t',
+                        header: false,
+                        skipEmptyLines: true,
+                        dynamicTyping: true
+                    });
+                    data = parseResult.data;
+                }
+                
+                // Skip header row if it exists
+                let startIdx = 0;
+                if (data.length > 0 && data[0][0] === 'Division') {
+                    startIdx = 1;
+                }
+                
+                const filteredProducts = data.slice(startIdx).filter(row => {
+                    if (!row || row.length < 10) return false;
+                    const productName = row[5]; // Style Name column (was working before)
+                    const division = row[0]; // Division/Gender column
+                    
+                    // Skip youth products
+                    if (division && (division.toString().trim().toLowerCase() === 'youth' || 
+                                   division.toString().trim().toLowerCase() === 'kids' ||
+                                   division.toString().trim().toUpperCase() === 'Y')) {
+                        return false;
+                    }
+                    
+                    return isAllowedProduct(productName);
+                });
+                
+                const totalScanned = data.length - startIdx;
+                const totalFiltered = filteredProducts.length;
+                
+                if (totalFiltered === 0) {
+                    showStatus(`Warning: No matching products found. Scanned ${totalScanned} rows.`, 'warning');
+                    return;
+                }
+                
+                filteredProducts.sort((a, b) => {
+                    const productNameA = getMatchingProduct(a[5]) || a[5];
+                    const productNameB = getMatchingProduct(b[5]) || b[5];
+                    if (productNameA !== productNameB) {
+                        return productNameA.localeCompare(productNameB);
+                    }
+                    const genderA = formatGender(a[0]);
+                    const genderB = formatGender(b[0]);
+                    if (genderA !== genderB) {
+                        if (genderA === "Men's") return -1;
+                        if (genderB === "Men's") return 1;
+                        return genderA.localeCompare(genderB);
+                    }
+                    return 0;
+                });
+                
+                showStatus(`Found ${totalFiltered} matching items from ${totalScanned} total rows`, 'success');
+                
+                const processedVariants = new Map();
+                
+                for (let i = 0; i < filteredProducts.length; i++) {
+                    const product = filteredProducts[i];
+                    
+                    const division = product[0];  // Gender/Division
+                    const productName = product[5];  // Style Name (column 5)
+                    const colorway = product[6];  // Style Colorway (column 6)
+                    const styleSKU = product[7];  // Style SKU (column 7)
+                    const sizeInfo = product[8];  // Size (column 8)
+                    const variantSKU = product[9];  // Variant SKU (column 9)
+                    const upc = product[10];  // UPC (column 10)
+                    const quantity = product[12];  // Quantity (column 12)
+                    const retail = product[14];  // MSRP (column 14)
+                    
+                    const matchingProduct = getMatchingProduct(productName);
+                    if (!matchingProduct) continue;
+                    
+                    const formattedGender = formatGender(division);
+                    
+                    let size = sizeInfo ? sizeInfo.toString().replace(/[A-Z]/g, '') : '';
+                    if (size) {
+                        size = size.replace(/^0/, '');
+                        if (!size.includes('.')) {
+                            size = size + '.0';
+                        }
+                    }
+                    
+                    let width = 'Regular';
+                    if (variantSKU && sizeInfo) {
+                        const skuUpper = variantSKU.toUpperCase();
+                        const isWomen = formattedGender === "Women's";
+                        
+                        // Extract the size portion from the SKU to check width letter
+                        // Typical format: ...SIZE+WIDTH like "6.0D" or "6.0EE"
+                        const sizeStr = sizeInfo.toString().toUpperCase();
+                        
+                        if (isWomen) {
+                            // Women's widths: B=Regular, D=Wide, EE=Extra Wide (2E)
+                            // Check if the size string contains width indicators
+                            if (sizeStr.includes('EE') || sizeStr.includes('2E')) {
+                                width = 'Extra Wide';
+                            } else if (sizeStr.endsWith('D') || sizeStr.includes('D ')) {
+                                width = 'Wide';
+                            } else if (skuUpper.includes('EE') || skuUpper.includes('2E')) {
+                                width = 'Extra Wide';
+                            } else if (skuUpper.match(/\d+\.?\d*D$/i) || skuUpper.includes('-D-') || skuUpper.endsWith('-D')) {
+                                width = 'Wide';
+                            }
+                            // B width is Regular (default), so no action needed
+                        } else {
+                            // Men's widths: D=Regular, EE=Wide (2E), EEEE=Extra Wide (4E)
+                            // IMPORTANT: Check for EEEE (4E) BEFORE checking for EE (2E)
+                            if (sizeStr.includes('EEEE') || skuUpper.includes('EEEE')) {
+                                width = 'Extra Wide';
+                            } else if (sizeStr.includes('EE') || sizeStr.includes('2E') || skuUpper.includes('EE') || skuUpper.includes('2E')) {
+                                width = 'Wide';
+                            }
+                        }
+                    }
+                    
+                    const variantKey = `${formattedGender}-${matchingProduct}-${colorway}-${size}-${width}`;
+                    
+                    let actualQuantity = 0;
+                    if (typeof quantity === 'string') {
+                        if (quantity.includes('+')) {
+                            actualQuantity = parseInt(quantity.replace('+', '')) || 100;
+                        } else {
+                            actualQuantity = parseInt(quantity) || 0;
+                        }
+                    } else if (typeof quantity === 'number') {
+                        actualQuantity = quantity;
+                    }
+                    
+                    if (processedVariants.has(variantKey)) {
+                        const existing = processedVariants.get(variantKey);
+                        existing.quantity += actualQuantity;
+                        continue;
+                    }
+                    
+                    processedVariants.set(variantKey, {
+                        division,
+                        gender: formattedGender,
+                        productName,
+                        matchingProduct,
+                        colorway,
+                        styleSKU,
+                        size,
+                        width,
+                        variantSKU,
+                        upc,
+                        quantity: actualQuantity,
+                        retail: retail
+                    });
+                    
+                    updateProductCount(productName);
+                }
+                
+                const sortedVariants = Array.from(processedVariants.entries()).sort((a, b) => {
+                    const [keyA, dataA] = a;
+                    const [keyB, dataB] = b;
+                    
+                    if (dataA.matchingProduct !== dataB.matchingProduct) {
+                        return dataA.matchingProduct.localeCompare(dataB.matchingProduct);
+                    }
+                    
+                    if (dataA.gender !== dataB.gender) {
+                        if (dataA.gender === "Men's") return -1;
+                        if (dataB.gender === "Men's") return 1;
+                        return dataA.gender.localeCompare(dataB.gender);
+                    }
+                    
+                    if (dataA.colorway !== dataB.colorway) {
+                        return dataA.colorway.localeCompare(dataB.colorway);
+                    }
+                    
+                    if (dataA.width !== dataB.width) {
+                        if (dataA.width === 'Regular') return -1;
+                        if (dataB.width === 'Regular') return 1;
+                        return dataA.width.localeCompare(dataB.width);
+                    }
+                    
+                    const sizeA = parseFloat(dataA.size) || 0;
+                    const sizeB = parseFloat(dataB.size) || 0;
+                    return sizeA - sizeB;
+                });
+                
+                if (selectedFormat === 'inventory') {
+                    generateInventoryCSV(sortedVariants);
+                } else if (selectedFormat === 'widthfix') {
+                    generateWidthFixCSV();
+                } else {
+                    generateProductCSV(sortedVariants, setActive, publishOnline);
+                }
+                
+                const uniqueProducts = new Set(sortedVariants.map(([k, v]) => 
+                    `${v.gender}-${v.matchingProduct}-${v.colorway}-${v.width !== 'Regular' ? v.width : ''}`
+                ));
+                
+                document.getElementById('totalProducts').textContent = uniqueProducts.size;
+                document.getElementById('totalVariants').textContent = sortedVariants.length;
+                document.getElementById('totalFiltered').textContent = totalFiltered;
+                
+                displayProductCounts();
+                downloadSection.style.display = 'block';
+                
+                showStatus(`Successfully converted ${sortedVariants.length} variants!`, 'success');
+                
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+                console.error('Conversion error:', error);
+            } finally {
+                convertBtn.disabled = false;
+                convertBtnText.innerHTML = 'Convert to Shopify CSV';
+            }
+        }
+        
+        function generateInventoryCSV(sortedVariants) {
+            const shopifyInventory = [];
+            
+            for (const [variantKey, variantData] of sortedVariants) {
+                const productTitle = 'HOKA ' + variantData.gender + ' ' + variantData.matchingProduct + ' - ' + variantData.colorway;
+                
+                const baseHandle = (variantData.gender + '-' + variantData.matchingProduct + '-' + variantData.colorway)
+                    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                
+                const hasWidth = variantData.width !== 'Regular';
+                const handle = baseHandle + (hasWidth ? '-' + variantData.width.toLowerCase().replace(/\s+/g, '-') : '');
+                
+                shopifyInventory.push({
+                    Handle: handle,
+                    Title: productTitle + (hasWidth ? ' (' + variantData.width + ')' : ''),
+                    'Option1 Name': 'Size',
+                    'Option1 Value': variantData.size,
+                    'Option2 Name': '',
+                    'Option2 Value': '',
+                    'Option3 Name': '',
+                    'Option3 Value': '',
+                    SKU: variantData.variantSKU,
+                    Barcode: variantData.upc || '',
+                    'HS Code': '',
+                    COO: '',
+                    Location: 'Needham',
+                    'Bin name': '',
+                    'Incoming (not editable)': '',
+                    'Unavailable (not editable)': '',
+                    'Committed (not editable)': '',
+                    'Available (not editable)': '',
+                    'On hand (current)': '',
+                    'On hand (new)': variantData.quantity
+                });
+            }
+            
+            const headers = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"', 
+                           '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"', 
+                           '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"', 
+                           '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
+            
+            const csvRows = [headers.join(',')];
+            
+            shopifyInventory.forEach(row => {
+                const csvRow = [
+                    row.Handle,
+                    `"${row.Title}"`,
+                    row['Option1 Name'],
+                    row['Option1 Value'],
+                    '', '', '', '',
+                    row.SKU,
+                    row.Barcode,
+                    '', '',
+                    row.Location,
+                    '', '', '', '', '', '',
+                    row['On hand (new)']
+                ];
+                csvRows.push(csvRow.join(','));
+            });
+            
+            inventoryCsvData = csvRows.join('\n');
+            
+            const previewDiv = document.getElementById('preview');
+            const previewLines = inventoryCsvData.split('\n').slice(0, 4).join('\n');
+            previewDiv.innerHTML = '<div class="preview"><h4>Inventory CSV Preview (with Barcodes)</h4>' + previewLines + '</div>';
+            
+            document.getElementById('inventoryFileInfo').style.display = 'block';
+            document.getElementById('downloadInventoryBtn').style.display = 'inline-block';
+            document.getElementById('productFileInfo').style.display = 'none';
+            document.getElementById('downloadProductBtn').style.display = 'none';
+            document.getElementById('widthFixFileInfo').style.display = 'none';
+            document.getElementById('downloadWidthFixBtn').style.display = 'none';
+        }
+        
+        function generateProductCSV(sortedVariants, setActive, publishOnline) {
+            const shopifyProducts = [];
+            const processedProducts = new Set();
+            
+            for (const [variantKey, variantData] of sortedVariants) {
+                const productTitle = 'HOKA ' + variantData.gender + ' ' + variantData.matchingProduct + ' - ' + variantData.colorway;
+                
+                const baseHandle = (variantData.gender + '-' + variantData.matchingProduct + '-' + variantData.colorway)
+                    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                
+                const hasWidth = variantData.width !== 'Regular';
+                const handle = baseHandle + (hasWidth ? '-' + variantData.width.toLowerCase().replace(/\s+/g, '-') : '');
+                
+                const productKey = `${variantData.gender}-${variantData.styleSKU}-${variantData.colorway}${hasWidth ? '-' + variantData.width : ''}`;
+                const isFirstVariant = !processedProducts.has(productKey);
+                
+                if (isFirstVariant) {
+                    processedProducts.add(productKey);
+                }
+                
+                const productInfo = PRODUCT_INFO[variantData.matchingProduct] || { 
+                    description: '', 
+                    specs: {}, 
+                    features: [], 
+                    category: 'running shoes',
+                    bestFor: 'running and training'
+                };
+                const retailPrice = variantData.retail || '120.00';
+                const isTaxable = parseFloat(retailPrice) > 175;
+                
+                // Get gender category for product type
+                const genderCategory = getGenderCategory(variantData.division);
+                
+                // Build enriched HTML body content with SEO-friendly structure
+                let bodyHTML = '';
+                if (isFirstVariant) {
+                    bodyHTML = '<div class="product-description">';
+                    bodyHTML += '<p>' + productInfo.description + '</p>';
+                    
+                    // Add specifications
+                    if (productInfo.specs && Object.keys(productInfo.specs).length > 0) {
+                        bodyHTML += '<h3>Specifications</h3>';
+                        bodyHTML += '<ul>';
+                        if (productInfo.specs.stack) bodyHTML += '<li>Stack Height: ' + productInfo.specs.stack + '</li>';
+                        if (productInfo.specs.drop) bodyHTML += '<li>Heel-to-Toe Drop: ' + productInfo.specs.drop + '</li>';
+                        if (productInfo.specs.weight) bodyHTML += '<li>Weight: ' + productInfo.specs.weight + '</li>';
+                        bodyHTML += '</ul>';
+                    }
+                    
+                    // Add key features
+                    if (productInfo.features && productInfo.features.length > 0) {
+                        bodyHTML += '<h3>Key Features</h3>';
+                        bodyHTML += '<ul>';
+                        productInfo.features.forEach(feature => {
+                            bodyHTML += '<li>' + feature + '</li>';
+                        });
+                        bodyHTML += '</ul>';
+                    }
+                    
+                    // Add best for section
+                    if (productInfo.bestFor) {
+                        bodyHTML += '<h3>Best For</h3>';
+                        bodyHTML += '<p>' + productInfo.bestFor + '</p>';
+                    }
+                    
+                    bodyHTML += '</div>';
+                }
+                
+                // Build comprehensive tags including SEO keywords
+                const tags = [];
+                if (isFirstVariant) {
+                    // Basic tags
+                    tags.push(variantData.gender);
+                    tags.push(variantData.colorway);
+                    tags.push(variantData.matchingProduct);
+                    tags.push(genderCategory);
+                    
+                    // Category-based tags
+                    if (productInfo.category) {
+                        tags.push(productInfo.category);
+                    }
+                    
+                    // Performance tags based on product type
+                    if (variantData.matchingProduct.includes('Mach')) {
+                        tags.push('lightweight', 'responsive', 'daily trainer', 'neutral');
+                    } else if (variantData.matchingProduct.includes('Clifton')) {
+                        tags.push('cushioned', 'neutral', 'daily trainer', 'plush');
+                    } else if (variantData.matchingProduct.includes('Bondi')) {
+                        tags.push('max cushion', 'recovery shoe', 'maximum comfort');
+                    } else if (variantData.matchingProduct.includes('Arahi')) {
+                        tags.push('stability', 'support shoe', 'overpronation control');
+                    } else if (variantData.matchingProduct.includes('Skyward')) {
+                        tags.push('carbon plate', 'max cushion', 'long runs');
+                    }
+                    
+                    // Width tags if applicable
+                    if (hasWidth) {
+                        tags.push(variantData.width + ' width', variantData.width.toLowerCase() + ' fit');
+                    }
+                    
+                    // Distance/use tags
+                    tags.push('road running', 'running shoes');
+                    
+                    // Season tag
+                    tags.push('2025 collection');
+                }
+                
+                // Build enhanced SEO description
+                let seoDescription = '';
+                if (isFirstVariant) {
+                    seoDescription = 'Shop the HOKA ' + variantData.gender + ' ' + variantData.matchingProduct + 
+                                   ' in ' + variantData.colorway + '. ' + productInfo.description.substring(0, 120) + 
+                                   '... Perfect for ' + (productInfo.bestFor || 'running').toLowerCase() + '.';
+                }
+                
+                shopifyProducts.push({
+                    Handle: handle,
+                    Title: isFirstVariant ? productTitle + (hasWidth ? ' (' + variantData.width + ')' : '') : '',
+                    'Body (HTML)': bodyHTML,
+                    Vendor: isFirstVariant ? 'HOKA' : '',
+                    'Product Category': isFirstVariant ? 'Athletic Shoes' : '',
+                    Type: isFirstVariant ? genderCategory : '',
+                    Tags: isFirstVariant ? tags.join(', ') : '',
+                    Published: isFirstVariant ? (publishOnline ? 'TRUE' : 'FALSE') : '',
+                    'Option1 Name': isFirstVariant ? 'Size' : '',
+                    'Option1 Value': variantData.size,
+                    'Option2 Name': '',
+                    'Option2 Value': '',
+                    'Option3 Name': '',
+                    'Option3 Value': '',
+                    'Variant SKU': variantData.variantSKU,
+                    'Variant Grams': 500,
+                    'Variant Inventory Tracker': 'shopify',
+                    'Variant Inventory Qty': variantData.quantity,
+                    'Variant Inventory Policy': 'deny',
+                    'Variant Fulfillment Service': 'manual',
+                    'Variant Price': retailPrice,
+                    'Variant Compare At Price': '',
+                    'Variant Requires Shipping': 'TRUE',
+                    'Variant Taxable': isTaxable ? 'TRUE' : 'FALSE',
+                    'Variant Barcode': variantData.upc || '',
+                    'Image Src': '',
+                    'Image Position': '',
+                    'Image Alt Text': '',
+                    'Gift Card': 'FALSE',
+                    'SEO Title': isFirstVariant ? productTitle + ' | HOKA Running Shoes' : '',
+                    'SEO Description': seoDescription,
+                    'Google Shopping / Google Product Category': isFirstVariant ? 
+                        'Apparel & Accessories > Shoes > Athletic Shoes > Running Shoes' : '',
+                    'Google Shopping / Gender': isFirstVariant ? variantData.gender : '',
+                    'Google Shopping / Age Group': isFirstVariant ? 'Adult' : '',
+                    'Google Shopping / MPN': isFirstVariant ? variantData.styleSKU : '',
+                    'Google Shopping / Condition': isFirstVariant ? 'New' : '',
+                    'Google Shopping / Custom Product': isFirstVariant ? 'FALSE' : '',
+                    'Google Shopping / Color': isFirstVariant ? variantData.colorway : '',
+                    'Google Shopping / Material': isFirstVariant ? 'Synthetic/Mesh' : '',
+                    'Google Shopping / Size System': isFirstVariant ? 'US' : '',
+                    'Variant Image': '',
+                    'Variant Weight Unit': 'g',
+                    'Variant Tax Code': '',
+                    'Cost per item': '',
+                    'Included / United States': 'TRUE',
+                    'Price / United States': retailPrice,
+                    'Compare At Price / United States': '',
+                    'Included / International': 'TRUE',
+                    'Price / International': retailPrice,
+                    'Compare At Price / International': '',
+                    Status: isFirstVariant ? (setActive ? 'active' : 'draft') : '',
+                    'Published / Online Store': isFirstVariant ? (publishOnline ? 'TRUE' : 'FALSE') : ''
+                });
+            }
+            
+            productsCsvData = Papa.unparse(shopifyProducts, {
+                quotes: true,
+                quoteChar: '"',
+                delimiter: ','
+            });
+            
+            // Generate width fix CSV for existing women's products
+            generateWidthFixFromProducts(shopifyProducts);
+            
+            const previewDiv = document.getElementById('preview');
+            const previewLines = productsCsvData.split('\n').slice(0, 4).join('\n');
+            previewDiv.innerHTML = '<div class="preview"><h4>Product CSV Preview (Athletic Shoes Category + Gender Type)</h4>' + previewLines + '</div>';
+            
+            document.getElementById('inventoryFileInfo').style.display = 'none';
+            document.getElementById('downloadInventoryBtn').style.display = 'none';
+            document.getElementById('productFileInfo').style.display = 'block';
+            document.getElementById('downloadProductBtn').style.display = 'inline-block';
+            document.getElementById('widthFixFileInfo').style.display = 'block';
+            document.getElementById('downloadWidthFixBtn').style.display = 'inline-block';
+        }
+        
+        function downloadInventory() {
+            const date = new Date().toISOString().split('T')[0];
+            downloadCSV(inventoryCsvData, `hoka-inventory-${date}.csv`);
+        }
+        
+        function downloadProducts() {
+            const date = new Date().toISOString().split('T')[0];
+            downloadCSV(productsCsvData, `hoka-products-${date}.csv`);
+        }
+        
+        function downloadWidthFix() {
+            const date = new Date().toISOString().split('T')[0];
+            downloadCSV(widthFixCsvData, `hoka-width-fix-${date}.csv`);
+        }
+        
+        function generateWidthFixFromProducts(shopifyProducts) {
+            // Create a CSV with ALL width products (Wide and Extra Wide, men's and women's)
+            const widthFixProducts = [];
+            const widthHandles = new Set();
+            
+            // First pass: identify which handles are width products
+            for (const product of shopifyProducts) {
+                const title = product.Title || '';
+                const handle = product.Handle || '';
+                
+                if (!title) continue; // Skip variant rows (no title)
+                
+                // Check if this product has width in the title
+                const hasWidth = title.includes('(Wide)') || title.includes('(Extra Wide)');
+                
+                if (hasWidth) {
+                    widthHandles.add(handle);
+                }
+            }
+            
+            // Second pass: include ALL rows (variants) for width products
+            for (const product of shopifyProducts) {
+                const handle = product.Handle || '';
+                
+                if (widthHandles.has(handle)) {
+                    widthFixProducts.push(product);
+                }
+            }
+            
+            widthFixCsvData = Papa.unparse(widthFixProducts, {
+                quotes: true,
+                quoteChar: '"',
+                delimiter: ','
+            });
+        }
+        
+        async function generateWidthFixCSV() {
+            // For width fix, we need to parse the uploaded CSV as Shopify format
+            showStatus('Processing existing products for width fixes...', 'processing');
+            
+            const text = await uploadedFile.text();
+            const parseResult = Papa.parse(text, {
+                header: true,
+                skipEmptyLines: true
+            });
+            
+            const data = parseResult.data;
+            let wideToExtraWideCount = 0;
+            let totalWomensProducts = 0;
+            const updatedRows = [];
+            
+            for (let row of data) {
+                const handle = row.Handle || '';
+                const title = row.Title || '';
+                
+                // Check if this is a women's product
+                const isWomens = title.toLowerCase().includes("women's");
+                
+                if (isWomens && title) {
+                    totalWomensProducts++;
+                    
+                    // Check if it's currently labeled as "Wide" (which should be "Extra Wide")
+                    if (title.includes('(Wide)') && !title.includes('Extra Wide')) {
+                        // Update title from "(Wide)" to "(Extra Wide)"
+                        row.Title = title.replace('(Wide)', '(Extra Wide)');
+                        
+                        // Update handle from "-wide" to "-extra-wide"
+                        if (handle.endsWith('-wide')) {
+                            row.Handle = handle.replace(/-wide$/, '-extra-wide');
+                        }
+                        
+                        // Update SEO Title if it exists
+                        if (row['SEO Title'] && row['SEO Title'].includes('(Wide)')) {
+                            row['SEO Title'] = row['SEO Title'].replace('(Wide)', '(Extra Wide)');
+                        }
+                        
+                        wideToExtraWideCount++;
+                    }
+                }
+                
+                updatedRows.push(row);
+            }
+            
+            productsCsvData = Papa.unparse(updatedRows, {
+                quotes: true,
+                quoteChar: '"',
+                delimiter: ','
+            });
+            
+            const previewDiv = document.getElementById('preview');
+            const previewLines = productsCsvData.split('\n').slice(0, 4).join('\n');
+            previewDiv.innerHTML = '<div class="preview"><h4>Width Fix Preview (Product CSV)</h4>' + 
+                                  `<p style="color: #00ff00; margin-bottom: 10px;">Updated ${wideToExtraWideCount} women's products: Wide → Extra Wide</p>` +
+                                  previewLines + '</div>';
+            
+            document.getElementById('productFileInfo').style.display = 'block';
+            document.getElementById('downloadProductBtn').style.display = 'inline-block';
+            document.getElementById('inventoryFileInfo').style.display = 'none';
+            document.getElementById('downloadInventoryBtn').style.display = 'none';
+            document.getElementById('widthFixFileInfo').style.display = 'none';
+            document.getElementById('downloadWidthFixBtn').style.display = 'none';
+            
+            document.getElementById('totalProducts').textContent = totalWomensProducts;
+            document.getElementById('totalVariants').textContent = wideToExtraWideCount;
+            document.getElementById('totalFiltered').textContent = wideToExtraWideCount;
+            
+            if (wideToExtraWideCount > 0) {
+                showStatus(`✅ Fixed ${wideToExtraWideCount} women's width products!`, 'success');
+            } else {
+                showStatus('ℹ️ No women\'s "Wide" products found to update', 'warning');
+            }
+        }
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+        
+        dropZone.addEventListener('drop', handleDrop, false);
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+    </script>
+</body>
+</html>

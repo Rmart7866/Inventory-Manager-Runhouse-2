@@ -1,0 +1,31 @@
+{
+    "manifest_version": 3,
+    "name": "ON Running B2B Inventory Scraper",
+    "version": "1.0",
+    "description": "Manual scraper for ON Running B2B portal - exports inventory to Shopify CSV format",
+    "permissions": [
+      "activeTab",
+      "downloads"
+    ],
+    "content_scripts": [
+      {
+        "matches": [
+          "*://backstage.on-running.com/*",
+          "*://b2b.on-running.com/*", 
+          "*://on-running.com/b2b/*",
+          "*://www.on-running.com/b2b/*",
+          "*://portal.on-running.com/*",
+          "*://dealer.on-running.com/*",
+          "*://wholesale.on-running.com/*",
+          "*://on-running.com/*",
+          "*://www.on-running.com/*"
+        ],
+        "js": ["content.js"],
+        "css": ["styles.css"]
+      }
+    ],
+    "action": {
+      "default_popup": "popup.html",
+      "default_title": "ON Running B2B Scraper"
+    }
+  }

@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Puma B2B Inventory Exporter - FIXED",
+  "version": "2.1.0",
+  "description": "Export Puma B2B inventory data to Shopify CSV format with FIXED color names in product titles and proper Shopify upload compatibility",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.puma.com/*",
+    "*://*.pumab2b.com/*",
+    "*://puma.elasticsuite.com/*",
+    "*://*.puma.elasticsuite.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.puma.com/*", 
+        "*://*.pumab2b.com/*",
+        "*://puma.com/*",
+        "*://pumab2b.com/*",
+        "*://b2b.puma.com/*",
+        "*://puma.elasticsuite.com/*",
+        "*://*.puma.elasticsuite.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Puma B2B Inventory Exporter - FIXED"
+  }
+}
