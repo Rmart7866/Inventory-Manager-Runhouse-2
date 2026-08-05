@@ -97,6 +97,122 @@
         .go:disabled { opacity: .4; cursor: not-allowed; }
         .go-note { font-size: 12.5px; color: var(--muted-2); margin-top: 9px; }
         .hidden { display: none !important; }
+
+        /* =====================================================================
+           THE CREATE DIALOG, copied verbatim from product-enrichment.js.
+           Copied, not shared, on purpose. Extracting it would mean editing the
+           file that drives live footwear creation for a purely cosmetic reason,
+           and that file is not worth destabilising. The cost is that a change to
+           the shoe dialog has to be repeated here; the comment in
+           product-enrichment.js says so.
+           ===================================================================== */
+/* Stage 4: create-in-Shopify dialog — dark, matches the app theme */
+        #s4-confirm-overlay {
+            position: fixed; inset: 0; z-index: 10001; padding: 24px 16px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(3,5,10,.66); backdrop-filter: blur(3px);
+            --s4-text: #e9f1fb; --s4-muted: #9fb2cc; --s4-muted2: #97abc7;
+            --s4-surface: #111828; --s4-surface2: #0b111d; --s4-raise: #1b2740;
+            --s4-line: rgba(94,234,212,.14); --s4-line2: rgba(56,189,248,.30);
+            --s4-accent: #34e0ff; --s4-accent2: #7c8bff; --s4-ok: #3ce6b0; --s4-warn: #ffc04d; --s4-bad: #ff6b8b;
+        }
+        .s4-modal {
+            width: 100%; max-width: 580px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+            color: var(--s4-text); font-family: inherit;
+            background: var(--s4-surface); backdrop-filter: blur(18px) saturate(1.2);
+            border: 1px solid var(--s4-line2); border-radius: 4px;
+            box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
+        }
+        .s4-head { padding: 20px 22px 16px; border-bottom: 1px solid var(--s4-line); display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+        .s4-eyebrow { font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--s4-accent); font-weight: 700; }
+        .s4-title { margin: 6px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -.3px; line-height: 1.15; }
+        .s4-sub { margin-top: 5px; font-size: 13px; color: var(--s4-muted); }
+        .s4-sub strong { color: var(--s4-text); }
+        .s4-x { flex: none; width: 32px; height: 32px; border-radius: 3px; border: 1px solid var(--s4-line2); background: var(--s4-raise); color: var(--s4-muted); font-size: 18px; line-height: 1; cursor: pointer; }
+        .s4-x:hover { color: var(--s4-text); border-color: var(--s4-accent); }
+        .s4-toggle-bar { margin: 16px 22px 0; padding: 13px 16px; border: 1px solid var(--s4-line2); border-radius: 4px;
+            background: linear-gradient(180deg, rgba(52,224,255,.06), rgba(124,139,255,.04)); display: flex; align-items: center; gap: 13px; }
+        .s4-toggle-ico { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 3px; background: var(--s4-raise); border: 1px solid var(--s4-line2); font-size: 16px; }
+        .s4-toggle-txt { flex: 1; min-width: 0; }
+        .s4-toggle-txt .s4-t { font-size: 14px; font-weight: 700; }
+        .s4-toggle-txt .s4-h { font-size: 12px; color: var(--s4-muted); margin-top: 2px; }
+        .s4-toggle-txt .s4-h b { color: var(--s4-ok); font-variant-numeric: tabular-nums; }
+        .s4-folder-btn { flex: none; font-size: 12px; font-weight: 700; color: var(--s4-accent); background: var(--s4-raise); border: 1px solid var(--s4-line2); border-radius: 3px; padding: 7px 12px; cursor: pointer; font-family: inherit; }
+        .s4-folder-btn:hover { border-color: var(--s4-accent); }
+        .s4-switch { flex: none; position: relative; width: 50px; height: 28px; }
+        .s4-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+        .s4-switch input:disabled { cursor: not-allowed; }
+        .s4-track { position: absolute; inset: 0; border-radius: 999px; background: #1a2436; border: 1px solid var(--s4-line2); transition: background .18s, border-color .18s; }
+        .s4-knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #6b7d99; transition: transform .18s, background .18s; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+        .s4-switch input:checked + .s4-track { background: linear-gradient(92deg, var(--s4-accent), var(--s4-accent2)); border-color: transparent; }
+        .s4-switch input:checked + .s4-track + .s4-knob { transform: translateX(22px); background: #fff; }
+        .s4-switch input:disabled + .s4-track { opacity: .5; }
+        .s4-switch input:focus-visible + .s4-track { box-shadow: 0 0 0 3px rgba(52,224,255,.35); }
+        .s4-list-label { display: flex; justify-content: space-between; padding: 18px 22px 8px; }
+        .s4-list-label span { font-size: 11px; letter-spacing: 1.1px; text-transform: uppercase; color: var(--s4-muted2); font-weight: 700; }
+        .s4-list { flex: 1 1 auto; min-height: 64px; overflow-y: auto; padding: 2px 22px; display: flex; flex-direction: column; gap: 8px; }
+        .s4-list::-webkit-scrollbar { width: 8px; } .s4-list::-webkit-scrollbar-thumb { background: rgba(120,160,220,.25); border-radius: 4px; }
+        .s4-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--s4-line); border-radius: 4px; background: var(--s4-surface2); }
+        .s4-thumb { width: 44px; height: 44px; flex: none; border-radius: 3px; overflow: hidden; background: #0c1220; border: 1px solid var(--s4-line2); position: relative; }
+        .s4-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .s4-thumb .s4-cnt { position: absolute; bottom: 2px; right: 2px; font-size: 9px; font-weight: 700; background: rgba(5,7,13,.8); color: var(--s4-accent); padding: 1px 4px; border-radius: 2px; }
+        .s4-item-main { flex: 1; min-width: 0; }
+        .s4-item-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .s4-item-meta { margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .s4-chip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 2px; }
+        .s4-chip-draft { color: var(--s4-warn); background: rgba(255,192,77,.10); border: 1px solid rgba(255,192,77,.28); }
+        .s4-chip-cw { color: var(--s4-accent); background: rgba(52,224,255,.08); border: 1px solid rgba(52,224,255,.22); font-family: ui-monospace, monospace; }
+        .s4-chip-plain { color: var(--s4-muted); background: var(--s4-raise); border: 1px solid var(--s4-line); }
+        .s4-chip-stock { color: var(--s4-ok); background: rgba(60,230,176,.09); border: 1px solid rgba(60,230,176,.26); font-variant-numeric: tabular-nums; }
+        .s4-chip-thin { color: var(--s4-warn); background: rgba(255,192,77,.10); border: 1px solid rgba(255,192,77,.30); font-variant-numeric: tabular-nums; }
+        .s4-sizerun { margin-top: 5px; display: flex; gap: 3px; flex-wrap: wrap; }
+        .s4-sz { display: inline-flex; align-items: baseline; gap: 3px; font-size: 10px; font-variant-numeric: tabular-nums;
+                 padding: 1px 5px; border-radius: 2px; background: var(--s4-raise); border: 1px solid var(--s4-line); color: var(--s4-text); }
+        .s4-sz b { font-weight: 700; color: var(--s4-muted2); font-size: 9.5px; }
+        .s4-sz-out { opacity: .42; }
+        .s4-sz-unknown { opacity: .42; font-style: italic; }
+        .s4-item-price { flex: none; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+        .s4-item-price small { display: block; font-size: 10px; font-weight: 600; color: var(--s4-muted2); }
+        .s4-item-create { flex: none; font-size: 11px; font-weight: 700; color: #04121a; font-family: inherit; border: 0; border-radius: 3px; padding: 6px 11px; cursor: pointer; background: linear-gradient(92deg, var(--s4-accent), var(--s4-accent2)); }
+        .s4-item-create:hover:not(:disabled) { filter: brightness(1.08); }
+        .s4-item-create:disabled { cursor: default; }
+        .s4-item-created { background: none; color: var(--s4-ok); border: 1px solid rgba(60,230,176,.4); }
+        .s4-item-skipped { background: none; color: var(--s4-muted); border: 1px solid var(--s4-line); font-weight: 600; }
+        .s4-summary { margin: 14px 22px 0; padding: 11px 16px; border-radius: 4px; background: var(--s4-surface2); border: 1px solid var(--s4-line); display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--s4-muted); }
+        .s4-summary b { color: var(--s4-text); font-variant-numeric: tabular-nums; }
+        .s4-summary .s4-dot { color: var(--s4-muted2); }
+        .s4-summary .s4-imgpart { color: var(--s4-ok); }
+        .s4-msg { font-size: 13px; line-height: 1.5; margin: 12px 22px 0; }
+        .s4-msg:empty { margin: 0; }
+        .s4-msg-info { color: var(--s4-muted); } .s4-msg-ok { color: var(--s4-ok); }
+        .s4-msg-warn { color: var(--s4-warn); } .s4-msg-error { color: var(--s4-bad); }
+        .s4-foot { padding: 16px 22px 20px; display: flex; align-items: center; gap: 12px; }
+        .s4-safe { flex: 1; font-size: 12px; color: var(--s4-muted); line-height: 1.4; }
+        .s4-safe strong { color: var(--s4-text); }
+        .s4-btn { border: 0; border-radius: 3px; font-family: inherit; font-weight: 700; cursor: pointer; transition: filter .18s, background .18s; }
+        .s4-btn:disabled { opacity: .55; cursor: default; }
+        .s4-btn-ghost { padding: 11px 16px; font-size: 14px; background: transparent; color: var(--s4-muted); border: 1px solid var(--s4-line2); }
+        .s4-btn-ghost:hover:not(:disabled) { color: var(--s4-text); border-color: var(--s4-accent); }
+        .s4-btn-go { padding: 11px 20px; font-size: 14px; color: #04121a; white-space: nowrap; background: linear-gradient(92deg, var(--s4-accent), var(--s4-accent2)); box-shadow: 0 0 22px rgba(52,224,255,.28); }
+        .s4-btn-go:hover:not(:disabled) { filter: brightness(1.08); }
+        .s4-btn-go:focus-visible, .s4-btn-ghost:focus-visible, .s4-x:focus-visible { outline: 2px solid var(--s4-accent); outline-offset: 2px; }
+        @media (max-width: 520px) { .s4-foot { flex-wrap: wrap; } .s4-safe { flex-basis: 100%; order: -1; } .s4-btn-ghost, .s4-btn-go { flex: 1; } }
+
+        /* The one addition to the copied dialog. A shoe's price is already fixed
+           by the enrichment screen before this dialog opens, so it renders as
+           text; apparel has no such screen, so the price is editable here. Styled
+           to read as the same number, not as a form field dropped into the row. */
+        .s4-item-price { display: flex; align-items: baseline; gap: 2px; }
+        .s4-price-in {
+            width: 64px; padding: 2px 4px; text-align: right;
+            font: inherit; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
+            color: var(--s4-text); background: transparent;
+            border: 0; border-bottom: 1px dashed var(--s4-line2); outline: none;
+        }
+        .s4-price-in:focus { border-bottom-color: var(--s4-accent); background: rgba(52,224,255,.06); }
+        .s4-price-in::placeholder { color: var(--s4-muted2); font-weight: 600; }
+        .s4-item-price small { align-self: flex-end; }
+
     </style>
 </head>
 <body>
@@ -188,29 +304,13 @@
             <div class="card hidden" id="create-card">
                 <div class="card-head">
                     <h2>4. Create the ones that are not on Shopify</h2>
-                    <span class="hint">they land as drafts</span>
+                    <span class="hint" id="create-count"></span>
                 </div>
                 <div class="card-body">
-                    <div class="note" style="border-left-color:var(--warn);margin-bottom:16px">
-                        <strong>Nothing goes live.</strong> Products are created as <strong>drafts</strong> with
-                        their feed stock at the location above, for you to review and publish in Shopify. Prices
-                        and barcodes come from ON's pricat where it has them; anything blank is worth filling in
-                        before you publish.
-                    </div>
-                    <div class="locrow" style="margin-bottom:14px">
-                        <button class="clear" id="c-all">Select all</button>
-                        <button class="clear" id="c-none">Select none</button>
-                        <label style="margin-left:auto">Photos</label>
-                        <button class="clear" id="c-folder">Choose folder</button>
-                        <span class="hint" id="c-photos">none chosen</span>
-                        <input type="file" id="c-folder-input" webkitdirectory directory multiple style="display:none">
-                    </div>
-                    <div id="create-list"></div>
-                    <div style="margin-top:16px">
-                        <button class="go" id="c-go">Create drafts</button>
-                        <div class="go-note" id="c-note"></div>
-                    </div>
+                    <button class="go" id="open-create">Create in Shopify &rarr;</button>
+                    <div class="go-note">Opens the same review dialog the shoe tool uses. Nothing is written until you confirm there.</div>
                 </div>
+            </div>
             </div>
         </div>
     </div>
@@ -219,7 +319,7 @@
          tools/build-barcodes.py so staff never upload a pricat. -->
     <script src="barcode-data.js?v=4"></script>
     <script src="catalog-client.js?v=19"></script>
-    <script src="on-apparel-converter.js?v=3"></script>
+    <script src="on-apparel-converter.js?v=4"></script>
     <script>
         // Shares the session unlock with index.html, so unlocking one unlocks both.
         var CORRECT_PASSWORD = "runhouse15west";
@@ -333,7 +433,7 @@
 
             show('summary-card', true);
             show('download-card', true);
-            renderCreate();
+            refreshCreateCard();
             document.getElementById('go').disabled = STATE.rows.length === 0;
             document.getElementById('go-note').textContent =
                 STATE.rows.length + ' rows, all at ' + location + '. '
@@ -344,11 +444,17 @@
 
         // ---- creating the products the store does not have ----------------
         //
-        // Photos are matched to a product by the ON article code in the filename,
-        // exactly as the footwear tool does, because the same code appears in the
-        // SKU. Gallery order (g1..g6, then detail, then lifestyle) decides which
-        // becomes the featured image.
+        // Deliberately the SAME dialog as the footwear tool's Stage 4: same
+        // layout, same image toggle, same per-row create, same batching and
+        // safety footer. Staff should not have to learn a second screen to do the
+        // same job. The markup and CSS are copied from product-enrichment.js
+        // rather than shared, see the note above the copied styles.
+        //
+        // Photos match a product by the ON article code in the filename, exactly
+        // as footwear does, because the same code is in the SKU. Gallery order
+        // (g1..g6, then detail, then lifestyle) decides the featured image.
         var PHOTOS = null;
+
         function indexPhotos(fileList) {
             var idx = {};
             Array.prototype.slice.call(fileList || []).forEach(function (f) {
@@ -369,122 +475,266 @@
             return idx;
         }
         function photosFor(spec) { return (PHOTOS && PHOTOS[spec._code]) || []; }
+        function hasPhotos() { return !!(PHOTOS && Object.keys(PHOTOS).length); }
 
-        function renderCreate() {
+        // A colorway at or below this many units reads as thin. Not a filter, the
+        // row still creates: "1 unit" is a judgement call, not an error.
+        var THIN_UNITS = 3;
+
+        function refreshCreateCard() {
             var specs = OnApparelConverter.buildCreateSpecs(STATE.products || [], {});
             STATE.specs = specs;
             show('create-card', specs.length > 0);
+            var el = document.getElementById('create-count');
+            if (el) el.textContent = specs.length + ' not on Shopify yet';
+            var btn = document.getElementById('open-create');
+            if (btn) btn.textContent = 'Create ' + specs.length + ' in Shopify →';
+        }
+
+        function openCreateDialog() {
+            var specs = (STATE.specs || []).slice();
             if (!specs.length) return;
-            document.getElementById('create-list').innerHTML = specs.map(function (s, i) {
-                var photos = photosFor(s).length;
-                var noBarcode = s.variants.length - s._barcodes;
-                return '<div class="prod">'
-                    + '<input type="checkbox" class="c-cb" data-i="' + i + '" checked style="margin-top:3px;width:17px;height:17px;accent-color:var(--accent)">'
-                    + '<div class="prod-main">'
-                    + '<div class="prod-name">' + esc(s.title) + '</div>'
-                    + '<div class="prod-sub">' + esc(s.handle) + '</div>'
-                    + '<div class="sizes" style="margin-top:6px">'
-                    + '<span class="chip">' + esc(s.productType) + '</span>'
-                    + '<span class="chip">' + s.variants.length + ' sizes</span>'
-                    + '<span class="chip' + (s._units ? ' chip-match' : '') + '">' + s._units + ' units</span>'
-                    + (noBarcode ? '<span class="chip chip-amb">' + noBarcode + ' without a barcode</span>'
-                                 : '<span class="chip chip-match">all barcoded</span>')
-                    + (photos ? '<span class="chip chip-new">' + photos + ' photos</span>' : '')
-                    + '</div></div>'
-                    + '<div class="prod-units" style="display:flex;align-items:center;gap:6px">$'
-                    + '<input class="c-price" data-i="' + i + '" value="' + esc(s.variants[0].price || '') + '" placeholder="0.00"'
-                    + ' style="width:74px;padding:6px 8px;background:var(--surface);color:var(--text);border:1px solid var(--line-2);font:inherit;font-size:13px;text-align:right">'
-                    + '</div></div>';
-            }).join('');
-            updateCreateNote();
-        }
+            var totalVariants = specs.reduce(function (t, s) { return t + s.variants.length; }, 0);
+            var thumbUrls = [];
+            var createdHandles = {};
 
-        function selectedSpecs() {
-            var out = [];
-            document.querySelectorAll('.c-cb').forEach(function (cb) {
-                if (!cb.checked) return;
-                var i = parseInt(cb.getAttribute('data-i'), 10);
-                var s = STATE.specs[i];
-                var pr = document.querySelector('.c-price[data-i="' + i + '"]');
-                var v = pr && pr.value.trim();
-                if (v) s.variants.forEach(function (x) { x.price = v; });
-                out.push(s);
+            var overlay = document.createElement('div');
+            overlay.id = 's4-confirm-overlay';
+            overlay.innerHTML =
+                '<div class="s4-modal" role="dialog" aria-modal="true">'
+                + '<div class="s4-head"><div>'
+                + '<div class="s4-eyebrow">New products · ON Running</div>'
+                + '<h1 class="s4-title" id="s4-title"></h1>'
+                + '<div class="s4-sub">Reviewed and ready. They land as <strong>drafts</strong> for you to publish.</div>'
+                + '</div><button class="s4-x" id="s4-x" aria-label="Cancel">×</button></div>'
+                + '<div class="s4-toggle-bar">'
+                + '<div class="s4-toggle-ico" aria-hidden="true">🖼</div>'
+                + '<div class="s4-toggle-txt"><div class="s4-t">Upload product images</div><div class="s4-h" id="s4-hint"></div></div>'
+                + '<button class="s4-folder-btn" id="s4-folder" type="button">Choose folder</button>'
+                + '<label class="s4-switch"><input type="checkbox" id="s4-imgtoggle" aria-label="Upload product images"><span class="s4-track"></span><span class="s4-knob"></span></label>'
+                + '<input type="file" id="s4-folder-input" webkitdirectory directory multiple style="display:none">'
+                + '</div>'
+                + '<div class="s4-list-label"><span>What gets created</span><span>all draft</span></div>'
+                + '<div class="s4-list" id="s4-list"></div>'
+                + '<div class="s4-summary" id="s4-summary"></div>'
+                + '<div class="s4-msg" id="s4-msg"></div>'
+                + '<div class="s4-foot">'
+                + '<div class="s4-safe"><strong>Nothing goes live.</strong> Created as drafts, review and publish in Shopify when ready.</div>'
+                + '<button class="s4-btn s4-btn-ghost" id="s4-cancel">Cancel</button>'
+                + '<button class="s4-btn s4-btn-go" id="s4-go"></button>'
+                + '</div></div>';
+            document.body.appendChild(overlay);
+
+            var toggle = document.getElementById('s4-imgtoggle');
+            toggle.checked = hasPhotos();
+
+            function photoCount() { return specs.reduce(function (t, s) { return t + photosFor(s).length; }, 0); }
+
+            function priceOf(s) { return (s.variants[0] && s.variants[0].price) || ''; }
+
+            function render() {
+                var on = toggle.checked && hasPhotos();
+                document.getElementById('s4-title').textContent =
+                    'Create ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' in Shopify';
+                document.getElementById('s4-hint').innerHTML = hasPhotos()
+                    ? '<b>' + photoCount() + '</b> photos matched from your ON folder'
+                    : 'Pick your ON apparel gallery folder to attach photos (optional)';
+                document.getElementById('s4-folder').textContent = hasPhotos() ? 'Change folder' : 'Choose folder';
+                toggle.disabled = !hasPhotos();
+
+                thumbUrls.forEach(function (u) { URL.revokeObjectURL(u); }); thumbUrls = [];
+                document.getElementById('s4-list').innerHTML = specs.map(function (s, idx) {
+                    var imgs = on ? photosFor(s) : [];
+                    var thumb = '';
+                    if (imgs.length) {
+                        var u = URL.createObjectURL(imgs[0]); thumbUrls.push(u);
+                        thumb = '<div class="s4-thumb"><img src="' + u + '" alt=""><span class="s4-cnt">' + imgs.length + '</span></div>';
+                    }
+                    var btn = createdHandles[s.handle]
+                        ? '<button class="s4-item-create s4-item-created" disabled>✓ Created</button>'
+                        : '<button class="s4-item-create" data-idx="' + idx + '" title="Create just this product in Shopify">Create</button>';
+                    var thin = s._units <= THIN_UNITS;
+                    var noBarcode = s.variants.length - s._barcodes;
+                    var run = s.variants.map(function (v) {
+                        return '<span class="s4-sz' + (v.quantity > 0 ? '' : ' s4-sz-out') + '"><b>'
+                            + esc(v.size) + '</b>' + v.quantity + '</span>';
+                    }).join('');
+                    return '<div class="s4-item">' + thumb
+                        + '<div class="s4-item-main"><div class="s4-item-name">' + esc(s.title) + '</div>'
+                        + '<div class="s4-item-meta"><span class="s4-chip s4-chip-draft">Draft</span>'
+                        + '<span class="s4-chip s4-chip-cw">' + esc(s.productType) + '</span>'
+                        + '<span class="s4-chip ' + (thin ? 's4-chip-thin' : 's4-chip-stock') + '">' + s._units + ' unit' + (s._units === 1 ? '' : 's') + '</span>'
+                        + '<span class="s4-chip s4-chip-plain">' + s.variants.length + ' sizes</span>'
+                        + (noBarcode
+                            ? '<span class="s4-chip s4-chip-thin">' + noBarcode + ' no barcode</span>'
+                            : '<span class="s4-chip s4-chip-stock">all barcoded</span>')
+                        + '</div>'
+                        + '<div class="s4-sizerun">' + run + '</div>'
+                        + '</div>'
+                        + '<div class="s4-item-price">$<input class="s4-price-in" data-idx="' + idx + '" value="' + esc(priceOf(s)) + '" placeholder="0.00">'
+                        + '<small>each</small></div>'
+                        + btn
+                        + '</div>';
+                }).join('');
+
+                var photos = on ? photoCount() : 0;
+                var totalUnits = specs.reduce(function (t, s) { return t + (s._units || 0); }, 0);
+                var noPrice = specs.filter(function (s) { return !priceOf(s); }).length;
+                document.getElementById('s4-summary').innerHTML =
+                    '<span><b>' + specs.length + '</b> products</span><span class="s4-dot">·</span>'
+                    + '<span><b>' + totalVariants + '</b> variants</span>'
+                    + (totalUnits ? '<span class="s4-dot">·</span><span><b>' + totalUnits + '</b> units</span>' : '')
+                    + '<span class="s4-dot">·</span><span>all draft</span>'
+                    + (photos ? '<span class="s4-dot">·</span><span class="s4-imgpart"><b>' + photos + '</b> photos</span>' : '');
+                var msg = document.getElementById('s4-msg');
+                if (noPrice && !msg.dataset.busy) {
+                    msg.className = 's4-msg s4-msg-warn';
+                    msg.innerHTML = noPrice + ' product' + (noPrice === 1 ? ' has' : 's have') + ' no price. ON’s pricat does not list them, so they would be created at 0.00. Type one in before creating.';
+                } else if (!msg.dataset.busy) { msg.className = 's4-msg'; msg.innerHTML = ''; }
+                document.getElementById('s4-go').innerHTML = 'Create ' + specs.length + ' →';
+            }
+
+            function close() { thumbUrls.forEach(function (u) { URL.revokeObjectURL(u); }); overlay.remove(); }
+            document.getElementById('s4-x').onclick = close;
+            document.getElementById('s4-cancel').onclick = close;
+            document.getElementById('s4-folder').onclick = function () { document.getElementById('s4-folder-input').click(); };
+            document.getElementById('s4-folder-input').onchange = function (e) {
+                if (e.target.files && e.target.files.length) { indexPhotos(e.target.files); toggle.checked = true; render(); }
+            };
+            toggle.onchange = render;
+
+            // A typed price applies to every size of that product, the way a shoe
+            // is one price across its size run.
+            document.getElementById('s4-list').addEventListener('input', function (e) {
+                var el = e.target;
+                if (!el.classList || !el.classList.contains('s4-price-in')) return;
+                var s = specs[parseInt(el.getAttribute('data-idx'), 10)];
+                if (s) s.variants.forEach(function (v) { v.price = el.value.trim(); });
             });
-            return out;
+
+            // Per-row create, so a single product can be tried first.
+            document.getElementById('s4-list').addEventListener('click', function (e) {
+                var btn = e.target && e.target.closest && e.target.closest('.s4-item-create');
+                if (!btn || btn.disabled || btn.getAttribute('data-idx') == null) return;
+                var spec = specs[parseInt(btn.getAttribute('data-idx'), 10)];
+                if (!spec) return;
+                btn.disabled = true; btn.textContent = '…';
+                var withImages = toggle.checked && hasPhotos();
+                if (withImages) spec.files = [];
+                var prep = withImages ? attachImages([spec]) : Promise.resolve([spec]);
+                prep.then(function () { return CatalogClient.createProducts([spec]); }).then(function (res) {
+                    var r = (res.results && res.results[0]) || {};
+                    if (res.__status === 200 && r.ok) {
+                        createdHandles[spec.handle] = true;
+                        btn.textContent = '✓ Created'; btn.className = 's4-item-create s4-item-created';
+                    } else if (r.skipped) {
+                        btn.textContent = 'Already exists'; btn.disabled = true;
+                        btn.className = 's4-item-create s4-item-skipped';
+                        btn.title = 'This handle is already on Shopify, so nothing was created and the live product was not touched.';
+                    } else {
+                        btn.textContent = 'Retry'; btn.disabled = false;
+                        btn.title = (r.userErrors && r.userErrors[0] && r.userErrors[0].message) || res.error || res.reason || ('HTTP ' + res.__status);
+                    }
+                }).catch(function (err) { btn.textContent = 'Retry'; btn.disabled = false; btn.title = (err && err.message) || String(err); });
+            });
+
+            document.getElementById('s4-go').onclick = function () {
+                doCreate(specs, toggle.checked && hasPhotos(), createdHandles);
+            };
+            render();
         }
 
-        function updateCreateNote() {
-            var sel = selectedSpecs();
-            var noPrice = sel.filter(function (s) { return !s.variants[0].price; }).length;
-            var photos = sel.reduce(function (t, s) { return t + photosFor(s).length; }, 0);
-            document.getElementById('c-go').textContent = 'Create ' + sel.length + ' draft' + (sel.length === 1 ? '' : 's');
-            document.getElementById('c-go').disabled = sel.length === 0;
-            document.getElementById('c-note').innerHTML = sel.length
-                ? sel.length + ' selected' + (photos ? ', ' + photos + ' photos to upload' : ', no photos')
-                  + (noPrice ? '. <span style="color:var(--warn)">' + noPrice + ' with no price, they will be created at 0.00</span>' : '.')
-                : 'Nothing selected.';
-        }
-
-        function doCreate() {
-            var sel = selectedSpecs();
-            if (!sel.length) return;
-            var btn = document.getElementById('c-go'), note = document.getElementById('c-note');
-            var withPhotos = !!PHOTOS;
-            if (!confirm('Create ' + sel.length + ' product' + (sel.length === 1 ? '' : 's') + ' in Shopify as drafts?\n\n'
-                + 'They will not be visible to customers until you publish them.')) return;
-            btn.disabled = true;
-            var made = 0, failed = [], i = 0;
-            var BATCH = 10;
-
-            function attach(chunk) {
-                if (!withPhotos) return Promise.resolve(chunk);
-                var jobs = [];
-                chunk.forEach(function (s, si) { photosFor(s).forEach(function (f) { jobs.push({ si: si, file: f }); }); });
-                if (!jobs.length) return Promise.resolve(chunk);
-                return CatalogClient.stagedUploads(jobs.map(function (j) {
-                    return { filename: j.file.name, mimeType: j.file.type || 'image/png', fileSize: j.file.size };
-                })).then(function (res) {
-                    if (res.__status !== 200) throw new Error(res.error || res.reason || ('staged uploads HTTP ' + res.__status));
-                    var targets = res.targets || [];
-                    return jobs.reduce(function (chain, j, n) {
-                        return chain.then(function () {
-                            return CatalogClient.uploadToTarget(targets[n], j.file).then(function (url) {
-                                var s = chunk[j.si];
-                                (s.files = s.files || []).push({ originalSource: url, alt: s.title });
-                            });
+        // Stage and upload every matched image, attaching resourceUrls in gallery
+        // order so the first becomes the featured image.
+        function attachImages(specs, onProgress) {
+            var jobs = [];
+            specs.forEach(function (s, si) { photosFor(s).forEach(function (f) { jobs.push({ si: si, file: f }); }); });
+            if (!jobs.length) return Promise.resolve(specs);
+            return CatalogClient.stagedUploads(jobs.map(function (j) {
+                return { filename: j.file.name, mimeType: j.file.type || 'image/png', fileSize: j.file.size };
+            })).then(function (res) {
+                if (res.__status !== 200) throw new Error(res.error || res.reason || ('staged uploads HTTP ' + res.__status));
+                var targets = res.targets || [];
+                if (targets.length < jobs.length) throw new Error('Server returned fewer upload targets than images');
+                var done = 0;
+                return jobs.reduce(function (chain, j, i) {
+                    return chain.then(function () {
+                        return CatalogClient.uploadToTarget(targets[i], j.file).then(function (url) {
+                            (specs[j.si].files = specs[j.si].files || []).push({ originalSource: url, alt: specs[j.si].title });
+                            done++; if (onProgress) onProgress(done, jobs.length);
                         });
-                    }, Promise.resolve()).then(function () { return chunk; });
+                    });
+                }, Promise.resolve()).then(function () { return specs; });
+            });
+        }
+
+        // Create in batches, so any number works. Each batch stages its own images
+        // then creates. A mid-run failure still reports what succeeded.
+        function doCreate(specs, withImages, createdHandles) {
+            var go = document.getElementById('s4-go');
+            var cancel = document.getElementById('s4-cancel');
+            var msg = document.getElementById('s4-msg');
+            var x = document.getElementById('s4-x');
+            var pending = specs.filter(function (s) { return !createdHandles[s.handle]; });
+            if (!pending.length) { msg.className = 's4-msg s4-msg-ok'; msg.innerHTML = 'Everything here is already created.'; return; }
+            go.disabled = true; cancel.disabled = true; if (x) x.style.visibility = 'hidden';
+            msg.dataset.busy = '1';
+
+            function setInfo(t) { msg.className = 's4-msg s4-msg-info'; msg.textContent = t; }
+            var BATCH = 10;
+            var chunks = [];
+            for (var i = 0; i < pending.length; i += BATCH) chunks.push(pending.slice(i, i + BATCH));
+            var total = pending.length, okCount = 0, failed = [];
+
+            function processChunk(ci) {
+                if (ci >= chunks.length) return Promise.resolve();
+                var chunk = chunks[ci];
+                var label = chunks.length > 1 ? ('Batch ' + (ci + 1) + '/' + chunks.length + ' — ') : '';
+                var prep = Promise.resolve(chunk);
+                if (withImages) {
+                    go.textContent = 'Uploading…';
+                    setInfo(label + 'uploading images…');
+                    prep = attachImages(chunk, function (d, t) { setInfo(label + 'uploading images… ' + d + ' / ' + t); });
+                }
+                return prep.then(function (ready) {
+                    go.textContent = 'Creating…';
+                    setInfo(label + 'creating in Shopify… (' + okCount + '/' + total + ' done)');
+                    return CatalogClient.createProducts(ready);
+                }).then(function (res) {
+                    if (res.__status === 501) throw new Error('Writes are turned off on the server (read-only mode). ' + (res.reason || ''));
+                    if (res.__status !== 200) throw new Error('Server error (HTTP ' + res.__status + '): ' + (res.error || res.reason || 'unknown'));
+                    (res.results || []).forEach(function (r) {
+                        if (r.ok) { okCount++; createdHandles[r.handle] = true; }
+                        else failed.push(r);
+                    });
+                    return processChunk(ci + 1);
                 });
             }
 
-            function step() {
-                if (i >= sel.length) {
-                    btn.textContent = 'Done';
-                    note.innerHTML = '&#10003; Created <strong>' + made + '</strong> draft' + (made === 1 ? '' : 's')
-                        + (failed.length ? ', <strong>' + failed.length + '</strong> failed: ' + esc(failed.slice(0, 4).join('; ')) : '')
-                        + '. Review and publish them in Shopify.';
-                    return;
+            processChunk(0).then(function () {
+                var skipped = failed.filter(function (r) { return r.skipped; }).length;
+                var hard = failed.length - skipped;
+                delete msg.dataset.busy;
+                if (!hard && !skipped) {
+                    msg.className = 's4-msg s4-msg-ok';
+                    msg.innerHTML = '✓ Created <strong>' + okCount + '</strong> draft product' + (okCount !== 1 ? 's' : '')
+                        + (withImages ? ' with photos' : '') + '. Review and publish them in Shopify admin.';
+                } else {
+                    msg.className = 's4-msg s4-msg-warn';
+                    msg.innerHTML = 'Created <strong>' + okCount + '</strong>'
+                        + (skipped ? ', <strong>' + skipped + '</strong> skipped (already exist)' : '')
+                        + (hard ? ', <strong>' + hard + '</strong> failed' : '')
+                        + (failed.length ? ':<br>' + failed.slice(0, 8).map(function (r) {
+                            return '• ' + esc(r.title || r.handle) + ': ' + esc((r.userErrors && r.userErrors[0] && r.userErrors[0].message) || 'error');
+                        }).join('<br>') : '');
                 }
-                var chunk = sel.slice(i, i + BATCH);
-                note.textContent = 'Creating ' + (i + 1) + ' to ' + Math.min(i + chunk.length, sel.length) + ' of ' + sel.length + '...';
-                attach(chunk)
-                    .then(function (ready) { return CatalogClient.createProducts(ready); })
-                    .then(function (res) {
-                        if (res.__status === 501) throw new Error('Writes are turned off on the server.');
-                        if (res.__status !== 200) throw new Error(res.error || res.reason || ('HTTP ' + res.__status));
-                        (res.results || []).forEach(function (r) {
-                            if (r.ok) made++;
-                            else failed.push((r.title || r.handle) + ': ' + ((r.userErrors && r.userErrors[0] && r.userErrors[0].message) || 'error'));
-                        });
-                        i += BATCH;
-                        step();
-                    })
-                    .catch(function (e) {
-                        note.innerHTML = '<span style="color:var(--bad)">Stopped after ' + made + ' created: ' + esc(e.message) + '</span>';
-                        btn.disabled = false;
-                    });
-            }
-            step();
+                go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Done';
+            }).catch(function (e) {
+                delete msg.dataset.busy;
+                msg.className = 's4-msg s4-msg-error';
+                msg.innerHTML = (okCount ? 'Created <strong>' + okCount + '</strong> before stopping. ' : '') + esc((e && e.message) || e);
+                go.style.display = 'none'; cancel.disabled = false; cancel.textContent = 'Close';
+            });
         }
 
         function downloadCSV() {
@@ -551,24 +801,9 @@
             fi.addEventListener('change', function (e) { if (e.target.files.length) handleFile(e.target.files[0]); });
             document.getElementById('loc').addEventListener('change', function () { if (STATE.products) render(); });
 
-            document.getElementById('c-go').addEventListener('click', doCreate);
-            document.getElementById('c-all').addEventListener('click', function () {
-                document.querySelectorAll('.c-cb').forEach(function (cb) { cb.checked = true; }); updateCreateNote(); });
-            document.getElementById('c-none').addEventListener('click', function () {
-                document.querySelectorAll('.c-cb').forEach(function (cb) { cb.checked = false; }); updateCreateNote(); });
-            document.getElementById('create-list').addEventListener('change', updateCreateNote);
-            document.getElementById('create-list').addEventListener('input', updateCreateNote);
-            document.getElementById('c-folder').addEventListener('click', function () {
-                document.getElementById('c-folder-input').click(); });
-            document.getElementById('c-folder-input').addEventListener('change', function (e) {
-                if (!e.target.files || !e.target.files.length) return;
-                var idx = indexPhotos(e.target.files);
-                var n = Object.keys(idx).length;
-                document.getElementById('c-photos').textContent = n
-                    ? n + ' article codes matched'
-                    : 'no ON article codes found in those filenames';
-                renderCreate();
-            });
+            // Everything else about creating lives in the dialog, same as the
+            // shoe tool: the folder picker and the image toggle are in there.
+            document.getElementById('open-create').addEventListener('click', openCreateDialog);
         });
     </script>
 </body>
