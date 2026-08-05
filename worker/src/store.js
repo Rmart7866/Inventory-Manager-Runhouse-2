@@ -52,11 +52,24 @@ export async function readCatalogMeta(env, scope) {
   return metadata || null;
 }
 
+// KV metadata is capped at 1024 BYTES, which is small and easy to grow into
+// without noticing: the breakdowns in `counts` are maps keyed by product type and
+// brand, so they widen every time a supplier uses a new category. Over the cap the
+// put fails, the build throws, and the catalog silently stops updating, which is
+// the one failure this system is worst at showing. So metadata carries the scalar
+// counters only. The full breakdowns stay in the payload body, where they cost
+// nothing and nobody has to think about them.
+function metaCounts(counts) {
+  const out = {};
+  for (const [k, v] of Object.entries(counts || {})) if (typeof v !== 'object' || v === null) out[k] = v;
+  return out;
+}
+
 export async function writeCatalog(env, scope, payload) {
   const body = JSON.stringify(payload);
   const meta = {
     generatedAt: payload.generatedAt,
-    counts: payload.counts,
+    counts: metaCounts(payload.counts),
     sizeBytes: body.length,
   };
   await env.CATALOG.put(catalogKey(scope), body, { metadata: meta });
@@ -78,7 +91,7 @@ export async function writeApparel(env, scope, payload) {
   const body = JSON.stringify(payload);
   const meta = {
     generatedAt: payload.generatedAt,
-    counts: payload.counts,
+    counts: metaCounts(payload.counts),
     sizeBytes: body.length,
   };
   await env.CATALOG.put(apparelKey(scope), body, { metadata: meta });
