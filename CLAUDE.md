@@ -30,8 +30,11 @@ rule exists. Match that when you edit.
 | `catalog-ui.js` | Freshness bar, refresh button, fallback and building banners |
 | `b2b-links.js` | Firestore-backed scraper link lists for ASICS and Brooks |
 | `barcode-data.js` | Generated barcode map (ASICS + ON), about 2 MB, committed |
+| `apparel.html` + `on-apparel-converter.js` | ON apparel, on its own page. See "Apparel" below |
 | `worker/` | The Cloudflare Worker: `src/*.js`, `test/*.mjs`, `wrangler.toml` |
 | `tools/` | One-off `.mjs` backfill scripts that write straight to Shopify, and `.py` feed builders |
+| `scrapers/` | The Chrome extensions that pull each supplier's B2B portal. See `scrapers/README.md` |
+| `test/` | Node tests for front-end modules that decide inventory numbers |
 
 Not loaded by `index.html`, effectively dead: `tracking-integration.js`,
 `JsBarcode.all.min.js`. The loose `.xlsx`, `.csv` and `*-rollback-*.json` files in
@@ -48,6 +51,8 @@ cd worker && npm run parity                   # tag logic vs the Color Swatch or
 
 # Frontend
 python3 -m http.server 8000                   # serve the tool from the repo root
+node test/on-apparel.mjs                      # apparel converter: sizes, joins, guards
+node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
@@ -159,6 +164,40 @@ change, change it in Color Swatch and re-copy, then run `npm run parity`.
 - The store spells whole sizes both `"9"` and `"9.0"`, sometimes inside one
   product. `CatalogClient.normalizeSize` plus `alignInventoryToCatalog` rewrite
   each row to the store's own spelling before anything downstream reads it.
+
+## Apparel
+
+`apparel.html` is a separate page on purpose. Everything in the footwear spine is
+footwear-shaped: `/catalog` keeps only products whose type ends in "shoes", the
+known set is dropship footwear at Needham, and the grouping vocabulary is width
+classes and cw-group swatch tags. None of that describes a sports bra, so apparel
+starts in its own lane rather than bending rules the live tool depends on.
+
+Consequences worth knowing:
+
+- **All 57 ON apparel products on the store are invisible to `/catalog`**, along
+  with 16 more sitting on `Athletic Footwear` / `Footwear` that the `/shoes$/i`
+  gate also misses. Widening that gate is the next phase, not done yet.
+- The page **never zeroes anything**. Apparel is not dropshipped yet (the goal is
+  that it will be), so a garment missing from a scrape means nothing. Only what
+  is in the file gets a row.
+- Nothing here reads or writes Shopify. It parses a scrape and downloads a CSV.
+- `OnApparelConverter.STORE_BY_CODE` is a hand-baked snapshot of the apparel
+  already on Shopify, keyed by ON article code, because there is no live catalog
+  to ask. **Delete it once apparel joins the catalog build**, do not maintain it.
+- Article codes route the two pipelines: footwear is `3xx`, apparel is `1xx`, and
+  the second character is the gender (`3WF...` women's shoe, `1ME...` men's tee).
+- Apparel sizes are words, and the store spells one size up to four ways
+  (`X-Small`, `XS`, `XSmall`). `normalizeSize` collapses them and the CSV is
+  written back in the spelling that product actually uses, the same alignment
+  idea as the footwear `"9"` versus `"9.0"` problem. Bra cup ranges
+  (`Small A-C`) are kept as part of the key, or every cup collides into one size.
+
+The ON scraper was footwear-only and would **invent** a 21-slot shoe size ladder
+whenever it could not read an apparel size header, then match real stock to it by
+column position. Files from that build look valid and are entirely wrong;
+`checkFile` refuses them on sight. If you touch `scrapers/on/content.js`, run
+`node scrapers/on/test/apparel.mjs`.
 
 ## Worker notes
 

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run House Apparel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        /* Same palette as the main tool (index.html), so the two read as one app. */
+        :root {
+            --bg: #0d1117; --surface: #161d29; --surface-2: #1b2331;
+            --line: rgba(255,255,255,0.09); --line-2: rgba(255,255,255,0.16);
+            --text: #e9eef6; --muted: #aeb9c8; --muted-2: #8b97a8;
+            --accent: #4c9bff; --accent-2: #6f7cff;
+            --ok: #3ddc97; --bad: #ff7a90; --warn: #f2c14e;
+        }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        input, button, select, textarea { border-radius: 0 !important; font-family: inherit; }
+        body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+        #password-screen { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .pw-box { background: var(--surface-2); border: 1px solid var(--line-2); padding: 44px 38px; text-align: center; max-width: 380px; width: 90%; }
+        .pw-box h2 { font-size: 22px; font-weight: 800; }
+        .pw-box p { color: var(--muted); margin: 6px 0 22px; font-size: 14px; }
+        .pw-input { width: 100%; padding: 13px 15px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text); font-size: 15px; margin-bottom: 10px; outline: none; }
+        .pw-input:focus { border-color: var(--accent); }
+        .pw-submit { width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #06121f; border: none; padding: 13px; font-size: 15px; font-weight: 700; cursor: pointer; }
+        .pw-error { color: var(--bad); font-size: 13px; margin-top: 10px; display: none; font-weight: 600; }
+        #app { display: none; }
+
+        .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 0 0; }
+        .back { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 700; border: 1px solid var(--line-2); padding: 8px 14px; background: var(--surface-2); }
+        .back:hover { border-color: var(--accent); }
+        .badge { font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--warn); font-weight: 700; border: 1px solid rgba(242,193,78,.3); background: rgba(242,193,78,.08); padding: 5px 10px; }
+
+        .page-header { padding: 26px 0 18px; }
+        .page-header h1 { font-size: 27px; font-weight: 800; letter-spacing: -.5px; }
+        .page-header p { color: var(--muted); font-size: 14px; margin-top: 6px; max-width: 76ch; line-height: 1.6; }
+
+        .note { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); padding: 14px 18px; margin-bottom: 20px; font-size: 13.5px; color: var(--muted); line-height: 1.65; }
+        .note strong { color: var(--text); }
+
+        .card { background: var(--surface); border: 1px solid var(--line); margin-bottom: 18px; }
+        .card-head { padding: 15px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+        .card-head h2 { font-size: 15px; font-weight: 700; }
+        .card-head .hint { font-size: 12.5px; color: var(--muted-2); }
+        .card-body { padding: 20px; }
+
+        .dropzone { border: 2px dashed var(--line-2); padding: 34px 22px; text-align: center; cursor: pointer; background: var(--surface-2); transition: border-color .15s, background .15s; }
+        .dropzone:hover, .dropzone.over { border-color: var(--accent); background: rgba(76,155,255,.07); }
+        .dropzone h3 { font-size: 15px; font-weight: 700; }
+        .dropzone p { color: var(--muted-2); font-size: 13px; margin-top: 5px; }
+        .file-input { display: none; }
+        .loaded { display: none; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface-2); border: 1px solid var(--line-2); padding: 12px 16px; }
+        .loaded strong { font-size: 13.5px; }
+        .clear { background: none; border: 1px solid var(--line-2); color: var(--muted); padding: 6px 13px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .clear:hover { color: var(--text); border-color: var(--muted); }
+
+        .locrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .locrow label { font-size: 11px; letter-spacing: .7px; text-transform: uppercase; font-weight: 700; color: var(--muted-2); }
+        select { background: var(--surface-2); color: var(--text); border: 1px solid var(--line-2); padding: 9px 12px; font-size: 13.5px; }
+
+        .stats { display: flex; flex-wrap: wrap; gap: 10px; }
+        .stat { flex: 1 1 130px; border: 1px solid var(--line); background: var(--surface-2); padding: 13px 15px; }
+        .stat .n { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
+        .stat .l { font-size: 11px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted-2); font-weight: 700; margin-top: 3px; }
+        .stat-ok .n { color: var(--ok); } .stat-warn .n { color: var(--warn); } .stat-bad .n { color: var(--bad); }
+
+        .problem { border: 1px solid var(--line-2); padding: 14px 17px; margin-bottom: 10px; background: var(--surface-2); }
+        .problem-fatal { border-color: rgba(255,122,144,.45); background: rgba(255,122,144,.07); }
+        .problem-warn { border-color: rgba(242,193,78,.35); background: rgba(242,193,78,.06); }
+        .problem h4 { font-size: 13.5px; font-weight: 700; }
+        .problem-fatal h4 { color: var(--bad); } .problem-warn h4 { color: var(--warn); }
+        .problem p { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+        .problem ul { margin: 8px 0 0 18px; font-size: 12px; color: var(--muted-2); font-family: ui-monospace, monospace; }
+
+        .typehead { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted-2); font-weight: 700; padding: 16px 0 8px; }
+        .prod { display: flex; align-items: flex-start; gap: 13px; padding: 11px 13px; border: 1px solid var(--line); background: var(--surface-2); margin-bottom: 7px; }
+        .prod-main { flex: 1; min-width: 0; }
+        .prod-name { font-size: 13.5px; font-weight: 600; }
+        .prod-sub { font-size: 11.5px; color: var(--muted-2); margin-top: 3px; font-family: ui-monospace, monospace; }
+        .chip { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
+        .chip-match { color: var(--ok); border-color: rgba(61,220,151,.35); background: rgba(61,220,151,.08); }
+        .chip-new { color: var(--accent); border-color: rgba(76,155,255,.35); background: rgba(76,155,255,.08); }
+        .chip-amb { color: var(--warn); border-color: rgba(242,193,78,.35); background: rgba(242,193,78,.08); }
+        .sizes { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 7px; }
+        .sz { font-size: 10.5px; padding: 2px 6px; border: 1px solid var(--line); background: var(--surface); font-variant-numeric: tabular-nums; }
+        .sz b { color: var(--muted-2); font-weight: 700; font-size: 9.5px; margin-right: 3px; }
+        .sz-out { opacity: .4; }
+        .prod-units { flex: none; text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .prod-units small { display: block; font-size: 10px; color: var(--muted-2); font-weight: 600; }
+
+        .go { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #06121f; border: none; padding: 14px 22px; font-size: 14px; font-weight: 800; cursor: pointer; letter-spacing: .3px; }
+        .go:disabled { opacity: .4; cursor: not-allowed; }
+        .go-note { font-size: 12.5px; color: var(--muted-2); margin-top: 9px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="password-screen">
+        <div class="pw-box">
+            <h2>Run House</h2>
+            <p>Enter password to continue</p>
+            <input type="password" id="password-input" class="pw-input" placeholder="Password" autocomplete="off">
+            <button onclick="checkPassword()" class="pw-submit">Unlock</button>
+            <div id="password-error" class="pw-error">Incorrect password</div>
+        </div>
+    </div>
+
+    <div id="app">
+        <div class="container">
+            <div class="topbar">
+                <a class="back" href="index.html">&larr; Inventory Manager</a>
+                <span class="badge">Apparel &middot; early</span>
+            </div>
+
+            <div class="page-header">
+                <h1>ON Apparel</h1>
+                <p>Turns an ON apparel scrape into a Shopify inventory CSV. Apparel is separate from the
+                   footwear tool because the live-catalog side of that tool only knows about shoes, so
+                   nothing here reads or writes Shopify. You download a file and import it yourself.</p>
+            </div>
+
+            <div class="note">
+                <strong>This page never sets anything to 0.</strong> The footwear tool zeroes what falls out
+                of a supplier feed, because those shoes are dropshipped from one known location. Apparel is
+                not dropshipped yet, so a garment missing from a scrape means nothing here and no row is
+                written for it. Only what is in the file gets exported.
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <h2>1. Drop the ON apparel scrape</h2>
+                    <span class="hint">the CSV the ON scraper downloads</span>
+                </div>
+                <div class="card-body">
+                    <div class="dropzone" id="dz">
+                        <h3>Drop the CSV here</h3>
+                        <p>or click to choose a file</p>
+                    </div>
+                    <input type="file" id="file" class="file-input" accept=".csv">
+                    <div class="loaded" id="loaded">
+                        <strong id="fname"></strong>
+                        <button class="clear" onclick="clearFile()">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card hidden" id="problems-card">
+                <div class="card-head"><h2>Check the file</h2></div>
+                <div class="card-body" id="problems"></div>
+            </div>
+
+            <div class="card hidden" id="summary-card">
+                <div class="card-head">
+                    <h2>2. What is in it</h2>
+                    <div class="locrow">
+                        <label for="loc">Location</label>
+                        <select id="loc">
+                            <option>Needham</option>
+                            <option>Falmouth</option>
+                            <option>Walpole</option>
+                            <option>Scituate</option>
+                            <option>Warehouse</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="stats" id="stats"></div>
+                    <div id="list"></div>
+                </div>
+            </div>
+
+            <div class="card hidden" id="download-card">
+                <div class="card-head"><h2>3. Download</h2></div>
+                <div class="card-body">
+                    <button class="go" id="go" onclick="downloadCSV()">Download inventory CSV</button>
+                    <div class="go-note" id="go-note"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="on-apparel-converter.js?v=1"></script>
+    <script>
+        // Shares the session unlock with index.html, so unlocking one unlocks both.
+        var CORRECT_PASSWORD = "runhouse15west";
+        function checkPassword() {
+            var input = document.getElementById('password-input');
+            if (input.value === CORRECT_PASSWORD) {
+                sessionStorage.setItem('authenticated', 'true');
+                document.getElementById('password-screen').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+            } else {
+                document.getElementById('password-error').style.display = 'block';
+                input.value = ''; input.focus();
+            }
+        }
+
+        var STATE = { products: null, rows: null, name: '' };
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+        function show(id, on) { document.getElementById(id).classList.toggle('hidden', !on); }
+
+        function handleFile(file) {
+            if (!file) return;
+            STATE.name = file.name;
+            document.getElementById('fname').textContent = file.name;
+            document.getElementById('loaded').style.display = 'flex';
+            document.getElementById('dz').style.display = 'none';
+            file.text().then(function (text) {
+                STATE.products = OnApparelConverter.parse(text);
+                render();
+            });
+        }
+
+        function clearFile() {
+            STATE = { products: null, rows: null, name: '' };
+            document.getElementById('file').value = '';
+            document.getElementById('loaded').style.display = 'none';
+            document.getElementById('dz').style.display = 'block';
+            ['problems-card', 'summary-card', 'download-card'].forEach(function (id) { show(id, false); });
+        }
+
+        function render() {
+            var products = STATE.products || [];
+            var problems = OnApparelConverter.checkFile(products);
+            var fatal = problems.some(function (p) { return p.fatal; });
+
+            // Problems first: a fatal one blocks the download entirely.
+            show('problems-card', problems.length > 0);
+            document.getElementById('problems').innerHTML = problems.map(function (p) {
+                return '<div class="problem ' + (p.fatal ? 'problem-fatal' : 'problem-warn') + '">'
+                    + '<h4>' + (p.fatal ? 'Stop: ' : '') + esc(p.title) + '</h4>'
+                    + '<p>' + esc(p.detail) + '</p>'
+                    + (p.sample && p.sample.length ? '<ul>' + p.sample.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>' : '')
+                    + '</div>';
+            }).join('');
+
+            if (fatal) {
+                show('summary-card', false);
+                show('download-card', false);
+                return;
+            }
+
+            var location = document.getElementById('loc').value;
+            STATE.rows = OnApparelConverter.buildRows(products, { location: location });
+            var s = OnApparelConverter.summarize(products, STATE.rows);
+
+            document.getElementById('stats').innerHTML = [
+                ['', s.colorways, 'Colorways'],
+                ['', s.variants, 'Variants'],
+                ['stat-ok', s.units, 'Units'],
+                ['stat-ok', s.matched, 'On Shopify'],
+                ['', s.unmatched, 'Not there yet'],
+                s.ambiguous ? ['stat-warn', s.ambiguous, 'Ambiguous'] : null,
+                s.sizeAligned ? ['', s.sizeAligned, 'Sizes realigned'] : null
+            ].filter(Boolean).map(function (x) {
+                return '<div class="stat ' + x[0] + '"><div class="n">' + x[1] + '</div><div class="l">' + x[2] + '</div></div>';
+            }).join('');
+
+            // Group by the store's product type when we know it, otherwise by "not
+            // on Shopify yet", which is the thing worth eyeballing before import.
+            var groups = {};
+            products.forEach(function (p) {
+                if (!OnApparelConverter.isApparelCode(p.code)) return;
+                var t = (p.store && p.store.type) || 'Not on Shopify yet';
+                (groups[t] = groups[t] || []).push(p);
+            });
+            document.getElementById('list').innerHTML = Object.keys(groups).sort().map(function (t) {
+                return '<div class="typehead">' + esc(t) + ' &middot; ' + groups[t].length + '</div>'
+                    + groups[t].map(function (p) {
+                        var chip = p.store
+                            ? (p.store.ambiguous
+                                ? '<span class="chip chip-amb">code used twice</span>'
+                                : '<span class="chip chip-match">matched</span>')
+                            : '<span class="chip chip-new">new</span>';
+                        var sizes = p.variants.map(function (v) {
+                            return '<span class="sz' + (v.quantity > 0 ? '' : ' sz-out') + '"><b>' + esc(v.size) + '</b>' + v.quantity + '</span>';
+                        }).join('');
+                        return '<div class="prod"><div class="prod-main">'
+                            + '<div class="prod-name">' + esc(p.title || p.feedHandle) + '</div>'
+                            + '<div class="prod-sub">' + esc(p.code || 'no article code') + ' &middot; '
+                            + esc((p.store && p.store.handle) || p.feedHandle) + '</div>'
+                            + '<div class="sizes">' + sizes + '</div></div>'
+                            + '<div class="prod-units">' + p.units + '<small>units</small></div>'
+                            + chip + '</div>';
+                    }).join('');
+            }).join('');
+
+            show('summary-card', true);
+            show('download-card', true);
+            document.getElementById('go').disabled = STATE.rows.length === 0;
+            document.getElementById('go-note').textContent =
+                STATE.rows.length + ' rows, all at ' + location + '. '
+                + (s.unmatched
+                    ? s.unmatched + ' colorway' + (s.unmatched === 1 ? ' is' : 's are') + ' not on Shopify yet, so those rows will not match anything on import until the products exist.'
+                    : 'Every colorway matched a product on Shopify.');
+        }
+
+        function downloadCSV() {
+            if (!STATE.rows || !STATE.rows.length) return;
+            var csv = OnApparelConverter.toCSV(STATE.rows);
+            var d = new Date();
+            var stamp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'on-apparel-inventory-' + stamp + '.csv';
+            a.click();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (sessionStorage.getItem('authenticated') === 'true') {
+                document.getElementById('password-screen').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+            } else {
+                document.getElementById('password-input').focus();
+            }
+            document.getElementById('password-input').addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') checkPassword();
+            });
+
+            var dz = document.getElementById('dz'), fi = document.getElementById('file');
+            dz.addEventListener('click', function () { fi.click(); });
+            dz.addEventListener('dragover', function (e) { e.preventDefault(); dz.classList.add('over'); });
+            dz.addEventListener('dragleave', function () { dz.classList.remove('over'); });
+            dz.addEventListener('drop', function (e) {
+                e.preventDefault(); dz.classList.remove('over');
+                if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+            });
+            fi.addEventListener('change', function (e) { if (e.target.files.length) handleFile(e.target.files[0]); });
+            document.getElementById('loc').addEventListener('change', function () { if (STATE.products) render(); });
+        });
+    </script>
+</body>
+</html>
