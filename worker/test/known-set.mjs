@@ -23,8 +23,12 @@ const ok = (m) => console.log('  ok    ' + m);
 const bad = (m) => { failures++; console.log('  FAIL  ' + m); };
 const check = (m, cond) => cond ? ok(m) : bad(m);
 
-function product(handle, needham) {
-  return { handle, title: 'Hoka ' + handle, vendor: 'Hoka', brand: 'HOKA', skus: [handle + '-9'], needham };
+// productType matters: the scoped known set keeps only the dropship footwear
+// types (Men's / Women's / Unisex Shoes), so a fixture without one is excluded
+// and every scoped assertion below reads as an empty set. The live catalog
+// always carries it, see buildCatalogFrom.
+function product(handle, needham, productType) {
+  return { handle, title: 'Hoka ' + handle, vendor: 'Hoka', brand: 'HOKA', productType: productType || "Men's Shoes", skus: [handle + '-9'], needham };
 }
 
 // Three active Hoka products: two at Needham, one not.
