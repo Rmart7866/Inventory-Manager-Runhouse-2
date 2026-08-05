@@ -68,7 +68,11 @@ for (const group of [
   ['Medium', 'M'],
   ['Large', 'L'],
   ['X-Large', 'XL', 'XLarge'],
-  ['2X-Large', '2XLarge', '2XL'],
+  // The pricat writes the big end as XXL where the store writes 2X-Large. If
+  // these do not collapse, every XXL barcode misses its variant.
+  ['2X-Large', '2XLarge', '2XL', 'XXL'],
+  ['2X-Small', '2XS', 'XXS'],
+  ['3X-Large', '3XL', 'XXXL'],
 ]) {
   const keys = group.map((s) => C.normalizeSize(s));
   check(group.join(' = ') + ' collapse to one key', new Set(keys).size === 1, keys);
@@ -169,6 +173,44 @@ console.log('\nNothing is ever zeroed for being absent');
 const shrunk = C.parse([HEAD, good.split('\n')[1]].join('\n'));
 const shrunkRows = C.buildRows(shrunk, {});
 eq('a feed with one row produces one row, no removals', shrunkRows.length, 1);
+
+console.log('\nCreating what the store does not have');
+// BarcodeData is a browser global; stub the two maps the converter reads.
+sandbox.BarcodeData = {
+  onApparel: { '1WF19990001|XS': '7615537000001', '1WF19990001|S': '7615537000002', '1WF19990001|2XL': '7615537000003' },
+  prices: { on: { '1WF19990001': '75.00' } },
+};
+const createFeed = [HEAD,
+  'on-womens-new-thing-red,"ON Women\'s New Thing Shorts - Red",Size,XS,Color,"Red",,,ON-1WF19990001-RED-XS,,,Needham,,,,,,,4',
+  'on-womens-new-thing-red,"ON Women\'s New Thing Shorts - Red",Size,S,Color,"Red",,,ON-1WF19990001-RED-S,,,Needham,,,,,,,9',
+  'on-womens-new-thing-red,"ON Women\'s New Thing Shorts - Red",Size,XXL,Color,"Red",,,ON-1WF19990001-RED-XXL,,,Needham,,,,,,,2',
+  // already on Shopify via the snapshot, so NOT a creation candidate
+  'on-womens-focus-t-bla,"ON Women\'s Focus-T - Black",Size,S,Color,"Black",,,ON-1WE11860553-BLA-S,,,Needham,,,,,,,5',
+].join('\n');
+const createProducts_ = C.parse(createFeed);
+eq('only the unmatched product is creatable', C.creatable(createProducts_).length, 1);
+const specs = C.buildCreateSpecs(createProducts_, {});
+eq('one spec', specs.length, 1);
+const spec = specs[0];
+eq('handle follows the store convention', spec.handle, 'on-new-thing-shorts-women-1wf19990001');
+eq('vendor', spec.vendor, 'ON Running');
+eq('product type from the title', spec.productType, 'Shorts');
+eq('price from the bundled pricat MSRP', spec.variants[0].price, '75.00');
+eq('sizes written in the store\'s house spelling', spec.variants.map((v) => v.size).join(','), 'X-Small,Small,2X-Large');
+eq('barcode found for XS', spec.variants[0].barcode, '7615537000001');
+eq('barcode found for the XXL feed size via 2XL', spec.variants[2].barcode, '7615537000003');
+eq('feed quantity carried', spec.variants[1].quantity, 9);
+check('gender metafield', spec.metafields.some((m) => m.key === 'gender' && m.value === "Women's"), spec.metafields);
+check('colour metafield', spec.metafields.some((m) => m.key === 'color_name' && m.value === 'Red'));
+check('tags name the type', spec.tags.includes('Shorts') && spec.tags.includes('ON Running'), spec.tags);
+check('no width option anywhere', !JSON.stringify(spec).match(/width/i));
+eq('a typed price beats the pricat', C.buildCreateSpecs(createProducts_, { prices: { 'on-womens-new-thing-red': '88.00' } })[0].variants[0].price, '88.00');
+
+console.log('\nProduct types off real titles');
+for (const [t, want] of [["ON Women's Performance Bra - Black", 'Sports Bras'], ["ON Men's Club Hoodie - Black", 'Hoodies'],
+  ["ON Women's Performance Tights - Black", 'Tights/Leggings'], ["ON Men's Focus-T - White", 'T-Shirts'],
+  ["ON Women's Climate Shirt Half-Zip - Fade", 'Half-Zips'], ["ON Men's Weather Vest - Black", 'Vests']])
+  eq(t.slice(0, 34), C.productTypeFor(t), want);
 
 console.log('\nThe pre-fix scraper file is refused');
 const bad21 = [HEAD].concat(

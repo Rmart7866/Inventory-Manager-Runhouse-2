@@ -111,15 +111,23 @@ var OnApparelConverter = {
             s = s.slice(0, cm.index).trim();
         }
 
-        s = s.replace(/[\s()-]/g, '');           // XSMALL, 2XLARGE, XS, 2XL
-        var m = s.match(/^(\d?)X?(SMALL|MEDIUM|LARGE|S|M|L)$/);
+        s = s.replace(/[\s()-]/g, '');           // XSMALL, 2XLARGE, XS, 2XL, XXL
+
+        // The extra-large end is written three ways and they all mean one size:
+        // the store says "2X-Large", ON's pricat says "XXL", and people type
+        // "2XL". So count the X's OR read the digit, whichever the label uses.
+        // Without this, a pricat barcode for XXL never finds the store's
+        // 2X-Large variant and the size silently gets no barcode.
+        var m = s.match(/^(\d+)?(X*)(SMALL|MEDIUM|LARGE|S|M|L)$/);
         if (!m) return s + cup;                  // unknown shape, keep it distinct
-        var mult = m[1] || (/^\d?X/.test(s) ? '1' : '');
-        var word = m[2];
+        var word = m[3];
         var base = (word === 'SMALL' || word === 'S') ? 'S' : (word === 'MEDIUM' || word === 'M') ? 'M' : 'L';
         if (base === 'M') return 'M' + cup;      // medium has no X form
+        // A digit prefix already states the multiple ("2XL"); otherwise the count
+        // of X's does ("XXL" is 2, "XL" is 1, "L" is 0).
+        var mult = m[1] ? parseInt(m[1], 10) : (m[2] || '').length;
         if (!mult) return base + cup;
-        return (mult === '1' ? 'X' : mult + 'X') + base + cup;
+        return (mult === 1 ? 'X' : mult + 'X') + base + cup;
     },
 
     // Does this size look like a shoe size? Used to catch a file produced by the
@@ -173,6 +181,7 @@ var OnApparelConverter = {
             p.units = p.variants.reduce(function (t, v) { return t + v.quantity; }, 0);
             p.inStock = p.variants.filter(function (v) { return v.quantity > 0; }).length;
             p.store = self._storeFor(p.code);
+            p.color = p.color || '';
             p.gender = /1W/.test(p.code) ? "Women's" : /1M/.test(p.code) ? "Men's" : /1U/.test(p.code) ? 'Unisex' : '';
             products.push(p);
         });
@@ -311,6 +320,127 @@ var OnApparelConverter = {
             ].join(','));
         });
         return out.join('\n');
+    },
+
+    // ===== Creating the ones that are not on Shopify yet =====
+    //
+    // The Worker's create route is brand agnostic: it takes a title, a type, tags,
+    // metafields and a list of variants, and writes a DRAFT. Apparel fits it
+    // without a single change, because products.js only adds a Width option when a
+    // variant carries one and no garment does. So this builds the same spec shape
+    // the footwear tool sends, from apparel inputs.
+    //
+    // What it deliberately does NOT reuse is product-enrichment.js. That module
+    // drives the live footwear tool and assumes footwear throughout: a converter
+    // with productVariantData, an InventoryTracker comparison, width-keyed
+    // inheritance and a cw-group swatch queue. None of it describes a t-shirt, and
+    // the footwear tool is not worth risking to borrow it.
+
+    // The store's own apparel types, from what ON apparel already uses on Shopify.
+    productTypeFor: function (title) {
+        var n = String(title || '').toLowerCase();
+        if (/\bbra\b|bralette/.test(n)) return 'Sports Bras';
+        if (/\btank\b|singlet/.test(n)) return 'Tanks';
+        if (/long[-\s]?(t|sleeve)/.test(n)) return 'Long Sleeves';
+        if (/half[-\s]?zip/.test(n)) return 'Half-Zips';
+        if (/hood(ie|y)/.test(n)) return 'Hoodies';
+        if (/crew(neck)?|sweatshirt/.test(n)) return 'Crewnecks';
+        if (/\bvest\b/.test(n)) return 'Vests';
+        if (/\bjacket\b/.test(n)) return 'Jackets';
+        if (/tights?|leggings?/.test(n)) return 'Tights/Leggings';
+        if (/\bshorts?\b/.test(n)) return 'Shorts';
+        if (/\bpants?\b|joggers?/.test(n)) return 'Pants';
+        if (/\bcap\b|\bhat\b|beanie|headband/.test(n)) return 'Headwear';
+        if (/\bsocks?\b/.test(n)) return 'Socks';
+        if (/\btee\b|t-shirt|\bshirt\b|run-t|\bt\b/.test(n)) return 'T-Shirts';
+        return 'Apparel';
+    },
+
+    // The store writes sizes out in full ("X-Small", "2X-Large"), so a product
+    // created here should too rather than leaving "XS" from the feed. Built from
+    // the normalized key, so every input spelling lands on one house form.
+    DISPLAY_SIZE: { OS: 'One size', '2XS': '2X-Small', XS: 'X-Small', S: 'Small', M: 'Medium', L: 'Large', XL: 'X-Large', '2XL': '2X-Large', '3XL': '3X-Large' },
+    displaySize: function (raw) {
+        var key = this.normalizeSize(raw);
+        var parts = key.split('|');
+        var base = this.DISPLAY_SIZE[parts[0]] || raw;
+        return parts[1] ? base + ' ' + parts[1] : base;   // "X-Small D-DD"
+    },
+
+    // Barcode and MSRP out of the bundled pricat data, both keyed by the ON
+    // article code. Staff never upload anything: see tools/build-barcodes.py.
+    barcodeFor: function (code, size) {
+        var m = (typeof BarcodeData !== 'undefined' && BarcodeData.onApparel) || null;
+        if (!m || !code) return '';
+        return m[code + '|' + this.normalizeSize(size)] || '';
+    },
+    msrpFor: function (code) {
+        var p = (typeof BarcodeData !== 'undefined' && BarcodeData.prices && BarcodeData.prices.on) || null;
+        return (p && code && p[code]) || '';
+    },
+
+    // Which products could be created: apparel the store does not already have.
+    // A match by article code is the only evidence used, so this is conservative
+    // in the right direction, it will never propose overwriting a live product.
+    // The Worker refuses a duplicate handle anyway (products.js is create-only).
+    creatable: function (products) {
+        var self = this;
+        return (products || []).filter(function (p) {
+            return self.isApparelCode(p.code) && !p.store && p.variants.length;
+        });
+    },
+
+    // The handle the store itself uses for ON apparel: model, gender, then the
+    // article code, e.g. on-focus-t-women-1we11860553. Keeping that shape means
+    // the next scrape joins this product straight back by code.
+    handleFor: function (product) {
+        var title = String(product.title || '')
+            .replace(/^ON\s+/i, '')
+            .replace(/\s*-\s*[^-]*$/, '')                 // drop the colour tail
+            .replace(/\b(men'?s|women'?s|unisex)\b/ig, ' ')
+            .replace(/[^a-z0-9]+/ig, '-').replace(/^-+|-+$/g, '').toLowerCase();
+        var g = product.gender === "Women's" ? 'women' : product.gender === "Men's" ? 'men' : '';
+        return ['on', title, g, String(product.code || '').toLowerCase()].filter(Boolean).join('-').replace(/-+/g, '-');
+    },
+
+    // productSet specs for the Worker. opts.price / opts.description are per
+    // product, keyed by feed handle, from whatever the page's fields hold.
+    buildCreateSpecs: function (products, opts) {
+        var self = this;
+        opts = opts || {};
+        var prices = opts.prices || {};
+        var descriptions = opts.descriptions || {};
+        return this.creatable(products).map(function (p) {
+            var type = self.productTypeFor(p.title);
+            var price = prices[p.feedHandle] || self.msrpFor(p.code) || '';
+            var tags = ['ON Running', 'Apparel', type];
+            if (p.gender) tags.push(p.gender + ' Apparel');
+            var mf = [];
+            if (p.color) mf.push({ namespace: 'custom', key: 'color_name', type: 'single_line_text_field', value: p.color });
+            if (p.gender) mf.push({ namespace: 'custom', key: 'gender', type: 'single_line_text_field', value: p.gender });
+            return {
+                title: p.title,
+                handle: self.handleFor(p),
+                vendor: 'ON Running',
+                productType: type,
+                descriptionHtml: descriptions[p.feedHandle] || '',
+                tags: tags,
+                metafields: mf,
+                variants: p.variants.map(function (v) {
+                    return {
+                        size: self.displaySize(v.size),
+                        sku: v.sku,
+                        barcode: self.barcodeFor(p.code, v.size),
+                        price: price,
+                        quantity: v.quantity
+                    };
+                }),
+                // Display only, the Worker picks named fields so this never ships.
+                _code: p.code,
+                _units: p.units,
+                _barcodes: p.variants.filter(function (v) { return !!self.barcodeFor(p.code, v.size); }).length
+            };
+        });
     },
 
     // Headline numbers for the page.

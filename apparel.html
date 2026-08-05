@@ -177,17 +177,49 @@
             </div>
 
             <div class="card hidden" id="download-card">
-                <div class="card-head"><h2>3. Download</h2></div>
+                <div class="card-head"><h2>3. Download the inventory CSV</h2>
+                    <span class="hint">for what is already on Shopify</span></div>
                 <div class="card-body">
                     <button class="go" id="go" onclick="downloadCSV()">Download inventory CSV</button>
                     <div class="go-note" id="go-note"></div>
                 </div>
             </div>
+
+            <div class="card hidden" id="create-card">
+                <div class="card-head">
+                    <h2>4. Create the ones that are not on Shopify</h2>
+                    <span class="hint">they land as drafts</span>
+                </div>
+                <div class="card-body">
+                    <div class="note" style="border-left-color:var(--warn);margin-bottom:16px">
+                        <strong>Nothing goes live.</strong> Products are created as <strong>drafts</strong> with
+                        their feed stock at the location above, for you to review and publish in Shopify. Prices
+                        and barcodes come from ON's pricat where it has them; anything blank is worth filling in
+                        before you publish.
+                    </div>
+                    <div class="locrow" style="margin-bottom:14px">
+                        <button class="clear" id="c-all">Select all</button>
+                        <button class="clear" id="c-none">Select none</button>
+                        <label style="margin-left:auto">Photos</label>
+                        <button class="clear" id="c-folder">Choose folder</button>
+                        <span class="hint" id="c-photos">none chosen</span>
+                        <input type="file" id="c-folder-input" webkitdirectory directory multiple style="display:none">
+                    </div>
+                    <div id="create-list"></div>
+                    <div style="margin-top:16px">
+                        <button class="go" id="c-go">Create drafts</button>
+                        <div class="go-note" id="c-note"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- Barcodes and MSRPs for apparel, built into the app by
+         tools/build-barcodes.py so staff never upload a pricat. -->
+    <script src="barcode-data.js?v=4"></script>
     <script src="catalog-client.js?v=19"></script>
-    <script src="on-apparel-converter.js?v=2"></script>
+    <script src="on-apparel-converter.js?v=3"></script>
     <script>
         // Shares the session unlock with index.html, so unlocking one unlocks both.
         var CORRECT_PASSWORD = "runhouse15west";
@@ -229,7 +261,7 @@
             document.getElementById('file').value = '';
             document.getElementById('loaded').style.display = 'none';
             document.getElementById('dz').style.display = 'block';
-            ['problems-card', 'summary-card', 'download-card'].forEach(function (id) { show(id, false); });
+            ['problems-card', 'summary-card', 'download-card', 'create-card'].forEach(function (id) { show(id, false); });
         }
 
         function render() {
@@ -250,6 +282,7 @@
             if (fatal) {
                 show('summary-card', false);
                 show('download-card', false);
+                show('create-card', false);
                 return;
             }
 
@@ -300,12 +333,158 @@
 
             show('summary-card', true);
             show('download-card', true);
+            renderCreate();
             document.getElementById('go').disabled = STATE.rows.length === 0;
             document.getElementById('go-note').textContent =
                 STATE.rows.length + ' rows, all at ' + location + '. '
                 + (s.unmatched
                     ? s.unmatched + ' colorway' + (s.unmatched === 1 ? ' is' : 's are') + ' not on Shopify yet, so those rows will not match anything on import until the products exist.'
                     : 'Every colorway matched a product on Shopify.');
+        }
+
+        // ---- creating the products the store does not have ----------------
+        //
+        // Photos are matched to a product by the ON article code in the filename,
+        // exactly as the footwear tool does, because the same code appears in the
+        // SKU. Gallery order (g1..g6, then detail, then lifestyle) decides which
+        // becomes the featured image.
+        var PHOTOS = null;
+        function indexPhotos(fileList) {
+            var idx = {};
+            Array.prototype.slice.call(fileList || []).forEach(function (f) {
+                if (!/\.(png|jpe?g)$/i.test(f.name || '')) return;
+                var m = /1[A-Z]{2}\d{6,}/.exec((f.name || '').toUpperCase());
+                if (!m) return;
+                (idx[m[0]] = idx[m[0]] || []).push(f);
+            });
+            var rank = function (n) {
+                var g = /1x1-g(\d+)/i.exec(n); if (g) return parseInt(g[1], 10);
+                if (/1x1-d/i.test(n)) return 50;
+                if (/1x1-l/i.test(n)) return 60;
+                var u = /_(\d+)\.(png|jpe?g)$/i.exec(n); if (u) return parseInt(u[1], 10);
+                return 40;
+            };
+            Object.keys(idx).forEach(function (k) { idx[k].sort(function (a, b) { return rank(a.name) - rank(b.name); }); });
+            PHOTOS = idx;
+            return idx;
+        }
+        function photosFor(spec) { return (PHOTOS && PHOTOS[spec._code]) || []; }
+
+        function renderCreate() {
+            var specs = OnApparelConverter.buildCreateSpecs(STATE.products || [], {});
+            STATE.specs = specs;
+            show('create-card', specs.length > 0);
+            if (!specs.length) return;
+            document.getElementById('create-list').innerHTML = specs.map(function (s, i) {
+                var photos = photosFor(s).length;
+                var noBarcode = s.variants.length - s._barcodes;
+                return '<div class="prod">'
+                    + '<input type="checkbox" class="c-cb" data-i="' + i + '" checked style="margin-top:3px;width:17px;height:17px;accent-color:var(--accent)">'
+                    + '<div class="prod-main">'
+                    + '<div class="prod-name">' + esc(s.title) + '</div>'
+                    + '<div class="prod-sub">' + esc(s.handle) + '</div>'
+                    + '<div class="sizes" style="margin-top:6px">'
+                    + '<span class="chip">' + esc(s.productType) + '</span>'
+                    + '<span class="chip">' + s.variants.length + ' sizes</span>'
+                    + '<span class="chip' + (s._units ? ' chip-match' : '') + '">' + s._units + ' units</span>'
+                    + (noBarcode ? '<span class="chip chip-amb">' + noBarcode + ' without a barcode</span>'
+                                 : '<span class="chip chip-match">all barcoded</span>')
+                    + (photos ? '<span class="chip chip-new">' + photos + ' photos</span>' : '')
+                    + '</div></div>'
+                    + '<div class="prod-units" style="display:flex;align-items:center;gap:6px">$'
+                    + '<input class="c-price" data-i="' + i + '" value="' + esc(s.variants[0].price || '') + '" placeholder="0.00"'
+                    + ' style="width:74px;padding:6px 8px;background:var(--surface);color:var(--text);border:1px solid var(--line-2);font:inherit;font-size:13px;text-align:right">'
+                    + '</div></div>';
+            }).join('');
+            updateCreateNote();
+        }
+
+        function selectedSpecs() {
+            var out = [];
+            document.querySelectorAll('.c-cb').forEach(function (cb) {
+                if (!cb.checked) return;
+                var i = parseInt(cb.getAttribute('data-i'), 10);
+                var s = STATE.specs[i];
+                var pr = document.querySelector('.c-price[data-i="' + i + '"]');
+                var v = pr && pr.value.trim();
+                if (v) s.variants.forEach(function (x) { x.price = v; });
+                out.push(s);
+            });
+            return out;
+        }
+
+        function updateCreateNote() {
+            var sel = selectedSpecs();
+            var noPrice = sel.filter(function (s) { return !s.variants[0].price; }).length;
+            var photos = sel.reduce(function (t, s) { return t + photosFor(s).length; }, 0);
+            document.getElementById('c-go').textContent = 'Create ' + sel.length + ' draft' + (sel.length === 1 ? '' : 's');
+            document.getElementById('c-go').disabled = sel.length === 0;
+            document.getElementById('c-note').innerHTML = sel.length
+                ? sel.length + ' selected' + (photos ? ', ' + photos + ' photos to upload' : ', no photos')
+                  + (noPrice ? '. <span style="color:var(--warn)">' + noPrice + ' with no price, they will be created at 0.00</span>' : '.')
+                : 'Nothing selected.';
+        }
+
+        function doCreate() {
+            var sel = selectedSpecs();
+            if (!sel.length) return;
+            var btn = document.getElementById('c-go'), note = document.getElementById('c-note');
+            var withPhotos = !!PHOTOS;
+            if (!confirm('Create ' + sel.length + ' product' + (sel.length === 1 ? '' : 's') + ' in Shopify as drafts?\n\n'
+                + 'They will not be visible to customers until you publish them.')) return;
+            btn.disabled = true;
+            var made = 0, failed = [], i = 0;
+            var BATCH = 10;
+
+            function attach(chunk) {
+                if (!withPhotos) return Promise.resolve(chunk);
+                var jobs = [];
+                chunk.forEach(function (s, si) { photosFor(s).forEach(function (f) { jobs.push({ si: si, file: f }); }); });
+                if (!jobs.length) return Promise.resolve(chunk);
+                return CatalogClient.stagedUploads(jobs.map(function (j) {
+                    return { filename: j.file.name, mimeType: j.file.type || 'image/png', fileSize: j.file.size };
+                })).then(function (res) {
+                    if (res.__status !== 200) throw new Error(res.error || res.reason || ('staged uploads HTTP ' + res.__status));
+                    var targets = res.targets || [];
+                    return jobs.reduce(function (chain, j, n) {
+                        return chain.then(function () {
+                            return CatalogClient.uploadToTarget(targets[n], j.file).then(function (url) {
+                                var s = chunk[j.si];
+                                (s.files = s.files || []).push({ originalSource: url, alt: s.title });
+                            });
+                        });
+                    }, Promise.resolve()).then(function () { return chunk; });
+                });
+            }
+
+            function step() {
+                if (i >= sel.length) {
+                    btn.textContent = 'Done';
+                    note.innerHTML = '&#10003; Created <strong>' + made + '</strong> draft' + (made === 1 ? '' : 's')
+                        + (failed.length ? ', <strong>' + failed.length + '</strong> failed: ' + esc(failed.slice(0, 4).join('; ')) : '')
+                        + '. Review and publish them in Shopify.';
+                    return;
+                }
+                var chunk = sel.slice(i, i + BATCH);
+                note.textContent = 'Creating ' + (i + 1) + ' to ' + Math.min(i + chunk.length, sel.length) + ' of ' + sel.length + '...';
+                attach(chunk)
+                    .then(function (ready) { return CatalogClient.createProducts(ready); })
+                    .then(function (res) {
+                        if (res.__status === 501) throw new Error('Writes are turned off on the server.');
+                        if (res.__status !== 200) throw new Error(res.error || res.reason || ('HTTP ' + res.__status));
+                        (res.results || []).forEach(function (r) {
+                            if (r.ok) made++;
+                            else failed.push((r.title || r.handle) + ': ' + ((r.userErrors && r.userErrors[0] && r.userErrors[0].message) || 'error'));
+                        });
+                        i += BATCH;
+                        step();
+                    })
+                    .catch(function (e) {
+                        note.innerHTML = '<span style="color:var(--bad)">Stopped after ' + made + ' created: ' + esc(e.message) + '</span>';
+                        btn.disabled = false;
+                    });
+            }
+            step();
         }
 
         function downloadCSV() {
@@ -371,6 +550,25 @@
             });
             fi.addEventListener('change', function (e) { if (e.target.files.length) handleFile(e.target.files[0]); });
             document.getElementById('loc').addEventListener('change', function () { if (STATE.products) render(); });
+
+            document.getElementById('c-go').addEventListener('click', doCreate);
+            document.getElementById('c-all').addEventListener('click', function () {
+                document.querySelectorAll('.c-cb').forEach(function (cb) { cb.checked = true; }); updateCreateNote(); });
+            document.getElementById('c-none').addEventListener('click', function () {
+                document.querySelectorAll('.c-cb').forEach(function (cb) { cb.checked = false; }); updateCreateNote(); });
+            document.getElementById('create-list').addEventListener('change', updateCreateNote);
+            document.getElementById('create-list').addEventListener('input', updateCreateNote);
+            document.getElementById('c-folder').addEventListener('click', function () {
+                document.getElementById('c-folder-input').click(); });
+            document.getElementById('c-folder-input').addEventListener('change', function (e) {
+                if (!e.target.files || !e.target.files.length) return;
+                var idx = indexPhotos(e.target.files);
+                var n = Object.keys(idx).length;
+                document.getElementById('c-photos').textContent = n
+                    ? n + ' article codes matched'
+                    : 'no ON article codes found in those filenames';
+                renderCreate();
+            });
         });
     </script>
 </body>
