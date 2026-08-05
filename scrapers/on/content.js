@@ -167,11 +167,28 @@ const onProductDatabase = {
 // --------------------------------------------------
 // Stronger model matcher to avoid generic "cloud" hit
 // --------------------------------------------------
-function getONProductInfo(productName) {
+// Is this an apparel product rather than a shoe? onProductDatabase holds shoes
+// ONLY (weights, drops, stack heights, CloudTec copy), so nothing in it can
+// describe a bra or a jacket. Two signals: the ON article code, where footwear is
+// 3xx and apparel is 1xx, and the garment word in the name.
+const APPAREL_WORDS = /\b(bra|bralette|tee|t-shirt|shirt|singlet|tank|top|shorts?|tights?|leggings?|pants?|trousers?|jacket|vest|hoodie|hoody|sweatshirt|crew(neck)?|half[-\s]?zip|jersey|sock|socks|cap|hat|beanie|headband|glove|gloves|belt|bag|long[-\s]?t|crop)\b/i;
+function isApparel({ productName, styleId } = {}) {
+  if (/^\s*1[A-Z]{2}\d{6,}/i.test(String(styleId || "").trim())) return true;
+  return APPAREL_WORDS.test(String(productName || ""));
+}
+
+function getONProductInfo(productName, styleId) {
   if (!productName) return null;
 
-  const STOPWORDS = new Set(["cloud", "on", "running", "runner", "shoe", "shoes"]);
   const db = onProductDatabase;
+
+  // Apparel never gets a footwear record. Without this, "3\" Core Shorts" scored
+  // a match against "cloudboom echo 3" on the shared token "3" alone, and the
+  // shorts went out titled "ON Women's Cloudboom Echo 3" while its handle still
+  // said core-shorts. 19 handles in the 2026-08-05 run came out that way.
+  if (isApparel({ productName, styleId })) return db["default"];
+
+  const STOPWORDS = new Set(["cloud", "on", "running", "runner", "shoe", "shoes"]);
 
   const clean = String(productName)
     .toLowerCase()
@@ -189,7 +206,11 @@ function getONProductInfo(productName) {
 
   const scoreKey = (key) => {
     const keyWords = key.split(" ").filter((w) => w && !STOPWORDS.has(w));
-    const inter = keyWords.filter((w) => cleanSet.has(w));
+    // A bare number is a version, not an identity: "3" is shared by "Cloudboom
+    // Echo 3", "Cloudultra 3" and any product with a 3 in its name, so counting
+    // it as an overlap is how unrelated products matched. Only real words count
+    // toward the overlap; the key length tiebreak below is unchanged.
+    const inter = keyWords.filter((w) => cleanSet.has(w) && !/^\d+$/.test(w));
     // Heuristic: prioritize #overlaps and longer keys ("cloudmonster 2" > "cloud")
     return inter.length * 10 + keyWords.length;
   };
@@ -246,8 +267,18 @@ function formatSizeForShopify(size) {
 // Gender resolver utilities
 // --------------------------
 function inferGenderFromStyleId(styleId = "") {
-  // Common ON patterns: 3WF..., 3MF..., presence of W / M in SKU blocks
   const s = String(styleId).toUpperCase();
+  // The real ON article code is <digit><gender><series><digits>, and the gender
+  // letter is the second character: 3WF10060755 is a women's shoe, 1ME11460069 a
+  // men's tee. Check that shape FIRST and exactly, because the loose patterns
+  // below ("a W anywhere") happily match a colour code or a style series and were
+  // only ever right by luck. U is ON's unisex block.
+  const code = s.match(/(^|[^A-Z0-9])(\d)([WMU])([A-Z])\d{5,}/);
+  if (code) {
+    if (code[3] === "W") return "Women's";
+    if (code[3] === "M") return "Men's";
+    return "Unisex";
+  }
   if (/3WF/.test(s) || /\bWOMEN'?S?\b/.test(s) || /(^|[^A-Z])W(F|M)?\d*/.test(s)) return "Women's";
   if (/3MF/.test(s) || /\bMEN'?S?\b/.test(s) || /(^|[^A-Z])M(F|W)?\d*/.test(s)) return "Men's";
   return null;
@@ -262,8 +293,16 @@ function inferGenderFromName(name = "") {
 
 function inferGenderFromSizes(sizes = []) {
   // Heuristic: women's runs often start near 5–5.5; men's near 7–7.5+
-  const nums = (sizes || [])
-    .map((s) => parseFloat(String(s).replace(/[^\d.]/g, "")))
+  //
+  // SHOE SIZES ONLY. On apparel this reads nothing at all: strip the letters out
+  // of "X-Small" and you get an empty string, and out of "2X-Large" you get 2,
+  // which would then argue "Women's" from a men's size run. If any size is not a
+  // plain number, this heuristic does not apply, so say nothing and let the
+  // article code decide.
+  const all = (sizes || []).map((s) => String(s).trim()).filter(Boolean);
+  if (!all.length || !all.every((s) => /^\d+(?:\.\d+)?$/.test(s))) return null;
+  const nums = all
+    .map((s) => parseFloat(s))
     .filter((x) => !Number.isNaN(x))
     .sort((a, b) => a - b);
   if (!nums.length) return null;
@@ -397,10 +436,15 @@ class UnifiedShopifyConverter {
 
       // Determine model & pricing
       let productName = (baseProduct.productName || "ON Running Shoe").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
-      const productInfo = getONProductInfo(productName);
+      const productInfo = getONProductInfo(productName, baseProduct.styleId);
       const price = productInfo ? productInfo.price.toFixed(2) : shopifySettings.variantPrice;
       const comparePrice = "";
       const isTaxable = parseFloat(price) >= 175 ? "TRUE" : "FALSE";
+      // The settings default to "Athletic Footwear" for everything. Give apparel
+      // the store's own type instead, so a bra does not arrive as footwear.
+      const rowType =
+        (isApparel({ productName, styleId: baseProduct.styleId }) && this.apparelProductType(productName)) ||
+        shopifySettings.productType;
 
       variants.forEach((variant, index) => {
         const isFirst = index === 0;
@@ -418,7 +462,7 @@ class UnifiedShopifyConverter {
           "Body (HTML)": isFirst ? this.generateProductDescription({ ...baseProduct, gender }) : "",
           Vendor: isFirst ? shopifySettings.vendor : "",
           "Product Category": isFirst ? shopifySettings.productCategory : "",
-          Type: isFirst ? shopifySettings.productType : "",
+          Type: isFirst ? rowType : "",
           Tags: isFirst ? this.generateTags({ ...baseProduct, gender }, shopifySettings.tags) : "",
           Published: isFirst ? shopifySettings.published : "",
           "Option1 Name": isFirst ? "Size" : "",
@@ -568,11 +612,18 @@ class UnifiedShopifyConverter {
   }
 
   generateHandle(product) {
+    // Only [a-z0-9-] is legal in a Shopify handle. This used to collapse
+    // whitespace and stop, so a name like '3" Core Shorts' or 'PTR | Studio
+    // Jacket' carried its quote or pipe straight into the handle: 67 of the 166
+    // handles in the 2026-08-05 apparel run were unusable. Apparel names have far
+    // more punctuation than shoe names, which is why footwear never tripped it.
     const productName = (product.productName || "unknown")
       .replace(/^(PR|PAD)\s*\|\s*/i, "")
       .toLowerCase()
-      .replace(/\s+/g, "-");
-    
+      .replace(/"/g, "in")          // 3" Core Shorts -> 3in-core-shorts
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
     // Clean color code - remove any USD price information
     let colorCode = (product.colorCode || product.colorName || "default").toLowerCase();
     
@@ -614,7 +665,7 @@ class UnifiedShopifyConverter {
   generateProductTitle(product) {
     let productName = (product.productName || "ON Running Shoe").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
     const colorName = product.colorName || "Default Color";
-    const info = getONProductInfo(productName);
+    const info = getONProductInfo(productName, product.styleId);
     const modelName = info && info !== onProductDatabase["default"] ? info.name : productName;
 
     const gender =
@@ -631,7 +682,7 @@ class UnifiedShopifyConverter {
     let productName = (product.productName || "ON Running Shoe").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
     const styleId = product.styleId || "Unknown Style";
     const colorName = product.colorName || "Default Color";
-    const info = getONProductInfo(productName);
+    const info = getONProductInfo(productName, product.styleId);
 
     const gender =
       product.gender ||
@@ -656,6 +707,15 @@ class UnifiedShopifyConverter {
 </div>`;
     }
 
+    // Apparel gets the plain facts and nothing else. The shoe blurb below claims
+    // CloudTec cushioning, which a t-shirt does not have, and a wrong description
+    // is harder to notice than a missing one.
+    if (isApparel(product)) {
+      return `<p>ON ${genderPrefix}${productName}</p>
+<p>Style: ${styleId}</p>
+<p>Color: ${colorName}</p>`;
+    }
+
     return `<p>ON ${genderPrefix}${productName}</p>
 <p>Style: ${styleId}</p>
 <p>Color: ${colorName}</p>
@@ -665,7 +725,7 @@ class UnifiedShopifyConverter {
   generateSEODescription(product) {
     let productName = (product.productName || "ON Running Shoe").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
     const colorName = product.colorName || "Default Color";
-    const info = getONProductInfo(productName);
+    const info = getONProductInfo(productName, product.styleId);
     const modelName = info && info !== onProductDatabase["default"] ? info.name : productName;
 
     const gender =
@@ -683,16 +743,48 @@ class UnifiedShopifyConverter {
     }
 
     const styleId = product.styleId || "Unknown Style";
+    if (isApparel(product)) {
+      return `ON ${genderPrefix}${modelName} in ${colorName}. Style ${styleId} from ON Running.`;
+    }
     return `ON ${genderPrefix}${modelName} in ${colorName}. Style ${styleId} from ON Running. Swiss-engineered CloudTec® running shoes.`;
+  }
+
+  // The store's own apparel product types, picked off the garment word in the
+  // name. Taken from what ON apparel already uses on Shopify, so a scrape lands
+  // on an existing type instead of minting a new one. Falls back to null, and the
+  // caller then keeps whatever the settings say.
+  apparelProductType(productName) {
+    const n = String(productName || "").toLowerCase();
+    if (/\bbra|bralette\b/.test(n)) return "Sports Bras";
+    if (/\btank|singlet\b/.test(n)) return "Tanks";
+    if (/\blong[-\s]?(t|sleeve)/.test(n)) return "Long Sleeves";
+    if (/\bhalf[-\s]?zip\b/.test(n)) return "Half-Zips";
+    if (/\bhood(ie|y)\b/.test(n)) return "Hoodies";
+    if (/\bcrew(neck)?|sweatshirt\b/.test(n)) return "Crewnecks";
+    if (/\bvest\b/.test(n)) return "Vests";
+    if (/\bjacket\b/.test(n)) return "Jackets";
+    if (/\btights?|leggings?\b/.test(n)) return "Tights/Leggings";
+    if (/\bshorts?\b/.test(n)) return "Shorts";
+    if (/\bpants?|trousers?\b/.test(n)) return "Pants";
+    if (/\bcap|hat|beanie|headband\b/.test(n)) return "Headwear";
+    if (/\bsocks?\b/.test(n)) return "Socks";
+    if (/\b(tee|t-shirt|shirt|run-t|\bt\b)\b/.test(n)) return "T-Shirts";
+    return null;
   }
 
   generateTags(product, baseTags) {
     let productName = (product.productName || "").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
     const styleId = product.styleId || "";
     const colorName = product.colorName || "";
-    const info = getONProductInfo(productName);
+    const info = getONProductInfo(productName, product.styleId);
 
-    let tags = baseTags;
+    // baseTags is the footwear tag line, "Running, ON, Swiss, CloudTec". CloudTec
+    // is a midsole, so it is a false claim on a t-shirt. Apparel gets the brand
+    // and its garment type instead.
+    const apparel = isApparel(product);
+    let tags = apparel
+      ? ["ON", "ON Running", "Apparel", this.apparelProductType(productName)].filter(Boolean).join(", ")
+      : baseTags;
 
     const gender =
       product.gender ||
@@ -1166,6 +1258,8 @@ class ONRunningInventoryExtractor {
 
   extractFromONStructure() {
     const inventory = [];
+    const skippedGroups = [];   // groups with no readable size header
+    const mismatched = [];      // rows where stock cells and size columns disagree
 
     const productGroups = document.querySelectorAll(".product-group-cnt");
     console.log(`🔍 Found ${productGroups.length} product groups`);
@@ -1198,9 +1292,19 @@ class ONRunningInventoryExtractor {
       const sizeColumns = this.extractSizeHeaders(headerRow);
       console.log(`  📏 Sizes for ${productName}:`, sizeColumns);
 
+      // No readable header means we cannot say which column is which size, and
+      // the quantities below are matched to sizes BY POSITION. Emitting rows
+      // anyway is how the apparel scrape produced a whole file of real stock on
+      // invented sizes. Skip the group and make the gap visible.
+      if (sizeColumns.length === 0) {
+        skippedGroups.push(productName);
+        console.error(`  ⏭️ Skipping "${productName}": no size header could be read.`);
+        return;
+      }
+
       const productRows = productGroup.querySelectorAll(".row.product-fabric");
       console.log(`  👟 Found ${productRows.length} color variations`);
-      
+
       productRows.forEach((row, rowIndex) => {
         const productInfo = this.extractProductInfoFromRow(row);
         productInfo.productName = productName;
@@ -1214,7 +1318,15 @@ class ONRunningInventoryExtractor {
 
         const stockStatuses = this.extractStockStatusesFromRow(row);
         console.log(`    🎨 Color ${rowIndex + 1}: ${productInfo.colorName} (${productInfo.styleId}), Stock data: ${stockStatuses.length} sizes`);
-        
+
+        // Stock cells are matched to sizes by position, so a count mismatch means
+        // the alignment is already wrong. Say so loudly instead of padding the
+        // tail with "No Stock", which reads as a real zero.
+        if (stockStatuses.length !== sizeColumns.length) {
+          console.error(`    ⚠️ ${productInfo.colorName}: ${stockStatuses.length} stock cells for ${sizeColumns.length} sizes. Quantities past the shorter list are NOT trustworthy.`);
+          mismatched.push(`${productName} / ${productInfo.colorName}`);
+        }
+
         sizeColumns.forEach((size, idx) => {
           const stockStatus = stockStatuses[idx] || "No Stock";
           const quantity = this.convertStockStatusToQuantity(stockStatus);
@@ -1236,52 +1348,71 @@ class ONRunningInventoryExtractor {
     });
 
     console.log(`✅ Total extracted: ${inventory.length} variants`);
+    // Surface what was dropped. A quieter scrape that silently skipped half the
+    // page would be its own trap, so this is deliberately an alert, not a log.
+    if (skippedGroups.length || mismatched.length) {
+      const lines = [];
+      if (skippedGroups.length) lines.push(`${skippedGroups.length} product group(s) had no readable size header and were SKIPPED:\n  ${skippedGroups.slice(0, 12).join("\n  ")}`);
+      if (mismatched.length) lines.push(`${mismatched.length} colorway(s) had a stock/size column mismatch. Check those quantities:\n  ${mismatched.slice(0, 12).join("\n  ")}`);
+      console.warn("⚠️ Scrape gaps:\n" + lines.join("\n\n"));
+      alert("Scrape finished with gaps:\n\n" + lines.join("\n\n") + "\n\nEverything else exported normally.");
+    }
     return inventory;
   }
 
+  // The size labels across the top of one product group, in column order.
+  //
+  // THIS USED TO INVENT SIZES AND THAT IS THE WORST THING IT COULD DO. It only
+  // accepted /^\d+(\.\d)?$/, so an apparel header (X-Small, Small, Medium) matched
+  // nothing, every fallback failed the same way, and it returned a hardcoded
+  // 21-slot shoe ladder. Stock is then zipped onto the columns POSITIONALLY by the
+  // caller, so a bra came out carrying real quantities on sizes 5.0 to 15.0. The
+  // file looks perfectly valid and every number is on the wrong variant, which is
+  // far worse than a scrape that plainly fails. Measured on the 2026-08-05
+  // women's apparel run: 166 colorways, all with the identical fake ladder.
+  //
+  // So: take the label the portal actually shows, whatever shape it is, and
+  // return [] when there is nothing to read. The caller skips the group and says
+  // so. An empty scrape is recoverable, a plausible wrong one is not.
   extractSizeHeaders(headerRow) {
     if (!headerRow) {
-      console.warn("⚠️ No header row found, using default size array");
-      return ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "12.5", "13", "13.5", "14", "14.5", "15"];
+      console.warn("⚠️ No header row found, skipping this group");
+      return [];
     }
-    
-    const sizes = [];
-    
-    // Primary method for ON Running: .always-visible-size-type ONLY (the US size, not EU)
-    const sizeElements = headerRow.querySelectorAll(".column .size-cnt .always-visible-size-type");
-    if (sizeElements.length > 0) {
-      sizeElements.forEach((el) => {
-        const s = el.textContent.trim();
-        // Make sure it's a valid shoe size format (e.g., "7", "7.5", "12.5")
-        if (/^\d+(?:\.\d)?$/.test(s)) {
-          sizes.push(s);
-        }
+
+    // A size cell is anything short and non-numeric-looking that is not obviously
+    // a price or a UI artifact. Footwear gives "7", "12.5". Apparel gives
+    // "X-Small", "2X-Large", and bras give "S (A-C)" or "Small A-C". EU sizes are
+    // deliberately not selected for (the .always-visible-size-type element is the
+    // US one), so anything reaching here is the label we want.
+    const isSize = (s) =>
+      !!s &&
+      s.length <= 14 &&
+      !/usd|\$|^\d+\.\d{2}$/i.test(s) &&
+      (/^\d+(?:\.\d)?$/.test(s) || /^[0-9]?X?[-\s]?(small|medium|large|s|m|l|xs|xl|xxl)\b/i.test(s) || /^one size$/i.test(s));
+
+    const readFrom = (selector) => {
+      const found = [];
+      headerRow.querySelectorAll(selector).forEach((el) => {
+        const s = el.textContent.trim().replace(/\s+/g, " ");
+        if (isSize(s)) found.push(s);
       });
-    }
-    
-    // Fallback 1: .size-cnt .us (old structure)
-    if (sizes.length === 0) {
-      headerRow.querySelectorAll(".size-cnt .us").forEach((el) => {
-        const s = el.textContent.trim();
-        if (/^\d+(?:\.\d)?$/.test(s)) sizes.push(s);
-      });
-    }
-    
-    // Fallback 2: Try just .us elements
-    if (sizes.length === 0) {
-      headerRow.querySelectorAll(".us").forEach((el) => {
-        const s = el.textContent.trim();
-        if (/^\d+(?:\.\d)?$/.test(s)) sizes.push(s);
-      });
-    }
-    
+      return found;
+    };
+
+    // Primary for ON Running: .always-visible-size-type (the US size, not EU).
+    // Then the two older structures, unchanged.
+    let sizes = readFrom(".column .size-cnt .always-visible-size-type");
+    if (sizes.length === 0) sizes = readFrom(".size-cnt .us");
+    if (sizes.length === 0) sizes = readFrom(".us");
+
     if (sizes.length > 0) {
-      console.log(`✅ Extracted ${sizes.length} US sizes from header:`, sizes);
+      console.log(`✅ Extracted ${sizes.length} sizes from header:`, sizes);
       return sizes;
     }
-    
-    console.warn("⚠️ No sizes found in header, using default array");
-    return ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "12.5", "13", "13.5", "14", "14.5", "15"];
+
+    console.error("❌ No sizes found in this group's header. Skipping the group rather than inventing a size ladder.");
+    return [];
   }
 
   extractProductInfoFromRow(row) {
@@ -1394,7 +1525,13 @@ class ONRunningInventoryExtractor {
           colorCode: "UNK",
           colorName: "Unknown"
         };
-        const sizes = ["5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "12.5", "13", "13.5", "14", "14.5", "15"];
+        // The last-resort DOM shape gives us stock cells with no header to name
+        // them, so there is no honest way to label the sizes. It used to assume a
+        // shoe ladder here, which is the same invented-size trap as
+        // extractSizeHeaders. Emit positional placeholders instead, so the
+        // resulting file is obviously unfinished rather than confidently wrong.
+        const sizes = Array.from({ length: statusEls.length }, (_, i) => `COLUMN ${i + 1}`);
+        console.warn("⚠️ Alternative structure: no size header available, columns are labelled positionally and must be mapped by hand.");
         const gender = resolveGender({
           productName: productInfo.productName,
           styleId: productInfo.styleId,
