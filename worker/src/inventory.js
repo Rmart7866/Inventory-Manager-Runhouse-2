@@ -58,6 +58,30 @@ mutation($input: InventorySetQuantitiesInput!) {
   }
 }`;
 
+// Stock an item at Needham that was never stocked there.
+//
+// WHY THIS EXISTS. A variant with no inventory level at Needham cannot be
+// updated: there is no level to set, so inventorySetQuantities has nothing to
+// write and the resolve step below reads a null on-hand. The old code counted
+// that as "not found" and skipped it, silently.
+//
+// It is not rare and it is not random. Measured 2026-08-07: 113 Needham products
+// hold 708 such variants, and on the worst of them it is every WHOLE size while
+// the half sizes are all stocked, which is the "it only updates the half sizes"
+// report. The likely history is the old size-spelling mismatch: those rows never
+// matched, so Shopify never activated them, and they have been invisible since.
+//
+// Activating is the correct repair. The tool's whole premise is that Needham is
+// where dropship stock lives, so a feed row for a variant we sell means that
+// variant belongs at Needham. It stays Needham-only, like every other write here.
+const ACTIVATE = `
+mutation($inventoryItemId: ID!, $locationId: ID!, $onHand: Int!) {
+  inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, onHand: $onHand) {
+    inventoryLevel { id }
+    userErrors { field message }
+  }
+}`;
+
 const onHandOf = (node) => {
   const q = (node.inventoryItem && node.inventoryItem.inventoryLevel && node.inventoryItem.inventoryLevel.quantities) || [];
   const oh = q.find((x) => x.name === 'on_hand');
@@ -166,12 +190,22 @@ export async function setInventory(client, env, opts = {}) {
   const resolved = await resolveSkus(client, skus, locationId);
 
   const plan = [];
+  const activate = [];   // resolved, but not stocked at Needham yet
   const results = [];
   let unchanged = 0, notFound = 0, zeros = 0;
   for (const sku of skus) {
     const hit = resolved.get(sku);
     const target = want.get(sku);
-    if (!hit || !hit.inventoryItemId || hit.onHand == null) { notFound++; results.push({ sku, status: 'not_found', target }); continue; }
+    // No such SKU on the store at all. Nothing to do, and nothing we could
+    // safely invent, so it stays a miss.
+    if (!hit || !hit.inventoryItemId) { notFound++; results.push({ sku, status: 'not_found', target }); continue; }
+    // The SKU exists but has never been stocked at Needham. Activate it rather
+    // than skip: skipping is what made whole sizes permanently unsellable.
+    if (hit.onHand == null) {
+      if (target === 0) { unchanged++; results.push({ sku, status: 'unchanged', onHand: 0, note: 'not stocked at Needham, target is 0' }); continue; }
+      activate.push({ sku, inventoryItemId: hit.inventoryItemId, to: target });
+      continue;
+    }
     if (hit.onHand === target) { unchanged++; results.push({ sku, status: 'unchanged', onHand: hit.onHand }); continue; }
     if (target === 0) zeros++;
     plan.push({ sku, inventoryItemId: hit.inventoryItemId, from: hit.onHand, to: target });
@@ -179,7 +213,8 @@ export async function setInventory(client, env, opts = {}) {
 
   if (dryRun) {
     for (const p of plan) results.push({ sku: p.sku, status: 'would_set', from: p.from, to: p.to });
-    return { ok: true, dryRun: true, location: locationId, results, summary: { requested: skus.length, toChange: plan.length, unchanged, notFound, zeros, written: 0, failed: 0 } };
+    for (const a of activate) results.push({ sku: a.sku, status: 'would_activate', from: null, to: a.to });
+    return { ok: true, dryRun: true, location: locationId, results, summary: { requested: skus.length, toChange: plan.length, toActivate: activate.length, unchanged, notFound, zeros, written: 0, activated: 0, failed: 0 } };
   }
 
   // Batch the writes: inventorySetQuantities takes many quantities per call.
@@ -209,5 +244,21 @@ export async function setInventory(client, env, opts = {}) {
       for (const p of chunk) { failed++; results.push({ sku: p.sku, status: 'failed', from: p.from, to: p.to, error: String((err && err.message) || err) }); }
     }
   }
-  return { ok: true, dryRun: false, location: locationId, results, summary: { requested: skus.length, toChange: plan.length, unchanged, notFound, zeros, written, failed } };
+  // Activations are one call each (inventoryActivate takes a single item), so
+  // they run after the batched sets and are counted separately. A failure here
+  // is reported per SKU and never stops the rest.
+  let activated = 0;
+  for (const a of activate) {
+    try {
+      const body = await client.graphql(ACTIVATE, { inventoryItemId: a.inventoryItemId, locationId, onHand: a.to });
+      const ue = (body.data.inventoryActivate && body.data.inventoryActivate.userErrors) || [];
+      if (ue.length) { failed++; results.push({ sku: a.sku, status: 'failed', from: null, to: a.to, error: ue.map((e) => e.message).join('; ') }); }
+      else { activated++; results.push({ sku: a.sku, status: 'activated', from: null, to: a.to }); }
+    } catch (err) {
+      failed++;
+      results.push({ sku: a.sku, status: 'failed', from: null, to: a.to, error: String((err && err.message) || err) });
+    }
+  }
+
+  return { ok: true, dryRun: false, location: locationId, results, summary: { requested: skus.length, toChange: plan.length, toActivate: activate.length, unchanged, notFound, zeros, written, activated, failed } };
 }

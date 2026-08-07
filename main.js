@@ -44,11 +44,45 @@ var BRAND_CONFIG = {
 // Brand display order
 var BRAND_ORDER = ['hoka', 'on', 'asics', 'brooks', 'puma', 'saucony', 'newbalance'];
 
-// Sale inventory masking: brands that already have masking baked into their
-// scraper output (Brooks, ON). For all other brands, qty <= 3 becomes 0 in
-// the sale inventory download.
+// ========== LOW STOCK READS AS 0 ==========
+// A dropship order the supplier cannot fill becomes a cancelled order, and as
+// volume grows that is the expensive failure. So any variant at or below this
+// many units is written to Shopify as 0: it stops being sellable rather than
+// selling and then being cancelled. This is applied to EVERY inventory output,
+// the CSVs and the direct write alike, not just one download.
+var LOW_STOCK_FLOOR = 3;
+
+// Two brands are exempt, for two different reasons, and both matter.
+//
+//   brooks  Its scraper already masks, and lossily: 3 or under becomes 0, but
+//           4 to 10 becomes 1. So a Brooks "1" means somewhere between four and
+//           ten real units. Applying the floor again would zero exactly those,
+//           taking genuinely stocked shoes off sale. Its own rule already does
+//           the job, see scrapers/brooks/content.js.
+//   on      Its numbers are buckets, not counts: the scraper maps In Stock to
+//           30, Low Stock to 5 and Very Low Stock to 2. A 2 does not mean two
+//           units, it means "ON says low", so the floor cannot read it.
 var MASK_EXEMPT_BRANDS = ['brooks', 'on'];
-var SALE_MASK_THRESHOLD = 3;
+
+// Rewrite every row at or below the floor to 0. Returns a new array and reports
+// what it did, since silently changing quantities is the sort of thing that
+// should be visible in the console when someone goes looking.
+function maskLowStock(brand, inventory) {
+    if (!Array.isArray(inventory) || !inventory.length) return inventory;
+    if (MASK_EXEMPT_BRANDS.indexOf(brand) !== -1) return inventory;
+    var masked = 0, units = 0;
+    var out = inventory.map(function (row) {
+        var qty = parseInt(row['On hand (new)'], 10);
+        if (!(qty > 0) || qty > LOW_STOCK_FLOOR) return row;
+        masked++; units += qty;
+        return Object.assign({}, row, { 'On hand (new)': '0' });
+    });
+    if (masked) {
+        console.log('[' + brand + '] Low stock floor: ' + masked + ' variant' + (masked !== 1 ? 's' : '')
+            + ' at ' + LOW_STOCK_FLOOR + ' or fewer set to 0 (' + units + ' units held back to avoid cancellations).');
+    }
+    return out;
+}
 
 // ========== MAIN CONTROLLER ==========
 var BrandConverter = {
@@ -589,7 +623,19 @@ async function convertBrand(brand) {
         // import matches handle plus size, and the direct write matches SKU.
         inventory = alignInventoryToCatalog(brand, inventory);
 
+        // Then hold back anything too thin to fulfil, before any consumer reads
+        // the rows, so the CSV, the direct write and the tracker all agree.
+        inventory = maskLowStock(brand, inventory);
+
         brandData.inventory = inventory;
+        // BOTH of these matter. The combined CSV and the direct write read
+        // brandData.inventory, but the per-brand Download button reads the CSV
+        // built from converter.inventoryData, and that used to be reassigned only
+        // when there happened to be removals. So a brand with nothing removed
+        // downloaded rows that had been through neither the size alignment nor
+        // the floor above, which is most of the reason the size fix looked like
+        // it had not taken.
+        if (converter) converter.inventoryData = inventory;
 
         // Show product CSV button
         if (typeof BrandPicker !== 'undefined') BrandPicker.showProductCSVButton(brand);
@@ -755,7 +801,7 @@ function writeAllInventory() {
     var total = items.length;
 
     // ---- phase 1: dry run in slices, accumulate the plan --------------------
-    var dsum = { toChange: 0, unchanged: 0, notFound: 0, zeros: 0 };
+    var dsum = { toChange: 0, toActivate: 0, unchanged: 0, notFound: 0, zeros: 0 };
     var changed = []; // {sku, quantity} for everything that would actually change
 
     function checkChunk(i) {
@@ -767,30 +813,41 @@ function writeAllInventory() {
             if (dry.__status !== 200 || !dry.ok) { setMsg('Could not reach the writer: ' + esc(dry.reason || dry.error || ('HTTP ' + dry.__status)), 'err'); done(); return; }
             dsum.toChange += dry.summary.toChange; dsum.unchanged += dry.summary.unchanged;
             dsum.notFound += dry.summary.notFound; dsum.zeros += dry.summary.zeros;
-            dry.results.forEach(function (r) { if (r.status === 'would_set') changed.push({ sku: r.sku, quantity: r.to }); });
+            dsum.toActivate += (dry.summary.toActivate || 0);
+            // would_activate rows MUST be carried through with the rest. They are
+            // the variants Shopify has never stocked at Needham, which is exactly
+            // the population that has been silently skipped until now; leaving
+            // them out here would plan the fix and then never apply it.
+            dry.results.forEach(function (r) {
+                if (r.status === 'would_set' || r.status === 'would_activate') changed.push({ sku: r.sku, quantity: r.to });
+            });
             checkChunk(i + DRY_CHUNK);
         }).catch(function (e) { done(); setMsg('Could not reach the writer: ' + esc((e && e.message) || e), 'err'); });
     }
 
     function afterCheck() {
-        if (dsum.toChange === 0) { setMsg('Already in sync. Nothing to write (' + dsum.unchanged + ' already match' + (dsum.notFound ? ', ' + dsum.notFound + ' not on Shopify' : '') + ').', 'ok'); done(); return; }
-        var conf = 'Write ' + dsum.toChange + ' inventory changes to your LIVE store now?\n\n'
+        var totalChanges = dsum.toChange + dsum.toActivate;
+        if (totalChanges === 0) { setMsg('Already in sync. Nothing to write (' + dsum.unchanged + ' already match' + (dsum.notFound ? ', ' + dsum.notFound + ' not on Shopify' : '') + ').', 'ok'); done(); return; }
+        var conf = 'Write ' + totalChanges + ' inventory changes to your LIVE store now?\n\n'
             + brands.map(function (b) { return b.toUpperCase(); }).join(', ') + '\n'
             + dsum.toChange + ' variants change (' + dsum.zeros + ' set to 0), ' + dsum.unchanged + ' already match'
+            + (dsum.toActivate ? '\n' + dsum.toActivate + ' variants are not stocked at Needham yet and will be added there' : '')
             + (dsum.notFound ? ', ' + dsum.notFound + ' not on Shopify (skipped)' : '') + '.';
         if (!window.confirm(conf)) { setMsg('Cancelled.', ''); done(); return; }
         writeChunk(0);
     }
 
     // ---- phase 2: write the changed variants in slices ----------------------
-    var acc = { written: 0, failed: 0, zeros: 0 };
+    var acc = { written: 0, activated: 0, failed: 0, zeros: 0 };
 
     function writeChunk(i) {
         var n = changed.length;
         if (i >= n) {
             done();
-            setMsg('&#10003; Wrote <strong>' + acc.written + '</strong> of ' + n + ' variant' + (n !== 1 ? 's' : '') + ' to Needham'
-                + (acc.zeros ? ' (' + acc.zeros + ' zeroed)' : '') + (acc.failed ? ', <strong>' + acc.failed + '</strong> failed' : '')
+            setMsg('&#10003; Wrote <strong>' + (acc.written + acc.activated) + '</strong> of ' + n + ' variant' + (n !== 1 ? 's' : '') + ' to Needham'
+                + (acc.zeros ? ' (' + acc.zeros + ' zeroed)' : '')
+                + (acc.activated ? ', <strong>' + acc.activated + '</strong> newly stocked at Needham' : '')
+                + (acc.failed ? ', <strong>' + acc.failed + '</strong> failed' : '')
                 + '. ' + dsum.unchanged + ' already matched.', acc.failed ? 'err' : 'ok');
             if (typeof showToast === 'function' && acc.written > 0) showToast('Wrote ' + acc.written + ' inventory updates to Shopify');
             return;
@@ -800,7 +857,7 @@ function writeAllInventory() {
             + (acc.failed ? ' (' + acc.failed + ' failed)' : ''));
         CatalogClient.setInventory(slice, false).then(function (res) {
             if (res.__status !== 200 || !res.ok) { acc.failed += slice.length; }
-            else { acc.written += res.summary.written; acc.failed += res.summary.failed; acc.zeros += res.summary.zeros; }
+            else { acc.written += res.summary.written; acc.activated += (res.summary.activated || 0); acc.failed += res.summary.failed; acc.zeros += res.summary.zeros; }
             writeChunk(i + WRITE_CHUNK);
         }).catch(function () { acc.failed += slice.length; writeChunk(i + WRITE_CHUNK); });
     }
@@ -832,59 +889,6 @@ function downloadUnifiedReset() {
     link.download = 'combined-reset-' + getFormattedDate() + '.csv';
     link.click();
     showToast('Combined reset CSV downloaded');
-}
-
-// ========== SALE INVENTORY DOWNLOAD ==========
-// Masks qty <= 3 to 0 for all brands except Brooks and ON.
-// Brooks and ON already have masking baked into their scraper output,
-// so we leave their quantities untouched. Other brands get low-stock
-// variants zeroed out to prevent overselling on sale channels.
-function downloadUnifiedSaleInventory() {
-    var allInventory = [];
-    var maskedCount = 0;
-    var maskedBrandSummary = [];
-
-    BRAND_ORDER.forEach(function(brand) {
-        var cb = document.getElementById('select-' + brand);
-        if (cb && cb.checked && BrandConverter.brands[brand].inventory.length > 0) {
-            var inv = BrandConverter.brands[brand].inventory.slice();
-            var config = BRAND_CONFIG[brand];
-            if (config && config.postProcess) inv = config.postProcess(inv);
-
-            // Mask low inventory for non-exempt brands
-            if (MASK_EXEMPT_BRANDS.indexOf(brand) === -1) {
-                var brandMaskedCount = 0;
-                inv = inv.map(function(row) {
-                    var qty = parseInt(row['On hand (new)']) || 0;
-                    if (qty > 0 && qty <= SALE_MASK_THRESHOLD) {
-                        maskedCount++;
-                        brandMaskedCount++;
-                        return Object.assign({}, row, { 'On hand (new)': '0' });
-                    }
-                    return row;
-                });
-                if (brandMaskedCount > 0) {
-                    maskedBrandSummary.push(BrandConverter.getBrandDisplayName(brand) + ': ' + brandMaskedCount);
-                }
-            }
-
-            allInventory = allInventory.concat(inv);
-        }
-    });
-
-    if (allInventory.length === 0) { alert('Please select at least one brand!'); return; }
-
-    var csv = BrandConverter._generateInventoryCSV(allInventory);
-    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    var link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'sale-inventory-' + getFormattedDate() + '.csv';
-    link.click();
-
-    var toastMsg = 'Sale inventory downloaded (' + maskedCount + ' variants masked to 0';
-    if (maskedBrandSummary.length > 0) toastMsg += ' — ' + maskedBrandSummary.join(', ');
-    toastMsg += ')';
-    showToast(toastMsg);
 }
 
 // ========== COMBINED NEW PRODUCTS ==========
