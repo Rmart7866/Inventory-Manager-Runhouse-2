@@ -37,6 +37,7 @@
 //       node tools/activate-needham-variants.mjs --handle hoka-mens-... # one product
 //       node tools/activate-needham-variants.mjs --handle hoka-... --apply
 //       node tools/activate-needham-variants.mjs --apply                # the lot
+//       node tools/activate-needham-variants.mjs --all                   # include retired products too
 //       node tools/activate-needham-variants.mjs --rollback needham-activate-*.json --apply
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
@@ -162,6 +163,22 @@ for (;;) {
     // Only products we actually carry at Needham. One with no level anywhere is
     // not partially stocked, it is somebody else's product.
     if (!stocked.length || !missing.length) continue;
+
+    // AND ONLY WHAT WE ACTUALLY SELL. Without this the scan finds 352 products
+    // and 3,005 variants, but most are retired models: Kinvara 13, Adrenaline
+    // GTS 22, Glycerin 20, Ghost 15, Arahi 6. Stocking those at Needham would
+    // create thousands of empty inventory rows for shoes nobody is selling.
+    // A product qualifies only if it is ACTIVE and holding stock at Needham
+    // right now, which narrows it to the ones where a customer can currently
+    // pick a size that cannot be sold. Pass --all to widen it back.
+    if (!has('--all') && !HANDLE) {
+      if (p.status !== 'ACTIVE') continue;
+      const onHand = stocked.reduce((t, v) => {
+        const q = (v.inventoryItem.inventoryLevel.quantities || []).find((x) => x.name === 'on_hand');
+        return t + (q ? q.quantity : 0);
+      }, 0);
+      if (onHand <= 0) continue;
+    }
     for (const v of missing) {
       gaps.push({
         handle: p.handle,
