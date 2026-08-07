@@ -146,8 +146,12 @@ export async function zeroInventory(client, env, opts = {}) {
       const input = {
         name: 'on_hand',
         reason: 'correction',
-        // compareQuantity guards against a count that moved since we read it.
-        quantities: [{ inventoryItemId: p.inventoryItemId, locationId, quantity: 0, compareQuantity: p.onHand }],
+        // changeFromQuantity guards against a count that moved since we read it:
+        // if the real number is no longer this, the write is rejected instead of
+        // clobbering a fresher one. It replaces compareQuantity, which Shopify
+        // removes in API version 2026-04. Both exist in 2026-01, so this is the
+        // spelling that survives the next version bump.
+        quantities: [{ inventoryItemId: p.inventoryItemId, locationId, quantity: 0, changeFromQuantity: p.onHand }],
       };
       const body = await client.graphql(SET_ZERO, { input });
       const ue = (body.data.inventorySetQuantities && body.data.inventorySetQuantities.userErrors) || [];
@@ -228,8 +232,11 @@ export async function setInventory(client, env, opts = {}) {
       const input = {
         name: 'on_hand',
         reason: 'correction',
-        ignoreCompareQuantity: true,
-        quantities: chunk.map((p) => ({ inventoryItemId: p.inventoryItemId, locationId, quantity: p.to })),
+        // A full sync treats the feed as authoritative, so a count that moved
+        // since we read it must not reject the write. That used to be
+        // ignoreCompareQuantity: true; Shopify replaced it with an explicit null
+        // changeFromQuantity per quantity, and removes the old flag in 2026-04.
+        quantities: chunk.map((p) => ({ inventoryItemId: p.inventoryItemId, locationId, quantity: p.to, changeFromQuantity: null })),
       };
       const body = await client.graphql(SET_MANY, { input });
       const ue = (body.data.inventorySetQuantities && body.data.inventorySetQuantities.userErrors) || [];
