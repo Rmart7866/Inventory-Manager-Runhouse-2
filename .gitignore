@@ -67,3 +67,8 @@ shoe-weight-rollback-*.json
 # does not belong in a public repo. The rollback file is per-run undo state.
 brooks-barcode-feed.json
 brooks-barcode-rollback-*.json
+
+# Run artifacts from tools/activate-needham-variants.mjs. The rollback file holds
+# the inventory level ids created, which is the undo. Keep it on disk until the
+# run is confirmed good; it does not belong in a public repo.
+needham-activate-rollback-*.json
