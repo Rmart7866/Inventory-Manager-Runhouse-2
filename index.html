@@ -54,6 +54,7 @@
         .bh-asics { background: #1d4ed8; }
         .bh-brooks { background: #1e3a5f; }
         .bh-on { background: #27272a; }
+        .bh-merrell { background: #5a7a2e; }
 
         /* Brand links */
         .brand-links { padding: 12px 24px; background: #fafafa; border-bottom: 1px solid #f4f4f5; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
@@ -725,6 +726,43 @@
                     <div class="tracker-report" id="saucony-tracker-report"></div>
                 </div>
 
+                <!-- MERRELL -->
+                <div class="brand-card" data-brand="merrell">
+                    <div class="bh bh-merrell">MERRELL</div>
+                    <div class="brand-links">
+                        <a href="https://www.merrell.com/US/en/b2b" target="_blank" class="b-link">B2B Portal</a>
+                        <button class="b-link b-link-alt" onclick="toggleInstructions('merrell')">Instructions</button>
+                    </div>
+                    <div class="instruct" id="merrell-instructions">
+                        <h4>How to Download Merrell Inventory:</h4>
+                        <ol>
+                            <li>Go to the <a href="https://www.merrell.com/US/en/b2b" target="_blank">Merrell B2B Portal</a></li>
+                            <li>Open the <strong>At Once catalog</strong></li>
+                            <li>Export <strong>Catalog UPCs</strong> (.xlsx)</li>
+                            <li>Drag file here</li>
+                        </ol>
+                        <p style="margin-top:6px"><strong>Use the At Once export, not the Price List.</strong> The price list has UPCs but no stock, so it cannot say what is available. Merrell's file is the same shape as Saucony's, so this card works the same way.</p>
+                    </div>
+                    <div class="dropzone" id="merrell-dropzone">
+                        <h3>Drop Merrell file</h3>
+                        <p>or click to browse (.xlsx)</p>
+                        <input type="file" class="file-input" id="merrell-file" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="uploaded" id="merrell-uploaded">
+                        <div class="uploaded-info"><strong id="merrell-filename"></strong></div>
+                        <button class="clear-btn" onclick="clearFile('merrell')">Clear</button>
+                    </div>
+                    <div class="picker-wrap" id="merrell-picker-container"></div>
+                    <div class="convert-wrap" id="merrell-convert">
+                        <button class="gen-btn convert-btn" onclick="convertBrand('merrell')">Generate Inventory</button>
+                        <button class="csv-btn csv-btn-grey" id="merrell-product-csv-btn" onclick="downloadMerrellProductCSV()">Download Products CSV</button>
+                        <button class="csv-btn csv-btn-green" id="merrell-new-product-csv-btn" onclick="downloadMerrellNewProductCSV()">Download NEW Products CSV</button>
+                    </div>
+                    <div class="status" id="merrell-status"></div>
+                    <div class="bp-badge" id="merrell-tracker-badge"></div>
+                    <div class="tracker-report" id="merrell-tracker-report"></div>
+                </div>
+
                 <!-- HOKA -->
                 <div class="brand-card" data-brand="hoka">
                     <div class="bh bh-hoka">HOKA</div>
@@ -1125,20 +1163,21 @@
     <script src="saucony-converter.js?v=3"></script>
     <script src="hoka-converter.js?v=5"></script>
     <script src="firebase-config.js"></script>
-    <script src="catalog-client.js?v=19"></script>
-    <script src="inventory-tracker.js?v=11"></script>
+    <script src="catalog-client.js?v=20"></script>
+    <script src="inventory-tracker.js?v=12"></script>
     <script src="puma-converter.js?v=2"></script>
     <script src="newbalance-converter.js"></script>
     <script src="on-converter.js?v=5"></script>
     <script src="asics-converter.js?v=4"></script>
     <script src="brooks-converter.js?v=2"></script>
-    <script src="brand-picker.js?v=8"></script>
+    <script src="merrell-converter.js?v=1"></script>
+    <script src="brand-picker.js?v=9"></script>
     <script src="b2b-links.js"></script>
-    <script src="product-enrichment.js?v=25"></script>
+    <script src="product-enrichment.js?v=26"></script>
     <script src="catalog-tags.js?v=8"></script>
     <script src="product-library.js?v=8"></script>
     <script src="catalog-ui.js?v=7"></script>
 
-    <script src="main.js?v=12"></script>
+    <script src="main.js?v=13"></script>
 </body>
 </html>

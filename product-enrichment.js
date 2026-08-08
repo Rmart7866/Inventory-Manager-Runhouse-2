@@ -13,6 +13,7 @@ var ProductEnrichment = {
         asics:      { price: '140.00', vendor: 'ASICS' },
         puma:       { price: '120.00', vendor: 'Puma' },
         on:         { price: '160.00', vendor: 'ON Running' },
+        merrell:    { price: '150.00', vendor: 'Merrell' },
         newbalance: { price: '140.00', vendor: 'New Balance' },
     },
 
@@ -724,7 +725,10 @@ var ProductEnrichment = {
         // Saucony style numbers: S100981-1019 (6+4) and older S11056-100 (5+3)
         // or S29107-01 (5+2). Photos are named "<style>_1.jpg", the same
         // "<key>_N" shape as Hoka, so _angleRank already orders them.
-        saucony: /S\d{5,6}-\d{2,4}/
+        saucony: /S\d{5,6}-\d{2,4}/,
+        // Merrell photos are named "<style>_1.jpg", the same "<key>_N" shape as
+        // Hoka and Saucony, and the style code is the SKU's leading token.
+        merrell: /J\d{5,}/
     },
 
     _imageKeyIn: function (brand, str) {
@@ -1471,6 +1475,7 @@ var ENRICHMENT_BRAND_MAP = {
     asics:    { getConverter: function() { return AsicsConverter; },    compKey: '_asicsTrackerComparison' },
     puma:     { getConverter: function() { return PumaConverter; },     compKey: '_pumaTrackerComparison' },
     on:       { getConverter: function() { return OnConverter; },       compKey: '_onTrackerComparison' },
+    merrell:  { getConverter: function() { return MerrellConverter; },  compKey: '_merrellTrackerComparison' },
 };
 
 // ========== GENERIC ENRICHED DOWNLOAD ==========
@@ -1501,6 +1506,7 @@ function downloadBrooksNewProductCSV()   { downloadNewProductCSVWithEnrichment('
 function downloadAsicsNewProductCSV()    { downloadNewProductCSVWithEnrichment('asics'); }
 function downloadPumaNewProductCSV()     { downloadNewProductCSVWithEnrichment('puma'); }
 function downloadOnNewProductCSV()       { downloadNewProductCSVWithEnrichment('on'); }
+function downloadMerrellNewProductCSV()  { downloadNewProductCSVWithEnrichment('merrell'); }
 
 // ========== COMBINED NEW PRODUCTS (patched) ==========
 function downloadCombinedNewProducts() {

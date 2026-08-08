@@ -34,7 +34,7 @@ var CatalogClient = {
     // Tool brand key -> the brand key /catalog reports (from parsers.js brandFor).
     BRAND_MAP: {
         hoka: 'HOKA', on: 'ON', asics: 'ASICS', brooks: 'BROOKS',
-        puma: 'PUMA', saucony: 'SAUCONY', newbalance: 'NEW_BALANCE'
+        puma: 'PUMA', saucony: 'SAUCONY', merrell: 'MERRELL', newbalance: 'NEW_BALANCE'
     },
 
     // Tool brand key -> the vendor token as it appears in product TITLES, so
@@ -44,7 +44,7 @@ var CatalogClient = {
     // that also reads like English ("On") cannot corrupt a color name.
     VENDOR_BY_BRAND: {
         hoka: 'HOKA', on: 'On', asics: 'Asics', brooks: 'Brooks',
-        puma: 'Puma', saucony: 'Saucony', newbalance: 'New Balance'
+        puma: 'Puma', saucony: 'Saucony', merrell: 'Merrell', newbalance: 'New Balance'
     },
 
     // Only these statuses count as "we carry it". ARCHIVED is retired, so it must

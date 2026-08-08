@@ -28,6 +28,7 @@ const BRANDS = {
   'brooks':       { key: 'BROOKS',      titleTokens: ['Brooks'] },
   'hoka':         { key: 'HOKA',        titleTokens: ['HOKA ONE ONE', 'HOKA'] },
   'hoka one one': { key: 'HOKA',        titleTokens: ['HOKA ONE ONE', 'HOKA'] },
+  'merrell':      { key: 'MERRELL',     titleTokens: ['Merrell'] },
   'on running':   { key: 'ON',          titleTokens: ['ON Running', 'ON'] },
   'on':           { key: 'ON',          titleTokens: ['ON Running', 'ON'] },
   'puma':         { key: 'PUMA',        titleTokens: ['Puma'] },

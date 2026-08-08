@@ -578,6 +578,13 @@ if (typeof PumaConverter !== 'undefined') {
         comparisonKey: '_pumaTrackerComparison', vendorName: 'Puma', checkboxClass: 'puma-picker-cb'
     });
 }
+if (typeof MerrellConverter !== 'undefined') {
+    BrandPicker.register('merrell', {
+        converter: MerrellConverter, containerId: 'merrell-picker-container', trackerId: 'merrell-tracker-report',
+        headerGradient: 'linear-gradient(135deg, #6b8f3a 0%, #3f5c22 100%)',
+        comparisonKey: '_merrellTrackerComparison', vendorName: 'Merrell', checkboxClass: 'merrell-picker-cb'
+    });
+}
 if (typeof SauconyConverter !== 'undefined') {
     BrandPicker.register('saucony', {
         converter: SauconyConverter, containerId: 'saucony-picker-container', trackerId: 'saucony-tracker-report',
@@ -631,6 +638,10 @@ function showSauconyTrackerReport(comparison) { BrandPicker.showTrackerReport('s
 function showSauconyNewProductButton() { BrandPicker._showNewProductButton('saucony', 0); }
 function hideSauconyNewProductButton() { BrandPicker._hideNewProductButton('saucony'); }
 function downloadSauconyProductCSV() { BrandPicker.downloadProductCSV('saucony'); }
+
+function showMerrellPicker(products) { BrandPicker.show('merrell', products); }
+function showMerrellTrackerReport(comparison) { BrandPicker.showTrackerReport('merrell', comparison); }
+function downloadMerrellProductCSV() { BrandPicker.downloadProductCSV('merrell'); }
 
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() { for (var b in BrandPicker.configs) BrandPicker.initTrackerStatus(b); }, 1500);
