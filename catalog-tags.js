@@ -347,6 +347,28 @@ var CatalogTags = {
             metafields: document.getElementById('ctags-op-metafields').checked
         };
     },
+    // Narrow the catalog to products created in the last N days.
+    //
+    // Returns { list, scoped, days, missing }. `missing` counts products with no
+    // createdAt, which is how an OLD catalog snapshot announces itself: the field
+    // was added to the Worker payload later, so a snapshot built before that
+    // deploy has none and a naive filter would quietly select zero products and
+    // report "nothing to do". Callers must check it.
+    _recentScope: function (products) {
+        var onEl = document.getElementById('ctags-recent-on');
+        var daysEl = document.getElementById('ctags-recent-days');
+        var on = onEl ? onEl.checked : false;
+        var days = daysEl ? parseInt(daysEl.value, 10) : 3;
+        if (!on || !(days > 0)) return { list: products || [], scoped: false, days: 0, missing: 0 };
+        var cutoff = Date.now() - (days * 86400000);
+        var missing = 0;
+        var list = (products || []).filter(function (p) {
+            if (!p.createdAt) { missing++; return false; }
+            var t = Date.parse(p.createdAt);
+            return !isNaN(t) && t >= cutoff;
+        });
+        return { list: list, scoped: true, days: days, missing: missing };
+    },
     _setStatus: function (msg, isErr) {
         var el = document.getElementById('ctags-status');
         if (el) { el.textContent = msg; el.className = 'ctags-status' + (isErr ? ' ctags-status-err' : ''); }
@@ -373,12 +395,39 @@ var CatalogTags = {
         if (!self._catalog) { self._setStatus('Catalog still loading, one moment.', true); return; }
         var ops = self._ops();
         if (!ops.width && !ops.swatch && !ops.gender && !ops.metafields) { self._setStatus('Pick at least one operation.', true); return; }
-        var res = self.computePlan(self._catalog.products, ops);
+        var all = self._catalog.products || [];
+        var scope = self._recentScope(all);
+
+        // An old snapshot has no createdAt on anything, so the filter would match
+        // nothing and the run would look like a clean catalog. Say so instead.
+        if (scope.scoped && scope.missing === all.length && all.length) {
+            self._setStatus('This catalog snapshot predates creation dates. Hit Refresh to rebuild it, or untick the last-' + scope.days + '-days box to run across everything.', true);
+            return;
+        }
+
+        // Tags are per product, so the tag ops see only the recent ones. Sibling
+        // metafields are NOT per product: a new colorway changes its siblings'
+        // cross-links too, so that op is scoped by model FAMILY (the modelKeys
+        // option) and still reads the full catalog to find those siblings.
+        var res = self.computePlan(scope.list, ops);
         self._plan = res.changes;
-        self._mf = ops.metafields ? self.computeMetafields(self._catalog.products) : null;
+        var mfKeys = null;
+        if (scope.scoped) {
+            mfKeys = new Set();
+            scope.list.forEach(function (p) {
+                if (p.modelKeyGenderless) mfKeys.add(self._norm(p.modelKeyGenderless));
+            });
+        }
+        self._mf = ops.metafields
+            ? self.computeMetafields(all, mfKeys ? { modelKeys: mfKeys } : null)
+            : null;
         var s = res.summary, mfCount = self._mf ? self._mf.inputs.length : 0;
         var body = document.getElementById('ctags-result');
         var lines = [];
+        if (scope.scoped) {
+            lines.push('Scope: <b>' + scope.list.length + '</b> product' + (scope.list.length === 1 ? '' : 's') + ' created in the last <b>' + scope.days + '</b> day' + (scope.days === 1 ? '' : 's')
+                + (scope.missing ? ' (' + scope.missing + ' skipped, no creation date on this snapshot)' : ''));
+        }
         if (ops.width) lines.push('Width tags: <b>' + s.widthAdds + '</b> to add (add-only)');
         if (ops.swatch) lines.push('Swatch (cw-group) tags: <b>' + s.swatchAdds + '</b> to add (add-only)');
         if (ops.gender) lines.push('Gender tags: <b>' + s.genderAdds + '</b> to add (add-only, no removals); <b>' + s.typeFixes + '</b> product-type fixes');
@@ -485,6 +534,7 @@ var CatalogTags = {
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-gender"><div><div class="ctags-op-t">Gender + product type</div><div class="ctags-op-h">Adds the canonical "Men\'s Shoes" / "Women\'s Shoes" / "Unisex Shoes" tag + sets the matching product type. Add-only, never removes existing tags.</div></div></label>'
             + '<label class="ctags-op"><input type="checkbox" id="ctags-op-metafields"><div><div class="ctags-op-t">Swatch sibling metafields</div><div class="ctags-op-h">The custom.* style / width / gender sibling references + color_name / width_code the PDP swatch grid reads. Writes only the ones that actually changed (nothing if already correct).</div></div></label>'
             + '</div>'
+            + '<label class="ctags-op ctags-scope"><input type="checkbox" id="ctags-recent-on" checked><div><div class="ctags-op-t">Only products added in the last <input type="number" id="ctags-recent-days" value="3" min="1" max="90" class="ctags-days"> days</div><div class="ctags-op-h">The usual case after a drop: tag what was just created instead of re-checking the whole catalog. Sibling metafields still group against the FULL model family, so the older colorways of those models get their cross-links updated too. Untick to run across everything.</div></div></label>'
             + '<div class="ctags-status" id="ctags-status">Loading catalog...</div>'
             + '<div class="ctags-progress-wrap" id="ctags-progress-wrap" style="display:none">'
             + '<div class="ctags-progress"><div class="ctags-bar" id="ctags-bar"></div></div>'
@@ -524,6 +574,13 @@ if (typeof document !== 'undefined') (function () {
         .ctags-op input { margin-top: 3px; width: 18px; height: 18px; accent-color: #34e0ff; flex-shrink: 0; }
         .ctags-op-t { font-size: 15px; font-weight: 700; }
         .ctags-op-h { font-size: 12.5px; color: #9fb2cc; margin-top: 3px; line-height: 1.5; }
+        /* Scope row sits apart from the operation list: it answers "which
+           products", not "which changes", and applies to all four ops. */
+        .ctags-scope { margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; }
+        /* Wide enough for two digits plus the spinner, which WebKit renders
+           inside the box and which squeezes the value out of sight below ~64px. */
+        .ctags-days { width: 64px; margin: 0 3px; padding: 3px 6px; font: inherit; font-size: 13px; text-align: center;
+          background: #0d1422; color: #e8f0fb; border: 1px solid rgba(255,255,255,0.18); border-radius: 0; }
         .ctags-status { margin-top: 16px; font-size: 13px; color: #9fb2cc; line-height: 1.5; }
         .ctags-status-err { color: #ff9db0; }
         .ctags-progress-wrap { margin-top: 14px; }

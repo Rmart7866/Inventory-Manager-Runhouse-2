@@ -62,6 +62,7 @@ query($cursor: String, $q: String) {
       status
       tags
       updatedAt
+      createdAt
       descriptionHtml
       category { fullName }
       featuredImage { url }
@@ -112,7 +113,7 @@ function bulkCatalogQuery(activeOnly) {
   return `{
   products ${filter} {
     edges { node {
-      id handle title vendor productType status tags updatedAt
+      id handle title vendor productType status tags updatedAt createdAt
       descriptionHtml category { fullName }
       featuredImage { url }
       metafields(namespace: "custom") { edges { node { namespace key value } } }
@@ -461,6 +462,10 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
       image: n.image || (n.featuredImage && n.featuredImage.url) || '',
       // Last edit time, for sorting the Library by recently modified.
       updatedAt: n.updatedAt || '',
+      // Creation time, so Catalog Tagging can scope a run to products added in
+      // the last few days. About 25 bytes per product, roughly 100 KB across the
+      // footwear payload, against a 25 MB KV ceiling.
+      createdAt: n.createdAt || '',
       // Total on-hand across ALL locations (bulk path only). Lets the Library
       // hide models with no stock anywhere. Undefined on the paged dev path.
       totalOnHand: (typeof n._total === 'number') ? n._total : null,
