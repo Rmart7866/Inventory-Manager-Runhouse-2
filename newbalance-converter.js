@@ -153,14 +153,71 @@ var NewBalanceConverter = {
 
     // Matches the handles the tool already writes for New Balance, for example
     // mens-880v15-black-wide and womens-880v15-pearl-grey-wide.
-    buildHandle: function(model, color, gender, widthLabel) {
+    // Set rec.dedupe on every record that would otherwise share a handle with
+    // another record, and only those. Two colorways that collapse into one
+    // product is not a cosmetic problem: their size lists concatenate, so the
+    // product carries every size twice and Shopify rejects it on create. The
+    // second one is also silently suppressed as already carried, because
+    // colorwayKeyFromTitle is built from MODEL|GENDER|WIDTH|COLOR and identical
+    // titles read as the same colorway.
+    //
+    // GROUPED ON THE GENERATED HANDLE, not on the raw fields, because the handle
+    // is what actually has to be unique and slug() normalises away differences
+    // the raw fields still carry. Grouping on raw colour let "BLACK" and "Black"
+    // form two groups of one, neither marked, both producing the same handle.
+    //
+    // Two things can collide, so the suffix has two parts:
+    //   1. Different colorways sharing a Color Name. M1080B14 and M1080K14 are
+    //      both "Fresh Foam X 1080v14 / BLACK / Mens", and AC Runner BLACK is
+    //      seven of them. The colorway code separates these.
+    //   2. One colorway in two width CODES that map to the same width CLASS,
+    //      4E and 6E both being Extra Wide, 2A and B both being men's Narrow.
+    //      The code is identical there, so the width code is what separates them.
+    // Only added when needed, so a group that the colorway code already splits
+    // does not also carry a width code it does not need.
+    //
+    // Everything not in a collision keeps the handle it already had. A handle is
+    // the strongest signal the picker matches live Shopify products on, so
+    // changing one that already matches would make a carried product look new.
+    _markAmbiguous: function(records) {
+        var self = this;
+        var groups = {};
+        records.forEach(function(rec) {
+            rec.dedupe = '';
+            var base = self.buildHandle(rec.model, rec.color, rec.genderRaw, rec.widthLabel, '');
+            (groups[base] = groups[base] || []).push(rec);
+        });
+        Object.keys(groups).forEach(function(base) {
+            var g = groups[base];
+            if (g.length < 2) return;
+            var codes = {};
+            g.forEach(function(rec) { codes[rec.colorwayCode || ''] = 1; });
+            // The colorway code alone is enough only when the group has as many
+            // distinct codes as records. Otherwise two records share a code and
+            // the width code has to come along too.
+            var codeIsEnough = Object.keys(codes).length === g.length;
+            g.forEach(function(rec) {
+                var parts = [rec.colorwayCode || ''];
+                if (!codeIsEnough && rec.widthCode) parts.push(rec.widthCode);
+                rec.dedupe = parts.filter(Boolean).join('-');
+            });
+        });
+        return records;
+    },
+
+    // The width marker stays LAST in both, because parsers.js and group.js read
+    // the width class off the end of the title. The disambiguating code goes
+    // before it, next to the colour it is disambiguating.
+    buildHandle: function(model, color, gender, widthLabel, dedupe) {
         var parts = [this.slug(this.genderPrefix(gender)), this.slug(model), this.slug(color)];
+        if (dedupe) parts.push(this.slug(dedupe));
         if (widthLabel) parts.push(this.slug(widthLabel));
         return parts.filter(Boolean).join('-');
     },
 
-    buildTitle: function(model, color, gender, widthLabel) {
+    buildTitle: function(model, color, gender, widthLabel, dedupe) {
         var t = 'New Balance ' + this.genderPrefix(gender) + ' ' + model + ' - ' + this.formatColorName(color);
+        if (dedupe) t += ' ' + dedupe;
         return widthLabel ? (t + ' (' + widthLabel + ')') : t;
     },
 
@@ -245,11 +302,28 @@ var NewBalanceConverter = {
                 var qty = parseInt(row[iQty], 10);
                 if (!isFinite(qty) || qty < 0) qty = 0;
 
-                var key = [genderRaw, model, color, widthLabel].join('|');
+                // KEY ON THE COLORWAY CODE, NOT THE COLOUR NAME. New Balance
+                // reuses one Color Name across genuinely different colorways:
+                // M1080B14 and M1080K14 are both "Fresh Foam X 1080v14 / BLACK /
+                // Mens". Keyed on the name they merged into one record and their
+                // size lists concatenated, so a product came out with every size
+                // twice, which Shopify rejects on create. AC Runner BLACK was
+                // seven colorways in one. The code is the SKU's leading token,
+                // the same identity the Widen photos are keyed by. Fall back to
+                // the colour name when a row has no SKU, which the CDS export has
+                // never done, rather than dropping the row.
+                var colorwayCode = (String(row[idx['sku']] == null ? '' : row[idx['sku']]).trim().split(/\s+/)[0] || '').toUpperCase();
+                // The WIDTH CODE, not the width class, or two genuinely different
+                // widths merge. 4E and 6E both class as Extra Wide, 2A and B both
+                // as men's Narrow, so keyed on the class they became one record
+                // holding both size runs, every size twice. Keyed on the code they
+                // stay apart and _markAmbiguous gives them distinguishable handles.
+                var key = [genderRaw, model, colorwayCode || color, alt].join('|');
                 if (!byKey.has(key)) {
                     byKey.set(key, {
                         model: model,
                         styleNumber: String(row[iStyleNum] == null ? '' : row[iStyleNum]).trim(),
+                        colorwayCode: colorwayCode,
                         color: color,
                         colorCode: String(row[iColorCode] == null ? '' : row[iColorCode]).trim(),
                         genderRaw: genderRaw,
@@ -272,6 +346,7 @@ var NewBalanceConverter = {
             records.forEach(function(rec) {
                 rec.sizes.sort(function(a, b) { return parseFloat(a.size) - parseFloat(b.size); });
             });
+            self._markAmbiguous(records);
             self._lastSkipped = skipped;
             self._parseCache = { key: cacheKey, records: records };
             return records;
@@ -289,7 +364,7 @@ var NewBalanceConverter = {
                 var widthSuffix = rec.widthLabel ? ' (' + rec.widthLabel + ')' : '';
                 var modelKey = gp + ' ' + rec.model.toUpperCase() + widthSuffix;
                 var qty = rec.sizes.reduce(function(t, s) { return t + s.qty; }, 0);
-                var handle = self.buildHandle(rec.model, rec.color, rec.genderRaw, rec.widthLabel);
+                var handle = self.buildHandle(rec.model, rec.color, rec.genderRaw, rec.widthLabel, rec.dedupe);
 
                 if (!byModel.has(modelKey)) {
                     byModel.set(modelKey, {
@@ -311,7 +386,7 @@ var NewBalanceConverter = {
                 if (!md.colorways.has(handle)) {
                     md.colorways.set(handle, {
                         handle: handle,
-                        title: self.buildTitle(rec.model, rec.color, rec.genderRaw, rec.widthLabel),
+                        title: self.buildTitle(rec.model, rec.color, rec.genderRaw, rec.widthLabel, rec.dedupe),
                         color: rec.color,
                         rows: 0,
                         inventory: 0
@@ -360,8 +435,8 @@ var NewBalanceConverter = {
                 var gp = self.genderPrefix(rec.genderRaw);
                 var widthSuffix = rec.widthLabel ? ' (' + rec.widthLabel + ')' : '';
                 var modelKey = gp + ' ' + rec.model.toUpperCase() + widthSuffix;
-                var handle = self.buildHandle(rec.model, rec.color, rec.genderRaw, rec.widthLabel);
-                var title = self.buildTitle(rec.model, rec.color, rec.genderRaw, rec.widthLabel);
+                var handle = self.buildHandle(rec.model, rec.color, rec.genderRaw, rec.widthLabel, rec.dedupe);
+                var title = self.buildTitle(rec.model, rec.color, rec.genderRaw, rec.widthLabel, rec.dedupe);
 
                 // allFeedSkus is the WHOLE file, never the picker selection, so a
                 // colorway the user did not tick can never be read as removed.

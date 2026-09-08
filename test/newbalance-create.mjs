@@ -100,6 +100,43 @@ console.log('\nDraft only, which is what makes create safe');
 yes('status is Draft in the CSV', /"Draft"/.test(csv));
 yes('not published to the online store', /"FALSE"/.test(csv));
 
+console.log('\nTwo colorways that read as one product are told apart');
+// New Balance reuses a Color Name across different colorways, and maps several
+// width CODES onto one width CLASS. Either collision merged two records into one
+// handle, which concatenated their size lists and produced a product carrying
+// every size twice. Shopify rejects that on create.
+const R = (o) => Object.assign({ model: 'Fresh Foam X 1080v14', genderRaw: 'Mens', color: 'BLACK', widthLabel: '', widthCode: 'D' }, o);
+const shareName = [R({ colorwayCode: 'M1080B14' }), R({ colorwayCode: 'M1080K14' })];
+NB._markAmbiguous(shareName);
+eq('the first gets its code', shareName[0].dedupe, 'M1080B14');
+eq('the second gets its code', shareName[1].dedupe, 'M1080K14');
+yes('so the handles differ',
+    NB.buildHandle('Fresh Foam X 1080v14', 'BLACK', 'Mens', '', shareName[0].dedupe)
+    !== NB.buildHandle('Fresh Foam X 1080v14', 'BLACK', 'Mens', '', shareName[1].dedupe));
+
+// 4E and 6E are both Extra Wide, so the colorway code is identical and cannot
+// separate them. The width code has to come along.
+const shareWidth = [R({ colorwayCode: 'M9284SA', widthCode: '4E', widthLabel: 'Extra Wide' }),
+                    R({ colorwayCode: 'M9284SA', widthCode: '6E', widthLabel: 'Extra Wide' })];
+NB._markAmbiguous(shareWidth);
+eq('one colorway in two width codes: 4E', shareWidth[0].dedupe, 'M9284SA-4E');
+eq('and 6E', shareWidth[1].dedupe, 'M9284SA-6E');
+
+// The overwhelming majority are not ambiguous and must keep the handle they
+// have, because the picker matches live products on it first.
+const alone = [R({ colorwayCode: 'M1080B14' })];
+NB._markAmbiguous(alone);
+eq('a colorway with no rival is left alone', alone[0].dedupe, '');
+eq('so its handle is unchanged',
+   NB.buildHandle('Fresh Foam X 1080v14', 'BLACK', 'Mens', '', alone[0].dedupe),
+   'mens-fresh-foam-x-1080v14-black');
+
+console.log('\nThe width marker stays last, because the tag rule reads it off the end');
+eq('title', NB.buildTitle('880v15', 'BLACK', 'Womens', 'Wide', 'W880C15'),
+   'New Balance Womens 880v15 - BLACK W880C15 (Wide)');
+eq('handle', NB.buildHandle('880v15', 'BLACK', 'Womens', 'Wide', 'W880C15'),
+   'womens-880v15-black-w880c15-wide');
+
 console.log('\nNothing to create when the tracker found nothing');
 eq('empty comparison', NB.generateNewProductCSV({ newProducts: [], newColorways: [] }), null);
 eq('no comparison at all', NB.generateNewProductCSV(null), null);
