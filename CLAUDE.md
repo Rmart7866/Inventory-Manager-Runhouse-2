@@ -53,6 +53,7 @@ cd worker && npm run parity                   # tag logic vs the Color Swatch or
 python3 -m http.server 8000                   # serve the tool from the repo root
 node test/on-apparel.mjs                      # apparel converter: sizes, joins, guards
 node test/newbalance-images.mjs               # NB photo join: colorway key, gallery order
+node test/newbalance-create.mjs               # NB new-product CSV feeds Stage 4
 node test/merrell.mjs                         # merrell converter: picker, CSV
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 

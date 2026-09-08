@@ -443,48 +443,139 @@ var NewBalanceConverter = {
     },
 
     // ===== new product CSV =====
-    // Only the colorways the tracker calls new. One row per variant, Shopify
-    // product import shape, same as the other brands.
+    // Only the colorways the tracker calls new, one row per variant.
+    //
+    // THE HEADER IS NOT COSMETIC. This is the Matrixify column set the other
+    // brands emit ("URL handle", "Option1 value", "SKU"), not the legacy Shopify
+    // import set ("Handle", "Option1 Value", "Variant SKU"). ProductEnrichment
+    // reads BOTH the enrichment pass (applyToCSV) and Stage 4
+    // (buildCreateSpecs) off these exact names, and both fail silently on the
+    // legacy header: every handle reads as empty, so the review inherits nothing
+    // and Create in Shopify reports "Nothing to create". Keep these names in
+    // step with merrell-converter.js.
     generateNewProductCSV: function(comparison) {
-        if (!comparison || !comparison.newProducts || !comparison.newProducts.length) return null;
+        if (!comparison) return null;
         if (!this.productVariantData || !this.productVariantData.length) return null;
 
+        // New colorways of a model the store already carries count too, the same
+        // as every other brand. Only taking newProducts would leave a new colour
+        // of a carried shoe uncreatable.
         var wanted = new Set();
-        comparison.newProducts.forEach(function(p) {
-            if (p && p.handle) wanted.add(p.handle);
-        });
+        (comparison.newProducts || []).forEach(function(p) { if (p && p.handle) wanted.add(p.handle); });
+        (comparison.newColorways || []).forEach(function(c) { if (c && c.handle) wanted.add(c.handle); });
         if (!wanted.size) return null;
 
-        var headers = ['Handle', 'Title', 'Vendor', 'Type', 'Tags', 'Published',
-            'Option1 Name', 'Option1 Value', 'Variant SKU', 'Variant Barcode',
-            'Variant Inventory Qty', 'Variant Price', 'Status'];
-        var rows = [headers.join(',')];
-        var seenHandle = {};
-        var q = function(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+        var headers = [
+            'Title', 'URL handle', 'Description', 'Vendor', 'Product category', 'Type', 'Tags',
+            'Published on online store', 'Status',
+            'SKU', 'Barcode',
+            'Option1 name', 'Option1 value', 'Option1 Linked To',
+            'Option2 name', 'Option2 value', 'Option2 Linked To',
+            'Option3 name', 'Option3 value', 'Option3 Linked To',
+            'Price', 'Compare-at price', 'Cost per item',
+            'Charge tax', 'Tax code',
+            'Unit price total measure', 'Unit price total measure unit',
+            'Unit price base measure', 'Unit price base measure unit',
+            'Inventory tracker', 'Inventory quantity', 'Continue selling when out of stock',
+            'Weight value (grams)', 'Weight unit for display',
+            'Requires shipping', 'Fulfillment service',
+            'Product image URL', 'Image position', 'Image alt text', 'Variant image URL',
+            'Gift card',
+            'SEO title', 'SEO description',
+            'Color (product.metafields.shopify.color-pattern)',
+            'Google Shopping / Google product category',
+            'Google Shopping / Gender', 'Google Shopping / Age group',
+            'Google Shopping / Manufacturer part number (MPN)',
+            'Google Shopping / Ad group name', 'Google Shopping / Ads labels',
+            'Google Shopping / Condition', 'Google Shopping / Custom product',
+            'Google Shopping / Custom label 0', 'Google Shopping / Custom label 1',
+            'Google Shopping / Custom label 2', 'Google Shopping / Custom label 3',
+            'Google Shopping / Custom label 4'
+        ];
 
+        var groups = new Map();
         this.productVariantData.forEach(function(entry) {
-            var meta = entry[1];
-            if (!wanted.has(meta.handle)) return;
-            var first = !seenHandle[meta.handle];
-            seenHandle[meta.handle] = 1;
-            var productType = meta.gender === 'Womens' ? "Women's Shoes"
-                : meta.gender === 'Mens' ? "Men's Shoes" : 'Unisex Shoes';
-            rows.push([
-                meta.handle,
-                first ? q(meta.title) : '""',
-                first ? 'New Balance' : '',
-                first ? q(productType) : '',
-                first ? q(['New Balance', meta.model, meta.category].filter(Boolean).join(', ')) : '',
-                first ? 'FALSE' : '',
-                'Size',
-                q(meta.size),
-                q(meta.sku),
-                q(meta.barcode),
-                meta.quantity,
-                meta.price || '',
-                first ? 'draft' : ''
-            ].join(','));
+            var v = entry[1];
+            if (!wanted.has(v.handle)) return;
+            if (!groups.has(v.handle)) {
+                groups.set(v.handle, {
+                    handle: v.handle, title: v.title, model: v.model, gender: v.gender,
+                    color: v.color, width: v.width, category: v.category,
+                    price: v.price, variants: []
+                });
+            }
+            groups.get(v.handle).variants.push({
+                size: v.size, sku: v.sku, barcode: v.barcode, quantity: v.quantity
+            });
         });
-        return rows.length > 1 ? rows.join('\n') : null;
+        if (!groups.size) return null;
+
+        var csvRows = [];
+        groups.forEach(function(product) {
+            // genderPrefix writes Mens / Womens / Unisex, with no apostrophe.
+            var isW = product.gender === 'Womens', isM = product.gender === 'Mens';
+            var productType = isW ? "Women's Shoes" : isM ? "Men's Shoes" : 'Unisex Shoes';
+            var gGender = isW ? 'Female' : isM ? 'Male' : 'Unisex';
+
+            var tags = ['New Balance', product.model];
+            if (isW) tags.push('Women');
+            else if (isM) tags.push('Men');
+            if (product.category && product.category !== 'Other') tags.push(product.category);
+            // The plain width word only. The cw-group and width class tags are
+            // inherited from a live sibling in applyToCSV, which is the only place
+            // that knows what the storefront actually groups on.
+            if (product.width) tags.push(product.width);
+
+            product.variants.forEach(function(variant, idx) {
+                var row = {};
+                if (idx === 0) {
+                    row['Title'] = product.title;
+                    row['URL handle'] = product.handle;
+                    row['Description'] = '';
+                    row['Vendor'] = 'New Balance';
+                    row['Product category'] = 'Apparel & Accessories > Shoes';
+                    row['Type'] = productType;
+                    row['Tags'] = tags.join(', ');
+                    row['Published on online store'] = 'FALSE';
+                    row['Status'] = 'Draft';
+                    row['Option1 name'] = 'Size';
+                    row['SEO title'] = product.title;
+                    row['SEO description'] = product.title;
+                    row['Google Shopping / Google product category'] = 'Apparel & Accessories > Shoes';
+                    row['Google Shopping / Gender'] = gGender;
+                    row['Google Shopping / Age group'] = 'Adult (13+ years old)';
+                    row['Google Shopping / Condition'] = 'New';
+                    row['Google Shopping / Custom product'] = 'FALSE';
+                    row['Google Shopping / Custom label 0'] = product.model;
+                } else {
+                    row['URL handle'] = product.handle;
+                }
+                row['Option1 value'] = variant.size;
+                row['SKU'] = variant.sku;
+                row['Barcode'] = variant.barcode;
+                // Retail only, never the wholesale column.
+                row['Price'] = product.price || '';
+                row['Charge tax'] = 'TRUE';
+                row['Inventory tracker'] = 'shopify';
+                row['Inventory quantity'] = variant.quantity;
+                row['Continue selling when out of stock'] = 'DENY';
+                row['Requires shipping'] = 'TRUE';
+                row['Fulfillment service'] = 'manual';
+                row['Gift card'] = 'FALSE';
+                csvRows.push(row);
+            });
+        });
+
+        var lines = [headers.map(function(h) { return '"' + h.replace(/"/g, '""') + '"'; }).join(',')];
+        csvRows.forEach(function(row) {
+            lines.push(headers.map(function(h) {
+                var val = row[h] !== undefined ? String(row[h]) : '';
+                return '"' + val.replace(/"/g, '""') + '"';
+            }).join(','));
+        });
+        return lines.join('\n');
     }
 };
+
+// node test hook only; harmless in the browser.
+if (typeof module !== 'undefined' && module.exports) module.exports = NewBalanceConverter;
