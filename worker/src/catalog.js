@@ -225,6 +225,14 @@ function makeBulkAssembler(needhamLocationId) {
         descriptionHtml: o.descriptionHtml || '', category: o.category || null,
         image: (o.featuredImage && o.featuredImage.url) || '',
         updatedAt: o.updatedAt || '',
+        // Carried for Catalog Tagging's "products added in the last N days"
+        // scope. This assembler is a WHITELIST: a field the bulk query asks for
+        // and buildCatalog maps still arrives empty unless it is copied here,
+        // which is exactly how createdAt was lost. The paged dev path hands its
+        // nodes straight through, so it looked fine locally while every product
+        // in production came back with createdAt: ''. That made the tagging
+        // panel scope to zero products and report a clean catalog.
+        createdAt: o.createdAt || '',
         _kind: kind,
         _total: 0,
         variants: { nodes: [] },

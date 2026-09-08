@@ -15,7 +15,8 @@
     "test:apparel": "node test/apparel-catalog.mjs",
     "test:meta": "node test/meta.mjs",
     "test:activate": "node test/inventory-activate.mjs",
-    "test": "node test/auth.mjs && node test/needham.mjs && node test/known-set.mjs && node test/apparel-catalog.mjs && node test/meta.mjs && node test/inventory-activate.mjs && node test/parity.mjs"
+    "test:bulk": "node test/bulk-fields.mjs",
+    "test": "node test/auth.mjs && node test/needham.mjs && node test/known-set.mjs && node test/apparel-catalog.mjs && node test/meta.mjs && node test/inventory-activate.mjs && node test/bulk-fields.mjs && node test/parity.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.61.1"

@@ -75,11 +75,14 @@ localStorage.setItem('rhCatalogToken','dev-catalog-token-not-real');
 location.reload();
 ```
 
-Test status as of the last check: auth, needham and parity pass.
-`test/known-set.mjs` fails 3 assertions because its fixtures predate the
-product-type filter in `buildKnownSets` (the fixture products carry no
-`productType`, so the scoped path now excludes them). The production code is
-fine; the fixtures are stale. `npm test` exits non-zero because of it.
+Test status as of 2026-09-08: the whole worker suite passes, `npm test` exits 0.
+The known-set fixture failures noted here previously were fixed in 937068f.
+
+`worker/test/bulk-fields.mjs` guards a specific trap: `makeBulkAssembler` in
+`catalog.js` is a WHITELIST. Adding a field to the bulk query and to
+`buildCatalog`'s output is not enough, it must also be copied in the assembler,
+or it arrives empty on every product in production while looking fine on the
+paged dev path. That is how `createdAt` was lost for a month.
 
 ## Deploying
 
