@@ -52,6 +52,8 @@ cd worker && npm run parity                   # tag logic vs the Color Swatch or
 # Frontend
 python3 -m http.server 8000                   # serve the tool from the repo root
 node test/on-apparel.mjs                      # apparel converter: sizes, joins, guards
+node test/newbalance-images.mjs               # NB photo join: colorway key, gallery order
+node test/merrell.mjs                         # merrell converter: picker, CSV
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
@@ -59,6 +61,9 @@ python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes
 
 # Backfills, dry run by default, --apply to write, each writes a rollback file
 node tools/backfill-brooks-barcodes.mjs
+
+# New Balance photos: Widen TIFs to a Stage 4 gallery folder (macOS sips)
+node tools/convert-nb-images.mjs
 ```
 
 To point the local UI at the local Worker, in the browser console:

@@ -728,7 +728,21 @@ var ProductEnrichment = {
         saucony: /S\d{5,6}-\d{2,4}/,
         // Merrell photos are named "<style>_1.jpg", the same "<key>_N" shape as
         // Hoka and Saucony, and the style code is the SKU's leading token.
-        merrell: /J\d{5,}/
+        merrell: /J\d{5,}/,
+        // New Balance carries TWO codes and only one of them is the colorway.
+        // "Style Number" (M1080V15_RU) is the MODEL and matches no photo. The
+        // colorway is the SKU's leading token, "W880C15" out of "W880C15  D  05",
+        // and that is what the Widen filenames carry. Every code in the CDS feed
+        // is M, W or U followed by 4 to 7 alphanumerics, so anchor at the start
+        // and stop at the separator, or the greedy class eats the width column.
+        // Anchoring is also what keeps "_3_medial.jpg" from matching as a code.
+        //
+        // The two codes are SHAPE IDENTICAL, "M880V15" is a style number and
+        // "M880C15" is a colorway, so no pattern can tell them apart. The only
+        // thing keeping the join honest is that _imageKeyOf reads the variant
+        // SKU and nothing else. Never point it at Style Number: it would match,
+        // return a plausible key, and quietly attach zero photos to everything.
+        newbalance: /^[MWU][A-Z0-9]{4,7}(?=[_\s]|$)/
     },
 
     _imageKeyIn: function (brand, str) {
@@ -785,6 +799,11 @@ var ProductEnrichment = {
         }
         var hm = /_(\d+)\.(png|jpe?g)$/i.exec(name);
         if (hm) return parseInt(hm[1], 10);
+        // New Balance: "<code>_1_lateral.jpg". The rank is baked into the
+        // filename by the conversion step, the word after it is only there so a
+        // human can read the folder.
+        var nm = /_(\d+)_[a-z]+\.(png|jpe?g)$/i.exec(name);
+        if (nm) return parseInt(nm[1], 10);
         return 40;
     },
 
