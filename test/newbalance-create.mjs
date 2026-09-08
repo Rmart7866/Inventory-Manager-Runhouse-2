@@ -103,37 +103,74 @@ yes('not published to the online store', /"FALSE"/.test(csv));
 console.log('\nTwo colorways that read as one product are told apart');
 // New Balance reuses a Color Name across different colorways, and maps several
 // width CODES onto one width CLASS. Either collision merged two records into one
-// handle, which concatenated their size lists and produced a product carrying
-// every size twice. Shopify rejects that on create.
-const R = (o) => Object.assign({ model: 'Fresh Foam X 1080v14', genderRaw: 'Mens', color: 'BLACK', widthLabel: '', widthCode: 'D' }, o);
-const shareName = [R({ colorwayCode: 'M1080B14' }), R({ colorwayCode: 'M1080K14' })];
-NB._markAmbiguous(shareName);
-eq('the first gets its code', shareName[0].dedupe, 'M1080B14');
-eq('the second gets its code', shareName[1].dedupe, 'M1080K14');
-yes('so the handles differ',
-    NB.buildHandle('Fresh Foam X 1080v14', 'BLACK', 'Mens', '', shareName[0].dedupe)
-    !== NB.buildHandle('Fresh Foam X 1080v14', 'BLACK', 'Mens', '', shareName[1].dedupe));
+// handle, which concatenated their size lists into a product carrying every size
+// twice. Shopify rejects that on create.
+//
+// The handle takes the colorway code because it must be STABLE (the picker
+// matches live products on it first). The title takes something readable,
+// because a customer sees it.
+const R = (o) => Object.assign({ model: 'AC Runner', genderRaw: 'Mens', color: 'BLACK', widthLabel: '', widthCode: 'D' }, o);
 
-// 4E and 6E are both Extra Wide, so the colorway code is identical and cannot
-// separate them. The width code has to come along.
+// 1. Different colorways, one Color Name. Nothing in the feed tells them apart,
+//    so the title gets an ordinal ordered by colorway code.
+const shareName = [R({ colorwayCode: 'MACR13XO' }), R({ colorwayCode: 'MACR113W' })];
+NB._markAmbiguous(shareName);
+const byCode = (c) => shareName.find((r) => r.colorwayCode === c);
+eq('handle takes the code', byCode('MACR113W').handleDedupe, 'MACR113W');
+eq('and for the other', byCode('MACR13XO').handleDedupe, 'MACR13XO');
+eq('the first by code gets no ordinal', byCode('MACR113W').titleSuffix, '');
+eq('the second gets 2', byCode('MACR13XO').titleSuffix, '2');
+yes('ordering does not depend on row order', byCode('MACR113W').titleSuffix === ''
+    && byCode('MACR13XO').titleSuffix === '2');
+eq('so the titles differ and carry no code',
+   NB.buildTitle('AC Runner', 'BLACK', 'Mens', '', byCode('MACR13XO').titleSuffix, byCode('MACR13XO').titleWidth),
+   'New Balance Mens AC Runner - BLACK 2');
+
+// 2. One colorway, two width codes of the same class. Here the code IS readable,
+//    and parsers.js accepts a bare width code in parentheses.
 const shareWidth = [R({ colorwayCode: 'M9284SA', widthCode: '4E', widthLabel: 'Extra Wide' }),
                     R({ colorwayCode: 'M9284SA', widthCode: '6E', widthLabel: 'Extra Wide' })];
 NB._markAmbiguous(shareWidth);
-eq('one colorway in two width codes: 4E', shareWidth[0].dedupe, 'M9284SA-4E');
-eq('and 6E', shareWidth[1].dedupe, 'M9284SA-6E');
+eq('handle carries code and width code', shareWidth[0].handleDedupe, 'M9284SA-4E');
+eq('the title says (4E), not (Extra Wide)',
+   NB.buildTitle('928 V4', 'BLACK COFFEE', 'Mens', 'Extra Wide', shareWidth[0].titleSuffix, shareWidth[0].titleWidth),
+   'New Balance Mens 928 V4 - BLACK COFFEE (4E)');
+eq('and (6E) for the other',
+   NB.buildTitle('928 V4', 'BLACK COFFEE', 'Mens', 'Extra Wide', shareWidth[1].titleSuffix, shareWidth[1].titleWidth),
+   'New Balance Mens 928 V4 - BLACK COFFEE (6E)');
+eq('no ordinal, one colorway needs none', shareWidth[0].titleSuffix, '');
+
+// 3. BOTH at once, which MX608V5 WHITE Extra Wide really is: several colorways,
+//    each sold in 4E and 6E. Treating these as either/or left them sharing a
+//    title. The ordinal is per COLORWAY, so one colorway keeps its number across
+//    both of its widths and the width code separates those.
+const both = [R({ colorwayCode: 'MX608AW5', widthCode: '4E', widthLabel: 'Extra Wide' }),
+              R({ colorwayCode: 'MX608AW5', widthCode: '6E', widthLabel: 'Extra Wide' }),
+              R({ colorwayCode: 'MX608HR5', widthCode: '4E', widthLabel: 'Extra Wide' }),
+              R({ colorwayCode: 'MX608HR5', widthCode: '6E', widthLabel: 'Extra Wide' })];
+NB._markAmbiguous(both);
+const t = (r) => NB.buildTitle('MX608V5', 'WHITE', 'Mens', 'Extra Wide', r.titleSuffix, r.titleWidth);
+const titles = both.map(t);
+eq('four distinct titles', new Set(titles).size, 4);
+yes('one colorway keeps one ordinal across its widths',
+    both.filter((r) => r.colorwayCode === 'MX608AW5').every((r) => r.titleSuffix === both[0].titleSuffix), titles);
+console.log('        ' + titles.join('\n        '));
 
 // The overwhelming majority are not ambiguous and must keep the handle they
 // have, because the picker matches live products on it first.
-const alone = [R({ colorwayCode: 'M1080B14' })];
+const alone = [R({ colorwayCode: 'MACR113W' })];
 NB._markAmbiguous(alone);
-eq('a colorway with no rival is left alone', alone[0].dedupe, '');
+eq('a colorway with no rival is left alone', alone[0].handleDedupe, '');
 eq('so its handle is unchanged',
-   NB.buildHandle('Fresh Foam X 1080v14', 'BLACK', 'Mens', '', alone[0].dedupe),
-   'mens-fresh-foam-x-1080v14-black');
+   NB.buildHandle('AC Runner', 'BLACK', 'Mens', '', alone[0].handleDedupe),
+   'mens-ac-runner-black');
+eq('and its title is unchanged',
+   NB.buildTitle('AC Runner', 'BLACK', 'Mens', '', alone[0].titleSuffix, alone[0].titleWidth),
+   'New Balance Mens AC Runner - BLACK');
 
 console.log('\nThe width marker stays last, because the tag rule reads it off the end');
-eq('title', NB.buildTitle('880v15', 'BLACK', 'Womens', 'Wide', 'W880C15'),
-   'New Balance Womens 880v15 - BLACK W880C15 (Wide)');
+eq('title', NB.buildTitle('880v15', 'BLACK', 'Womens', 'Wide', '2'),
+   'New Balance Womens 880v15 - BLACK 2 (Wide)');
 eq('handle', NB.buildHandle('880v15', 'BLACK', 'Womens', 'Wide', 'W880C15'),
    'womens-880v15-black-w880c15-wide');
 
