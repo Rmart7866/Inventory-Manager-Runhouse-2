@@ -65,11 +65,38 @@ const widths = ['W880C15  B  07', 'W880C15  D  07', 'W880C15  2E 07', 'W880C15  
 const keys = widths.map((s) => PE._imageKeyIn('newbalance', s));
 eq('B, D, 2E and 2A all key to W880C15', new Set(keys).size === 1 && keys[0] === 'W880C15', true);
 
-console.log('\nGallery order puts the lateral hero first and the outsole last');
-const files = ['X_4_top.jpg', 'X_6_outsole.jpg', 'X_1_lateral.jpg', 'X_5_back.jpg', 'X_3_medial.jpg', 'X_2_quarter.jpg'];
+console.log('\nGallery order puts the lateral hero first and the reshoots last');
+// The rank is ZERO PADDED by tools/convert-nb-images.mjs, because a colorway can
+// carry 18 images and "_10_" would otherwise sort before "_2_". _angleRank has
+// to read both, since the padding is what makes a plain filename sort correct.
+const files = ['X_11_alt-lateral.jpg', 'X_04_top.jpg', 'X_06_outsole.jpg', 'X_01_lateral.jpg',
+               'X_07_lifestyle-a.jpg', 'X_05_back.jpg', 'X_03_medial.jpg', 'X_02_quarter.jpg'];
 const sorted = files.slice().sort((a, b) => PE._angleRank(a) - PE._angleRank(b));
 eq('sorted order', sorted.join(','),
-   'X_1_lateral.jpg,X_2_quarter.jpg,X_3_medial.jpg,X_4_top.jpg,X_5_back.jpg,X_6_outsole.jpg');
+   'X_01_lateral.jpg,X_02_quarter.jpg,X_03_medial.jpg,X_04_top.jpg,X_05_back.jpg,'
+   + 'X_06_outsole.jpg,X_07_lifestyle-a.jpg,X_11_alt-lateral.jpg');
+eq('a padded rank past nine still reads as its number', PE._angleRank('X_11_alt-lateral.jpg'), 11);
+
+console.log('\nProducts with photos sort to the top of the create queue');
+// Brand agnostic: it keys off whatever _imagesForSpec returns, so every brand
+// gets it. A draft with photos is publishable, one without is a job for later,
+// and if a run is stopped part way the finished half is what got made.
+const queueFiles = ['W880C15_01_lateral.jpg', 'W880C15_02_quarter.jpg', 'M1080B14_01_lateral.jpg']
+  .map((n) => ({ name: n, type: 'image/jpeg', size: 1 }));
+PE.indexImageFolder(queueFiles, 'newbalance');
+const spec = (sku) => ({ handle: sku.toLowerCase(), variants: [{ sku: sku }] });
+const queue = [spec('MACR113W  D  09'), spec('W880C15  B  07'), spec('WELPS7EQ  B  07'), spec('M1080B14  D  09')];
+PE._sortSpecsByPhotos(queue);
+eq('the two with photos come first',
+   queue.map((s) => s.variants[0].sku.split(/\s+/)[0]).join(','), 'W880C15,M1080B14,MACR113W,WELPS7EQ');
+// A stable sort is what keeps the converter's own order inside each half.
+eq('order within the photo-less half is untouched',
+   queue.slice(2).map((s) => s.variants[0].sku.split(/\s+/)[0]).join(','), 'MACR113W,WELPS7EQ');
+const none = [spec('MACR113W  D  09'), spec('WELPS7EQ  B  07')];
+PE._imageIndex = null; PE._imageBrand = null;
+PE._sortSpecsByPhotos(none);
+eq('with no folder chosen, nothing is reordered',
+   none.map((s) => s.variants[0].sku.split(/\s+/)[0]).join(','), 'MACR113W,WELPS7EQ');
 
 console.log('\nOther brands are untouched');
 eq('hoka', PE._imageKeyIn('hoka', '1123456-BDGGR_3.png'), '1123456-BDGGR');

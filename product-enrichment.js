@@ -799,10 +799,14 @@ var ProductEnrichment = {
         }
         var hm = /_(\d+)\.(png|jpe?g)$/i.exec(name);
         if (hm) return parseInt(hm[1], 10);
-        // New Balance: "<code>_1_lateral.jpg". The rank is baked into the
-        // filename by the conversion step, the word after it is only there so a
-        // human can read the folder.
-        var nm = /_(\d+)_[a-z]+\.(png|jpe?g)$/i.exec(name);
+        // New Balance: "<code>_01_lateral.jpg". The rank is baked into the
+        // filename by tools/convert-nb-images.mjs, zero padded so the folder also
+        // sorts right on its own; the word after it is only there so a human can
+        // read the folder. HYPHENS ALLOWED: the later views are named
+        // "lifestyle-a" and "alt-lateral", and a [a-z]+ class silently dropped
+        // every one of them to the default rank, which scrambled the gallery for
+        // any colorway carrying more than the core six.
+        var nm = /_(\d+)_[a-z-]+\.(png|jpe?g)$/i.exec(name);
         if (nm) return parseInt(nm[1], 10);
         return 40;
     },
@@ -819,6 +823,25 @@ var ProductEnrichment = {
     },
 
     _hasImages: function () { return !!(this._imageIndex && Object.keys(this._imageIndex).length); },
+
+    // Float the products that have photos to the top of the create queue, for
+    // every brand. A drop is rarely photographed in full: some colorways have a
+    // gallery and some do not, and the ones that do are the ones worth creating
+    // first, because a draft with photos is publishable and a draft without them
+    // is a job for later. It also means that if a run is stopped part way, what
+    // got made is the finished half.
+    //
+    // Sorted IN PLACE, on the same array _doCreate is handed, so the dialog
+    // order and the creation order cannot drift apart. Array.prototype.sort is
+    // stable, so within each half the converter's own order survives. Called
+    // from render(), so picking a folder mid-dialog reorders immediately.
+    _sortSpecsByPhotos: function (specs) {
+        var self = this;
+        if (!this._hasImages()) return specs;
+        return specs.sort(function (a, b) {
+            return (self._imagesForSpec(b).length ? 1 : 0) - (self._imagesForSpec(a).length ? 1 : 0);
+        });
+    },
 
     // A colorway at or below this many total units is flagged as thin in the
     // create dialog. Not a filter: the row still creates, it just reads as a
@@ -927,6 +950,7 @@ var ProductEnrichment = {
 
         function render() {
             var on = toggle.checked && self._hasImages();
+            self._sortSpecsByPhotos(specs);
             document.getElementById('s4-title').textContent = 'Create ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' in Shopify';
             var hint = document.getElementById('s4-hint');
             var vendor = (self.brandDefaults[brand] || {}).vendor || brand;

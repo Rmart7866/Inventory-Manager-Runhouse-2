@@ -10,20 +10,28 @@
 // than re-downloading a smaller rendition, because the original is the best
 // source we will ever have.
 //
-// WHAT IT PRODUCES. A flat folder of `<COLORWAY>_<1-6>_<view>.jpg` at 2048px,
-// quality 85, about 420 KB each. The number is the gallery rank, so a plain
+// WHAT IT PRODUCES. ONE FLAT FOLDER of `<COLORWAY>_<NN>_<view>.jpg` at 2048px,
+// quality 85, about 420 KB each. NN is the zero padded gallery rank, so a plain
 // alphabetical sort is already the right display order and the lateral profile
 // lands as the featured image. product-enrichment.js `_angleRank` reads that
 // number and `_imageKeyPatterns.newbalance` reads the colorway code, so the
 // naming here is a contract with that file. Change one, change both.
 //
-// THE VIEW CODES, confirmed by eye on a contact sheet, not guessed:
-//   _2 lateral   _3 medial   _4 top   _5 quarter   _6 outsole   _7 heel
-// The 105, 202/203/205 and 304 to 307 families are duplicate alternate sets of
-// those same angles, so they are skipped. Every colorway carries 2 to 6.
-// Older PNG downloads spell the same views as words (2LATERAL to 6BOTTOM) and
-// are read too, but a TIF wins when both exist, because it is the 2500px
-// original and the PNG is a derivative.
+// EVERY VIEW GOES IN, one flat folder. The suffix families are NOT duplicates,
+// which is what an early pass here assumed after looking at a single colorway:
+//   2 3 4 5 6 7        the core studio set: lateral, medial, top, quarter,
+//                      outsole, heel. Present on nearly every colorway.
+//   8 to 27            lifestyle, a model on a bench, a running stride, plus a
+//                      laces and tongue detail at 17. Only 21 colorways have
+//                      any, but they are the best images in the set.
+//   105 202 203 205    a SECOND studio shoot of the same angles, different
+//                      lighting and background.
+//   304 to 307         a THIRD set, including a top down angle NB never shot in
+//                      the core set.
+// They are ranked in that order, so the gallery still leads with the flat
+// lateral hero and the near duplicate reshoots sort to the back where a human
+// can delete them. New Balance ships about 6 angles per colorway against 8 for
+// ON and Merrell, so nothing here is worth throwing away.
 //
 // The colorway code is the SKU's leading token (W880C15), NOT the Style Number
 // (M880V15_RU), which is the model and matches no photo. The code carries no
@@ -55,7 +63,9 @@ const LONG_EDGE = 2048;
 const QUALITY = 85;
 const WORKERS = 8;
 
-// Gallery order. Index in this array plus one is the rank baked into the name.
+// Gallery order. The rank is baked into the filename ZERO PADDED, so a plain
+// alphabetical sort is still display order once a colorway has more than nine
+// images (_10_ would otherwise sort before _2_).
 const VIEWS = [
   { num: '2', word: '2LATERAL', name: 'lateral' },
   { num: '5', word: '5QLATERAL', name: 'quarter' },
@@ -63,9 +73,33 @@ const VIEWS = [
   { num: '4', word: '4TOP', name: 'top' },
   { num: '7', word: '7BACK', name: 'back' },
   { num: '6', word: '6BOTTOM', name: 'outsole' },
+  { num: '14', name: 'lifestyle-a' },
+  { num: '15', name: 'lifestyle-b' },
+  { num: '16', name: 'lifestyle-c' },
+  { num: '17', name: 'detail' },
+  { num: '202', name: 'alt-lateral' },
+  { num: '205', name: 'alt-quarter' },
+  { num: '203', name: 'alt-medial' },
+  { num: '105', name: 'alt-lateral-b' },
+  { num: '304', name: 'alt-top' },
+  { num: '305', name: 'alt-quarter-b' },
+  { num: '307', name: 'alt-back' },
+  { num: '306', name: 'alt-outsole' },
 ];
 const BY_NUM = new Map(VIEWS.map((v, i) => [v.num, { rank: i + 1, name: v.name }]));
-const BY_WORD = new Map(VIEWS.map((v, i) => [v.word, { rank: i + 1, name: v.name }]));
+// Ranked by position in VIEWS, not in the filtered list, so adding a word-less
+// view above a word-bearing one cannot silently renumber the PNG path.
+const BY_WORD = new Map(VIEWS.map((v, i) => [v.word, { rank: i + 1, name: v.name }]).filter(([w]) => w));
+
+// Anything else NB ships (8 to 13, 18 to 27, mkt-a) is kept but sorted to the
+// end, rather than dropped for not being in the table.
+function viewFor(suffix) {
+  const known = BY_NUM.get(suffix);
+  if (known) return known;
+  const n = parseInt(suffix, 10);
+  if (isFinite(n)) return { rank: 50 + Math.min(n, 49), name: 'extra' };
+  return { rank: 99, name: 'extra-' + String(suffix).toLowerCase().replace(/[^a-z0-9]+/g, '') };
+}
 
 // Same shape as _imageKeyPatterns.newbalance in product-enrichment.js.
 const CODE = /^[MWU][A-Z0-9]{4,7}(?=[_\s]|$)/;
@@ -96,7 +130,7 @@ function plan() {
     const parts = stem.split('_');
     let view = null;
     if ((ext === 'tif' || ext === 'tiff') && parts.length === 2) {
-      view = BY_NUM.get(parts[1]);
+      view = viewFor(parts[1]);
     } else {
       for (const part of parts) { const hit = BY_WORD.get(part.toUpperCase()); if (hit) { view = hit; break; } }
     }
@@ -106,7 +140,8 @@ function plan() {
     const rank = (ext === 'tif' || ext === 'tiff') ? 2 : 1;
     const prev = best.get(key);
     if (!prev || rank > prev.rank) {
-      best.set(key, { rank, src: p, dest: path.join(OUT, `${code}_${view.rank}_${view.name}.jpg`) });
+      const rank2 = String(view.rank).padStart(2, '0');
+      best.set(key, { rank, src: p, dest: path.join(OUT, `${code}_${rank2}_${view.name}.jpg`) });
     }
   }
   return [...best.values()];
