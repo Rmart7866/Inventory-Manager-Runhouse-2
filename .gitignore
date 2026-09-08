@@ -72,3 +72,8 @@ brooks-barcode-rollback-*.json
 # the inventory level ids created, which is the undo. Keep it on disk until the
 # run is confirmed good; it does not belong in a public repo.
 needham-activate-rollback-*.json
+
+# Run artifacts from tools/draft-duplicate-listings.mjs. The rollback file lists
+# the products flipped from ACTIVE to DRAFT, which is the undo. Keep it on disk
+# until the run is confirmed good; it does not belong in a public repo.
+draft-duplicates-rollback-*.json
