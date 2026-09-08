@@ -585,6 +585,13 @@ if (typeof MerrellConverter !== 'undefined') {
         comparisonKey: '_merrellTrackerComparison', vendorName: 'Merrell', checkboxClass: 'merrell-picker-cb'
     });
 }
+if (typeof NewBalanceConverter !== 'undefined') {
+    BrandPicker.register('newbalance', {
+        converter: NewBalanceConverter, containerId: 'newbalance-picker-container', trackerId: 'newbalance-tracker-report',
+        headerGradient: 'linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%)',
+        comparisonKey: '_newbalanceTrackerComparison', vendorName: 'New Balance', checkboxClass: 'newbalance-picker-cb'
+    });
+}
 if (typeof SauconyConverter !== 'undefined') {
     BrandPicker.register('saucony', {
         converter: SauconyConverter, containerId: 'saucony-picker-container', trackerId: 'saucony-tracker-report',

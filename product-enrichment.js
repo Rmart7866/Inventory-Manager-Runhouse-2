@@ -1476,6 +1476,7 @@ var ENRICHMENT_BRAND_MAP = {
     puma:     { getConverter: function() { return PumaConverter; },     compKey: '_pumaTrackerComparison' },
     on:       { getConverter: function() { return OnConverter; },       compKey: '_onTrackerComparison' },
     merrell:  { getConverter: function() { return MerrellConverter; },  compKey: '_merrellTrackerComparison' },
+    newbalance: { getConverter: function() { return NewBalanceConverter; }, compKey: '_newbalanceTrackerComparison' },
 };
 
 // ========== GENERIC ENRICHED DOWNLOAD ==========

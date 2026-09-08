@@ -39,7 +39,7 @@ var BRAND_CONFIG = {
     puma:     { displayName: 'Puma',       converter: function() { return typeof PumaConverter !== 'undefined' ? PumaConverter : null; },     comparisonKey: '_pumaTrackerComparison',     hasPicker: true },
     saucony:  { displayName: 'Saucony',    converter: function() { return typeof SauconyConverter !== 'undefined' ? SauconyConverter : null; },comparisonKey: '_sauconyTrackerComparison', hasPicker: true },
     merrell:  { displayName: 'Merrell',    converter: function() { return typeof MerrellConverter !== 'undefined' ? MerrellConverter : null; }, comparisonKey: '_merrellTrackerComparison', hasPicker: true },
-    newbalance:{ displayName: 'New Balance', converter: function() { return typeof NewBalanceConverter !== 'undefined' ? NewBalanceConverter : null; }, comparisonKey: null, hasPicker: false }
+    newbalance:{ displayName: 'New Balance', converter: function() { return typeof NewBalanceConverter !== 'undefined' ? NewBalanceConverter : null; }, comparisonKey: '_newbalanceTrackerComparison', hasPicker: true }
 };
 
 // Brand display order
@@ -92,7 +92,7 @@ var BrandConverter = {
         merrell: { file: null, inventory: [], csv: '', scanned: false },
         hoka: { file: null, inventory: [], csv: '', scanned: false },
         puma: { file: null, inventory: [], csv: '', scanned: false },
-        newbalance: { file: null, inventory: [], csv: '' },
+        newbalance: { file: null, inventory: [], csv: '', scanned: false },
         asics: { file: null, inventory: [], csv: '', scanned: false },
         brooks: { file: null, inventory: [], csv: '', scanned: false },
         on: { menFile: null, womenFile: null, unisexFile: null, inventory: [], csv: '', scanned: false }
@@ -255,7 +255,7 @@ var BrandConverter = {
         if (config && config.hasPicker) {
             this._scanBrand(brand);
         } else {
-            // No picker (New Balance) - show convert button directly
+            // Brands with no picker: show the convert button directly.
             var convertEl = document.getElementById(brand + '-convert');
             if (convertEl) convertEl.style.display = 'block';
         }

@@ -1,435 +1,490 @@
-// New Balance Converter Logic - FIXED
-const NewBalanceConverter = {
+// newbalance-converter.js, The Run House.
+//
+// New Balance "Consumer Drop Ship - CDS ASAP" export -> picker products,
+// Needham inventory rows, and a new product CSV. Same shape as the Saucony and
+// Merrell converters, so main.js, BrandPicker, InventoryTracker and the
+// enrichment modal all drive it through the identical interface.
+//
+// WHAT THE FEED LOOKS LIKE. One row per size, 38 columns, about 165,000 rows
+// covering every sport New Balance sells. The columns that matter:
+//
+//   Style Name / Style Number   model identity
+//   Color Name / Color Code     colorway
+//   Size                        ZERO PADDED, half sizes carry a trailing 5:
+//                               "05" = 5, "045" = 4.5, "105" = 10.5, "11" = 11
+//   Alt Size                    THE WIDTH CODE. Not a size. D, B, 2E, 4E, 6E,
+//                               2A, M, W, XW
+//   UPC/EAN                     the barcode, so NB needs no barcode backfill
+//   Quantity Available          Needham stock
+//   Gender / Category / Product Type
+//
+// THE WIDTH TRAP, THE ONE THING TO GET RIGHT. New Balance width codes mean
+// different things per gender. D is the MEN'S standard but the WOMEN'S wide.
+// B is the WOMEN'S standard but a men's narrow. Measured on the 2026-09-05
+// export: Mens D 45%, 2E 41%; Womens B 44%, D 42%. The live catalogue already
+// follows this convention, which is how it was confirmed:
+//
+//   New Balance Womens 880v15 - PEARL GREY (Wide)   sku "W880C15  D  05"
+//   New Balance Mens   880v15 - BLACK      (Wide)   sku "M880B15  2E 07"
+//
+// Both are titled (Wide), and the codes differ because the genders differ.
+//
+// WHY THE WIDTH GOES IN THE TITLE. worker/src/parsers.js returns skuWidth null
+// for NEW_BALANCE, so the cw-group tag reads width from the TITLE marker, not
+// the SKU. worker/src/group.js widthClass() is gender blind and maps both D and
+// B to "standard", so feeding it a raw NB code would tag every Women's D as
+// standard and collapse the wide colorways into the standard swatch row. That
+// file is a byte-for-byte port of the Color Swatch original and must not be
+// edited here. So this converter resolves the gender dependent code itself and
+// emits a plain "(Wide)" / "(Extra Wide)" / "(Narrow)" marker, which parsers.js
+// and widthClass() both already read correctly. Standard gets no marker, which
+// is the store convention.
+//
+// SCOPE. The feed is New Balance's whole catalogue: baseball, tennis, soccer,
+// basketball, lacrosse. The shop carries running only (measured 2026-09-05: 343
+// active NB products, every one of them 1080, 860, 880, Rebel, More or XC
+// Seven). CATEGORIES below is the filter, and kids sizing is excluded for the
+// same reason. Widen either if the buy changes.
+//
+// House style: no em dashes. Use commas, periods, or the word "to".
+
+var NewBalanceConverter = {
+
+    // Stable, gendered, width-independent model name from a product title, for
+    // matching new colorways to their live siblings. Delegates to the shared
+    // parser so the feed side and the catalog side key the index identically.
+    identifyProduct: function(title, handle) {
+        return (typeof CatalogClient !== 'undefined' && CatalogClient.modelFromTitle)
+            ? CatalogClient.modelFromTitle(title, 'New Balance') : null;
+    },
+
     inventoryData: [],
-    
-    productInfo: {
-        'Rebel V5': {
-            description: 'Built to propel you forward with every step, the FuelCell Rebel v5 features high-rebound FuelCell foam that delivers an energetic ride. This lightweight daily trainer combines speed and comfort with its responsive cushioning and sleek engineered mesh upper. The redesigned geometry provides a smooth transition while the wider platform offers improved stability. Perfect for tempo runs, speed work, or any run where you want to pick up the pace.',
-            specs: { 
-                stack: '30/24mm', 
-                drop: '6mm', 
-                weight: '7.8 oz',
-                technology: 'FuelCell foam midsole, Engineered mesh upper, NDurance rubber outsole',
-                bestFor: 'Tempo runs, daily training, speed workouts'
-            }
-        },
-        '880v15': {
-            description: 'The Fresh Foam X 880v15 continues the legacy of consistent, reliable comfort. Featuring the latest Fresh Foam X cushioning for a soft, smooth ride, this neutral daily trainer is built for logging miles day after day. The engineered mesh upper provides breathability and a secure fit, while the blown rubber outsole delivers durability where you need it most. A versatile workhorse that\'s ready for any run, from easy miles to long runs.',
-            specs: { 
-                stack: '35/27mm', 
-                drop: '8mm', 
-                weight: '10.1 oz',
-                technology: 'Fresh Foam X midsole, Engineered mesh upper, Blown rubber outsole',
-                bestFor: 'Daily training, long runs, easy miles'
-            }
-        },
-        '860v14': {
-            description: 'Experience stability without sacrifice in the 860v14. Engineered with dual-density Fresh Foam X cushioning and a medial post for reliable support, this stability trainer delivers a smooth, controlled ride. The structured engineered mesh upper provides targeted support while maintaining breathability. Perfect for runners who need moderate stability features without feeling restricted, offering the ideal balance of cushioning and guidance.',
-            specs: { 
-                stack: '34/26mm', 
-                drop: '8mm', 
-                weight: '10.4 oz',
-                technology: 'Dual-density Fresh Foam X, Medial post support, Structured mesh upper',
-                bestFor: 'Daily training for overpronators, long runs with stability'
-            }
-        },
-        '1080v14': {
-            description: 'Maximum cushioning meets cutting-edge comfort in the Fresh Foam X 1080v14. Our most cushioned daily trainer features the pinnacle of Fresh Foam X technology, delivering luxurious softness without sacrificing responsiveness. The Hypoknit upper adapts to your foot for a personalized fit, while the rocker profile promotes smooth transitions. Built for runners who want premium cushioning for daily miles, recovery runs, or all-day comfort.',
-            specs: { 
-                stack: '38/32mm', 
-                drop: '6mm', 
-                weight: '9.9 oz',
-                technology: 'Fresh Foam X Plus cushioning, Hypoknit upper, Rocker geometry',
-                bestFor: 'Long runs, recovery runs, maximum cushioning needs'
-            }
+    productVariantData: [],
+    selectedProducts: new Set(),
+    scannedProducts: [],
+    allFeedSkus: null,
+
+    // The categories the shop actually buys. Everything else in the export is a
+    // sport we do not carry. Widen this list, do not delete the filter, or the
+    // picker fills with 336 styles of cleats and spikes.
+    CATEGORIES: ['Running', 'Walking', 'Training'],
+
+    // Adult only. The export carries Boys, Girls, Grade, Pre and Infant blocks
+    // whose widths use a different vocabulary (M / W) and which the shop does
+    // not stock.
+    GENDERS: ['Mens', 'Womens', 'Unisex'],
+
+    // ===== width =====
+    // Resolve a New Balance width code to a class, given the gender. This is the
+    // gender dependent step described in the header. Returns one of
+    // 'standard' | 'wide' | 'xwide' | 'narrow'.
+    widthClassFor: function(altSize, gender) {
+        var w = String(altSize || '').trim().toUpperCase();
+        var g = String(gender || '').trim().toLowerCase();
+        if (!w) return 'standard';
+        if (g.indexOf('women') === 0) {
+            if (w === 'B') return 'standard';
+            if (w === 'D') return 'wide';
+            if (w === '2E' || w === '4E' || w === 'XW') return 'xwide';
+            if (w === '2A' || w === 'A') return 'narrow';
+            return 'standard';
         }
+        // Mens and Unisex share the men's ladder.
+        if (w === 'D' || w === 'M') return 'standard';
+        if (w === '2E' || w === 'E' || w === 'EE' || w === 'W') return 'wide';
+        if (w === '4E' || w === '6E' || w === 'EEEE' || w === 'XW') return 'xwide';
+        if (w === 'B' || w === '2A' || w === 'A') return 'narrow';
+        return 'standard';
     },
-    
-    allowedProducts: ['Rebel V5', '880v15', '860v14', '1080v14'],
-    
-    isAllowedProduct(productName) {
-        try {
-            if (!productName && productName !== 0) return false;
-            
-            let nameStr = '';
-            if (typeof productName === 'string') {
-                nameStr = productName;
-            } else if (productName !== null && productName !== undefined) {
-                nameStr = String(productName);
+
+    // The marker that goes in the title. Standard is deliberately blank: the
+    // store never tags or titles a standard width.
+    widthLabelFor: function(altSize, gender) {
+        var cls = this.widthClassFor(altSize, gender);
+        if (cls === 'wide') return 'Wide';
+        if (cls === 'xwide') return 'Extra Wide';
+        if (cls === 'narrow') return 'Narrow';
+        return '';
+    },
+
+    // ===== size =====
+    // "05" -> "5", "045" -> "4.5", "105" -> "10.5", "11" -> "11", "13" -> "13".
+    // The whole part is always two zero padded digits and a trailing 5 marks a
+    // half size, so length is the only signal needed.
+    normalizeSize: function(raw) {
+        var s = String(raw == null ? '' : raw).trim();
+        if (!s) return '';
+        if (!/^\d+$/.test(s)) return s;                 // already "9.5" or a word
+        if (s.length <= 2) return String(parseInt(s, 10));
+        var whole = parseInt(s.slice(0, s.length - 1), 10);
+        var half = s.slice(-1) === '5';
+        return half ? (whole + '.5') : String(parseInt(s, 10));
+    },
+
+    // ===== naming =====
+    genderPrefix: function(gender) {
+        var g = String(gender || '').trim().toLowerCase();
+        if (g.indexOf('women') === 0) return 'Womens';
+        if (g.indexOf('men') === 0) return 'Mens';
+        if (g.indexOf('unisex') === 0) return 'Unisex';
+        return '';
+    },
+
+    // Title case a feed model name but keep version tokens intact, so
+    // "FRESH FOAM X 1080v14" does not become "1080V14".
+    formatModelName: function(name) {
+        return String(name || '').trim().replace(/\s+/g, ' ')
+            .split(' ')
+            .map(function(w) {
+                if (/^\d+[a-z]\d+$/i.test(w)) return w.toLowerCase().replace(/^(\d+)v(\d+)$/i, '$1v$2');
+                if (/^[A-Z0-9]{2,}$/.test(w) && /\d/.test(w)) return w;   // 1080, 880v15
+                return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+            })
+            .join(' ');
+    },
+
+    formatColorName: function(color) {
+        return String(color || '').trim().replace(/\s+/g, ' ').toUpperCase();
+    },
+
+    slug: function(s) {
+        return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    },
+
+    // Matches the handles the tool already writes for New Balance, for example
+    // mens-880v15-black-wide and womens-880v15-pearl-grey-wide.
+    buildHandle: function(model, color, gender, widthLabel) {
+        var parts = [this.slug(this.genderPrefix(gender)), this.slug(model), this.slug(color)];
+        if (widthLabel) parts.push(this.slug(widthLabel));
+        return parts.filter(Boolean).join('-');
+    },
+
+    buildTitle: function(model, color, gender, widthLabel) {
+        var t = 'New Balance ' + this.genderPrefix(gender) + ' ' + model + ' - ' + this.formatColorName(color);
+        return widthLabel ? (t + ' (' + widthLabel + ')') : t;
+    },
+
+    // ===== parse =====
+    // Collapse the row-per-size export into one record per colorway+width, which
+    // is what a Shopify product is.
+    //
+    // PARSED ONCE PER FILE, ON PURPOSE. The CDS export is about 25 MB and
+    // 165,000 rows, and XLSX.read is the expensive part: measured 10.5s in node,
+    // meaningfully longer in a browser, and it blocks the main thread the whole
+    // time so the page cannot even repaint. scanFile (for the picker) and
+    // convert (for the inventory rows) both need the same records, so without
+    // this cache staff pay that freeze twice and the tool looks hung. Keyed on
+    // name + size + lastModified so a genuinely different drop still reparses.
+    _parseCache: null,
+
+    parseExcel: function(file) {
+        var self = this;
+        // cacheKey, not key: the row loop below declares its own `key` for the
+        // colorway grouping and `var` is function scoped, so a shared name would
+        // silently store the cache under the last row's grouping key.
+        var cacheKey = [file.name, file.size, file.lastModified].join('|');
+        if (self._parseCache && self._parseCache.key === cacheKey) {
+            return Promise.resolve(self._parseCache.records);
+        }
+        return file.arrayBuffer().then(function(buf) {
+            // Yield one frame before the blocking read. XLSX.read on a 25 MB
+            // sheet holds the main thread for tens of seconds and the browser
+            // cannot repaint while it runs, so without this the "Scanning file
+            // for products..." status never actually appears and the tool looks
+            // frozen with no explanation.
+            return new Promise(function(resolve) { setTimeout(function() { resolve(buf); }, 0); });
+        }).then(function(buf) {
+            // dense rows are cheaper to build and to walk for a sheet this tall.
+            var wb = XLSX.read(buf, { type: 'array', dense: true });
+            var ws = wb.Sheets[wb.SheetNames[0]];
+            var rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
+            if (!rows.length) throw new Error('New Balance file is empty');
+
+            var head = rows[0].map(function(h) { return String(h == null ? '' : h).trim(); });
+            var idx = {};
+            head.forEach(function(h, i) { if (h) idx[h.toLowerCase()] = i; });
+
+            function need(name) {
+                var i = idx[name.toLowerCase()];
+                if (i === undefined) throw new Error('New Balance file is missing the "' + name + '" column. Is this the Consumer Drop Ship CDS export?');
+                return i;
             }
-            
-            if (!nameStr) return false;
-            
-            const nameLower = nameStr.toLowerCase().replace(/[^a-z0-9]/g, '');
-            
-            return this.allowedProducts.some(allowed => {
-                const allowedLower = allowed.toLowerCase().replace(/[^a-z0-9]/g, '');
-                return nameLower.includes(allowedLower) || 
-                       (allowed === 'Rebel V5' && (nameLower.includes('rebel') && (nameLower.includes('v5') || nameLower.includes('5')))) ||
-                       (allowed === '880v15' && (nameLower.includes('880') && (nameLower.includes('v15') || nameLower.includes('15')))) ||
-                       (allowed === '860v14' && (nameLower.includes('860') && (nameLower.includes('v14') || nameLower.includes('14')))) ||
-                       (allowed === '1080v14' && (nameLower.includes('1080') && (nameLower.includes('v14') || nameLower.includes('14'))));
-            });
-        } catch (e) {
-            console.error('Error in isAllowedProduct:', e);
-            return false;
-        }
-    },
-    
-    getMatchingProduct(productName) {
-        try {
-            if (!productName && productName !== 0) return null;
-            
-            let nameStr = '';
-            if (typeof productName === 'string') {
-                nameStr = productName;
-            } else if (productName !== null && productName !== undefined) {
-                nameStr = String(productName);
-            }
-            
-            if (!nameStr) return null;
-            
-            const nameLower = nameStr.toLowerCase().replace(/[^a-z0-9]/g, '');
-            
-            for (const allowed of this.allowedProducts) {
-                const allowedLower = allowed.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (nameLower.includes(allowedLower) || 
-                    (allowed === 'Rebel V5' && (nameLower.includes('rebel') && (nameLower.includes('v5') || nameLower.includes('5')))) ||
-                    (allowed === '880v15' && (nameLower.includes('880') && (nameLower.includes('v15') || nameLower.includes('15')))) ||
-                    (allowed === '860v14' && (nameLower.includes('860') && (nameLower.includes('v14') || nameLower.includes('14')))) ||
-                    (allowed === '1080v14' && (nameLower.includes('1080') && (nameLower.includes('v14') || nameLower.includes('14'))))) {
-                    return allowed;
-                }
-            }
-            return null;
-        } catch (e) {
-            console.error('Error in getMatchingProduct:', e);
-            return null;
-        }
-    },
-    
-    formatGender(gender) {
-        if (!gender) return 'Unisex';
-        const genderStr = gender.toString().trim().toLowerCase();
-        // FIXED: Use proper grammar with apostrophes
-        if (genderStr === 'mens' || genderStr === 'men' || genderStr === 'male' || genderStr === 'm') return "Men's";
-        if (genderStr === 'womens' || genderStr === 'women' || genderStr === 'female' || genderStr === 'w' || genderStr === 'f') return "Women's";
-        if (genderStr === 'youth' || genderStr === 'kids' || genderStr === 'children' || genderStr === 'y' || genderStr === 'k') return 'Youth';
-        if (genderStr === 'unisex' || genderStr === 'u') return 'Unisex';
-        return 'Unisex';
-    },
-    
-    formatWidth(altSize, gender) {
-        if (!altSize) return 'Standard';
-        const widthStr = altSize.toString().trim().toUpperCase();
-        const formattedGender = this.formatGender(gender);
-        
-        // Women's width codes are different from men's
-        if (formattedGender === "Women's") {
-            // Women's: 2A=Narrow, B=Standard, D=Wide, 2E=Extra Wide
-            if (widthStr === '2A' || widthStr === 'AA' || widthStr === 'NARROW') return 'Narrow';
-            if (widthStr === 'B' || widthStr === 'STANDARD' || widthStr === 'MEDIUM') return 'Standard';
-            if (widthStr === 'D' || widthStr === 'WIDE') return 'Wide';
-            if (widthStr === '2E' || widthStr === 'EE' || widthStr === 'EXTRA WIDE') return 'Extra Wide';
-        } else {
-            // Men's/Unisex/Youth: B=Narrow, D=Standard, 2E=Wide, 4E=Extra Wide
-            if (widthStr === 'B' || widthStr === 'NARROW') return 'Narrow';
-            if (widthStr === 'D' || widthStr === 'M' || widthStr === 'STANDARD' || widthStr === 'MEDIUM') return 'Standard';
-            if (widthStr === '2E' || widthStr === 'EE' || widthStr === 'WIDE') return 'Wide';
-            if (widthStr === '4E' || widthStr === 'EEEE' || widthStr === 'EXTRA WIDE') return 'Extra Wide';
-        }
-        
-        return 'Standard';
-    },
-    
-    formatSize(sizeValue) {
-        if (!sizeValue && sizeValue !== 0) return 'Unknown';
-        
-        let size = String(sizeValue).trim();
-        
-        // Handle special cases for half sizes
-        if (size === '045' || size === '45') return '4.5';
-        if (size === '055' || size === '55') return '5.5';
-        if (size === '065' || size === '65') return '6.5';
-        if (size === '075' || size === '75') return '7.5';
-        if (size === '085' || size === '85') return '8.5';
-        if (size === '095' || size === '95') return '9.5';
-        if (size === '105' || size === '105') return '10.5';
-        if (size === '115') return '11.5';
-        if (size === '125') return '12.5';
-        if (size === '135') return '13.5';
-        
-        // Handle decimal format
-        if (size.includes('.')) return size;
-        
-        // If it's a whole number, add .0
-        const numSize = parseFloat(size);
-        if (!isNaN(numSize) && numSize > 0) {
-            return numSize.toFixed(1);
-        }
-        
-        return size;
-    },
-    
-    async convert(file) {
-        try {
-            let data = [];
-            let headers = [];
-            
-            if (file.name.toLowerCase().endsWith('.xlsx') || 
-                file.name.toLowerCase().endsWith('.xls')) {
-                const arrayBuffer = await file.arrayBuffer();
-                const workbook = XLSX.read(arrayBuffer);
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                headers = data[0];
-                data = data.slice(1);
-            } else {
-                const text = await file.text();
-                const parseResult = Papa.parse(text, {
-                    delimiter: ',',
-                    header: true,
-                    skipEmptyLines: true,
-                    dynamicTyping: true
-                });
-                
-                if (parseResult.data.length === 0 || Object.keys(parseResult.data[0]).length === 1) {
-                    const tabParseResult = Papa.parse(text, {
-                        delimiter: '\t',
-                        header: true,
-                        skipEmptyLines: true,
-                        dynamicTyping: true
+            var iStyleName = need('Style Name'), iStyleNum = need('Style Number');
+            var iColorName = need('Color Name'), iColorCode = need('Color Code');
+            var iSize = need('Size'), iAlt = need('Alt Size'), iUpc = need('UPC/EAN');
+            var iQty = need('Quantity Available'), iGender = need('Gender');
+            var iType = need('Product Type'), iCat = need('Category');
+            var iRetail = idx['retail price'];
+
+            var byKey = new Map();
+            var skipped = { type: 0, category: 0, gender: 0 };
+
+            for (var r = 1; r < rows.length; r++) {
+                var row = rows[r];
+                if (!row || !row.length) continue;
+
+                var ptype = String(row[iType] == null ? '' : row[iType]);
+                if (ptype.indexOf('Footwear') === -1) { skipped.type++; continue; }
+
+                var category = String(row[iCat] == null ? '' : row[iCat]).trim();
+                if (self.CATEGORIES.indexOf(category) === -1) { skipped.category++; continue; }
+
+                var genderRaw = String(row[iGender] == null ? '' : row[iGender]).trim();
+                if (self.GENDERS.indexOf(genderRaw) === -1) { skipped.gender++; continue; }
+
+                var styleName = String(row[iStyleName] == null ? '' : row[iStyleName]).trim();
+                if (!styleName) continue;
+
+                var alt = String(row[iAlt] == null ? '' : row[iAlt]).trim();
+                var widthLabel = self.widthLabelFor(alt, genderRaw);
+                var model = self.formatModelName(styleName);
+                var color = String(row[iColorName] == null ? '' : row[iColorName]).trim();
+                var size = self.normalizeSize(row[iSize]);
+                if (!size) continue;
+
+                var qty = parseInt(row[iQty], 10);
+                if (!isFinite(qty) || qty < 0) qty = 0;
+
+                var key = [genderRaw, model, color, widthLabel].join('|');
+                if (!byKey.has(key)) {
+                    byKey.set(key, {
+                        model: model,
+                        styleNumber: String(row[iStyleNum] == null ? '' : row[iStyleNum]).trim(),
+                        color: color,
+                        colorCode: String(row[iColorCode] == null ? '' : row[iColorCode]).trim(),
+                        genderRaw: genderRaw,
+                        widthLabel: widthLabel,
+                        widthCode: alt,
+                        category: category,
+                        msrp: iRetail !== undefined ? row[iRetail] : '',
+                        sizes: []
                     });
-                    if (tabParseResult.data.length > 0) {
-                        headers = tabParseResult.meta.fields;
-                        data = tabParseResult.data;
-                    }
-                } else {
-                    headers = parseResult.meta.fields;
-                    data = parseResult.data;
                 }
-            }
-            
-            // Determine column indices
-            let styleNameIdx = headers.findIndex(h => h && h.toLowerCase().includes('style name'));
-            let styleNumberIdx = headers.findIndex(h => h && h.toLowerCase().includes('style number'));
-            let colorNameIdx = headers.findIndex(h => h && h.toLowerCase().includes('color name'));
-            let colorCodeIdx = headers.findIndex(h => h && h.toLowerCase().includes('color code'));
-            let sizeIdx = headers.findIndex(h => h && h.toLowerCase() === 'size');
-            let altSizeIdx = headers.findIndex(h => h && h.toLowerCase().includes('alt size'));
-            let skuIdx = headers.findIndex(h => h && h.toLowerCase().includes('sku'));
-            let upcIdx = headers.findIndex(h => h && h.toLowerCase().includes('upc'));
-            let quantityIdx = headers.findIndex(h => h && h.toLowerCase().includes('quantity available'));
-            let wholesaleIdx = headers.findIndex(h => h && h.toLowerCase().includes('wholesale'));
-            let retailIdx = headers.findIndex(h => h && h.toLowerCase().includes('retail price'));
-            let genderIdx = headers.findIndex(h => h && h.toLowerCase().includes('gender'));
-            
-            if (styleNameIdx === -1) styleNameIdx = 0;
-            if (colorNameIdx === -1) colorNameIdx = 2;
-            if (sizeIdx === -1) sizeIdx = 5;
-            if (altSizeIdx === -1) altSizeIdx = 6;
-            
-            const filteredProducts = data.filter(row => {
-                if (!row) return false;
-                
-                let styleName;
-                if (Array.isArray(row)) {
-                    styleName = row[styleNameIdx];
-                } else {
-                    styleName = row['Style Name'] || row['style_name'] || Object.values(row)[0];
-                }
-                
-                return this.isAllowedProduct(styleName);
-            });
-            
-            const shopifyInventory = [];
-            const processedVariants = new Map();
-            
-            for (let i = 0; i < filteredProducts.length; i++) {
-                const row = filteredProducts[i];
-                let product;
-                
-                if (Array.isArray(row)) {
-                    product = {
-                        styleName: row[styleNameIdx],
-                        styleNumber: row[styleNumberIdx],
-                        colorName: row[colorNameIdx],
-                        colorCode: row[colorCodeIdx],
-                        size: row[sizeIdx],
-                        altSize: row[altSizeIdx],
-                        sku: row[skuIdx],
-                        upc: row[upcIdx],
-                        quantity: row[quantityIdx],
-                        wholesale: row[wholesaleIdx],
-                        retail: row[retailIdx],
-                        gender: row[genderIdx]
-                    };
-                } else {
-                    product = {
-                        styleName: row['Style Name'] || row['style_name'],
-                        styleNumber: row['Style Number'] || row['style_number'],
-                        colorName: row['Color Name'] || row['color_name'],
-                        colorCode: row['Color Code'] || row['color_code'],
-                        size: row['Size'] || row['size'],
-                        altSize: row['Alt Size'] || row['alt_size'],
-                        sku: row['SKU'] || row['sku'],
-                        upc: row['UPC/EAN'] || row['upc'],
-                        quantity: row['Quantity Available'] || row['quantity_available'],
-                        wholesale: row['Wholesale Price'] || row['wholesale_price'],
-                        retail: row['Retail Price'] || row['retail_price'],
-                        gender: row['Gender'] || row['gender']
-                    };
-                }
-                
-                const matchingProduct = this.getMatchingProduct(product.styleName);
-                if (!matchingProduct) continue;
-                
-                const formattedGender = this.formatGender(product.gender);
-                const formattedWidth = this.formatWidth(product.altSize, product.gender);
-                const formattedSize = this.formatSize(product.size);
-                
-                const variantKey = `${formattedGender}-${matchingProduct}-${product.colorName}-${formattedSize}-${formattedWidth}`;
-                
-                let actualQuantity = 0;
-                if (typeof product.quantity === 'string') {
-                    actualQuantity = parseInt(product.quantity.replace(/[^0-9]/g, '')) || 0;
-                } else if (typeof product.quantity === 'number') {
-                    actualQuantity = product.quantity;
-                }
-                
-                if (processedVariants.has(variantKey)) {
-                    const existing = processedVariants.get(variantKey);
-                    existing.quantity += actualQuantity;
-                    continue;
-                }
-                
-                processedVariants.set(variantKey, {
-                    ...product,
-                    formattedGender,
-                    formattedWidth,
-                    formattedSize,
-                    matchingProduct,
-                    quantity: actualQuantity
+                byKey.get(key).sizes.push({
+                    size: size,
+                    qty: qty,
+                    upc: String(row[iUpc] == null ? '' : row[iUpc]).trim(),
+                    sku: String(row[idx['sku']] == null ? '' : row[idx['sku']]).trim()
                 });
             }
-            
-            const sortedVariants = Array.from(processedVariants.entries()).sort((a, b) => {
-                const [keyA, dataA] = a;
-                const [keyB, dataB] = b;
-                
-                if (dataA.matchingProduct !== dataB.matchingProduct) {
-                    return dataA.matchingProduct.localeCompare(dataB.matchingProduct);
-                }
-                
-                if (dataA.formattedGender !== dataB.formattedGender) {
-                    if (dataA.formattedGender === "Men's") return -1;
-                    if (dataB.formattedGender === "Men's") return 1;
-                    return dataA.formattedGender.localeCompare(dataB.formattedGender);
-                }
-                
-                if (dataA.colorName !== dataB.colorName) {
-                    return dataA.colorName.localeCompare(dataB.colorName);
-                }
-                
-                if (dataA.formattedWidth !== dataB.formattedWidth) {
-                    const widthOrder = ['Standard', 'Narrow', 'Wide', 'Extra Wide'];
-                    const indexA = widthOrder.indexOf(dataA.formattedWidth);
-                    const indexB = widthOrder.indexOf(dataB.formattedWidth);
-                    if (indexA !== -1 && indexB !== -1) {
-                        return indexA - indexB;
-                    }
-                    return dataA.formattedWidth.localeCompare(dataB.formattedWidth);
-                }
-                
-                const sizeA = parseFloat(dataA.formattedSize) || 0;
-                const sizeB = parseFloat(dataB.formattedSize) || 0;
-                return sizeA - sizeB;
+
+            var records = Array.from(byKey.values());
+            records.forEach(function(rec) {
+                rec.sizes.sort(function(a, b) { return parseFloat(a.size) - parseFloat(b.size); });
             });
-            
-            for (const [variantKey, variantData] of sortedVariants) {
-                let productTitle = `${variantData.formattedGender} New Balance ${variantData.matchingProduct} - ${variantData.colorName}`;
-                if (variantData.formattedWidth !== 'Standard') {
-                    productTitle += ` (${variantData.formattedWidth})`;
-                }
-                
-                let baseHandle = `${variantData.formattedGender}-${variantData.matchingProduct}-${variantData.colorName}`
-                    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                
-                if (variantData.formattedWidth !== 'Standard') {
-                    baseHandle += `-${variantData.formattedWidth.toLowerCase().replace(/\s+/g, '-')}`;
-                }
-                
-                shopifyInventory.push({
-                    Handle: baseHandle,
-                    Title: productTitle,
-                    'Option1 Name': 'Size',
-                    'Option1 Value': variantData.formattedSize,
-                    'Option2 Name': variantData.formattedWidth !== 'Standard' ? 'Width' : '',
-                    'Option2 Value': variantData.formattedWidth !== 'Standard' ? variantData.formattedWidth : '',
-                    'Option3 Name': '',
-                    'Option3 Value': '',
-                    SKU: variantData.sku || `${variantData.styleNumber}-${variantData.colorCode}-${variantData.formattedSize}-${variantData.formattedWidth.charAt(0)}`,
-                    Barcode: variantData.upc || '',
-                    'HS Code': '',
-                    COO: '',
-                    Location: 'Needham',
-                    'Bin name': '',
-                    'Incoming (not editable)': '',
-                    'Unavailable (not editable)': '',
-                    'Committed (not editable)': '',
-                    'Available (not editable)': '',
-                    'On hand (current)': '',
-                    'On hand (new)': variantData.quantity
-                });
-            }
-            
-            this.inventoryData = shopifyInventory;
-            return shopifyInventory;
-            
-        } catch (error) {
-            console.error('New Balance conversion error:', error);
-            throw error;
-        }
+            self._lastSkipped = skipped;
+            self._parseCache = { key: cacheKey, records: records };
+            return records;
+        });
     },
-    
-    generateInventoryCSV() {
-        // FIXED: Use Papa Parse for proper CSV generation instead of manual string building
-        if (typeof Papa !== 'undefined') {
-            return Papa.unparse(this.inventoryData, {
-                quotes: true,
-                quoteChar: '"',
-                delimiter: ','
+
+    // ===== scan, for the picker =====
+    scanFile: function(file) {
+        var self = this;
+        return this.parseExcel(file).then(function(records) {
+            var byModel = new Map();
+
+            records.forEach(function(rec) {
+                var gp = self.genderPrefix(rec.genderRaw);
+                var widthSuffix = rec.widthLabel ? ' (' + rec.widthLabel + ')' : '';
+                var modelKey = gp + ' ' + rec.model.toUpperCase() + widthSuffix;
+                var qty = rec.sizes.reduce(function(t, s) { return t + s.qty; }, 0);
+                var handle = self.buildHandle(rec.model, rec.color, rec.genderRaw, rec.widthLabel);
+
+                if (!byModel.has(modelKey)) {
+                    byModel.set(modelKey, {
+                        model: rec.model.toUpperCase(),
+                        modelKey: modelKey,
+                        gender: gp,
+                        genderType: rec.genderRaw,
+                        width: rec.widthLabel,
+                        category: rec.category,
+                        colorways: new Map(),
+                        totalRows: 0,
+                        totalInventory: 0
+                    });
+                }
+                var md = byModel.get(modelKey);
+                md.totalRows += rec.sizes.length;
+                md.totalInventory += qty;
+
+                if (!md.colorways.has(handle)) {
+                    md.colorways.set(handle, {
+                        handle: handle,
+                        title: self.buildTitle(rec.model, rec.color, rec.genderRaw, rec.widthLabel),
+                        color: rec.color,
+                        rows: 0,
+                        inventory: 0
+                    });
+                }
+                var cw = md.colorways.get(handle);
+                cw.rows += rec.sizes.length;
+                cw.inventory += qty;
             });
-        }
-        
-        // Fallback to manual generation if Papa Parse not available
-        const inventoryHeaders = ['Handle', 'Title', 'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 
-                       'Option3 Name', 'Option3 Value', 'SKU', 'Barcode', 'HS Code', 'COO', 'Location', 'Bin name', 
-                       'Incoming (not editable)', 'Unavailable (not editable)', 'Committed (not editable)', 
-                       'Available (not editable)', 'On hand (current)', 'On hand (new)'];
-        
-        const csvRows = [inventoryHeaders.join(',')];
-        
-        this.inventoryData.forEach(row => {
-            const csvRow = [
+
+            var products = [];
+            byModel.forEach(function(d) {
+                products.push({
+                    name: d.modelKey,
+                    model: d.model,
+                    gender: d.gender,
+                    genderType: d.genderType,
+                    width: d.width,
+                    category: d.category,
+                    colorways: Array.from(d.colorways.values()),
+                    rowCount: d.totalRows,
+                    totalInventory: d.totalInventory
+                });
+            });
+
+            products.sort(function(a, b) {
+                if (a.category !== b.category) return String(a.category).localeCompare(String(b.category));
+                if (a.model !== b.model) return String(a.model).localeCompare(String(b.model));
+                return String(a.name).localeCompare(String(b.name));
+            });
+
+            self.scannedProducts = products;
+            return products;
+        });
+    },
+
+    // ===== convert, for the inventory write =====
+    convert: function(file) {
+        var self = this;
+        return this.parseExcel(file).then(function(records) {
+            var inventory = [];
+            var productVariantData = [];
+            self.allFeedSkus = new Set();
+
+            records.forEach(function(rec) {
+                var gp = self.genderPrefix(rec.genderRaw);
+                var widthSuffix = rec.widthLabel ? ' (' + rec.widthLabel + ')' : '';
+                var modelKey = gp + ' ' + rec.model.toUpperCase() + widthSuffix;
+                var handle = self.buildHandle(rec.model, rec.color, rec.genderRaw, rec.widthLabel);
+                var title = self.buildTitle(rec.model, rec.color, rec.genderRaw, rec.widthLabel);
+
+                // allFeedSkus is the WHOLE file, never the picker selection, so a
+                // colorway the user did not tick can never be read as removed.
+                rec.sizes.forEach(function(s) {
+                    if (s.sku) self.allFeedSkus.add(String(s.sku).trim().toUpperCase());
+                });
+
+                if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) return;
+
+                rec.sizes.forEach(function(s) {
+                    var sku = s.sku || (rec.styleNumber + ' ' + rec.widthCode + ' ' + s.size);
+                    var invRow = {
+                        'Handle': handle,
+                        'Title': title,
+                        'Option1 Name': 'Size',
+                        'Option1 Value': s.size,
+                        'Option2 Name': '',
+                        'Option2 Value': '',
+                        'Option3 Name': '',
+                        'Option3 Value': '',
+                        'SKU': sku,
+                        'Barcode': s.upc || '',
+                        'HS Code': '',
+                        'COO': '',
+                        'Location': 'Needham',
+                        'Bin name': '',
+                        'On hand (new)': s.qty
+                    };
+                    inventory.push(invRow);
+                    productVariantData.push([invRow, {
+                        handle: handle,
+                        title: title,
+                        gender: gp,
+                        genderType: rec.genderRaw,
+                        model: rec.model.toUpperCase(),
+                        color: self.formatColorName(rec.color),
+                        width: rec.widthLabel,
+                        category: rec.category,
+                        sku: sku,
+                        size: s.size,
+                        quantity: s.qty,
+                        barcode: s.upc || '',
+                        // Retail only, never the wholesale column. The feed is
+                        // supplier pricing and must not leak into the store.
+                        price: rec.msrp || ''
+                    }]);
+                });
+            });
+
+            self.inventoryData = inventory;
+            self.productVariantData = productVariantData;
+            return inventory;
+        });
+    },
+
+    generateInventoryCSV: function() {
+        var headers = ['Handle', 'Title', '"Option1 Name"', '"Option1 Value"', '"Option2 Name"', '"Option2 Value"',
+            '"Option3 Name"', '"Option3 Value"', 'SKU', 'Barcode', '"HS Code"', 'COO', 'Location', '"Bin name"',
+            '"Incoming (not editable)"', '"Unavailable (not editable)"', '"Committed (not editable)"',
+            '"Available (not editable)"', '"On hand (current)"', '"On hand (new)"'];
+
+        var csvRows = [headers.join(',')];
+        this.inventoryData.forEach(function(row) {
+            csvRows.push([
                 row.Handle,
-                `"${row.Title.replace(/"/g, '""')}"`, // Properly escape quotes in title
-                row['Option1 Name'],
-                row['Option1 Value'],
-                row['Option2 Name'] || '',
-                row['Option2 Value'] || '',
-                row['Option3 Name'] || '',
-                row['Option3 Value'] || '',
-                row.SKU,
+                '"' + (row.Title || '').replace(/"/g, '""') + '"',
+                row['Option1 Name'] || 'Size',
+                row['Option1 Value'] || '',
+                '', '', '', '',
+                row.SKU || '',
                 row.Barcode || '',
                 '', '',
-                row.Location,
+                row.Location || 'Needham',
                 '', '', '', '', '', '',
                 row['On hand (new)']
-            ];
-            csvRows.push(csvRow.join(','));
+            ].join(','));
         });
-        
         return csvRows.join('\n');
+    },
+
+    // ===== new product CSV =====
+    // Only the colorways the tracker calls new. One row per variant, Shopify
+    // product import shape, same as the other brands.
+    generateNewProductCSV: function(comparison) {
+        if (!comparison || !comparison.newProducts || !comparison.newProducts.length) return null;
+        if (!this.productVariantData || !this.productVariantData.length) return null;
+
+        var wanted = new Set();
+        comparison.newProducts.forEach(function(p) {
+            if (p && p.handle) wanted.add(p.handle);
+        });
+        if (!wanted.size) return null;
+
+        var headers = ['Handle', 'Title', 'Vendor', 'Type', 'Tags', 'Published',
+            'Option1 Name', 'Option1 Value', 'Variant SKU', 'Variant Barcode',
+            'Variant Inventory Qty', 'Variant Price', 'Status'];
+        var rows = [headers.join(',')];
+        var seenHandle = {};
+        var q = function(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+
+        this.productVariantData.forEach(function(entry) {
+            var meta = entry[1];
+            if (!wanted.has(meta.handle)) return;
+            var first = !seenHandle[meta.handle];
+            seenHandle[meta.handle] = 1;
+            var productType = meta.gender === 'Womens' ? "Women's Shoes"
+                : meta.gender === 'Mens' ? "Men's Shoes" : 'Unisex Shoes';
+            rows.push([
+                meta.handle,
+                first ? q(meta.title) : '""',
+                first ? 'New Balance' : '',
+                first ? q(productType) : '',
+                first ? q(['New Balance', meta.model, meta.category].filter(Boolean).join(', ')) : '',
+                first ? 'FALSE' : '',
+                'Size',
+                q(meta.size),
+                q(meta.sku),
+                q(meta.barcode),
+                meta.quantity,
+                meta.price || '',
+                first ? 'draft' : ''
+            ].join(','));
+        });
+        return rows.length > 1 ? rows.join('\n') : null;
     }
 };
