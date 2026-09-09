@@ -54,6 +54,7 @@ python3 -m http.server 8000                   # serve the tool from the repo roo
 node test/on-apparel.mjs                      # apparel converter: sizes, joins, guards
 node test/newbalance-images.mjs               # NB photo join: colorway key, gallery order
 node test/newbalance-create.mjs               # NB new-product CSV feeds Stage 4
+node test/auto-tag-queue.mjs                  # post-create auto tagging stays add-only
 node test/merrell.mjs                         # merrell converter: picker, CSV
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 
@@ -133,7 +134,18 @@ bearer-write exception tolerable. Do not relax either.
 
 **Bulk tagging is add-only.** `catalog-tags.js` only ever adds the correct tag.
 The one place tag removal is intended is `product-library.js`, where a human is
-editing one product's tags directly.
+editing one product's tags directly. That matters more since the post-create
+queue runs `computePlan` unattended: it can only ever add, so an unexpected
+result is a missing tag, never a lost one.
+
+**Create-time tagging is inherit-only, and the queue is the safety net.**
+`product-enrichment.js` copies tags from a live width-specific sibling and sets
+nothing when there is none. The cw-group tag carries the width class, so a new
+WIDTH of a carried model has no carrier either: on the 2026-09-08 NB drop, 77 of
+88 launched untagged. `CatalogTags.processSwatchQueue` now applies the cw-group,
+width and gender tags as well as the swatch metafields, once a queued handle
+goes ACTIVE, using the tag the WORKER computed. Kill switch:
+`localStorage.rhAutoSwatch = '0'`.
 
 **Ported files must not drift.** `worker/src/parsers.js` and
 `worker/src/group.js` are byte-for-byte copies of the Color Swatch app's files

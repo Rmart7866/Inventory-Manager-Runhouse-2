@@ -209,14 +209,16 @@ var CatalogTags = {
         return false;
     },
 
-    // ===== Auto swatch wiring after create (SHARED queue) =====
-    // New colorways are created as DRAFT, so their swatch cross-links cannot be
-    // written yet: the swatch group only includes ACTIVE products. We remember
-    // the created handles in a Firestore queue (shared across staff, mirrors the
-    // Ignore list) and, on every catalog load and right after a create, check
-    // whether any queued handle is now ACTIVE. The ones that are get their model
-    // family, and ONLY that family, re-grouped and written, then dropped from the
-    // queue. Steady state (empty queue) is a single Firestore read.
+    // ===== Auto tagging + swatch wiring after create (SHARED queue) =====
+    // New colorways are created as DRAFT, so neither their grouping tags nor
+    // their swatch cross-links can be written yet: a swatch group only includes
+    // ACTIVE products. We remember the created handles in a Firestore queue
+    // (shared across staff, mirrors the Ignore list) and, on every catalog load
+    // and right after a create, check whether any queued handle is now ACTIVE.
+    // The ones that are get their cw-group, width and gender tags applied, and
+    // their model family, and ONLY that family, re-grouped and written, then
+    // they are dropped from the queue. Steady state (empty queue) is a single
+    // Firestore read.
     _swColl: function (brand) { return db.collection('swatch-queue').doc(brand || '_default').collection('items'); },
     _swDocId: function (h) { return String(h || '_').replace(/[\/.#$\[\]]/g, '_').slice(0, 200) || '_'; },
     _swLsKey: function (brand) { return 'rhSwatchQueue:' + (brand || '_default'); },
@@ -263,10 +265,11 @@ var CatalogTags = {
         self._swSaveLocal(brand, raw);
     },
 
-    // Wire any now-ACTIVE queued colorways into their swatch group. Scoped to the
-    // affected model families only. Safe to call on every load: no-op when the
-    // queue is empty, when nothing has gone live yet, or when there is no write
-    // secret (it just waits for a session that has one). Never throws.
+    // Tag any now-ACTIVE queued colorways and wire them into their swatch group.
+    // Scoped to the queued products (tags) and their model families (metafields).
+    // Safe to call on every load: no-op when the queue is empty, when nothing has
+    // gone live yet, or when there is no write secret (it just waits for a
+    // session that has one). Add-only, and never throws.
     processSwatchQueue: function (brand) {
         var self = this;
         if (!brand || typeof db === 'undefined') return Promise.resolve(null);
@@ -289,25 +292,71 @@ var CatalogTags = {
                 });
                 if (stale.length) self._swRemove(brand, stale);
                 if (!ready.length || !affected.size) return null;
+
+                // TAGS FIRST, then the sibling metafields. Both have to land
+                // before a handle leaves the queue, or the retry loses whichever
+                // half did not run.
+                //
+                // WHY TAGS ARE HERE AT ALL. Create-time tagging is inherit-only:
+                // product-enrichment copies tags from a live width-specific
+                // sibling, and sets nothing when there is none. The tag carries
+                // the width class, so it is stricter than "new model": a new
+                // WIDTH of a model already carried has no carrier either. On the
+                // 2026-09-08 New Balance drop that was 77 of 88 products
+                // untagged, and every one of the 77 had no sibling while all 11
+                // that inherited did. Backlogs like this reached 185 products
+                // before, and the manual panel run is the only thing that clears
+                // them.
+                //
+                // The values come from the CATALOG, which the Worker computed
+                // with its own parsers.js + tag-groups.js. That matters: the tag
+                // written has to equal the tag the storefront groups on, and
+                // recomputing it in the browser is exactly what CLAUDE.md
+                // forbids. computePlan is add-only, so this can never strip a
+                // tag a human put there.
+                var readyProducts = ready.map(function (h) { return byHandle[h]; });
+                var tagPlan = self.computePlan(readyProducts, { width: true, swatch: true, gender: true });
+                var tagChanges = tagPlan.changes || [];
+
                 var plan = self.computeMetafields(catalog.products, { modelKeys: affected });
                 var inputs = plan.inputs || [];
-                if (!inputs.length) { self._swRemove(brand, ready); return { wired: ready.length, metafields: 0 }; } // already correct
-                var chunks = []; for (var i = 0; i < inputs.length; i += 200) chunks.push(inputs.slice(i, i + 200));
-                var set = 0, refused = false;
-                function step(idx) {
-                    if (refused || idx >= chunks.length) return Promise.resolve();
-                    return CatalogClient.applyMetafields(chunks[idx]).then(function (r) {
-                        if ([401, 403, 501].indexOf(r.__status) >= 0) { refused = true; return; }
-                        set += (r.set || 0);
-                        return step(idx + 1);
-                    });
+                if (!tagChanges.length && !inputs.length) { self._swRemove(brand, ready); return { wired: ready.length, tags: 0, metafields: 0 }; } // already correct
+
+                var refused = false;
+                function runChunks(items, size, send, onOk) {
+                    var chunks = []; for (var i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+                    function step(idx) {
+                        if (refused || idx >= chunks.length) return Promise.resolve();
+                        return send(chunks[idx]).then(function (r) {
+                            // 401/403 is no write secret, 501 is the write gate.
+                            // Either way stay queued for a session that can write.
+                            if ([401, 403, 501].indexOf(r.__status) >= 0) { refused = true; return; }
+                            onOk(r);
+                            return step(idx + 1);
+                        });
+                    }
+                    return step(0);
                 }
-                return step(0).then(function () {
+
+                // /tags/apply answers { ok, failed, total }, /tags/metafields/apply { set }.
+                var tagged = 0, tagFailed = 0, set = 0;
+                return runChunks(tagChanges, 100, function (c) { return CatalogClient.applyTags(c); },
+                                 function (r) { tagged += (r.ok || 0); tagFailed += (r.failed || 0); })
+                    .then(function () {
+                        if (refused) return;
+                        return runChunks(inputs, 200, function (c) { return CatalogClient.applyMetafields(c); },
+                                         function (r) { set += (r.set || 0); });
+                    })
+                    .then(function () {
                     if (refused) return null;   // keep queued for a session that can write
                     self._swRemove(brand, ready);
-                    if (typeof showToast === 'function' && set > 0) showToast('Wired ' + ready.length + ' new colorway' + (ready.length !== 1 ? 's' : '') + ' into color swatches');
-                    console.log('[swatch-queue] wired ' + ready.length + ' colorway(s), ' + set + ' metafields across ' + affected.size + ' model(s)');
-                    return { wired: ready.length, metafields: set, models: affected.size };
+                    var bits = [];
+                    if (tagged) bits.push(tagged + ' tagged');
+                    if (set) bits.push('swatches wired');
+                    if (typeof showToast === 'function' && bits.length) showToast(ready.length + ' new colorway' + (ready.length !== 1 ? 's' : '') + ': ' + bits.join(', '));
+                    console.log('[swatch-queue] ' + ready.length + ' colorway(s): ' + tagged + ' tagged'
+                        + (tagFailed ? ' (' + tagFailed + ' FAILED)' : '') + ', ' + set + ' metafields across ' + affected.size + ' model(s)');
+                    return { wired: ready.length, tags: tagged, tagsFailed: tagFailed, metafields: set, models: affected.size };
                 });
             });
         }).catch(function (e) { console.warn('[swatch-queue]', e && e.message); return null; });
