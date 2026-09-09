@@ -82,3 +82,8 @@ draft-duplicates-rollback-*.json
 # products that had no specs.* before the run, which is the undo. Keep it on
 # disk until the run is confirmed good; it does not belong in a public repo.
 specs-backfill-rollback-*.json
+
+# Run artifacts from tools/tag-recent-products.mjs. Lists the products tagged
+# and exactly what each one gained, which is the undo. Keep it on disk until the
+# run is confirmed good; it names products and does not belong in a public repo.
+recent-tag-rollback-*.json

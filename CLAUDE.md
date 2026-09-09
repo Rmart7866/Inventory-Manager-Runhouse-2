@@ -63,6 +63,8 @@ python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes
 
 # Backfills, dry run by default, --apply to write, each writes a rollback file
 node tools/backfill-brooks-barcodes.mjs
+node tools/tag-recent-products.mjs            # cw-group/width/gender on a new drop
+node tools/clear-bogus-specs.mjs              # specs.* written from a blank registry cell
 
 # New Balance photos: Widen TIFs to a Stage 4 gallery folder (macOS sips)
 node tools/convert-nb-images.mjs
