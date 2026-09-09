@@ -32,8 +32,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Map a parsed width to the storefront width TAG value that tag-wide.mjs writes.
 // standard gets no tag. Everything else mirrors the tag-wide vocabulary.
-function widthTagFor(width) {
-  switch (widthClass(width)) {
+function widthTagFor(width, gender) {
+  switch (widthClass(width, gender)) {
     case 'wide': return 'wide';
     case 'xwide': return 'extra wide';
     case 'narrow': return 'narrow';
@@ -451,7 +451,7 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
     if (!parsed.ok) { unparsed.push({ title: n.title, sku: firstSku }); continue; }
 
     const cwGroup = groupTagFor(parsed);        // identical to the pipeline tag
-    const widthTag = widthTagFor(parsed.width);
+    const widthTag = widthTagFor(parsed.width, parsed.gender);
 
     // Current custom.* swatch metafields, for the tagging panel to diff its
     // computed sibling references against (bulk path sets n._mf; the paged dev

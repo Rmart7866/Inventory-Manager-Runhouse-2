@@ -23,11 +23,30 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 // Map a precise width code to a coarse class used for grouping.
-function widthClass(code) {
+//
+// GENDER MATTERS FOR THREE CODES. The men's and women's width ladders are
+// offset by one notch, so B, D and 2E name different widths depending on who the
+// shoe is for:
+//   women's:  2A narrow,   B standard,  D wide,     2E/4E extra wide
+//   men's:    2A/B narrow,  D standard,  2E wide,    4E/6E extra wide
+// Read gender blind, a men's B narrow and a women's D wide were both called
+// standard, which put two different physical widths in one swatch row on the
+// PDP: a customer picking "standard" could land on a narrow or a wide shoe.
+//
+// Three codes shift: B, D and 2E. The rest mean the same on both ladders.
+// When gender is unknown the old gender blind answer is kept, so a record with
+// no gender groups exactly as it did before.
+function widthClass(code, gender) {
   const c = String(code || 'STD').toUpperCase();
-  if (c === 'STD' || c === 'D' || c === 'B') return 'standard';
+  const g = String(gender || '').toUpperCase();
+  const womens = g.startsWith('W');
+  const mens = !womens && g.startsWith('M');
+  if (c === 'B') return mens ? 'narrow' : 'standard';
+  if (c === 'D') return womens ? 'wide' : 'standard';
+  if (c === '2E') return womens ? 'xwide' : 'wide';
+  if (c === 'STD') return 'standard';
   if (c === 'NARROW' || c === '2A' || c === 'A') return 'narrow';
-  if (c === 'WIDE' || c === '2E' || c === 'EE' || c === 'E') return 'wide';
+  if (c === 'WIDE' || c === 'EE' || c === 'E') return 'wide';
   if (c === 'XWIDE' || c === '4E' || c === 'EEEE' || c === '6E') return 'xwide';
   return 'standard';
 }
@@ -49,12 +68,12 @@ function groupProducts(records) {
   // Decorate each record with its width class and stable normalized keys.
   const recs = records.map((r) => ({
     ...r,
-    _wclass: widthClass(r.width),
+    _wclass: widthClass(r.width, r.gender),
     // Swatch row key: model + gender + width class. Not style code, because some
     // brands (ON) fold the color into the article number, giving every colorway
     // a unique style code and so a group of one. Model + width is the correct
     // definition of "same shoe, different colors" and groups every brand.
-    _styleKey: `${norm(r.modelKey)}|${widthClass(r.width)}`,
+    _styleKey: `${norm(r.modelKey)}|${widthClass(r.width, r.gender)}`,
     _colorKey: `${norm(r.modelKey)}|${norm(r.colorName)}`,
     _modelKey: norm(r.modelKey),
     _genderlessKey: norm(r.modelKeyGenderless),

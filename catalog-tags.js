@@ -81,11 +81,24 @@ var CatalogTags = {
     // groupProducts + buildMetafieldInputs, the same logic as worker/src/group.js
     // and the Color Swatch index.js. Computes the style/width/gender sibling
     // references + color_name/width_code helpers the PDP swatch snippet reads.
-    _widthClassG: function (code) {
+    // Mirrors widthClass in worker/src/group.js, which is the Color Swatch port.
+    // GENDER MATTERS FOR B, D AND 2E: the ladders are offset a notch, so women's B
+    // is the standard and D the wide, while men's B is a narrow and D the
+    // standard. Gender blind, a men's narrow and a women's wide both grouped as
+    // standard, putting two physical widths in one swatch row. Unknown gender
+    // keeps the old answer. Change this only alongside group.js, or the panel
+    // writes a tag the storefront does not group on.
+    _widthClassG: function (code, gender) {
         var c = String(code || 'STD').toUpperCase();
-        if (c === 'STD' || c === 'D' || c === 'B') return 'standard';
+        var g = String(gender || '').toUpperCase();
+        var womens = g.charAt(0) === 'W';
+        var mens = !womens && g.charAt(0) === 'M';
+        if (c === 'B') return mens ? 'narrow' : 'standard';
+        if (c === 'D') return womens ? 'wide' : 'standard';
+        if (c === '2E') return womens ? 'xwide' : 'wide';
+        if (c === 'STD') return 'standard';
         if (c === 'NARROW' || c === '2A' || c === 'A') return 'narrow';
-        if (c === 'WIDE' || c === '2E' || c === 'EE' || c === 'E') return 'wide';
+        if (c === 'WIDE' || c === 'EE' || c === 'E') return 'wide';
         if (c === 'XWIDE' || c === '4E' || c === 'EEEE' || c === '6E') return 'xwide';
         return 'standard';
     },
@@ -94,8 +107,8 @@ var CatalogTags = {
         var self = this;
         var recs = records.map(function (r) {
             return Object.assign({}, r, {
-                _wclass: self._widthClassG(r.width),
-                _styleKey: self._norm(r.modelKey) + '|' + self._widthClassG(r.width),
+                _wclass: self._widthClassG(r.width, r.gender),
+                _styleKey: self._norm(r.modelKey) + '|' + self._widthClassG(r.width, r.gender),
                 _colorKey: self._norm(r.modelKey) + '|' + self._norm(r.colorName),
                 _modelKey: self._norm(r.modelKey),
                 _genderlessKey: self._norm(r.modelKeyGenderless)

@@ -34,7 +34,7 @@ function slug(s) {
 // The group identity, model + gender + width class, mirrors the PDP swatch row.
 function groupTagFor(parsed) {
   const model = slug(parsed.modelKey);
-  const wclass = widthClass(parsed.width);
+  const wclass = widthClass(parsed.width, parsed.gender);
   if (!model) return null;
   return `${TAG_PREFIX}${model}--${wclass}`;
 }
