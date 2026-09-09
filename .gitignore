@@ -77,3 +77,8 @@ needham-activate-rollback-*.json
 # the products flipped from ACTIVE to DRAFT, which is the undo. Keep it on disk
 # until the run is confirmed good; it does not belong in a public repo.
 draft-duplicates-rollback-*.json
+
+# Run artifacts from the Color Swatch stamp-specs.mjs backfill. Lists the
+# products that had no specs.* before the run, which is the undo. Keep it on
+# disk until the run is confirmed good; it does not belong in a public repo.
+specs-backfill-rollback-*.json
