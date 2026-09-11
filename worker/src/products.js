@@ -64,8 +64,27 @@ export async function createStagedUploads(client, files) {
 // Size is always an option. Width is added only when a variant carries one, so
 // single-width models stay one-dimensional. optionValues on each variant must
 // reference the declared options, which is what productSet requires.
+// Shipping weight for a newly created shoe, in pounds.
+//
+// WHY IT IS BAKED IN. A product created here used to arrive with no weight at
+// all, which Shopify stores as 0 lb, so calculated shipping rates came out
+// wrong. It surfaced as orders shipping without a weight, and it had built up to
+// 13,458 footwear variants across 926 products before anyone noticed. Setting it
+// at creation is what stops that backlog re-forming after every drop.
+//
+// 2 lb is the same flat value tools/set-shoe-weights.mjs normalises the whole
+// catalogue to. Shoes are close enough in weight that one value is the sane
+// answer, and the two must agree: change this and change that file.
+//
+// FOOTWEAR ONLY. This route also creates ON apparel, where 2 lb is plainly
+// wrong, so the weight is applied only when the product type says shoes. The
+// same "ends in shoes" test the catalog and the tagging use.
+const SHOE_WEIGHT_LB = 2.0;
+const isFootwearType = (t) => /shoes$/i.test(String(t || '').trim());
+
 export function buildProductSetInput(spec, needhamLocationId, locationIds) {
   const variantsIn = Array.isArray(spec.variants) ? spec.variants : [];
+  const wantsWeight = isFootwearType(spec.productType);
 
   const sizes = [];
   const widths = [];
@@ -82,6 +101,12 @@ export function buildProductSetInput(spec, needhamLocationId, locationIds) {
     const optionValues = [{ optionName: 'Size', name: String(v.size) }];
     if (hasWidth) optionValues.push({ optionName: 'Width', name: String(v.width || widths[0]) });
     const out = { optionValues, inventoryItem: { sku: v.sku || '', tracked: true } };
+    // A caller may override per variant; otherwise every shoe gets the flat value.
+    const wt = (v.weight != null && Number.isFinite(Number(v.weight))) ? Number(v.weight)
+             : (wantsWeight ? SHOE_WEIGHT_LB : null);
+    if (wt != null) {
+      out.inventoryItem.measurement = { weight: { value: wt, unit: 'POUNDS' } };
+    }
     if (v.price != null && v.price !== '') out.price = String(v.price);
     if (v.barcode) out.barcode = String(v.barcode);
     // Stock the variant at EVERY location, but with real quantity only at
