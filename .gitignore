@@ -102,3 +102,8 @@ publish-drafts-rollback-*.json
 # prior shopify.color-pattern value per product, which is per-run undo state and
 # not something a public repo should carry.
 color-attribute-rollback-*.json
+
+# Run artifacts from tools/attach-brooks-images.mjs. Lists every media id added
+# to a product, which is the undo (productDeleteMedia). Per-run state, and it
+# does not belong in a public repo.
+brooks-media-rollback-*.json

@@ -56,9 +56,9 @@ eq('exact URL', url, 'https://epicurobrooksimages.epicurosaas.com/images/product
 yes('no query string', url.indexOf('?') === -1, url);
 yes('the thumbnail rendition DOES resize, that is its job', PE._brooksThumbUrl(url).includes('maxWidth=200'));
 
-console.log('\nSix angles, in gallery order, hero first');
+console.log('\nSix angles, in gallery order, LATERAL first');
 eq('six', PE.BROOKS_ANGLES.length, 6);
-eq('suffixes', PE.BROOKS_ANGLES.map((a) => a.suffix).join(''), 'almhos');
+eq('suffixes, lateral first', PE.BROOKS_ANGLES.map((a) => a.suffix).join(''), 'lamhos');
 eq('ranks are 1..6 in order', PE.BROOKS_ANGLES.map((a) => a.rank).join(''), '123456');
 const names = PE.BROOKS_ANGLES.map((a) => '110442048_' + String(a.rank).padStart(2, '0') + '_' + a.word + '.jpg');
 yes('_angleRank reads the fetcher filenames back in the same order',
@@ -68,8 +68,8 @@ yes('_angleRank reads the fetcher filenames back in the same order',
 console.log('\nA remote image is attached by URL and never staged');
 PE._imageBrand = 'brooks';
 PE._imageIndex = { '110442048': [
-  { name: '110442048_01_angle.jpg', url: PE._brooksUrl('110442048', 'a'), remote: true },
-  { name: '110442048_02_lateral.jpg', url: PE._brooksUrl('110442048', 'l'), remote: true },
+  { name: '110442048_01_lateral.jpg', url: PE._brooksUrl('110442048', 'l'), remote: true },
+  { name: '110442048_02_angle.jpg', url: PE._brooksUrl('110442048', 'a'), remote: true },
 ] };
 let staged = false;
 sandbox.CatalogClient = { stagedUploads: () => { staged = true; return Promise.resolve({ __status: 200, targets: [] }); } };
@@ -77,8 +77,8 @@ const spec = { title: 'Ghost 17', handle: 'ghost-17', variants: [{ sku: '1104428
 const out = await PE._attachImages([spec]);
 yes('stagedUploads was NOT called', !staged);
 eq('two files attached', (out[0].files || []).length, 2);
-eq('featured image is the hero', out[0].files[0].originalSource, PE._brooksUrl('110442048', 'a'));
-eq('second is the lateral', out[0].files[1].originalSource, PE._brooksUrl('110442048', 'l'));
+eq('featured image is the LATERAL', out[0].files[0].originalSource, PE._brooksUrl('110442048', 'l'));
+eq('second is the angle shot', out[0].files[1].originalSource, PE._brooksUrl('110442048', 'a'));
 yes('alt text is the product title', out[0].files.every((f) => f.alt === 'Ghost 17'), out[0].files);
 
 console.log('\nA colorway with no photos attaches nothing, rather than a 404 URL');

@@ -29,8 +29,9 @@
 // 4000px master, the resizer just upscales the 2048 and hands back a soft
 // 912 KB file.
 //
-// THE SIX ANGLES, in gallery order, confirmed by eye:
-//   a  three quarter hero      l  lateral profile     m  medial profile
+// THE SIX ANGLES, confirmed by eye. Gallery order leads with the lateral
+// profile, matching BROOKS_ANGLES in product-enrichment.js:
+//   l  lateral profile         a  three quarter        m  medial profile
 //   h  heel                    o  top down            s  outsole
 // 283 of the 306 colourways in the catalogue carry all six, every one of the
 // 306 carries at least the hero, and no colourway has a seventh angle (b to z
@@ -73,8 +74,8 @@ const CATALOG_TOKEN = 'rh-cat-9b327c9736d5d17e2794c2c3df934b36';
 
 // Gallery order. Rank is baked in zero padded so the folder sorts correctly.
 const VIEWS = [
-  { suffix: 'a', rank: 1, word: 'angle' },
-  { suffix: 'l', rank: 2, word: 'lateral' },
+  { suffix: 'l', rank: 1, word: 'lateral' },
+  { suffix: 'a', rank: 2, word: 'angle' },
   { suffix: 'm', rank: 3, word: 'medial' },
   { suffix: 'h', rank: 4, word: 'heel' },
   { suffix: 'o', rank: 5, word: 'top' },

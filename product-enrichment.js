@@ -821,9 +821,12 @@ var ProductEnrichment = {
     // `access-control-allow-origin: *`, so the browser may ask directly and this
     // needs no Worker route.
     BROOKS_IMAGE_HOST: 'https://epicurobrooksimages.epicurosaas.com/images/products',
+    // LATERAL LEADS, so the flat side profile becomes the featured image and the
+    // three quarter "angle" shot sits second. Both face right; this is house
+    // style, matching the shape the rest of the catalogue leads with.
     BROOKS_ANGLES: [
-        { suffix: 'a', rank: 1, word: 'angle' },
-        { suffix: 'l', rank: 2, word: 'lateral' },
+        { suffix: 'l', rank: 1, word: 'lateral' },
+        { suffix: 'a', rank: 2, word: 'angle' },
         { suffix: 'm', rank: 3, word: 'medial' },
         { suffix: 'h', rank: 4, word: 'heel' },
         { suffix: 'o', rank: 5, word: 'top' },
