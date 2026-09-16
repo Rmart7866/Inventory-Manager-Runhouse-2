@@ -56,7 +56,7 @@ node test/newbalance-images.mjs               # NB photo join: colorway key, gal
 node test/newbalance-create.mjs               # NB new-product CSV feeds Stage 4
 node test/auto-tag-queue.mjs                  # post-create auto tagging stays add-only
 node test/merrell.mjs                         # merrell converter: picker, CSV
-node test/brooks-images.mjs                   # Brooks photo key + URL attach, no staging
+node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
@@ -178,16 +178,35 @@ change, change it in Color Swatch and re-copy, then run `npm run parity`.
 5. New products go through the enrichment modal, which can download a CSV or
    create drafts directly with metafields and photos.
 
-**Brooks photos need no folder.** Every other brand attaches images from a
-gallery folder a human picks. Brooks publishes its dealer photography
-unauthenticated at a URL derived from the SKU, so Stage 4 looks it up when the
-create dialog opens and hands Shopify the URL, which Shopify fetches itself. No
-download, no staged upload. Two details are load bearing: the URL must carry NO
-query string (any parameter routes it through the CDN's resizer and shrinks the
-2048px master to about 166 KB), and each angle must be HEAD checked first,
-because about a quarter of the angle slots in the Brooks back catalogue were
-never shot and a 404 handed to Shopify leaves FAILED media on the draft.
+**Three brands need no photo folder.** Brooks, New Balance and ASICS publish
+their dealer photography unauthenticated at a URL derived from the code already
+in the SKU, so Stage 4 looks it up when the create dialog opens and hands
+Shopify the URL, which Shopify fetches itself. No download, no staged upload.
+`REMOTE_IMAGE_SOURCES` in `product-enrichment.js` holds one entry per brand.
+
+Three details are load bearing. The Brooks URL must carry NO query string (any
+parameter routes it through the CDN's resizer and shrinks the 2048px master to
+about 166 KB). Every view must be HEAD checked first, because coverage is
+partial on all three and a URL that is not there leaves FAILED media on the
+draft. And the check is only trustworthy because all three hosts answer
+honestly when an image is missing, Brooks with a 404 and Scene7 with a 403,
+rather than serving a placeholder; re-verify that before adding a fourth brand.
+
+Measured coverage 2026-09-16, against colorways actually carried: Brooks
+306/306 with 6 views, New Balance 52/80 sampled with 6 views, ASICS 23/80
+sampled with 3 views.
+
+**A folder pools with the CDN, per colorway, and the folder wins.** Since
+coverage is partial, a folder is still useful: `_rebuildImageIndex` keeps the
+two halves separate (`_imageIndexFolder`, `_imageIndexRemote`) and a colorway
+the folder covers uses the folder's gallery ENTIRELY, while one it does not
+falls back to the CDN. Do not merge the two within a colorway: the same view
+would arrive twice under two filenames, and a duplicate photo on a live listing
+is worse than a missing one.
+
 `tools/fetch-brooks-images.mjs` is the same logic offline, for an archive.
+`tools/attach-brooks-images.mjs` repairs products that were created bare, and
+`tools/reorder-brooks-media.mjs` fixes which shot leads.
 
 ### Detection subtleties worth knowing before you touch `compare()`
 

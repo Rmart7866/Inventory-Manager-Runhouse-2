@@ -1,4 +1,4 @@
-// brooks-images.mjs, The Run House.
+// supplier-images.mjs, The Run House.
 //
 // Brooks is the only brand whose photos are attached by URL rather than
 // uploaded, and the only one whose image key is COMPOSED from two separated
@@ -9,7 +9,7 @@
 // looking code that resolves to SOME OTHER SHOE's photography, and it would be
 // attached to a real product without anyone downloading a file to eyeball.
 //
-// Run: node test/brooks-images.mjs
+// Run: node test/supplier-images.mjs
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 
@@ -51,40 +51,74 @@ for (const junk of ['', 'NOT-A-SKU', 'J066641', 'M1080V15_RU', '1234-567-8-D']) 
 }
 
 console.log('\nThe CDN URL carries NO query string, or the resizer shrinks the master');
-const url = PE._brooksUrl('110442048', 'a');
-eq('exact URL', url, 'https://epicurobrooksimages.epicurosaas.com/images/products/brooks__110442048__a.jpg');
+const BR = PE.remoteSourceFor('brooks');
+const url = BR.urlFor('110442048', { id: 'l' });
+eq('exact URL', url, 'https://epicurobrooksimages.epicurosaas.com/images/products/brooks__110442048__l.jpg');
 yes('no query string', url.indexOf('?') === -1, url);
-yes('the thumbnail rendition DOES resize, that is its job', PE._brooksThumbUrl(url).includes('maxWidth=200'));
+yes('the thumbnail rendition DOES resize, that is its job', BR.thumbFor(url).includes('maxWidth=200'));
 
 console.log('\nSix angles, in gallery order, LATERAL first');
-eq('six', PE.BROOKS_ANGLES.length, 6);
-eq('suffixes, lateral first', PE.BROOKS_ANGLES.map((a) => a.suffix).join(''), 'lamhos');
-eq('ranks are 1..6 in order', PE.BROOKS_ANGLES.map((a) => a.rank).join(''), '123456');
-const names = PE.BROOKS_ANGLES.map((a) => '110442048_' + String(a.rank).padStart(2, '0') + '_' + a.word + '.jpg');
-yes('_angleRank reads the fetcher filenames back in the same order',
+eq('six', BR.views.length, 6);
+eq('ids, lateral first', BR.views.map((v) => v.id).join(''), 'lamhos');
+const names = BR.views.map((v, i) => PE._remoteName('110442048', v, i));
+eq('names are the "<key>_NN_word" shape the folder tools write', names[0], '110442048_01_lateral.jpg');
+yes('_angleRank reads them back in order',
     names.map((n) => PE._angleRank(n)).join(',') === '1,2,3,4,5,6',
     names.map((n) => [n, PE._angleRank(n)]));
 
+console.log('\nThe other two CDN brands build the URL their host expects');
+const NB = PE.remoteSourceFor('newbalance');
+eq('New Balance lowercases the colorway', NB.urlFor('W880C15', { id: '02' }),
+   'https://nb.scene7.com/is/image/NB/w880c15_nb_02_i');
+eq('and leads with the lateral', NB.views[0].word, 'lateral');
+const AS = PE.remoteSourceFor('asics');
+eq('ASICS turns the hyphen into an underscore', AS.urlFor('1012B272-002', { id: 'SR_RT_GLB' }),
+   'https://images.asics.com/is/image/asics/1012B272_002_SR_RT_GLB');
+eq('a brand with no CDN has no source', PE.remoteSourceFor('hoka'), null);
+
 console.log('\nA remote image is attached by URL and never staged');
 PE._imageBrand = 'brooks';
-PE._imageIndex = { '110442048': [
-  { name: '110442048_01_lateral.jpg', url: PE._brooksUrl('110442048', 'l'), remote: true },
-  { name: '110442048_02_angle.jpg', url: PE._brooksUrl('110442048', 'a'), remote: true },
+PE._imageIndexFolder = null;
+PE._imageIndexRemote = { '110442048': [
+  { name: '110442048_01_lateral.jpg', url: BR.urlFor('110442048', { id: 'l' }), remote: true },
+  { name: '110442048_02_angle.jpg', url: BR.urlFor('110442048', { id: 'a' }), remote: true },
 ] };
+PE._rebuildImageIndex();
 let staged = false;
 sandbox.CatalogClient = { stagedUploads: () => { staged = true; return Promise.resolve({ __status: 200, targets: [] }); } };
 const spec = { title: 'Ghost 17', handle: 'ghost-17', variants: [{ sku: '110442865-048-750-D' }] };
 const out = await PE._attachImages([spec]);
 yes('stagedUploads was NOT called', !staged);
 eq('two files attached', (out[0].files || []).length, 2);
-eq('featured image is the LATERAL', out[0].files[0].originalSource, PE._brooksUrl('110442048', 'l'));
-eq('second is the angle shot', out[0].files[1].originalSource, PE._brooksUrl('110442048', 'a'));
+eq('featured image is the LATERAL', out[0].files[0].originalSource, BR.urlFor('110442048', { id: 'l' }));
+eq('second is the angle shot', out[0].files[1].originalSource, BR.urlFor('110442048', { id: 'a' }));
 yes('alt text is the product title', out[0].files.every((f) => f.alt === 'Ghost 17'), out[0].files);
 
 console.log('\nA colorway with no photos attaches nothing, rather than a 404 URL');
 const bare = { title: 'X', variants: [{ sku: '999999999-999-750-D' }] };
 const out2 = await PE._attachImages([bare]);
 eq('no files', (out2[0].files || []).length, 0);
+
+console.log('\nPOOLING: a folder fills the colorways the CDN has no photos for');
+const remoteTwo = { name: 'AAA111222_01_lateral.jpg', url: 'https://x/a.jpg', remote: true, brand: 'brooks' };
+const folderOne = { name: 'BBB333444_01_lateral.jpg' };
+PE._imageIndexRemote = { AAA111222: [remoteTwo], SHARED999: [{ name: 'SHARED999_01_lateral.jpg', url: 'https://x/s.jpg', remote: true }] };
+PE._imageIndexFolder = { BBB333444: [folderOne], SHARED999: [{ name: 'SHARED999_01_folder.jpg' }] };
+const pooled = PE._rebuildImageIndex();
+eq('all three colorways are covered', Object.keys(pooled).sort().join(','), 'AAA111222,BBB333444,SHARED999');
+yes('a CDN-only colorway keeps the CDN gallery', pooled.AAA111222[0].remote === true);
+yes('a folder-only colorway keeps the folder gallery', pooled.BBB333444[0].remote === undefined);
+yes('where BOTH have the colorway the FOLDER wins, whole', pooled.SHARED999.every((f) => !f.remote), pooled.SHARED999);
+eq('and it is not merged, so no view arrives twice', pooled.SHARED999.length, 1);
+const counts = PE.imageSourceCounts();
+eq('counts: from the CDN', counts.remote, 1);
+eq('counts: from the folder', counts.folder, 2);
+
+console.log('\nSwitching brand drops BOTH halves, or a stale folder outlives its brand');
+PE._imageBrand = 'brooks';
+PE._resetImagesForBrand('hoka');
+yes('folder cleared', !PE._imageIndexFolder);
+yes('remote cleared', !PE._imageIndexRemote);
 
 console.log(failures ? '\n' + failures + ' FAILED\n' : '\nAll passed\n');
 process.exit(failures ? 1 : 0);
