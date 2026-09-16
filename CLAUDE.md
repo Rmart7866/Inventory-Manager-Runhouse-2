@@ -56,6 +56,7 @@ node test/newbalance-images.mjs               # NB photo join: colorway key, gal
 node test/newbalance-create.mjs               # NB new-product CSV feeds Stage 4
 node test/auto-tag-queue.mjs                  # post-create auto tagging stays add-only
 node test/merrell.mjs                         # merrell converter: picker, CSV
+node test/brooks-images.mjs                   # Brooks photo key + URL attach, no staging
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
@@ -68,6 +69,10 @@ node tools/clear-bogus-specs.mjs              # specs.* written from a blank reg
 
 # New Balance photos: Widen TIFs to a Stage 4 gallery folder (macOS sips)
 node tools/convert-nb-images.mjs
+
+# Brooks photos: Stage 4 pulls these from the supplier CDN by itself, so this
+# is only for building a local archive or feeding another tool.
+node tools/fetch-brooks-images.mjs --dry-run
 ```
 
 To point the local UI at the local Worker, in the browser console:
@@ -172,6 +177,17 @@ change, change it in Color Swatch and re-copy, then run `npm run parity`.
    "Clear all in Shopify" (dry run, confirm, zero only).
 5. New products go through the enrichment modal, which can download a CSV or
    create drafts directly with metafields and photos.
+
+**Brooks photos need no folder.** Every other brand attaches images from a
+gallery folder a human picks. Brooks publishes its dealer photography
+unauthenticated at a URL derived from the SKU, so Stage 4 looks it up when the
+create dialog opens and hands Shopify the URL, which Shopify fetches itself. No
+download, no staged upload. Two details are load bearing: the URL must carry NO
+query string (any parameter routes it through the CDN's resizer and shrinks the
+2048px master to about 166 KB), and each angle must be HEAD checked first,
+because about a quarter of the angle slots in the Brooks back catalogue were
+never shot and a 404 handed to Shopify leaves FAILED media on the draft.
+`tools/fetch-brooks-images.mjs` is the same logic offline, for an archive.
 
 ### Detection subtleties worth knowing before you touch `compare()`
 

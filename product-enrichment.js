@@ -742,13 +742,34 @@ var ProductEnrichment = {
         // thing keeping the join honest is that _imageKeyOf reads the variant
         // SKU and nothing else. Never point it at Style Number: it would match,
         // return a plausible key, and quietly attach zero photos to everything.
-        newbalance: /^[MWU][A-Z0-9]{4,7}(?=[_\s]|$)/
+        newbalance: /^[MWU][A-Z0-9]{4,7}(?=[_\s]|$)/,
+        // Brooks is the one brand whose image key is NOT a substring of the SKU,
+        // so it is a function rather than a RegExp. The SKU is
+        // "110442865-048-750-D": style "110442", then a three digit token that
+        // is NOT the colour and varies within a style, then the colour "048".
+        // The code Brooks names its photos by is those two joined, "110442048",
+        // and no plain regex can lift a composition of two separated groups.
+        //
+        // The same function also has to read the key back off a FILENAME, since
+        // indexImageFolder runs both sides through here, hence the second form.
+        // tools/fetch-brooks-images.mjs writes "110442048_02_lateral.jpg", so
+        // the nine digits are anchored at the start and the "_02_" that follows
+        // can never be mistaken for the code.
+        brooks: function (s) {
+            var m = /^(\d{6})\d{3}-(\d{3})-/.exec(s);
+            if (m) return m[1] + m[2];
+            var f = /(?:^|[^0-9])(\d{9})(?:[^0-9]|$)/.exec(s);
+            return f ? f[1] : '';
+        }
     },
 
     _imageKeyIn: function (brand, str) {
         var re = this._imageKeyPatterns[brand];
         if (!re) return '';
-        var m = re.exec(String(str || '').toUpperCase());
+        var s = String(str || '').toUpperCase();
+        // A brand whose key is composed rather than matched supplies a function.
+        if (typeof re === 'function') return re.call(this, s) || '';
+        var m = re.exec(s);
         return m ? m[0] : '';
     },
 
@@ -780,6 +801,97 @@ var ProductEnrichment = {
         this._imageIndex = idx;
         this._imageBrand = brand;
         return idx;
+    },
+
+    // ===== BROOKS: photos straight off the supplier CDN, no folder at all =====
+    //
+    // Brooks publishes its dealer photography unauthenticated at a URL derived
+    // entirely from the SKU, so it is the one brand that needs no gallery folder:
+    // _imageKeyIn already turns "110442865-048-750-D" into "110442048", and the
+    // six angles hang off that code.
+    //
+    // THE BROWSER DOWNLOADS NOTHING. Shopify fetches each URL itself, verified
+    // against the live API: fileCreate with an external originalSource reaches
+    // READY at the full 2048px. So a create costs six HEAD requests per colorway
+    // instead of six multi-megabyte uploads, and staff pick no folder.
+    //
+    // THE HEADs ARE NOT PARANOIA. 3,115 of the 13,146 angle slots in the Brooks
+    // back catalogue were never shot, and handing Shopify a 404 as originalSource
+    // leaves FAILED media sitting on the draft. The CDN sends
+    // `access-control-allow-origin: *`, so the browser may ask directly and this
+    // needs no Worker route.
+    BROOKS_IMAGE_HOST: 'https://epicurobrooksimages.epicurosaas.com/images/products',
+    BROOKS_ANGLES: [
+        { suffix: 'a', rank: 1, word: 'angle' },
+        { suffix: 'l', rank: 2, word: 'lateral' },
+        { suffix: 'm', rank: 3, word: 'medial' },
+        { suffix: 'h', rank: 4, word: 'heel' },
+        { suffix: 'o', rank: 5, word: 'top' },
+        { suffix: 's', rank: 6, word: 'sole' }
+    ],
+
+    _brooksUrl: function (code, suffix) {
+        // NO QUERY STRING. Any parameter at all routes the request through the
+        // CDN's resizer, which re-encodes the 2048px original down to about
+        // 166 KB. The bare URL is the untouched master, and it is what Shopify
+        // should be given.
+        return this.BROOKS_IMAGE_HOST + '/brooks__' + code + '__' + suffix + '.jpg';
+    },
+
+    // A small rendition for the dialog's thumbnails only. Here the resizer is
+    // exactly what we want: 200px instead of pulling a 1.3 MB master per row.
+    _brooksThumbUrl: function (url) {
+        return url + '?format=webp&mode=max&scale=both&maxWidth=200';
+    },
+
+    // Probe every angle of every colorway in `specs` and build the SAME
+    // _imageIndex shape indexImageFolder produces, so sorting, counts, the
+    // toggle and _attachImages all work unchanged.
+    loadBrooksImages: function (specs, onProgress) {
+        var self = this;
+        var codes = [], seen = {};
+        (specs || []).forEach(function (sp) {
+            var k = self._imageKeyIn('brooks', ((sp.variants || [])[0] || {}).sku || '');
+            if (k && !seen[k]) { seen[k] = 1; codes.push(k); }
+        });
+        var jobs = [];
+        codes.forEach(function (c) {
+            self.BROOKS_ANGLES.forEach(function (a) { jobs.push({ code: c, angle: a }); });
+        });
+        var idx = {}, done = 0, next = 0;
+        if (!jobs.length) { self._imageIndex = {}; self._imageBrand = 'brooks'; self._imageSource = 'brooks'; return Promise.resolve({}); }
+
+        function worker() {
+            var j = jobs[next++];
+            if (!j) return Promise.resolve();
+            var url = self._brooksUrl(j.code, j.angle.suffix);
+            return fetch(url, { method: 'HEAD' }).then(function (r) {
+                if (!r.ok) return;
+                (idx[j.code] = idx[j.code] || []).push({
+                    name: j.code + '_' + (j.angle.rank < 10 ? '0' : '') + j.angle.rank + '_' + j.angle.word + '.jpg',
+                    url: url,
+                    remote: true
+                });
+            }).catch(function () {
+                // A network blip costs one angle, never the whole run. The photo
+                // simply will not be attached, which is the safe direction.
+            }).then(function () {
+                done++;
+                if (onProgress) onProgress(done, jobs.length);
+                return worker();
+            });
+        }
+        var lanes = [];
+        for (var i = 0; i < Math.min(8, jobs.length); i++) lanes.push(worker());
+        return Promise.all(lanes).then(function () {
+            Object.keys(idx).forEach(function (c) {
+                idx[c].sort(function (a, b) { return self._angleRank(a.name) - self._angleRank(b.name); });
+            });
+            self._imageIndex = idx;
+            self._imageBrand = 'brooks';
+            self._imageSource = 'brooks';
+            return idx;
+        });
     },
 
     // Gallery order so the first image becomes the featured one:
@@ -874,6 +986,7 @@ var ProductEnrichment = {
         if (this._imageBrand && this._imageBrand !== brand) {
             this._imageIndex = null;
             this._imageBrand = null;
+            this._imageSource = null;
         }
     },
 
@@ -886,6 +999,24 @@ var ProductEnrichment = {
             self._imagesForSpec(s).forEach(function (f) { jobs.push({ si: si, file: f }); });
         });
         if (!jobs.length) return Promise.resolve(specs);
+
+        // A remote image needs no staging: Shopify fetches the supplier URL
+        // itself, so it is attached directly and never touches the browser or
+        // the staged-upload path. Only real local Files are staged.
+        var local = [];
+        jobs.forEach(function (j) {
+            if (j.file && j.file.remote) {
+                var sp = specs[j.si];
+                (sp.files = sp.files || []).push({ originalSource: j.file.url, alt: sp.title });
+            } else {
+                local.push(j);
+            }
+        });
+        var remoteDone = jobs.length - local.length;
+        if (onProgress && remoteDone) onProgress(remoteDone, jobs.length);
+        if (!local.length) return Promise.resolve(specs);
+        jobs = local;
+
         var req = jobs.map(function (j) { return { filename: j.file.name, mimeType: j.file.type || 'image/png', fileSize: j.file.size }; });
         return CatalogClient.stagedUploads(req).then(function (res) {
             if (res.__status !== 200) throw new Error((res.error || res.reason || ('staged uploads HTTP ' + res.__status)));
@@ -897,7 +1028,7 @@ var ProductEnrichment = {
                     return CatalogClient.uploadToTarget(targets[i], j.file).then(function (resourceUrl) {
                         var s = specs[j.si];
                         (s.files = s.files || []).push({ originalSource: resourceUrl, alt: s.title });
-                        done++; if (onProgress) onProgress(done, jobs.length);
+                        done++; if (onProgress) onProgress(remoteDone + done, remoteDone + jobs.length);
                     });
                 });
             }, Promise.resolve()).then(function () { return specs; });
@@ -946,6 +1077,12 @@ var ProductEnrichment = {
         var toggle = document.getElementById('s4-imgtoggle');
         toggle.checked = self._hasImages();
 
+        // Brooks photography is derivable from the SKU, so there is nothing for
+        // a human to choose: look it up the moment the dialog opens. Everything
+        // else still waits for a folder.
+        var isBrooks = brand === 'brooks';
+        var brooksBusy = '';
+
         function photoCount() { return specs.reduce(function (t, s) { return t + self._imagesForSpec(s).length; }, 0); }
 
         function render() {
@@ -954,13 +1091,27 @@ var ProductEnrichment = {
             document.getElementById('s4-title').textContent = 'Create ' + specs.length + ' product' + (specs.length !== 1 ? 's' : '') + ' in Shopify';
             var hint = document.getElementById('s4-hint');
             var vendor = (self.brandDefaults[brand] || {}).vendor || brand;
-            hint.innerHTML = self._hasImages()
-                ? '<b>' + photoCount() + '</b> photos matched from your ' + escapeHtmlEnrich(vendor) + ' folder'
-                : 'Pick your ' + escapeHtmlEnrich(vendor) + ' gallery folder to attach photos (optional)';
+            if (self._hasImages()) {
+                hint.innerHTML = self._imageSource === 'brooks'
+                    ? '<b>' + photoCount() + '</b> photos found on Brooks, attached straight from the supplier'
+                    : '<b>' + photoCount() + '</b> photos matched from your ' + escapeHtmlEnrich(vendor) + ' folder';
+            } else if (brooksBusy) {
+                hint.textContent = brooksBusy;
+            } else {
+                hint.innerHTML = isBrooks
+                    ? 'No Brooks photos found for these colorways. Pick a folder instead (optional).'
+                    : 'Pick your ' + escapeHtmlEnrich(vendor) + ' gallery folder to attach photos (optional)';
+            }
             // The button STAYS once a folder is chosen, it just changes label. It
             // used to hide itself, which left no way to correct a wrong folder.
             var fbtn = document.getElementById('s4-folder');
-            fbtn.textContent = self._hasImages() ? 'Change folder' : 'Choose folder';
+            // Brooks needs no folder, so the button is the escape hatch, not the
+            // main route. It stays visible either way: it used to hide itself
+            // once a folder was chosen, which left no way to correct a wrong one.
+            fbtn.textContent = isBrooks
+                ? (self._imageSource === 'brooks' ? 'Use a folder instead' : (self._hasImages() ? 'Change folder' : 'Choose folder'))
+                : (self._hasImages() ? 'Change folder' : 'Choose folder');
+            fbtn.disabled = !!brooksBusy;
             toggle.disabled = !self._hasImages();
 
             thumbUrls.forEach(function (u) { URL.revokeObjectURL(u); }); thumbUrls = [];
@@ -968,7 +1119,15 @@ var ProductEnrichment = {
             list.innerHTML = specs.map(function (s, idx) {
                 var imgs = on ? self._imagesForSpec(s) : [];
                 var thumb = '';
-                if (imgs.length) { var u = URL.createObjectURL(imgs[0]); thumbUrls.push(u); thumb = '<div class="s4-thumb"><img src="' + u + '" alt=""><span class="s4-cnt">' + imgs.length + '</span></div>'; }
+                if (imgs.length) {
+                    // A remote image is a URL, not a Blob, so there is no object
+                    // URL to make or revoke. Thumbnails ask the CDN resizer for
+                    // 200px rather than pulling a 1.3 MB master per row.
+                    var first = imgs[0], u;
+                    if (first.remote) { u = self._brooksThumbUrl(first.url); }
+                    else { u = URL.createObjectURL(first); thumbUrls.push(u); }
+                    thumb = '<div class="s4-thumb"><img src="' + u + '" alt="" loading="lazy"><span class="s4-cnt">' + imgs.length + '</span></div>';
+                }
                 var cw = (s.tags || []).filter(function (t) { return /^cw-group:/.test(t); })[0] || '';
                 var btn = createdHandles[s.handle]
                     ? '<button class="s4-item-create s4-item-created" disabled>✓ Created</button>'
@@ -1053,6 +1212,26 @@ var ProductEnrichment = {
         });
 
         render();
+
+
+        if (isBrooks && !self._hasImages()) {
+            brooksBusy = 'Checking Brooks for photos…';
+            render();
+            self.loadBrooksImages(specs, function (d, t) {
+                brooksBusy = 'Checking Brooks for photos… ' + d + ' / ' + t;
+                var h = document.getElementById('s4-hint');
+                if (h) h.textContent = brooksBusy;
+            }).then(function () {
+                brooksBusy = '';
+                toggle.checked = self._hasImages();
+                render();
+            }).catch(function () {
+                // Falling back to the folder picker is always available, so a
+                // failed lookup must not block the create.
+                brooksBusy = '';
+                render();
+            });
+        }
     },
 
     // Create in BATCHES so any number of products works: the Worker caps a single

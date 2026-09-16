@@ -97,3 +97,8 @@ deleted-drafts-*.json
 # from draft to live, which is the undo. Keep it on disk until the run is
 # confirmed good; it does not belong in a public repo.
 publish-drafts-rollback-*.json
+
+# Run artifacts from tools/set-color-attribute.mjs. The rollback file records the
+# prior shopify.color-pattern value per product, which is per-run undo state and
+# not something a public repo should carry.
+color-attribute-rollback-*.json
