@@ -71,6 +71,12 @@ const NB = PE.remoteSourceFor('newbalance');
 eq('New Balance lowercases the colorway', NB.urlFor('W880C15', { id: '02' }),
    'https://nb.scene7.com/is/image/NB/w880c15_nb_02_i');
 eq('and leads with the lateral', NB.views[0].word, 'lateral');
+const SA = PE.remoteSourceFor('saucony');
+eq('Saucony is our own key plus a view number', SA.urlFor('S101517-1001', { id: '1' }),
+   'https://thekit.wolverineworldwide.com/match/media_lookup/S101517-1001_1/');
+eq('and it leads with the lateral', SA.views[0].word, 'lateral');
+yes('Merrell shares that host but is NOT derivable, so it has no source',
+    PE.remoteSourceFor('merrell') === null);
 const AS = PE.remoteSourceFor('asics');
 eq('ASICS turns the hyphen into an underscore', AS.urlFor('1012B272-002', { id: 'SR_RT_GLB' }),
    'https://images.asics.com/is/image/asics/1012B272_002_SR_RT_GLB');

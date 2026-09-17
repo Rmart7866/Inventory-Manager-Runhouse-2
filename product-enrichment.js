@@ -883,6 +883,33 @@ var ProductEnrichment = {
             },
             thumbFor: function (url) { return url + '?wid=200'; }
         },
+        saucony: {
+            label: 'Saucony',
+            // Wolverine's DAM, and the path is simply our own image key plus a
+            // view number. Merrell sits on the SAME host and is NOT here,
+            // because its path carries a shoot date and season
+            // ("MRLW-J00005203-091625-F26-000") that appear nowhere in our
+            // data; the plain "<code>_1" form 404s for Merrell. Saucony got
+            // the derivable shape and Merrell did not.
+            //
+            // Measured 2026-09-17: 97 of 100 colorways carried images, 75 of
+            // them all six views. A bogus code returns 404, so the existence
+            // check is trustworthy.
+            views: [
+                { id: '1', word: 'lateral' }, { id: '2', word: 'quarter' },
+                { id: '3', word: 'medial' }, { id: '4', word: 'heel' },
+                { id: '5', word: 'top' }, { id: '6', word: 'sole' }
+            ],
+            urlFor: function (code, v) {
+                return 'https://thekit.wolverineworldwide.com/match/media_lookup/' + code + '_' + v.id + '/';
+            },
+            // NO RESIZER. Every query string was ignored and returned the same
+            // 302 KB original, so a dialog thumbnail is the full image. The
+            // gallery img carries loading="lazy" so only rows on screen pay
+            // for it, which is the only reason this is tolerable.
+            thumbFor: function (url) { return url; }
+        },
+
         asics: {
             label: 'ASICS',
             views: [
