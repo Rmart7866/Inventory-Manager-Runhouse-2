@@ -80,6 +80,13 @@ yes('Merrell shares that host but is NOT derivable, so it has no source',
 const AS = PE.remoteSourceFor('asics');
 eq('ASICS turns the hyphen into an underscore', AS.urlFor('1012B272-002', { id: 'SR_RT_GLB' }),
    'https://images.asics.com/is/image/asics/1012B272_002_SR_RT_GLB');
+const PU = PE.remoteSourceFor('puma');
+eq('Puma splits the eight digit key six and two', PU.urlFor('37690803', { id: 'sv03' }),
+   'https://images.puma.com/image/upload/f_auto,q_auto,b_rgb:ffffff,w_2000/global/376908/03/sv03/fnd/PNA/fmt/png');
+eq('the default view takes no sv segment', PU.urlFor('37690803', { id: '' }),
+   'https://images.puma.com/image/upload/f_auto,q_auto,b_rgb:ffffff,w_2000/global/376908/03/fnd/PNA/fmt/png');
+eq('and it leads with the right facing profile', PU.views[0].word, 'lateral');
+yes('the thumbnail asks Cloudinary for a small one', PU.thumbFor(PU.urlFor('37690803', { id: '' })).includes('w_200/'));
 eq('a brand with no CDN has no source', PE.remoteSourceFor('hoka'), null);
 
 console.log('\nA remote image is attached by URL and never staged');
@@ -126,14 +133,14 @@ PE._resetImagesForBrand('hoka');
 yes('folder cleared', !PE._imageIndexFolder);
 yes('remote cleared', !PE._imageIndexRemote);
 
-console.log('\nPuma is folder only, and its key survives every SKU shape');
+console.log('\nPuma: the key survives every SKU shape, and it DOES pull');
 eq('bare SKU', PE._imageKeyIn('puma', '37690803'), '37690803');
 eq('SKU with a size on the end', PE._imageKeyIn('puma', '52111301001'), '52111301');
 eq('and the same off a filename', PE._imageKeyIn('puma', '37690803_1.JPG'), '37690803');
 eq('sized SKU as a filename', PE._imageKeyIn('puma', '52111301001_2.JPG'), '52111301');
 eq('a short number is not a key', PE._imageKeyIn('puma', '1234567'), '');
-yes('Puma has NO CDN source: a miss there returns 200 with a placeholder, '
-    + 'so an existence check cannot be trusted', PE.remoteSourceFor('puma') === null);
+yes('Puma DOES have a CDN source. An earlier pass ruled it out on a single '
+    + 'bogus code that turned out to be a real asset', PE.remoteSourceFor('puma') !== null);
 
 console.log('\nEvery brand the tool carries can match a folder');
 for (const b of ['on', 'asics', 'hoka', 'saucony', 'merrell', 'newbalance', 'brooks', 'puma']) {

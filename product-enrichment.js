@@ -743,34 +743,15 @@ var ProductEnrichment = {
         // SKU and nothing else. Never point it at Style Number: it would match,
         // return a plausible key, and quietly attach zero photos to everything.
         newbalance: /^[MWU][A-Z0-9]{4,7}(?=[_\s]|$)/,
-        // Brooks is the one brand whose image key is NOT a substring of the SKU,
-        // so it is a function rather than a RegExp. The SKU is
-        // "110442865-048-750-D": style "110442", then a three digit token that
-        // is NOT the colour and varies within a style, then the colour "048".
-        // The code Brooks names its photos by is those two joined, "110442048",
-        // and no plain regex can lift a composition of two separated groups.
-        //
-        // The same function also has to read the key back off a FILENAME, since
-        // indexImageFolder runs both sides through here, hence the second form.
-        // tools/fetch-brooks-images.mjs writes "110442048_02_lateral.jpg", so
-        // the nine digits are anchored at the start and the "_02_" that follows
-        // can never be mistaken for the code.
         // Puma style numbers are six digits of style plus two of colour, and
         // that pair is the leading token of every Puma SKU we carry, whether
         // the SKU is the bare eight ("37690803") or carries a size on the end
-        // ("52111301001"). Anchored, so the size can never be mistaken for it.
+        // ("52111301001").
         //
-        // FOLDER ONLY, deliberately. Puma publishes these images on Cloudinary
-        // at a URL this same code would build, but a MISSING image there comes
-        // back as HTTP 200 with a placeholder: two different bogus codes
-        // returned the identical 20,030 byte file. Brooks answers a miss with
-        // 404 and Scene7 with 403, which is the only reason an automatic
-        // existence check can be trusted, so Puma is not in
-        // REMOTE_IMAGE_SOURCES and should not be added without a content check.
-        // The lookahead has to accept all four shapes this key appears in:
-        // the bare SKU "37690803", the sized SKU "52111301001", and either of
-        // those as a filename, "37690803_1.jpg". Anchored at the start so a
-        // size can never be read as the code.
+        // The lookahead has to accept all four shapes this key appears in: the
+        // bare SKU, the sized SKU, and either of those as a filename,
+        // "37690803_1.jpg". Anchored at the start so a size can never be read
+        // as the code.
         puma: /^\d{8}(?=\D|$|\d{3}(?:\D|$))/,
 
         brooks: function (s) {
@@ -908,6 +889,48 @@ var ProductEnrichment = {
             // gallery img carries loading="lazy" so only rows on screen pay
             // for it, which is the only reason this is tolerable.
             thumbFor: function (url) { return url; }
+        },
+
+        puma: {
+            label: 'Puma',
+            // Cloudinary, keyed on the style and colour the SKU already
+            // carries. The eight digit key splits six and two, so "37690803"
+            // becomes "376908/03".
+            //
+            // THIS WAS WRONGLY RULED OUT ONCE, and the reason is worth keeping.
+            // An earlier pass concluded a miss returns 200 with a placeholder
+            // and left Puma folder only. That was tested with GET against a
+            // single bogus code, "999999/99", which turns out to be a REAL
+            // asset in Puma's library: a stock photo of a beach at sunset.
+            // Every other bogus code answers 404 or 400 and sets an
+            // x-cld-error header, so the existence check is as trustworthy
+            // here as on the other hosts. Test more than one bogus code before
+            // trusting a verdict like that.
+            //
+            // Measured 2026-09-17: 13 of the 15 codes carried have images.
+            // Footwear carries all five views, apparel usually only the first.
+            views: [
+                { id: 'sv03', word: 'lateral' },
+                { id: '', word: 'angle' },
+                { id: 'sv01', word: 'medial' },
+                { id: 'sv04', word: 'top' },
+                { id: 'sv02', word: 'sole' }
+            ],
+            // sv03 leads because it is the RIGHT FACING profile, measured
+            // across every footwear code carried rather than eyeballed. The
+            // eye called it the other way round, as it did on New Balance and
+            // Saucony.
+            //
+            // b_rgb:ffffff flattens Puma's transparent PNGs onto white, which
+            // is what the rest of the catalogue looks like.
+            urlFor: function (code, v) {
+                var c = String(code);
+                var path = c.slice(0, 6) + '/' + c.slice(6, 8) + (v.id ? '/' + v.id : '');
+                return 'https://images.puma.com/image/upload/f_auto,q_auto,b_rgb:ffffff,w_2000/global/' + path + '/fnd/PNA/fmt/png';
+            },
+            // A real Cloudinary transform, not a resizer being abused, so a
+            // small rendition for the dialog costs nothing.
+            thumbFor: function (url) { return url.replace('w_2000', 'w_200'); }
         },
 
         asics: {

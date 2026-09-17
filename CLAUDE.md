@@ -194,12 +194,17 @@ rather than serving a placeholder; re-verify that before adding a fourth brand.
 
 Measured coverage against colorways actually carried: Brooks 306/306 with 6
 views, Saucony 97/100 sampled with 6 views, New Balance 52/80 sampled with 6
-views, ASICS 23/80 sampled with 3 views.
+views, Puma 13/15 with 5 views on footwear and usually 1 on apparel, ASICS
+23/80 sampled with 3 views.
 
-**Why the remaining brands are folder only**, so nobody re-treads it. Puma's
-images ARE derivable (Cloudinary, style+colour), but a miss returns HTTP 200
-with a placeholder, two bogus codes gave the identical 20,030 byte file, so an
-existence check cannot be trusted. Merrell sits on the same Wolverine DAM as
+**Test more than one bogus code before declaring a host dishonest.** Puma was
+ruled out once on the strength of a single probe, "999999/99", which returns
+200 because it is a real asset in Puma's library, a stock photo of a beach.
+Every other absent code answers 404 with an x-cld-error header. One probe cost
+a whole brand until it was rechecked.
+
+**Why the remaining brands are folder only**, so nobody re-treads it. Merrell
+sits on the same Wolverine DAM as
 Saucony, but its path carries a shoot date and season
 ("MRLW-J00005203-091625-F26-000") that appear nowhere in our data, and the
 plain "<code>_1" form that works for Saucony 404s for Merrell, so Merrell can
