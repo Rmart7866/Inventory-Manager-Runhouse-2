@@ -196,6 +196,16 @@ Measured coverage 2026-09-16, against colorways actually carried: Brooks
 306/306 with 6 views, New Balance 52/80 sampled with 6 views, ASICS 23/80
 sampled with 3 views.
 
+**Why the other brands are folder only**, so nobody re-treads it: Puma's images
+ARE derivable (Cloudinary, style+colour), but a miss returns HTTP 200 with a
+placeholder, two bogus codes gave the identical 20,030 byte file, so an
+existence check cannot be trusted. Merrell and Saucony sit on Wolverine's DAM
+at thekit.wolverineworldwide.com, whose URL needs a shoot date and season
+("MRLW-J00005203-091625-F26-000") that appear nowhere in our data, so they can
+only be harvested per product, not constructed. ON serves product imagery from
+Contentful, whose asset ids are opaque. Hoka was not resolved: hoka.com blocks
+scripted requests and geo-redirects.
+
 **A folder pools with the CDN, per colorway, and the folder wins.** Since
 coverage is partial, a folder is still useful: `_rebuildImageIndex` keeps the
 two halves separate (`_imageIndexFolder`, `_imageIndexRemote`) and a colorway

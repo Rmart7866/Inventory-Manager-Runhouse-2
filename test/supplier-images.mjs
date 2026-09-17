@@ -120,5 +120,19 @@ PE._resetImagesForBrand('hoka');
 yes('folder cleared', !PE._imageIndexFolder);
 yes('remote cleared', !PE._imageIndexRemote);
 
+console.log('\nPuma is folder only, and its key survives every SKU shape');
+eq('bare SKU', PE._imageKeyIn('puma', '37690803'), '37690803');
+eq('SKU with a size on the end', PE._imageKeyIn('puma', '52111301001'), '52111301');
+eq('and the same off a filename', PE._imageKeyIn('puma', '37690803_1.JPG'), '37690803');
+eq('sized SKU as a filename', PE._imageKeyIn('puma', '52111301001_2.JPG'), '52111301');
+eq('a short number is not a key', PE._imageKeyIn('puma', '1234567'), '');
+yes('Puma has NO CDN source: a miss there returns 200 with a placeholder, '
+    + 'so an existence check cannot be trusted', PE.remoteSourceFor('puma') === null);
+
+console.log('\nEvery brand the tool carries can match a folder');
+for (const b of ['on', 'asics', 'hoka', 'saucony', 'merrell', 'newbalance', 'brooks', 'puma']) {
+  yes(b + ' has a folder key', !!PE._imageKeyPatterns[b]);
+}
+
 console.log(failures ? '\n' + failures + ' FAILED\n' : '\nAll passed\n');
 process.exit(failures ? 1 : 0);

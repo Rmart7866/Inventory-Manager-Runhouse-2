@@ -755,6 +755,24 @@ var ProductEnrichment = {
         // tools/fetch-brooks-images.mjs writes "110442048_02_lateral.jpg", so
         // the nine digits are anchored at the start and the "_02_" that follows
         // can never be mistaken for the code.
+        // Puma style numbers are six digits of style plus two of colour, and
+        // that pair is the leading token of every Puma SKU we carry, whether
+        // the SKU is the bare eight ("37690803") or carries a size on the end
+        // ("52111301001"). Anchored, so the size can never be mistaken for it.
+        //
+        // FOLDER ONLY, deliberately. Puma publishes these images on Cloudinary
+        // at a URL this same code would build, but a MISSING image there comes
+        // back as HTTP 200 with a placeholder: two different bogus codes
+        // returned the identical 20,030 byte file. Brooks answers a miss with
+        // 404 and Scene7 with 403, which is the only reason an automatic
+        // existence check can be trusted, so Puma is not in
+        // REMOTE_IMAGE_SOURCES and should not be added without a content check.
+        // The lookahead has to accept all four shapes this key appears in:
+        // the bare SKU "37690803", the sized SKU "52111301001", and either of
+        // those as a filename, "37690803_1.jpg". Anchored at the start so a
+        // size can never be read as the code.
+        puma: /^\d{8}(?=\D|$|\d{3}(?:\D|$))/,
+
         brooks: function (s) {
             var m = /^(\d{6})\d{3}-(\d{3})-/.exec(s);
             if (m) return m[1] + m[2];
