@@ -197,6 +197,12 @@ views, Saucony 97/100 sampled with 6 views, New Balance 52/80 sampled with 6
 views, Puma 13/15 with 5 views on footwear and usually 1 on apparel, ASICS
 23/80 sampled with 3 views.
 
+**Check the SIZE the host returns by default, per brand.** ASICS and New
+Balance are both on Scene7 and behave differently: New Balance's preset serves
+2400px for a bare request, the ASICS preset serves 320x159. The ASICS URL
+therefore carries `?scl=1`, scale factor 1, for the native asset. Without it the
+pull attached visibly blurry photos to 21 real products before anyone noticed.
+
 **Test more than one bogus code before declaring a host dishonest.** Puma was
 ruled out once on the strength of a single probe, "999999/99", which returns
 200 because it is a real asset in Puma's library, a stock photo of a beach.

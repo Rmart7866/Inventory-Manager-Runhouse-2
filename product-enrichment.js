@@ -941,10 +941,20 @@ var ProductEnrichment = {
                 { id: 'SR_LT_GLB', word: 'medial' }
             ],
             // The image key carries a hyphen, Scene7 wants an underscore.
+            // scl=1 IS NOT OPTIONAL. Ask Scene7 for this image with no
+            // parameters and it hands back its DEFAULT rendition, which on the
+            // ASICS preset is 320x159. That is what shipped first, and it put
+            // visibly blurry photos on real products: big enough to look like
+            // an image, far too small to be one. scl=1 means scale factor 1,
+            // the native asset, about 3000x1500 and 2 MB.
+            //
+            // New Balance sits on Scene7 too and does NOT need this, because
+            // its preset defaults to 2400px. Same platform, different preset,
+            // so the size has to be checked per brand rather than assumed.
             urlFor: function (code, v) {
-                return 'https://images.asics.com/is/image/asics/' + String(code).replace(/-/g, '_') + '_' + v.id;
+                return 'https://images.asics.com/is/image/asics/' + String(code).replace(/-/g, '_') + '_' + v.id + '?scl=1';
             },
-            thumbFor: function (url) { return url + '?$zoom$&wid=200'; }
+            thumbFor: function (url) { return url.replace('?scl=1', '?wid=200'); }
         }
     },
 

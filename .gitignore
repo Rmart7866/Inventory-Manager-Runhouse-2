@@ -107,3 +107,7 @@ color-attribute-rollback-*.json
 # to a product, which is the undo (productDeleteMedia). Per-run state, and it
 # does not belong in a public repo.
 brooks-media-rollback-*.json
+
+# Run artifacts from tools/refresh-asics-media.mjs. Lists the media ids added
+# and deleted per product, which is the record of that repair. Per-run state.
+asics-media-refresh-*.json

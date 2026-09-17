@@ -79,7 +79,13 @@ yes('Merrell shares that host but is NOT derivable, so it has no source',
     PE.remoteSourceFor('merrell') === null);
 const AS = PE.remoteSourceFor('asics');
 eq('ASICS turns the hyphen into an underscore', AS.urlFor('1012B272-002', { id: 'SR_RT_GLB' }),
-   'https://images.asics.com/is/image/asics/1012B272_002_SR_RT_GLB');
+   'https://images.asics.com/is/image/asics/1012B272_002_SR_RT_GLB?scl=1');
+yes('and ASKS FOR THE NATIVE SIZE. Without scl=1 Scene7 serves its 320px '
+    + 'default and the product gets a blurry photo', AS.urlFor('1012B272-002', { id: 'SR_RT_GLB' }).endsWith('?scl=1'));
+yes('the thumbnail swaps that for a width, not appends to it',
+    AS.thumbFor(AS.urlFor('1012B272-002', { id: 'SR_RT_GLB' })).endsWith('?wid=200'));
+yes('New Balance needs no such parameter, its preset defaults to 2400px',
+    NB.urlFor('W880C15', { id: '02' }).indexOf('?') === -1);
 const PU = PE.remoteSourceFor('puma');
 eq('Puma splits the eight digit key six and two', PU.urlFor('37690803', { id: 'sv03' }),
    'https://images.puma.com/image/upload/f_auto,q_auto,b_rgb:ffffff,w_2000/global/376908/03/sv03/fnd/PNA/fmt/png');
