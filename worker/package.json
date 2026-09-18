@@ -17,8 +17,9 @@
     "test:activate": "node test/inventory-activate.mjs",
     "test:bulk": "node test/bulk-fields.mjs",
     "test:width": "node test/width-class.mjs",
+    "test:brands": "node test/brand-registry.mjs",
     "test:weight": "node test/create-weight.mjs",
-    "test": "node test/auth.mjs && node test/needham.mjs && node test/known-set.mjs && node test/apparel-catalog.mjs && node test/meta.mjs && node test/inventory-activate.mjs && node test/bulk-fields.mjs && node test/width-class.mjs && node test/create-weight.mjs && node test/parity.mjs"
+    "test": "node test/auth.mjs && node test/needham.mjs && node test/known-set.mjs && node test/apparel-catalog.mjs && node test/meta.mjs && node test/inventory-activate.mjs && node test/bulk-fields.mjs && node test/width-class.mjs && node test/brand-registry.mjs && node test/create-weight.mjs && node test/parity.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.61.1"
