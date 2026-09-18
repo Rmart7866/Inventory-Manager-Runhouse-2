@@ -111,3 +111,7 @@ brooks-media-rollback-*.json
 # Run artifacts from tools/refresh-asics-media.mjs. Lists the media ids added
 # and deleted per product, which is the record of that repair. Per-run state.
 asics-media-refresh-*.json
+
+# Run artifacts from tools/set-shoe-category.mjs. Holds each product's prior
+# category, which is the undo. Per-run state, not for a public repo.
+shoe-category-rollback-*.json
