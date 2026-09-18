@@ -82,6 +82,26 @@ export async function createStagedUploads(client, files) {
 const SHOE_WEIGHT_LB = 2.0;
 const isFootwearType = (t) => /shoes$/i.test(String(t || '').trim());
 
+// PRODUCT CATEGORY, the Shopify taxonomy leaf for athletic footwear.
+//
+// WHY IT MATTERS MORE THAN IT LOOKS. Category is not decoration, three separate
+// systems read it:
+//   1. TAX. This is a Massachusetts store, and MA exempts footwear under $175.
+//      Shopify applies that from the product CATEGORY. With no category there
+//      is nothing for the rule to key on.
+//   2. CATEGORY METAFIELDS. The shopify.* namespace, 10,221 of them in this
+//      catalogue, including the shopify.color-pattern the storefront already
+//      uses. Those fields only become available once a category is set.
+//   3. The Google and Meta product feeds.
+//
+// Measured 2026-09-18: 980 shoes carry no category at all and every product
+// this route creates was one of them, so newly created shoes were being taxed
+// when the older ones were not.
+//
+// FOOTWEAR ONLY, same gate as the weight, because this route also creates ON
+// apparel and "Athletic Shoes" is plainly wrong on a sports bra.
+const ATHLETIC_SHOES_CATEGORY = 'gid://shopify/TaxonomyCategory/aa-8-1';
+
 export function buildProductSetInput(spec, needhamLocationId, locationIds) {
   const variantsIn = Array.isArray(spec.variants) ? spec.variants : [];
   const wantsWeight = isFootwearType(spec.productType);
@@ -139,6 +159,9 @@ export function buildProductSetInput(spec, needhamLocationId, locationIds) {
   if (spec.handle) input.handle = spec.handle;
   if (spec.vendor) input.vendor = spec.vendor;
   if (spec.productType) input.productType = spec.productType;
+  // A caller may override, but footwear defaults to the athletic shoes leaf.
+  if (spec.category) input.category = spec.category;
+  else if (wantsWeight) input.category = ATHLETIC_SHOES_CATEGORY;
   if (spec.descriptionHtml) input.descriptionHtml = spec.descriptionHtml;
   if (Array.isArray(spec.metafields) && spec.metafields.length) input.metafields = spec.metafields;
   // Images: each already staged, referenced by its resourceUrl as originalSource.

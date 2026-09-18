@@ -135,6 +135,15 @@ create route in bearer mode. Its safety comes from downstream guards, see below.
 The page password in `index.html` and the Firebase config are likewise public by
 construction. Treat them as speed bumps, not as authentication.
 
+**A created shoe carries a product CATEGORY, and that is load bearing.**
+`buildProductSetInput` sets the Shopify taxonomy leaf `aa-8-1`, Athletic Shoes,
+on any product whose type ends in "shoes", the same gate as the 2 lb weight.
+Category is not decoration: Massachusetts exempts footwear under $175 and
+Shopify applies that from the CATEGORY, the shopify.* category metafields only
+become available once one is set, and the Google and Meta feeds read it.
+Measured 2026-09-18, 980 shoes had none and every product this route created
+was one of them, so new shoes were taxed where the older ones were not.
+
 **Create is create-only and draft-only.** `worker/src/products.js` skips any
 handle that already exists, so `productSet` can never overwrite a live product,
 and everything is created as `DRAFT`. That pair is what makes the temporary

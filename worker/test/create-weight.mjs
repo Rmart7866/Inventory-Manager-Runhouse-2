@@ -69,5 +69,15 @@ yes('inventory still only real at Needham',
     v.inventoryQuantities.every((q) => (q.locationId === NEEDHAM ? q.quantity === 4 : q.quantity === 0)),
     v.inventoryQuantities);
 
+console.log('\nFootwear also gets the athletic shoes category, apparel does not');
+eq('shoes', build("Men's Shoes", [{ size: '9', sku: 'A' }]).category, 'gid://shopify/TaxonomyCategory/aa-8-1');
+eq('and every footwear type', build('Running Shoes', [{ size: '9', sku: 'A' }]).category, 'gid://shopify/TaxonomyCategory/aa-8-1');
+eq('a sports bra gets none', build('Sports Bras', [{ size: 'M', sku: 'B' }]).category, undefined);
+eq('nor does a missing type', build(undefined, [{ size: 'M', sku: 'C' }]).category, undefined);
+eq('a caller may override it',
+   buildProductSetInput({ title: 'T', productType: "Men's Shoes", category: 'gid://shopify/TaxonomyCategory/aa-8',
+     variants: [{ size: '9', sku: 'A' }] }, NEEDHAM, [NEEDHAM]).category,
+   'gid://shopify/TaxonomyCategory/aa-8');
+
 console.log(failures ? '\n' + failures + ' FAILED\n' : '\nAll passed\n');
 process.exit(failures ? 1 : 0);
