@@ -56,6 +56,7 @@ node test/newbalance-images.mjs               # NB photo join: colorway key, gal
 node test/newbalance-create.mjs               # NB new-product CSV feeds Stage 4
 node test/auto-tag-queue.mjs                  # post-create auto tagging stays add-only
 node test/merrell.mjs                         # merrell converter: picker, CSV
+node test/canon-model.mjs                     # picker model matching: gender forms, NB families
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 
@@ -234,6 +235,14 @@ is worse than a missing one.
 
 - Matching is by **variant SKU**, not handle: the converters cannot reproduce
   Shopify's inconsistent handles.
+- **`_canonModel` decides whether the picker sees a product as already carried,
+  and a half-stripped word silently breaks it.** Two live examples, both fixed:
+  "Unisex's" left an "s" behind because `unisex` was the one gender word in the
+  list with no possessive, so Stage 4's own titles canonicalised to
+  "S SUPERBLAST 3" and matched nothing. And New Balance names one shoe two ways,
+  "Fresh Foam X 1080v15" and "1080v15", which split 175 products across pairs of
+  keys. The cheap audit for both: canonicalise every live title and look for a
+  key beginning with a stray single letter. `test/canon-model.mjs` pins it.
 - About 1 in 5 live products have **no SKU at all**, so there is a second,
   SKU-independent suppression key derived from the title,
   `MODEL|GENDER|WIDTH|COLOR` (`colorwayKeyFromTitle`). It is

@@ -799,7 +799,13 @@ var CatalogClient = {
         if (!m || !m[1].trim()) m = s.match(/^(.*?(?:\d|\bwide|\bnarrow))[-–—](?=\S)/i);
         if (m && m[1].trim()) s = m[1];
         // Gender anywhere, not just leading: the vendor usually comes first.
-        s = s.replace(/\b(men'?s|women'?s|mens|womens|unisex|kids?'?s?|youth|boys?'?|girls?'?)\b/ig, ' ');
+        // POSSESSIVES ON EVERY FORM, including "Unisex's". Every other gender
+        // word here already allowed one, so "Men's" stripped cleanly while
+        // "Unisex's" left its "'s" behind: "ASICS Unisex's SUPERBLAST 3"
+        // canonicalised to "S SUPERBLAST 3", which matched nothing, and the
+        // picker offered to create products the store already had. Stage 4
+        // writes titles in that style, so it hit the newest products hardest.
+        s = s.replace(/\b(men'?s|women'?s|mens|womens|unisex'?s?|kids?'?s?|youth'?s?|boys?'?s?|girls?'?s?)\b/ig, ' ');
         var vendor = this.VENDOR_BY_BRAND[toolBrand] || '';
         if (vendor) {
             // Leading only. A vendor token that reads like English ("On") must
@@ -809,7 +815,29 @@ var CatalogClient = {
         s = s.replace(/\b(extra[\s-]?wide|x[\s-]?wide|xwide|wide|narrow|2e|4e)\b/ig, ' ');
         s = s.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
         // "EXTRA" left dangling at the end is a width remnant, never a model word.
-        return s.replace(/\s+EXTRA$/, '').trim();
+        s = s.replace(/\s+EXTRA$/, '').trim();
+
+        // NEW BALANCE SUB-FAMILY, stripped, because the store names one shoe
+        // two ways. Measured 2026-09-18 across 175 products: "Fresh Foam X
+        // 1080v15" and "1080v15" are both in use, so are "FuelCell Rebel v5"
+        // and "Rebel v5", and "Fresh Foam X 880v13" sits alongside a bare
+        // "X 880v13" where only the X survived an abbreviated title. The picker
+        // read each pair as two different models, so a feed naming a shoe one
+        // way could not see the products named the other, and offered to
+        // create shoes already on the shelf.
+        //
+        // Safe because the family is a cushioning line, not an identity: the
+        // version number names the shoe. Verified before shipping that this
+        // merges exactly the four split models and collides nothing else,
+        // 28 keys down to 24, with no key left holding disagreeing style codes.
+        if (toolBrand === 'newbalance') {
+            for (var fi = 0; fi < 3; fi++) {
+                var stripped = s.replace(/^(?:FRESH\s+FOAM(?:\s+X)?|FUELCELL|DYNASOFT|X)\s+/, '');
+                if (stripped === s) { break; }
+                s = stripped;
+            }
+        }
+        return s.trim();
     },
 
     // Is this model already carried on Shopify? name is the picker's model label.
