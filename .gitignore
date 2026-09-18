@@ -115,3 +115,13 @@ asics-media-refresh-*.json
 # Run artifacts from tools/set-shoe-category.mjs. Holds each product's prior
 # category, which is the undo. Per-run state, not for a public repo.
 shoe-category-rollback-*.json
+
+# Run artifacts from tools/backfill-pairing.mjs. The rollback file holds every
+# prior custom.* sibling value, including the ones that were absent, so it is a
+# partial product dump and per-run undo state.
+pairing-rollback-*.json
+
+# Run artifacts from tools/zero-location-shoes.mjs. The rollback file lists the
+# per-variant quantities a location held before the reset.
+falmouth-zero-rollback-*.json
+location-zero-rollback-*.json
