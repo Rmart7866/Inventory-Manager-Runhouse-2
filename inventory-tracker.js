@@ -118,6 +118,7 @@ var InventoryTracker = {
             case 'puma':    return typeof PumaConverter    !== 'undefined' ? PumaConverter    : null;
             case 'saucony': return typeof SauconyConverter !== 'undefined' ? SauconyConverter : null;
             case 'merrell': return typeof MerrellConverter  !== 'undefined' ? MerrellConverter  : null;
+            case 'altra':   return typeof AltraConverter    !== 'undefined' ? AltraConverter    : null;
             case 'newbalance': return typeof NewBalanceConverter !== 'undefined' ? NewBalanceConverter : null;
             default: return null;
         }

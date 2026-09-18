@@ -93,6 +93,12 @@ eq('the default view takes no sv segment', PU.urlFor('37690803', { id: '' }),
    'https://images.puma.com/image/upload/f_auto,q_auto,b_rgb:ffffff,w_2000/global/376908/03/fnd/PNA/fmt/png');
 eq('and it leads with the right facing profile', PU.views[0].word, 'lateral');
 yes('the thumbnail asks Cloudinary for a small one', PU.thumbFor(PU.urlFor('37690803', { id: '' })).includes('w_200/'));
+const AL = PE.remoteSourceFor('altra');
+eq('Altra is style plus colour, on its own Shopify CDN', AL.urlFor('AL0A85UH72C', { id: 'HERO' }),
+   'https://cdn.shopify.com/s/files/1/0693/1339/6903/files/AL0A85UH72C-HERO.png');
+eq('and it leads with the lateral', AL.views[0].word, 'lateral');
+eq('the Altra key comes off a SKU', PE._imageKeyIn('altra', 'AL0A85UH72C105500M'), 'AL0A85UH72C');
+eq('and off a filename', PE._imageKeyIn('altra', 'AL0A85UH72C-HERO.PNG'), 'AL0A85UH72C');
 eq('a brand with no CDN has no source', PE.remoteSourceFor('hoka'), null);
 
 console.log('\nA remote image is attached by URL and never staged');
@@ -149,7 +155,7 @@ yes('Puma DOES have a CDN source. An earlier pass ruled it out on a single '
     + 'bogus code that turned out to be a real asset', PE.remoteSourceFor('puma') !== null);
 
 console.log('\nEvery brand the tool carries can match a folder');
-for (const b of ['on', 'asics', 'hoka', 'saucony', 'merrell', 'newbalance', 'brooks', 'puma']) {
+for (const b of ['on', 'asics', 'hoka', 'saucony', 'merrell', 'newbalance', 'brooks', 'puma', 'altra']) {
   yes(b + ' has a folder key', !!PE._imageKeyPatterns[b]);
 }
 

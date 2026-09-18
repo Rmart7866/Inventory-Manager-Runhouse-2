@@ -39,11 +39,12 @@ var BRAND_CONFIG = {
     puma:     { displayName: 'Puma',       converter: function() { return typeof PumaConverter !== 'undefined' ? PumaConverter : null; },     comparisonKey: '_pumaTrackerComparison',     hasPicker: true },
     saucony:  { displayName: 'Saucony',    converter: function() { return typeof SauconyConverter !== 'undefined' ? SauconyConverter : null; },comparisonKey: '_sauconyTrackerComparison', hasPicker: true },
     merrell:  { displayName: 'Merrell',    converter: function() { return typeof MerrellConverter !== 'undefined' ? MerrellConverter : null; }, comparisonKey: '_merrellTrackerComparison', hasPicker: true },
+    altra:    { displayName: 'Altra',      converter: function() { return typeof AltraConverter   !== 'undefined' ? AltraConverter   : null; }, comparisonKey: '_altraTrackerComparison',   hasPicker: true },
     newbalance:{ displayName: 'New Balance', converter: function() { return typeof NewBalanceConverter !== 'undefined' ? NewBalanceConverter : null; }, comparisonKey: '_newbalanceTrackerComparison', hasPicker: true }
 };
 
 // Brand display order
-var BRAND_ORDER = ['hoka', 'on', 'asics', 'brooks', 'puma', 'saucony', 'merrell', 'newbalance'];
+var BRAND_ORDER = ['hoka', 'on', 'asics', 'brooks', 'puma', 'saucony', 'merrell', 'newbalance', 'altra'];
 
 // ========== LOW STOCK READS AS 0 ==========
 // A dropship order the supplier cannot fill becomes a cancelled order, and as
@@ -90,6 +91,7 @@ var BrandConverter = {
     brands: {
         saucony: { file: null, inventory: [], csv: '', scanned: false },
         merrell: { file: null, inventory: [], csv: '', scanned: false },
+        altra: { file: null, inventory: [], csv: '', scanned: false },
         hoka: { file: null, inventory: [], csv: '', scanned: false },
         puma: { file: null, inventory: [], csv: '', scanned: false },
         newbalance: { file: null, inventory: [], csv: '', scanned: false },
@@ -117,7 +119,7 @@ var BrandConverter = {
     init: function() {
         var self = this;
         // Setup dropzones for single-file brands
-        ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks', 'merrell'].forEach(function(brand) {
+        ['saucony', 'hoka', 'puma', 'newbalance', 'asics', 'brooks', 'merrell', 'altra'].forEach(function(brand) {
             self._setupDropzone(brand);
         });
         // ON has one dropzone per gender slot

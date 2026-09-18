@@ -585,6 +585,13 @@ if (typeof MerrellConverter !== 'undefined') {
         comparisonKey: '_merrellTrackerComparison', vendorName: 'Merrell', checkboxClass: 'merrell-picker-cb'
     });
 }
+if (typeof AltraConverter !== 'undefined') {
+    BrandPicker.register('altra', {
+        converter: AltraConverter, containerId: 'altra-picker-container', trackerId: 'altra-tracker-report',
+        headerGradient: 'linear-gradient(135deg, #e8552d 0%, #a32d12 100%)',
+        comparisonKey: '_altraTrackerComparison', vendorName: 'Altra', checkboxClass: 'altra-picker-cb'
+    });
+}
 if (typeof NewBalanceConverter !== 'undefined') {
     BrandPicker.register('newbalance', {
         converter: NewBalanceConverter, containerId: 'newbalance-picker-container', trackerId: 'newbalance-tracker-report',
@@ -649,6 +656,10 @@ function downloadSauconyProductCSV() { BrandPicker.downloadProductCSV('saucony')
 function showMerrellPicker(products) { BrandPicker.show('merrell', products); }
 function showMerrellTrackerReport(comparison) { BrandPicker.showTrackerReport('merrell', comparison); }
 function downloadMerrellProductCSV() { BrandPicker.downloadProductCSV('merrell'); }
+
+function showAltraPicker(products) { BrandPicker.show('altra', products); }
+function showAltraTrackerReport(comparison) { BrandPicker.showTrackerReport('altra', comparison); }
+function downloadAltraProductCSV() { BrandPicker.downloadProductCSV('altra'); }
 
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() { for (var b in BrandPicker.configs) BrandPicker.initTrackerStatus(b); }, 1500);

@@ -20,7 +20,7 @@ rule exists. Match that when you edit.
 |---|---|
 | `index.html` | The whole UI: inline CSS (light base + a dark theme override), brand cards, password gate, script tags with `?v=` cache busters |
 | `main.js` | `BrandConverter`, the controller. Dropzones, scan, `convertBrand()`, the download buttons, `writeAllInventory()` |
-| `*-converter.js` | One per brand: saucony, hoka, brooks, asics, puma, on, newbalance. Parse the supplier file, emit inventory rows and a new-product CSV |
+| `*-converter.js` | One per brand: saucony, hoka, brooks, asics, puma, on, newbalance, merrell, altra. Parse the supplier file, emit inventory rows and a new-product CSV |
 | `catalog-client.js` | Reads `GET /catalog` from the Worker, builds the known sets, and is the client for every write route |
 | `inventory-tracker.js` | `compare()`: new products, new colorways, removed colorways. Also the shared Firestore `Ignore` list |
 | `brand-picker.js` | The product checklist per brand and the tracker report (including "Clear all in Shopify") |
@@ -56,6 +56,7 @@ node test/newbalance-images.mjs               # NB photo join: colorway key, gal
 node test/newbalance-create.mjs               # NB new-product CSV feeds Stage 4
 node test/auto-tag-queue.mjs                  # post-create auto tagging stays add-only
 node test/merrell.mjs                         # merrell converter: picker, CSV
+node test/altra.mjs                           # altra converter: the 99+ trap, eight gender spellings
 node test/canon-model.mjs                     # picker model matching: gender forms, NB families
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape

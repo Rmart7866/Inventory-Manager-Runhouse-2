@@ -55,6 +55,7 @@
         .bh-brooks { background: #1e3a5f; }
         .bh-on { background: #27272a; }
         .bh-merrell { background: #5a7a2e; }
+        .bh-altra { background: #e8552d; }
 
         /* Brand links */
         .brand-links { padding: 12px 24px; background: #fafafa; border-bottom: 1px solid #f4f4f5; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
@@ -410,7 +411,13 @@
         /* Uniform brand banners: one dark slab, cyan top accent, light readable text. */
         .bh { position: relative; letter-spacing: 3px; font-weight: 800; text-transform: uppercase; border-radius: 0; }
         .bh::before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background: linear-gradient(90deg, var(--accent), var(--accent-2));  }
-        .bh-saucony, .bh-hoka, .bh-puma, .bh-newbalance, .bh-asics, .bh-brooks, .bh-on {
+        /* EVERY brand, not a list of them. This used to name the seven brands
+           that existed when the uniform banner landed, so Merrell, added
+           later, kept its own olive green and was the odd one out. A list has
+           to be edited every time a brand is added and it silently was not.
+           .bh is the same specificity and comes after the per-brand colours
+           above, so it wins for all of them, including brands added tomorrow. */
+        .bh {
             background: #0e1729; color: var(--text);
         }
 
@@ -761,6 +768,43 @@
                     <div class="status" id="merrell-status"></div>
                     <div class="bp-badge" id="merrell-tracker-badge"></div>
                     <div class="tracker-report" id="merrell-tracker-report"></div>
+                </div>
+
+                <!-- ALTRA -->
+                <div class="brand-card" data-brand="altra">
+                    <div class="bh bh-altra">ALTRA</div>
+                    <div class="brand-links">
+                        <a href="https://b2b.altrarunning.com" target="_blank" class="b-link">B2B Portal</a>
+                        <button class="b-link b-link-alt" onclick="toggleInstructions('altra')">Instructions</button>
+                    </div>
+                    <div class="instruct" id="altra-instructions">
+                        <h4>How to Download Altra Inventory:</h4>
+                        <ol>
+                            <li>Go to the <a href="https://b2b.altrarunning.com" target="_blank">Altra B2B Portal</a></li>
+                            <li>Open the current season, <strong>Fall 26 (US)</strong></li>
+                            <li>Export the <strong>ATS report</strong> (.xlsx)</li>
+                            <li>Drag file here</li>
+                        </ol>
+                        <p style="margin-top:6px"><strong>Photos need no folder.</strong> Altra names every product image after the Style Number plus the Color Code, so Stage 4 finds the gallery on its own, the same as Brooks and Saucony.</p>
+                    </div>
+                    <div class="dropzone" id="altra-dropzone">
+                        <h3>Drop Altra file</h3>
+                        <p>or click to browse (.xlsx)</p>
+                        <input type="file" class="file-input" id="altra-file" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="uploaded" id="altra-uploaded">
+                        <div class="uploaded-info"><strong id="altra-filename"></strong></div>
+                        <button class="clear-btn" onclick="clearFile('altra')">Clear</button>
+                    </div>
+                    <div class="picker-wrap" id="altra-picker-container"></div>
+                    <div class="convert-wrap" id="altra-convert">
+                        <button class="gen-btn convert-btn" onclick="convertBrand('altra')">Generate Inventory</button>
+                        <button class="csv-btn csv-btn-grey" id="altra-product-csv-btn" onclick="downloadAltraProductCSV()">Download Products CSV</button>
+                        <button class="csv-btn csv-btn-green" id="altra-new-product-csv-btn" onclick="downloadAltraNewProductCSV()">Download NEW Products CSV</button>
+                    </div>
+                    <div class="status" id="altra-status"></div>
+                    <div class="bp-badge" id="altra-tracker-badge"></div>
+                    <div class="tracker-report" id="altra-tracker-report"></div>
                 </div>
 
                 <!-- HOKA -->
@@ -1175,6 +1219,7 @@
     <script src="asics-converter.js?v=4"></script>
     <script src="brooks-converter.js?v=2"></script>
     <script src="merrell-converter.js?v=1"></script>
+    <script src="altra-converter.js?v=1"></script>
     <script src="brand-picker.js?v=10"></script>
     <script src="b2b-links.js"></script>
     <script src="product-enrichment.js?v=37"></script>

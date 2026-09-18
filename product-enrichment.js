@@ -14,6 +14,7 @@ var ProductEnrichment = {
         puma:       { price: '120.00', vendor: 'Puma' },
         on:         { price: '160.00', vendor: 'ON Running' },
         merrell:    { price: '150.00', vendor: 'Merrell' },
+        altra:      { price: '150.00', vendor: 'Altra' },
         newbalance: { price: '140.00', vendor: 'New Balance' },
     },
 
@@ -729,6 +730,11 @@ var ProductEnrichment = {
         // Merrell photos are named "<style>_1.jpg", the same "<key>_N" shape as
         // Hoka and Saucony, and the style code is the SKU's leading token.
         merrell: /J\d{5,}/,
+        // Altra photos are named after the Style Number plus the Color Code,
+        // "AL0A85UH" + "72C". That pair is the leading token of the SKU too,
+        // "AL0A85UH72C105500M", so one pattern reads both the SKU and a
+        // filename. Anchored, or the size digits that follow could be eaten.
+        altra: /^AL0A[A-Z0-9]{4}[A-Z0-9]{3}/,
         // New Balance carries TWO codes and only one of them is the colorway.
         // "Style Number" (M1080V15_RU) is the MODEL and matches no photo. The
         // colorway is the SKU's leading token, "W880C15" out of "W880C15  D  05",
@@ -931,6 +937,32 @@ var ProductEnrichment = {
             // A real Cloudinary transform, not a resizer being abused, so a
             // small rendition for the dialog costs nothing.
             thumbFor: function (url) { return url.replace('w_2000', 'w_200'); }
+        },
+
+        altra: {
+            label: 'Altra',
+            // Altra's own storefront runs on Shopify, and every product photo is
+            // named after the Style Number plus the Color Code the ATS export
+            // already gives us: "AL0A85UH" + "72C" -> AL0A85UH72C-HERO.png. The
+            // numeric path is Altra's shop id and is constant.
+            //
+            // Measured 2026-09-18 over 120 of the 447 colorways in the feed: 116
+            // carry images and almost all carry all five views. A bogus code
+            // returns 404, so the existence check is trustworthy, the same test
+            // the other four hosts had to pass.
+            views: [
+                { id: 'HERO', word: 'lateral' },
+                { id: 'ALT1', word: 'angle' },
+                { id: 'ALT2', word: 'medial' },
+                { id: 'ALT3', word: 'top' },
+                { id: 'ALT4', word: 'sole' }
+            ],
+            urlFor: function (code, v) {
+                return 'https://cdn.shopify.com/s/files/1/0693/1339/6903/files/' + String(code).toUpperCase() + '-' + v.id + '.png';
+            },
+            // Shopify's own CDN, so the width parameter is native rather than a
+            // resizer being abused. The masters are 3 MB and up.
+            thumbFor: function (url) { return url + '?width=200'; }
         },
 
         asics: {
@@ -1861,6 +1893,7 @@ var ENRICHMENT_BRAND_MAP = {
     puma:     { getConverter: function() { return PumaConverter; },     compKey: '_pumaTrackerComparison' },
     on:       { getConverter: function() { return OnConverter; },       compKey: '_onTrackerComparison' },
     merrell:  { getConverter: function() { return MerrellConverter; },  compKey: '_merrellTrackerComparison' },
+    altra:    { getConverter: function() { return AltraConverter; },    compKey: '_altraTrackerComparison' },
     newbalance: { getConverter: function() { return NewBalanceConverter; }, compKey: '_newbalanceTrackerComparison' },
 };
 
@@ -1893,6 +1926,7 @@ function downloadAsicsNewProductCSV()    { downloadNewProductCSVWithEnrichment('
 function downloadPumaNewProductCSV()     { downloadNewProductCSVWithEnrichment('puma'); }
 function downloadOnNewProductCSV()       { downloadNewProductCSVWithEnrichment('on'); }
 function downloadMerrellNewProductCSV()  { downloadNewProductCSVWithEnrichment('merrell'); }
+function downloadAltraNewProductCSV()    { downloadNewProductCSVWithEnrichment('altra'); }
 
 // ========== COMBINED NEW PRODUCTS (patched) ==========
 function downloadCombinedNewProducts() {
