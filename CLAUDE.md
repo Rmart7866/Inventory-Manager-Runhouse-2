@@ -332,6 +332,22 @@ register it in `BRAND_CONFIG` (`main.js`), `BrandPicker.register`,
 `CatalogClient.BRAND_MAP` / `VENDOR_BY_BRAND`, `InventoryTracker._getConverter`
 and `ENRICHMENT_BRAND_MAP`, and add the card markup plus the script tag.
 
+**And add the vendor to `BRANDS` in `parsers.js`, which is the step that fails
+silently.** That table decides the brand KEY. `buildCatalog` stamps the key on
+every product, `buildKnownSets` filters `p.brand !== BRAND_MAP[toolBrand]`, and
+the inheritance index is keyed `${brand}|${cwGroup}`. Miss it and `brandFor`
+returns `UNKNOWN`, both lookups miss, and the brand links nothing: the picker
+calls every product new and create-time inheritance never finds a sibling.
+Nothing throws. Altra shipped this way with a complete, correct converter.
+`worker/test/brand-registry.mjs` now fails if the two tables disagree.
+
+`parsers.js` is a ported file, so add the row in Color Swatch first, copy it
+across, and run `npm run parity`. Adding a row is tag-neutral by construction as
+long as there is no `SKU_PARSERS` entry for the new key, since the key only
+selects a SKU parser and otherwise falls through to `UNKNOWN` exactly as before.
+Parity proves it over the live title corpus. The one real effect is `classify()`,
+which starts admitting that vendor's garments to the apparel catalog.
+
 ## UI conventions
 
 - Dark theme, defined as CSS vars near the end of the `<style>` block:
