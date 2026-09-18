@@ -24,6 +24,7 @@
 // Brand normalization
 // ---------------------------------------------------------------------------
 const BRANDS = {
+  'altra':        { key: 'ALTRA',       titleTokens: ['Altra'] },
   'asics':        { key: 'ASICS',       titleTokens: ['ASICS'] },
   'brooks':       { key: 'BROOKS',      titleTokens: ['Brooks'] },
   'hoka':         { key: 'HOKA',        titleTokens: ['HOKA ONE ONE', 'HOKA'] },
