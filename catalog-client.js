@@ -862,6 +862,29 @@ var CatalogClient = {
     _existingHandlesByBrand: {},
     existingHandles: function (toolBrand) { return this._existingHandlesByBrand[toolBrand] || null; },
 
+    // The live SKU to handle map, which is what a converter should use instead of
+    // a baked-in table. `bySku` in the catalog payload is variant SKU to handle
+    // for every product on the store, so it answers "what handle does this
+    // colorway already live on" without any name or slug guessing.
+    //
+    // WHY THIS EXISTS. OnConverter carried a hand-baked existingHandles table of
+    // 136 entries, generated once from export-catalog.mjs and never refreshed.
+    // Anything absent from it fell through to a generated slug, and a generated
+    // slug only matches when the supplier spells the model exactly the way the
+    // store does. It usually does not: the store carries "Cloudboom Strike 1"
+    // and "Cloudsurfer Max 1" where ON's own data says "Cloudboom Strike" and
+    // "Cloudsurfer Max", so 207 carried colorways generated a handle nobody has
+    // and the picker called every one of them new.
+    //
+    // Returns null when the catalog is not loaded, so the caller falls back to
+    // its static table rather than reading a miss as "brand new".
+    handleForSku: function (sku) {
+        if (!sku) return null;
+        var cat = this._catalog;
+        if (!cat || !cat.bySku) return null;
+        return cat.bySku[sku] || cat.bySku[String(sku).toUpperCase()] || null;
+    },
+
     // Do any of these feed handles already exist on Shopify? This is a STRONGER
     // signal than the model-name match above, and it is the primary one for the
     // picker: the scraper feeds carry the live product handle per colorway (that

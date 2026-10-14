@@ -222,8 +222,26 @@ var OnConverter = {
         return map[code + '|' + this._normUpcSize(size)] || '';
     },
 
-    // Get handle: check existing map first, generate unified handle if not found
-    getProductHandle: function(skuBase, title, gender, colorName, modelName) {
+    // Get handle: LIVE catalog first, then the baked table, then generate one.
+    //
+    // ORDER MATTERS, AND THE LIVE LOOKUP HAS TO BE FIRST. existingHandles below
+    // is a snapshot of 136 colorways that was generated once and never
+    // refreshed, so it is right where it has an entry and silent where it does
+    // not. The live map covers the whole store, so it supersedes the snapshot
+    // the moment the catalog is loaded, and the snapshot stays as the offline
+    // fallback. Same pattern as OnApparelConverter.STORE_BY_CODE.
+    //
+    // A GENERATED HANDLE IS THE WORST OF THE THREE and is only a last resort.
+    // It can only match when the supplier spells the model exactly the way the
+    // store does, and ON does not: ON's data says "Cloudboom Strike" where the
+    // store says "Cloudboom Strike 1". Measured 2026-10-14 against the live
+    // store, 207 of the 309 carried ON colorways generated a handle that
+    // exists nowhere, so the picker offered every one of them as new.
+    getProductHandle: function(skuBase, title, gender, colorName, modelName, sku) {
+        if (typeof CatalogClient !== 'undefined' && CatalogClient.handleForSku) {
+            var live = CatalogClient.handleForSku(sku);
+            if (live) return live;
+        }
         if (this.existingHandles[skuBase]) {
             return this.existingHandles[skuBase];
         }
@@ -252,23 +270,40 @@ var OnConverter = {
         var color = '';
         var category = '';
 
-        // Use LAST pipe so multi-pipe titles (e.g. "PTR | X | Cloud X 4") resolve to clean model
-        var lastPipeIdx = title.lastIndexOf('|');
-        var firstPipeIdx = title.indexOf('|');
+        // A PIPE ONLY SEPARATES A CATEGORY WHEN IT COMES BEFORE THE COLOR.
+        //
+        // Two different things put a pipe in an ON title. A category prefix sits
+        // in front of the model, "ON Men's PO | Cloudhorizon 2 WP - Rock Alloy".
+        // A two-tone color sits after the dash, "ON Women's Cloudsurfer 2 -
+        // Sand | Ivory". Reading the second as the first is catastrophic rather
+        // than merely wrong: the model becomes the word after the pipe, so every
+        // two-tone shoe reported its model as "Ivory" or "Black", the picker
+        // grouped 157 rows by COLOR instead of model, and the colors it listed
+        // matched no product on the store so all of them read as new.
+        //
+        // So split the title at the color FIRST and only look for pipes in what
+        // is left. Everything after the last " - " is the color, pipes included.
         var dashIdx = title.lastIndexOf(' - ');
+        var head = dashIdx !== -1 ? title.substring(0, dashIdx) : title;
+        // Use LAST pipe so multi-pipe titles (e.g. "PTR | X | Cloud X 4") resolve to clean model
+        var lastPipeIdx = head.lastIndexOf('|');
+        var firstPipeIdx = head.indexOf('|');
 
-        if (lastPipeIdx !== -1 && dashIdx !== -1 && dashIdx > lastPipeIdx) {
-            model = title.substring(lastPipeIdx + 1, dashIdx).trim();
-            color = title.substring(dashIdx + 3).trim();
-        } else if (lastPipeIdx !== -1) {
-            model = title.substring(lastPipeIdx + 1).trim();
+        if (lastPipeIdx !== -1) {
+            model = head.substring(lastPipeIdx + 1).trim();
+            if (dashIdx !== -1) color = title.substring(dashIdx + 3).trim();
         } else if (dashIdx !== -1) {
-            model = title.substring(0, dashIdx).replace(/^ON\s+(Men's|Women's)\s+/i, '').trim();
+            // Unisex is stripped here too. It was the one gender word missing
+            // from this list, so a unisex model kept its prefix and the picker
+            // listed "ON Unisex Cloudmonster 3 Hyper LS" as the model name,
+            // which matches nothing on the store. Same omission, different
+            // place, as the "Unisex's" trap in CatalogClient._canonModel.
+            model = head.replace(/^ON\s+(Men's|Women's|Unisex)\s+/i, '').trim();
             color = title.substring(dashIdx + 3).trim();
         }
 
         if (firstPipeIdx !== -1) {
-            var beforeFirstPipe = title.substring(0, firstPipeIdx).trim();
+            var beforeFirstPipe = head.substring(0, firstPipeIdx).trim();
             category = beforeFirstPipe.replace(/^ON\s+(Men's|Women's|Unisex)\s*/i, '').trim();
         }
 
@@ -310,7 +345,7 @@ var OnConverter = {
                     var titleInfo = self.parseTitle(row.Title || '');
                     var sku = row.SKU || '';
                     var skuBase = self.getSkuBase(sku);
-                    var handle = self.getProductHandle(skuBase, row.Title, titleInfo.gender, titleInfo.color, titleInfo.model);
+                    var handle = self.getProductHandle(skuBase, row.Title, titleInfo.gender, titleInfo.color, titleInfo.model, sku);
                     var qty = parseInt(row['On hand (new)'] || '0') || 0;
                     // Use clean model name (strip pipe category prefixes)
                     var cleanModel = titleInfo.model;
@@ -407,7 +442,7 @@ var OnConverter = {
                     var titleInfo = self.parseTitle(row.Title || '');
                     var sku = row.SKU || '';
                     var skuBase = self.getSkuBase(sku);
-                    var handle = self.getProductHandle(skuBase, row.Title, titleInfo.gender, titleInfo.color, titleInfo.model);
+                    var handle = self.getProductHandle(skuBase, row.Title, titleInfo.gender, titleInfo.color, titleInfo.model, sku);
                     var modelKey = titleInfo.model || 'Unknown';
 
                     if (self.selectedProducts.size > 0 && !self.selectedProducts.has(modelKey)) {

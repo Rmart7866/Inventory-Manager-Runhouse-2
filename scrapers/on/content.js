@@ -1300,7 +1300,11 @@ class ONRunningInventoryExtractor {
     for (const r of rows) {
       if (want.indexOf(r.mainGroup) === -1) continue;
       if (r.launchDate && new Date(r.launchDate).getTime() > now) { notYetLaunched++; continue; }
-      const color = String(r.color || "");
+      // ON writes a two-tone color as "White | Black". The DOM scraper split on
+      // the pipe and joined with a space, and the store's titles were built that
+      // way, so keeping the pipe would spell every color differently from the
+      // product it belongs to and put a pipe into any title Stage 4 creates.
+      const color = String(r.color || "").replace(/\s*\|\s*/g, " ").trim();
       out.push({
         productName: r.productGroupName || r.productName || "",
         styleId: r.productGroupNumber || "",
