@@ -31,6 +31,7 @@
 // Usage:
 //   node tools/publish-stocked-drafts.mjs
 //   node tools/publish-stocked-drafts.mjs --days 14
+//   node tools/publish-stocked-drafts.mjs --vendor Altra --days 60
 //   node tools/publish-stocked-drafts.mjs --apply
 //   node tools/publish-stocked-drafts.mjs --publication "Point of Sale" --apply
 //
@@ -48,6 +49,11 @@ const argOf = (n, d) => { const i = argv.indexOf(n); return i >= 0 && argv[i + 1
 const DAYS = parseInt(argOf('--days', '7'), 10);
 const PUBLICATIONS = argv.reduce((acc, a, i) => (a === '--publication' && argv[i + 1] ? acc.concat(argv[i + 1]) : acc), ['Online Store']);
 const RB_FILE = argOf('--rollback-file', 'draft-duplicates-rollback-2026-09-01T17-01-46-383Z.json');
+
+// Optional vendor narrowing. Publishing is a merchandising decision, and a run
+// that covers the whole catalogue is a different decision from a run that
+// finishes one brand's drop. Default stays every vendor, as before.
+const VENDOR = argOf('--vendor', null);
 
 const WORKER = 'https://runhouse-inventory-worker.ryan-486.workers.dev';
 const CATALOG_TOKEN = 'rh-cat-9b327c9736d5d17e2794c2c3df934b36';
@@ -96,6 +102,7 @@ async function main() {
   const picked = [];
   for (const p of ps) {
     if (p.status !== 'DRAFT' || !isShoe(p)) continue;
+    if (VENDOR && (p.vendor || '').toLowerCase() !== VENDOR.toLowerCase()) continue;
     if (!(p.totalOnHand > 0)) continue;
     if (daysSince(p.updatedAt) > DAYS) continue;
     if (deliberate.has(p.id)) { skipped.duplicateRun++; continue; }

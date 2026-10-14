@@ -1,3 +1,13 @@
+
+// Local date and time stamp for download filenames, as YYYY-MM-DD_HHMM.
+// Date.now() was an epoch number like 1757936421883: unreadable, and it sorts
+// against nothing else in the Downloads folder. This sorts chronologically by
+// name and tells you at a glance which drop a file came from. Local time, not
+// UTC, because the person reading the filename is in the shop.
+function stampForFilename(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
 // COMPLETE UNIFIED BROOKS Browser Extension - SEO-Optimized Handle Logic with Inventory Security
 // Creates SEO-friendly handles using product name + color + width + SKU prefix for uniqueness
 // SKU prefix prevents duplicates when same colorway exists across different size ranges (men's/women's)
@@ -1320,6 +1330,8 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
                     securityApplied: true
                 }));
                 
+                let chunkSaveFailed = false;
+                let chunkSaveError = null;
                 if (config.downloadChunked) {
                     const actionName = config.format === 'inventory' ? 'addToInventoryChunks' : 'addToProductChunks';
                     
@@ -1335,22 +1347,49 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
                         if (chunkStatus) {
                             chunkStatus.innerHTML = `Chunk ${response.currentChunk}: ${response.currentChunkSize} ${recordType} | Total: ${response.totalRecords}`;
                         }
+                    } else {
+                        // A failed save used to do NOTHING here: no else branch, no
+                        // console line, and the result below was pushed with a
+                        // hardcoded success:true. So the run carried on, the totals
+                        // looked right, and rows were missing from the export with
+                        // nothing anywhere saying why. Storage failures are the one
+                        // thing that must be loud.
+                        chunkSaveFailed = true;
+                        chunkSaveError = (response && response.error) || 'unknown storage error';
+                        console.error(`❌ Brooks: FAILED to save ${dataRecords.length} ${recordType} for ${window.location.href}: ${chunkSaveError}`);
+                        const chunkStatus = document.getElementById('chunkStatus');
+                        if (chunkStatus) {
+                            chunkStatus.innerHTML = `<span style="color:#ff6b6b">SAVE FAILED: ${chunkSaveError}. ${dataRecords.length} ${recordType} were NOT stored.</span>`;
+                        }
                     }
                 }
                 
+                // NO PAYLOAD IN HERE. This object goes into config.results, and the
+                // whole config is JSON.stringify'd into the PAGE's localStorage after
+                // every URL. It used to carry `data` (every extracted record) and
+                // `csvContent` (the full CSV text) for each page, so the resume state
+                // grew by the size of a scrape per page and blew the 5 MB localStorage
+                // cap partway through a run. Neither field was ever read: the only
+                // consumers are counts and securitySummary at the end. The records
+                // themselves already went to the background chunk store.
+                //
+                // localStorage belongs to fasttrack.brooksrunning.com, not to the
+                // extension, so the manifest's unlimitedStorage does NOT raise it.
+                // Keeping this small is the only fix.
                 config.results.push({
                     url: window.location.href,
-                    data: dataRecords,
-                    csvContent: csv,
                     timestamp: new Date().toISOString(),
-                    success: true,
+                    // Was hardcoded true, which is how a storage failure still
+                    // read as a clean page.
+                    success: !chunkSaveFailed,
+                    saveError: chunkSaveFailed ? chunkSaveError : undefined,
                     recordCount: dataRecords.length,
                     format: config.format,
                     securitySummary: securitySummary
                 });
                 
                 if (config.downloadEach && dataRecords.length > 0) {
-                    const filename = `brooks-${config.format}-url-${config.currentIndex + 1}-${Date.now()}.csv`;
+                    const filename = `brooks-${config.format}-url-${config.currentIndex + 1}-${stampForFilename()}.csv`;
                     this.downloadCSV(csv, filename);
                 }
             }
@@ -2320,11 +2359,22 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
         } catch (error) {
             console.warn('localStorage quota exceeded or error saving key:', key, error);
             try {
-                localStorage.removeItem('brooksAutoScrapeConfig');
+                // The old recovery removed 'brooksAutoScrapeConfig' unconditionally,
+                // which is the key this is usually WRITING. Freeing the previous copy
+                // of the same key buys almost nothing, so the retry failed too and the
+                // run carried on with stale resume state. Clear the other brooks keys
+                // instead, and never the one in hand.
+                let freed = 0;
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const k = localStorage.key(i);
+                    if (!k || k === key) { continue; }
+                    if (/^brooks/i.test(k)) { localStorage.removeItem(k); freed++; }
+                }
+                console.warn(`localStorage: cleared ${freed} other brooks key(s), retrying ${key}`);
                 localStorage.setItem(key, value);
                 return true;
             } catch (retryError) {
-                console.error('localStorage save failed after cleanup:', retryError);
+                console.error(`localStorage save FAILED for ${key} after cleanup. Value was ${value ? value.length : 0} bytes. Resume state is now stale.`, retryError);
                 return false;
             }
         }

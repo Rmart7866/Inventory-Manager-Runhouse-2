@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Brooks FastTrack Inventory Exporter",
-  "version": "4.3.1",
+  "version": "4.5.0",
   "description": "Export Brooks FastTrack inventory data with auto-clicker for 'At once' buttons",
   "permissions": [
     "activeTab",
     "downloads",
-    "storage"
+    "storage",
+    "unlimitedStorage"
   ],
   "host_permissions": [
     "*://fasttrack.brooksrunning.com/*",
@@ -22,7 +23,9 @@
         "*://brooks.com/*",
         "*://*.brooks.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_end"
     }
   ],

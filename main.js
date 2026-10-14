@@ -97,7 +97,7 @@ var BrandConverter = {
         newbalance: { file: null, inventory: [], csv: '', scanned: false },
         asics: { file: null, inventory: [], csv: '', scanned: false },
         brooks: { file: null, inventory: [], csv: '', scanned: false },
-        on: { menFile: null, womenFile: null, unisexFile: null, inventory: [], csv: '', scanned: false }
+        on: { allFile: null, inventory: [], csv: '', scanned: false }
     },
 
     // ON uploads one scraper file per gender. Men's and women's are the normal
@@ -106,7 +106,18 @@ var BrandConverter = {
     // gender later means adding it to this list and to the card markup, nothing
     // else: the dropzone wiring, the clear buttons, the scan and the convert all
     // read this list.
-    ON_SLOTS: ['men', 'women', 'unisex'],
+    // ONE FILE NOW, NOT THREE.
+    //
+    // The old ON scraper read the rendered Availability page, which showed one
+    // gender at a time, so staff scraped men's, women's and unisex separately and
+    // dropped three CSVs here. The scraper now calls ON's inventory API, which
+    // returns the whole range in a single response: measured 2026-10-14, 27,206
+    // rows covering every gender at once. Three slots would just be three ways to
+    // drop the same file.
+    //
+    // This list still drives the dropzone wiring, so adding a slot back is a one
+    // line change if ON ever splits the feed again.
+    ON_SLOTS: ['all'],
 
     // The files currently uploaded, in slot order, empty slots dropped.
     onFiles: function() {

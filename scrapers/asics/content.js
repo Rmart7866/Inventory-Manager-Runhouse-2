@@ -1,3 +1,13 @@
+
+// Local date and time stamp for download filenames, as YYYY-MM-DD_HHMM.
+// Date.now() was an epoch number like 1757936421883: unreadable, and it sorts
+// against nothing else in the Downloads folder. This sorts chronologically by
+// name and tells you at a glance which drop a file came from. Local time, not
+// UTC, because the person reading the filename is in the shop.
+function stampForFilename(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
 // COMPLETE UNIFIED ASICS Browser Extension - Final Fixed Version
 // This version supports both INVENTORY CSV and PRODUCT CSV formats with correct Shopify headers
 
@@ -962,6 +972,8 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                     format: config.format
                 }));
                 
+                let chunkSaveFailed = false;
+                let chunkSaveError = null;
                 if (config.downloadChunked) {
                     const actionName = config.format === 'inventory' ? 'addToInventoryChunks' : 'addToProductChunks';
                     
@@ -977,6 +989,19 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                         if (chunkStatus) {
                             chunkStatus.innerHTML = `Chunk ${response.currentChunk}: ${response.currentChunkSize} ${recordType} | Total: ${response.totalRecords}`;
                         }
+                    } else {
+                        // There was no else here, and the result below was pushed with
+                        // success hardcoded true, so a failed chunk save produced no
+                        // message anywhere and still counted as a clean page. Rows went
+                        // missing from the export with nothing saying why. The same bug
+                        // was found and fixed in the Brooks scraper.
+                        chunkSaveFailed = true;
+                        chunkSaveError = (response && response.error) || 'unknown storage error';
+                        console.error(`❌ ASICS: FAILED to save ${dataRecords.length} ${recordType} for ${window.location.href}: ${chunkSaveError}`);
+                        const chunkStatus = document.getElementById('chunkStatus');
+                        if (chunkStatus) {
+                            chunkStatus.innerHTML = `<span style="color:#ff6b6b">SAVE FAILED: ${chunkSaveError}. ${dataRecords.length} ${recordType} were NOT stored.</span>`;
+                        }
                     }
                 }
                 
@@ -988,13 +1013,14 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 config.results.push({
                     url: window.location.href,
                     timestamp: new Date().toISOString(),
-                    success: true,
+                    success: !chunkSaveFailed,
+                    saveError: chunkSaveFailed ? chunkSaveError : undefined,
                     recordCount: dataRecords.length,
                     format: config.format
                 });
                 
                 if (config.downloadEach && dataRecords.length > 0) {
-                    const filename = `asics-${config.format}-url-${config.currentIndex + 1}-${Date.now()}.csv`;
+                    const filename = `asics-${config.format}-url-${config.currentIndex + 1}-${stampForFilename()}.csv`;
                     this.downloadCSV(csv, filename);
                 }
             }

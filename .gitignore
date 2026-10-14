@@ -125,3 +125,45 @@ pairing-rollback-*.json
 # per-variant quantities a location held before the reset.
 falmouth-zero-rollback-*.json
 location-zero-rollback-*.json
+
+# Run artifacts from tools/tag-activity.mjs. The rollback file lists every
+# product and the activity tags it gained.
+activity-tag-rollback-*.json
+
+# Run artifacts from tools/set-shoe-taxable.mjs. The rollback file holds the
+# prior charge-tax flag for every footwear variant it touched, so it is the
+# only way back from a run.
+shoe-taxable-rollback-*.json
+
+# Run artifacts from tools/tag-model-families.mjs. The rollback file lists every
+# product and the model: and family: tags it gained.
+model-family-rollback-*.json
+
+# Run artifacts from tools/fix-duplicate-gender-titles.mjs. Holds the previous
+# title of every product it rewrote, which is the undo.
+title-fix-rollback-*.json
+
+# Run artifacts from tools/set-collection-images.mjs.
+collection-image-rollback-*.json
+
+# Run artifacts from tools/write-model-descriptions.mjs.
+description-rollback-*.json
+
+# Run artifacts from tools/fix-order-requires-shipping.mjs. Records each
+# order and its prior line items before the edit, which is the record of what
+# to rebuild. It names customers and does not belong in a public repo.
+order-shipping-rollback-*.json
+
+# Run artifacts from tools/delete-la-import-orders.mjs. The archive is the
+# ONLY record of orders deleted permanently, so keep it on disk until they are
+# recreated and verified. It names customers and addresses.
+la-import-archive-*.json
+
+# Run artifacts from tools/mark-revently-orders-paid.mjs.
+mark-paid-before-*.json
+
+# Run artifacts from tools/create-maurten-products.mjs.
+maurten-created-*.json
+
+# Editor and tool backups, never part of the repo.
+*.bak

@@ -1,0 +1,24 @@
+# runhouse-sheets-worker
+#
+# Deliberately separate from runhouse-inventory-worker. See the header of
+# src/index.js for why: that Worker is load bearing for staff and its live
+# deployment is stale, and its CATALOG_TOKEN is public by construction while
+# this Worker serves customer data.
+#
+# Secrets are NEVER set here. Set them with wrangler secret put:
+#   npx wrangler secret put ORDERS_TOKEN     the only key to this Worker
+#   npx wrangler secret put CLIENT_ID
+#   npx wrangler secret put CLIENT_SECRET
+# Locally they come from .dev.vars, which is gitignored and never uploaded.
+
+name = "runhouse-sheets-worker"
+main = "src/index.js"
+compatibility_date = "2026-01-28"
+workers_dev = true
+
+[vars]
+# The shop domain is not secret, it is in every storefront URL.
+SHOP_URL = "therunhouse.myshopify.com"
+API_VERSION = "2026-01"
+# No ALLOWED_ORIGINS by default. Only Apps Script calls this, server side, and
+# Apps Script sends no Origin header. Add one only if a browser ever needs it.

@@ -871,18 +871,23 @@ class ONRunningInventoryExtractor {
   }
 
   isONInventoryPage() {
-    const url = window.location.href;
-    const hasQuantityInputs = document.querySelectorAll('input[type="number"]').length > 50;
-    const hasStockStatuses = document.querySelectorAll(
-      '[title="In Stock"], [title="Low Stock"], [title="No Stock"], [title="Very Low Stock"]'
-    ).length > 10;
-    const hasONStructure = document.querySelectorAll("[data-v-4b83b133]").length > 10;
-
-    return (
-      (url.includes("on-running.com") && (hasQuantityInputs || hasStockStatuses || hasONStructure)) ||
-      url.includes("/quantities") ||
-      url.includes("/products-availability")
-    );
+    // ANY SIGNED-IN BACKSTAGE PAGE WILL DO NOW.
+    //
+    // This used to demand the quantities grid: more than 50 number inputs, or
+    // more than 10 stock-status titles, or more than 10 [data-v-4b83b133]
+    // elements. All three described the OLD Availability page, so once ON moved
+    // the navigation into the new web-next app the button simply stopped
+    // appearing, which looks exactly like the extension being broken.
+    //
+    // The export no longer reads the page, it calls the API, so where you happen
+    // to be standing is irrelevant. What matters is being signed in to
+    // Backstage, and the API call says so plainly if you are not.
+    // hostname where the browser gives it, href otherwise: the test harness
+    // stubs location with href alone, and a check that only works in a real
+    // browser is a check nothing can verify.
+    const loc = (window.location && window.location.hostname) || "";
+    if (loc) return loc.endsWith("on-running.com");
+    return String((window.location && window.location.href) || "").includes("on-running.com");
   }
 
   addExportButton() {
@@ -890,6 +895,9 @@ class ONRunningInventoryExtractor {
     if (existingBtn) existingBtn.remove();
 
     const exportBtn = document.createElement("button");
+    // The UI is browser only. The headless test harness stubs just enough DOM to
+    // exercise the parsing, so bail out rather than throw on a stub element.
+    if (!exportBtn || !exportBtn.style || !document.body) return;
     exportBtn.innerHTML = "Export ON Running Inventory";
     exportBtn.className = "on-export-btn";
     exportBtn.style.cssText = `
@@ -916,6 +924,7 @@ class ONRunningInventoryExtractor {
 
   addSettingsButton() {
     const settingsBtn = document.createElement("button");
+    if (!settingsBtn || !settingsBtn.style || !document.body) return;
     settingsBtn.innerHTML = "⚙️ Settings";
     settingsBtn.className = "on-settings-btn";
     settingsBtn.style.cssText = `
@@ -1220,15 +1229,118 @@ class ONRunningInventoryExtractor {
     return "ON_Running_Product";
   }
 
-  extractONRunningInventory(format = "inventory") {
+  // ---------------------------------------------------------------------
+  // THE API SOURCE. This replaces reading the rendered page.
+  //
+  // WHY. The old path walked the DOM for [data-v-4b83b133], a Vue scoped-style
+  // hash regenerated on every ON frontend build, so the scraper broke the moment
+  // they shipped a redesign. It also could not read real numbers: the page shows
+  // only a colour band, so stock was GUESSED as In Stock=30, Low=5, Very Low=2,
+  // None=0.
+  //
+  // Backstage builds its grid from one POST that returns every product and size
+  // with a real availableQuantity. Measured 2026-10-14: 27,206 rows across 3,460
+  // styles in a single request. Both the old Availability page and the new
+  // web-next re-order flow call it, so it survives either being retired.
+  //
+  // Verified against Shopify the same day: the SKUs built here match the ones
+  // already on the store, for example ON-3WF10100171-GLA-855.
+  // ---------------------------------------------------------------------
+  onApiAccountId() {
+    try {
+      const prof = JSON.parse(localStorage.getItem("user/profile") || "{}");
+      const accounts = (prof && prof.accounts) || [];
+      if (accounts.length > 1) {
+        console.warn("ON API: this login has " + accounts.length + " accounts, using the first (" +
+          accounts[0].id + "). Set onAccountId in Settings to pin another.");
+      }
+      if (accounts[0] && accounts[0].id) return accounts[0].id;
+    } catch (e) {
+      console.warn("ON API: could not read user/profile", e);
+    }
+    return null;
+  }
+
+  async fetchInventoryFromApi(mainGroups) {
+    const accountId = (this.shopifySettings && this.shopifySettings.onAccountId) || this.onApiAccountId();
+    if (!accountId) throw new Error("Could not determine the ON account id. Open Backstage, sign in, and try again.");
+
+    const url = "https://on-backstage-api.on-running.com/products-matrix/v3?accountId=" + encodeURIComponent(accountId);
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",              // the Backstage session is the auth
+      headers: { "Content-Type": "application/json" },
+      body: "{}"                           // no filter: return everything
+    });
+    if (!res.ok) throw new Error("ON API returned " + res.status + ". Are you still signed in to Backstage?");
+    const data = await res.json();
+    const rows = (data && data.products) || [];
+
+    // Footwear by default. Apparel SKUs follow a different convention and are
+    // handled by the apparel tool, so mixing them in would produce rows that
+    // match nothing in Shopify.
+    const want = mainGroups && mainGroups.length ? mainGroups : ["shoes"];
+
+    // NOT YET LAUNCHED MEANS NOT YET SELLABLE.
+    //
+    // ON allocates stock before a launch date, so a style can show thousands of
+    // units months before anyone can ship one. Measured 2026-10-14: 113 in-stock
+    // rows carried 26,491 units against launch dates in November and December,
+    // led by Cloud X Tempo Ivory | Pearl with 11,170 units dated 3 December.
+    // Importing those would put stock on a product nobody can send out.
+    //
+    // DROP-OUT DATE IS DELIBERATELY NOT FILTERED. 3,304 in-stock rows are past
+    // theirs, which just means the line is being run down: still real stock,
+    // still purchasable, and excluding it would hide 43 percent of what is
+    // genuinely on the shelf.
+    const now = Date.now();
+    let notYetLaunched = 0;
+
+    const out = [];
+    for (const r of rows) {
+      if (want.indexOf(r.mainGroup) === -1) continue;
+      if (r.launchDate && new Date(r.launchDate).getTime() > now) { notYetLaunched++; continue; }
+      const color = String(r.color || "");
+      out.push({
+        productName: r.productGroupName || r.productName || "",
+        styleId: r.productGroupNumber || "",
+        colorName: color,
+        colorCode: color.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "DEF",
+        sizeUS: String(r.sizeId == null ? "" : r.sizeId),
+        size: String(r.sizeId == null ? "" : r.sizeId),
+        // A REAL COUNT, not a band. This is the point of the change.
+        quantity: Math.max(0, parseInt(r.availableQuantity, 10) || 0),
+        mainGroup: r.mainGroup,
+        picUrl: r.picUrl || ""
+      });
+    }
+    console.log("ON API: " + rows.length + " rows returned, " + out.length + " kept (" + want.join(", ") + ")" +
+      (notYetLaunched ? ", " + notYetLaunched + " skipped as not yet launched" : ""));
+    return out;
+  }
+
+  async extractONRunningInventory(format = "inventory") {
     try {
       this.loadShopifySettings();
       this.shopifySettings.exportType = format;
 
-      const inventoryData = this.extractFromONStructure();
+      // API first. The DOM walk survives only as a fallback, and because it
+      // cannot see real numbers it says so rather than quietly producing guesses.
+      let inventoryData = [];
+      try {
+        inventoryData = await this.fetchInventoryFromApi(this.shopifySettings.onMainGroups);
+      } catch (apiError) {
+        console.warn("ON API failed, falling back to reading the page:", apiError);
+        inventoryData = this.extractFromONStructure();
+        if (inventoryData.length) {
+          alert("Could not reach the ON inventory API, so quantities were read off the page instead.\n\n" +
+                "Reading the page cannot see real numbers, only the colour band, so these are approximate.\n\n" +
+                apiError.message);
+        }
+      }
 
       if (!inventoryData.length) {
-        alert("No inventory data found. Make sure you're on the quantities/availability page.");
+        alert("No inventory data found.\n\nOpen backstage.on-running.com, make sure you are signed in, then try again.");
         return { count: 0 };
       }
 
@@ -1818,8 +1930,10 @@ if (typeof chrome !== "undefined" && chrome.runtime) {
     if (message.action === "extractInventory") {
       try {
         const extractor = new ONRunningInventoryExtractor();
-        const result = extractor.extractONRunningInventory("inventory");
-        sendResponse({ success: true, count: result.count });
+        extractor.extractONRunningInventory("inventory")
+          .then((result) => sendResponse({ success: true, count: result.count }))
+          .catch((error) => sendResponse({ success: false, error: error.message }));
+        return true;                       // async now, keep the channel open
       } catch (error) {
         console.error("Message handler error:", error);
         sendResponse({ success: false, error: error.message });

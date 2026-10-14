@@ -1,3 +1,13 @@
+
+// Local date and time stamp for download filenames, as YYYY-MM-DD_HHMM.
+// Date.now() was an epoch number like 1757936421883: unreadable, and it sorts
+// against nothing else in the Downloads folder. This sorts chronologically by
+// name and tells you at a glance which drop a file came from. Local time, not
+// UTC, because the person reading the filename is in the shop.
+function stampForFilename(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
 // COMPLETE UNIFIED ASICS Background Script - FINAL CORRECT VERSION
 // This persists data across page navigations and handles both inventory and product CSV downloads
 
@@ -152,7 +162,7 @@ class UnifiedCSVManager {
             
             // Convert to inventory CSV format
             const csv = this.convertToInventoryCSV(chunkData);
-            const filename = `asics-inventory-part-${chunkNumber}-${Date.now()}.csv`;
+            const filename = `asics-inventory-part-${chunkNumber}-${stampForFilename()}.csv`;
             
             // Try chrome.downloads first
             try {
@@ -201,7 +211,7 @@ class UnifiedCSVManager {
             
             // Convert to product CSV format
             const csv = this.convertToProductCSV(chunkData);
-            const filename = `asics-products-part-${chunkNumber}-${Date.now()}.csv`;
+            const filename = `asics-products-part-${chunkNumber}-${stampForFilename()}.csv`;
             
             try {
                 const dataUrl = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);

@@ -1,3 +1,13 @@
+
+// Local date and time stamp for download filenames, as YYYY-MM-DD_HHMM.
+// Date.now() was an epoch number like 1757936421883: unreadable, and it sorts
+// against nothing else in the Downloads folder. This sorts chronologically by
+// name and tells you at a glance which drop a file came from. Local time, not
+// UTC, because the person reading the filename is in the shop.
+function stampForFilename(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
 // COMPLETE UNIFIED BROOKS Background Script - SEO-Optimized Handle Logic
 // Creates SEO-friendly handles using product name + color + width + SKU prefix for uniqueness
 // SKU prefix prevents duplicates when same colorway exists across different size ranges (men's/women's)
@@ -64,14 +74,20 @@ class UnifiedBrooksCSVManager {
                 // If quota exceeded, clean up old data and retry
                 if (storageError.message.includes('quota') || storageError.message.includes('QUOTA')) {
                     console.log('⚠️ Brooks Background: Storage quota exceeded - cleaning up old data...');
-                    await this.emergencyCleanup();
+                    await this.emergencyCleanup(scrapingId);
                     
-                    // Retry storage
-                    await chrome.storage.local.set({
-                        [newChunkKey]: currentChunkData,
-                        [stateKey]: state
-                    });
-                    console.log('✅ Brooks Background: Successfully saved after cleanup');
+                    // Retry ONCE. If it still will not fit, say so loudly rather
+                    // than returning a success the caller will believe.
+                    try {
+                        await chrome.storage.local.set({
+                            [newChunkKey]: currentChunkData,
+                            [stateKey]: state
+                        });
+                        console.log('✅ Brooks Background: Successfully saved after cleanup');
+                    } catch (retryError) {
+                        console.error('❌ Brooks Background: STILL over quota after cleanup. Data for this page was NOT saved.', retryError);
+                        throw retryError;
+                    }
                 } else {
                     throw storageError;
                 }
@@ -146,14 +162,20 @@ class UnifiedBrooksCSVManager {
                 // If quota exceeded, clean up old data and retry
                 if (storageError.message.includes('quota') || storageError.message.includes('QUOTA')) {
                     console.log('⚠️ Brooks Background: Storage quota exceeded - cleaning up old data...');
-                    await this.emergencyCleanup();
+                    await this.emergencyCleanup(scrapingId);
                     
-                    // Retry storage
-                    await chrome.storage.local.set({
-                        [newChunkKey]: currentChunkData,
-                        [stateKey]: state
-                    });
-                    console.log('✅ Brooks Background: Successfully saved after cleanup');
+                    // Retry ONCE. If it still will not fit, say so loudly rather
+                    // than returning a success the caller will believe.
+                    try {
+                        await chrome.storage.local.set({
+                            [newChunkKey]: currentChunkData,
+                            [stateKey]: state
+                        });
+                        console.log('✅ Brooks Background: Successfully saved after cleanup');
+                    } catch (retryError) {
+                        console.error('❌ Brooks Background: STILL over quota after cleanup. Data for this page was NOT saved.', retryError);
+                        throw retryError;
+                    }
                 } else {
                     throw storageError;
                 }
@@ -184,7 +206,7 @@ class UnifiedBrooksCSVManager {
             console.log(`📥 Brooks Background: Downloading inventory chunk ${chunkNumber} with ${chunkData.length} records`);
             
             const csv = this.convertToBrooksInventoryCSV(chunkData);
-            const filename = `brooks-iventory-${chunkNumber}-${Date.now()}.csv`;
+            const filename = `brooks-inventory-part-${chunkNumber}-${stampForFilename()}.csv`;
             
             try {
                 const dataUrl = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
@@ -230,7 +252,7 @@ class UnifiedBrooksCSVManager {
             console.log(`📥 Brooks Background: Downloading product chunk ${chunkNumber} with ${chunkData.length} records`);
             
             const csv = this.convertToBrooksProductCSV(chunkData);
-            const filename = `brooks-products-part-${chunkNumber}-${Date.now()}.csv`;
+            const filename = `brooks-products-part-${chunkNumber}-${stampForFilename()}.csv`;
             
             try {
                 const dataUrl = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
@@ -575,16 +597,26 @@ class UnifiedBrooksCSVManager {
         return csvContent;
     }
   
-    // EMERGENCY CLEANUP - Clear all old chunks immediately
-    async emergencyCleanup() {
+    // EMERGENCY CLEANUP - clear chunks from OTHER runs, never the one in progress.
+    //
+    // This used to remove every key starting with scraping_ or brooks_chunk_,
+    // which included the run that had just hit the quota. The retry that followed
+    // then succeeded and reported success, so a quota event silently threw away
+    // every chunk this run had accumulated but not yet downloaded, and nothing
+    // anywhere said so. That is the data loss behind "it just stops getting
+    // everything". Old runs are still fair game, they are what fills the quota.
+    async emergencyCleanup(keepScrapingId) {
         try {
-            console.log('🧹 Brooks Background: Running emergency cleanup...');
+            console.log(`🧹 Brooks Background: Running emergency cleanup (keeping run ${keepScrapingId || 'none'})...`);
             
             const allItems = await chrome.storage.local.get(null);
             const keysToRemove = [];
+            const keepState = keepScrapingId ? `scraping_${keepScrapingId}` : null;
+            const keepChunks = keepScrapingId ? `${this.chunkPrefix}${keepScrapingId}_` : null;
             
             Object.keys(allItems).forEach(key => {
-                // Remove ALL old chunks and scraping state
+                if (keepState && key === keepState) { return; }
+                if (keepChunks && key.startsWith(keepChunks)) { return; }
                 if (key.startsWith('scraping_') || key.startsWith('brooks_chunk_')) {
                     keysToRemove.push(key);
                 }

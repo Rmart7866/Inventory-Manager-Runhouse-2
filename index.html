@@ -1020,46 +1020,25 @@
                     <div class="instruct" id="on-instructions">
                         <h4>ON Running Instructions:</h4>
                         <ol>
-                            <li>Use Chrome to run the ON scraper</li>
-                            <li>Download Men's and Women's inventory CSVs</li>
-                            <li>Upload both files below</li>
-                            <li>Unisex is optional: add that CSV too if you have one</li>
+                            <li>Open backstage.on-running.com in Chrome and sign in</li>
+                            <li>Click "Export ON Running Inventory" (any page will do)</li>
+                            <li>Drop the single CSV below</li>
                         </ol>
                     </div>
-                    <div class="dropzone" id="on-men-dropzone">
-                        <h3>Drop ON First CSV</h3>
-                        <p>Inventory file</p>
+                    <div class="dropzone" id="on-all-dropzone">
+                        <h3>Drop ON Inventory CSV</h3>
+                        <p>One file, all genders</p>
                         <div class="csv-note">Pre-formatted from scraper</div>
-                        <input type="file" class="file-input" id="on-men-file" accept=".csv">
+                        <input type="file" class="file-input" id="on-all-file" accept=".csv">
                     </div>
-                    <div class="uploaded" id="on-men-uploaded" style="display:none;">
-                        <div class="uploaded-info"><strong id="on-men-filename"></strong></div>
-                        <button class="clear-btn" onclick="clearOnFile('men')">Clear</button>
-                    </div>
-                    <div class="dropzone" id="on-women-dropzone" style="margin-top:8px;">
-                        <h3>Drop ON Second CSV</h3>
-                        <p>Inventory file</p>
-                        <div class="csv-note">Pre-formatted from scraper</div>
-                        <input type="file" class="file-input" id="on-women-file" accept=".csv">
-                    </div>
-                    <div class="uploaded" id="on-women-uploaded" style="display:none;">
-                        <div class="uploaded-info"><strong id="on-women-filename"></strong></div>
-                        <button class="clear-btn" onclick="clearOnFile('women')">Clear</button>
-                    </div>
-                    <div class="dropzone" id="on-unisex-dropzone" style="margin-top:8px;">
-                        <h3>Drop ON Unisex CSV</h3>
-                        <p>Optional: unisex shoes</p>
-                        <div class="csv-note">Pre-formatted from scraper</div>
-                        <input type="file" class="file-input" id="on-unisex-file" accept=".csv">
-                    </div>
-                    <div class="uploaded" id="on-unisex-uploaded" style="display:none;">
-                        <div class="uploaded-info"><strong id="on-unisex-filename"></strong></div>
-                        <button class="clear-btn" onclick="clearOnFile('unisex')">Clear</button>
+                    <div class="uploaded" id="on-all-uploaded" style="display:none;">
+                        <div class="uploaded-info"><strong id="on-all-filename"></strong></div>
+                        <button class="clear-btn" onclick="clearOnFile('all')">Clear</button>
                     </div>
                     <div class="dropzone" id="on-upc-dropzone" style="margin-top:8px;">
-                        <h3>ON Barcodes — built in ✓</h3>
+                        <h3>ON Barcodes &mdash; built in &check;</h3>
                         <p>Optional: add a newer pricat</p>
-                        <div class="csv-note">Drop a pricat-….xlsx to update</div>
+                        <div class="csv-note">Drop a pricat-&hellip;.xlsx to update</div>
                         <input type="file" class="file-input" id="on-upc-file" accept=".xlsx">
                     </div>
                     <div class="uploaded" id="on-upc-uploaded" style="display:none;">
@@ -1227,6 +1206,6 @@
     <script src="product-library.js?v=8"></script>
     <script src="catalog-ui.js?v=7"></script>
 
-    <script src="main.js?v=14"></script>
+    <script src="main.js?v=15"></script>
 </body>
 </html>
