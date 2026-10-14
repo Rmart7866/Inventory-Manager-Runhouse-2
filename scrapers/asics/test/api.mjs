@@ -125,9 +125,46 @@ console.log('\nA colorway the catalog never described is dropped, not invented')
   eq('empty availability yields no rows', x.recordsFromAvailability({}, []).length, 0);
 }
 
+console.log('\n202 is a throttle, not an answer, and must never read as success');
+{
+  // Under load the availability route answers 202 Accepted with an EMPTY body.
+  // 202 is a 2xx, so res.ok is true: treating it as success yields a style with
+  // no sizes, which downstream reads as "out of stock everywhere" and zeroes it.
+  const mk = (status, body) => ({ status, ok: status >= 200 && status < 300, text: async () => body });
+  const y = Object.create(Extractor.prototype);
+  // The load-time stub is a no-op so the page decoration does not run. The
+  // backoff genuinely awaits setTimeout, so fire it immediately from here on,
+  // otherwise the retry never resolves and the test hangs instead of failing.
+  sb.setTimeout = (fn) => { if (typeof fn === 'function') fn(); return 0; };
+
+  let calls = 0;
+  sb.fetch = async () => { calls++; return calls < 3 ? mk(202, '') : mk(200, '{"availability":[]}'); };
+  const got = await y.apiGet('/x');
+  eq('retries through 202 and returns the real body', JSON.stringify(got), '{"availability":[]}');
+  eq('it actually retried', calls >= 3, true);
+
+  sb.fetch = async () => mk(202, '');
+  let threw = null;
+  try { await y.apiGet('/x'); } catch (e) { threw = e.message; }
+  eq('a style stuck on 202 THROWS rather than returning nothing',
+     /202|throttl/i.test(threw || ''), true);
+
+  sb.fetch = async () => mk(200, '   ');
+  threw = null;
+  try { await y.apiGet('/x'); } catch (e) { threw = e.message; }
+  eq('an empty 200 body throws too', /empty/i.test(threw || ''), true);
+
+  sb.fetch = async () => mk(500, 'boom');
+  threw = null;
+  try { await y.apiGet('/x'); } catch (e) { threw = e.message; }
+  eq('a 500 still throws', /500/.test(threw || ''), true);
+}
+
 console.log('\nConcurrency stays at the measured ceiling');
 eq('six, because twelve gets a 429 with no throughput gain', Extractor.API_CONCURRENCY, 6);
 eq('footwear collection', Extractor.API_FOOTWEAR_COLLECTION, 3100);
+eq('running only by default, 179 of the 577 footwear styles are court and field', Extractor.API_RUNNING_ONLY, true);
+eq('kids excluded, same as the dropship type rule', Extractor.API_INCLUDE_KIDS, false);
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nAll passed\n');
 process.exit(failures ? 1 : 0);

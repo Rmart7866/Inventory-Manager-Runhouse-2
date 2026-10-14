@@ -1949,14 +1949,28 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
 
     async apiGet(url, attempt = 0) {
         const res = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
-        // 429 is the portal telling us to slow down, so wait and retry rather
-        // than dropping the style, which would report it as out of stock.
-        if (res.status === 429 && attempt < 5) {
-            await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+
+        // 429 AND 202 BOTH MEAN SLOW DOWN, and 202 is the dangerous one.
+        //
+        // Under load the availability route answers 202 Accepted with an EMPTY
+        // body instead of 429. It is a soft throttle, not a real answer:
+        // measured 2026-10-14, a style returned 202 three times across seven
+        // seconds, then 200 with full stock after a 30 second pause.
+        //
+        // 202 is a 2xx, so res.ok is TRUE. Treating it as success hands back a
+        // style with no sizes, which reads downstream as "this shoe is out of
+        // stock everywhere" and zeroes it. Retry it like a 429.
+        if ((res.status === 429 || res.status === 202) && attempt < 6) {
+            await new Promise((r) => setTimeout(r, Math.min(30000, 1500 * Math.pow(2, attempt))));
             return this.apiGet(url, attempt + 1);
         }
+        if (res.status === 202) throw new Error('ASICS API kept answering 202 (throttled) for ' + url);
         if (!res.ok) throw new Error('ASICS API ' + res.status + ' for ' + url);
-        return res.json();
+
+        // An empty 200 is the same trap wearing a different number.
+        const text = await res.text();
+        if (!text.trim()) throw new Error('ASICS API returned an empty body for ' + url);
+        return JSON.parse(text);
     }
 
     async apiBasketNo() {
@@ -2046,9 +2060,29 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         const cat = await this.apiGet('/aac/products?basketNo=' + encodeURIComponent(basketNo));
         const rows = (cat && cat.data) || [];
 
-        // Footwear only for now. Apparel and accessories size differently and
-        // would produce rows that match nothing in Shopify.
-        const footwear = rows.filter((r) => Number(r.collection) === EnhancedASICSInventoryExtractor.API_FOOTWEAR_COLLECTION);
+        // FOOTWEAR, THEN RUNNING, THEN ADULT. Each cut has a reason.
+        //
+        // Measured 2026-10-14, collection 3100 is 577 styles and that is NOT
+        // 577 running shoes:
+        //   398  running
+        //   179  court and field, GEL-RESOLUTION, COURT FF, UPCOURT,
+        //        GEL-ROCKET, BLADE FF, FIELD SPEED FF, GEL-LETHAL FIELD
+        //   370  running once kids are dropped (28 kids running styles)
+        //
+        // Court, volleyball, cricket and field hockey are not dropshipped, and
+        // Kids' Shoes is out of dropship scope the same way it is in
+        // CatalogClient.DROPSHIP_TYPE_RE. Pulling them costs about three
+        // minutes of stock calls for rows nothing downstream will match.
+        //
+        // Set API_RUNNING_ONLY or API_INCLUDE_KIDS to false and true to widen.
+        const C = EnhancedASICSInventoryExtractor;
+        let footwear = rows.filter((r) => Number(r.collection) === C.API_FOOTWEAR_COLLECTION);
+        if (C.API_RUNNING_ONLY) {
+            footwear = footwear.filter((r) => Object.keys(r.category || {}).indexOf('running') !== -1);
+        }
+        if (!C.API_INCLUDE_KIDS) {
+            footwear = footwear.filter((r) => String(r.gender) !== '3');
+        }
 
         // One stock call covers every colorway of a style, so group first. The
         // colour codes must come from the catalog: a hardcoded list 400s on any
@@ -2090,9 +2124,24 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
 
         console.log('ASICS API: ' + styles.length + ' footwear styles, ' + records.length +
             ' size rows' + (failed ? ', ' + failed + ' styles failed' : ''));
-        // A total failure is a dead session, not an empty catalog. Say so
-        // rather than handing back a file that would zero every ASICS shoe.
-        if (failed && !records.length) throw new Error('Every ASICS style failed. Are you still signed in to the B2B portal?');
+
+        // A MISSING STYLE IS NOT AN EMPTY STYLE, and the difference matters.
+        //
+        // InventoryTracker decides what to zero by comparing the store against
+        // every SKU in the feed, so a style that failed its stock call is not
+        // "no change", it looks REMOVED and its Needham stock gets zeroed. A
+        // partial file is therefore worse than no file, and this refuses rather
+        // than hand one over.
+        if (failed) {
+            const pct = Math.round((failed / styles.length) * 100);
+            if (pct > 2) {
+                throw new Error(failed + ' of ' + styles.length + ' ASICS styles failed (' + pct +
+                    ' percent). Refusing to build a CSV: the missing styles would read as removed ' +
+                    'and zero their stock. Wait a few minutes for the portal throttle to clear and run it again.');
+            }
+            console.warn('ASICS API: ' + failed + ' styles failed, under the 2 percent threshold, continuing.');
+        }
+        if (!records.length) throw new Error('No ASICS stock came back. Are you still signed in to the B2B portal?');
         return records;
     }
 
@@ -2119,6 +2168,9 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
 // gender: 1011 men, 1012 women, 1013 unisex, 1014 kids.
 EnhancedASICSInventoryExtractor.API_GENDER = { '1': 'Men', '2': 'Women', '3': 'Kids', '4': 'Unisex' };
 EnhancedASICSInventoryExtractor.API_FOOTWEAR_COLLECTION = 3100;
+// Running only, adults only. See the cuts explained in fetchInventoryFromApi.
+EnhancedASICSInventoryExtractor.API_RUNNING_ONLY = true;
+EnhancedASICSInventoryExtractor.API_INCLUDE_KIDS = false;
 EnhancedASICSInventoryExtractor.API_CONCURRENCY = 6;
 
 // Initialize the extractor
