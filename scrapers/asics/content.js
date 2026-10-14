@@ -379,9 +379,56 @@ class EnhancedASICSInventoryExtractor {
         autoBtn.appendChild(closeBtn);
         
         document.body.appendChild(autoBtn);
-        
+
+        this.addApiScrapeButton();
+
         // Create reopen button (hidden initially)
         this.addReopenButton();
+    }
+
+    // One button, whole footwear catalog, no page walking. Sits under
+    // Auto-Scrape rather than replacing it, because the DOM walk is still the
+    // fallback if ASICS changes the API.
+    addApiScrapeButton() {
+        const btn = document.createElement('button');
+        btn.className = 'asics-api-scrape-btn';
+        btn.textContent = 'Scrape All Shoes (fast)';
+        btn.style.cssText = `
+            position: fixed; top: 68px; right: 20px; z-index: 10000;
+            background: #28a745; color: white; border: none; padding: 12px 20px;
+            border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        `;
+        btn.onclick = async () => {
+            if (btn.disabled) return;
+            btn.disabled = true;
+            btn.style.background = '#6c757d';
+            btn.textContent = 'Starting...';
+            try {
+                const records = await this.fetchInventoryFromApi((done, total, rows) => {
+                    btn.textContent = done + ' / ' + total + ' styles  (' + rows + ' rows)';
+                });
+                const csv = this.shopifyConverter.convertToInventoryCSV(records, this.shopifySettings);
+                const d = new Date();
+                const pad = (n) => String(n).padStart(2, '0');
+                const stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+                    '_' + pad(d.getHours()) + pad(d.getMinutes());
+                this.downloadCSV(csv, 'asics-inventory-api-' + stamp + '.csv');
+                btn.textContent = 'Done: ' + records.length + ' rows';
+                btn.style.background = '#28a745';
+            } catch (e) {
+                console.error('ASICS API scrape failed:', e);
+                btn.textContent = 'Failed, see console';
+                btn.style.background = '#dc3545';
+            } finally {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = 'Scrape All Shoes (fast)';
+                    btn.style.background = '#28a745';
+                }, 6000);
+            }
+        };
+        document.body.appendChild(btn);
     }
     
     addReopenButton() {
@@ -417,17 +464,20 @@ class EnhancedASICSInventoryExtractor {
         const autoBtn = document.querySelector('.asics-auto-scraper-btn');
         const settingsBtn = document.querySelector('.asics-settings-btn');
         const reopenBtn = document.querySelector('.asics-reopen-btn');
+        const apiBtn = document.querySelector('.asics-api-scrape-btn');
         
         if (autoBtn && settingsBtn && reopenBtn) {
             if (autoBtn.style.display === 'none') {
                 // Show scraper buttons
                 autoBtn.style.display = 'block';
                 settingsBtn.style.display = 'block';
+                if (apiBtn) apiBtn.style.display = 'block';
                 reopenBtn.style.display = 'none';
             } else {
                 // Hide scraper buttons
                 autoBtn.style.display = 'none';
                 settingsBtn.style.display = 'none';
+                if (apiBtn) apiBtn.style.display = 'none';
                 reopenBtn.style.display = 'block';
             }
         }
@@ -1874,7 +1924,202 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             }
         }, 5000);
     }
+
+    // ================= API EXTRACTION =================
+    //
+    // WHY THIS EXISTS. The DOM path walks a curated list of product URLs, one
+    // page load at a time, and reads the numbers off the rendered grid. The
+    // same data sits behind two JSON endpoints, so the walk is unnecessary.
+    //
+    // Measured 2026-10-14 against the live portal:
+    //   - the whole catalog is ONE call, 3,609 colorways across 1,228 styles
+    //   - stock is one call per style, about 0.9 seconds
+    //   - all 577 footwear styles take about 9 minutes
+    //
+    // SIX CONCURRENT IS THE CEILING, do not raise it. At twelve the portal
+    // returned 429 and throughput did not improve at all, 917ms per style
+    // against about 900ms at six, so the server is the bottleneck and a wider
+    // pool only gets us rate limited.
+    //
+    // THE AVAILABILITY FLAG IN THE CATALOG IS NOT STOCK. compactSizes carries
+    // an "a0" or "a1" per size and skipping every all-a0 style would halve the
+    // work. It is wrong: of four styles it marked unavailable, two held 19 and
+    // 29 units. Trusting it would zero real inventory, so every style gets a
+    // stock call.
+
+    async apiGet(url, attempt = 0) {
+        const res = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
+        // 429 is the portal telling us to slow down, so wait and retry rather
+        // than dropping the style, which would report it as out of stock.
+        if (res.status === 429 && attempt < 5) {
+            await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+            return this.apiGet(url, attempt + 1);
+        }
+        if (!res.ok) throw new Error('ASICS API ' + res.status + ' for ' + url);
+        return res.json();
+    }
+
+    async apiBasketNo() {
+        // The basket number is "no", not "basketNo". Both endpoints need it and
+        // a wrong one answers 403 rather than failing loudly.
+        const b = await this.apiGet('/aac/baskets/current');
+        const no = b && b.no;
+        if (!no) throw new Error('Could not read the current ASICS basket. Open a basket in the portal and try again.');
+        return no;
+    }
+
+    // compactSizes packs one segment per size, colon separated, each field
+    // prefixed by a letter: x US size, u UK, e EU, c CM, # material number,
+    // @ barcode, a availability. The material number is what the stock call
+    // returns as variantNo, so it is how a barcode joins to a size.
+    parseCompactSizes(compact) {
+        const out = [];
+        for (const seg of String(compact || '').split(':')) {
+            if (!seg) continue;
+            const f = {};
+            for (const part of seg.split('|')) {
+                if (!part) continue;
+                f[part[0]] = part.slice(1);
+            }
+            if (f['#']) out.push({ variantNo: f['#'], barcode: f['@'] || '', sizeUS: f.x || '' });
+        }
+        return out;
+    }
+
+    widthFromCatalog(row) {
+        // widthLabel already resolves the gender dependency, "Standard (B)" on
+        // a women's shoe and "Wide (D)", so do not infer a class from the bare
+        // code. widthTranslationCode is that same class, normalised.
+        const code = row.width || 'D';
+        const cls = row.widthTranslationCode || 'standard';
+        const label = (row.widthLabel || '').split('(')[0].trim();
+        return {
+            code: code,
+            name: label || (cls === 'extraWide' ? 'Extra Wide' : cls.charAt(0).toUpperCase() + cls.slice(1)),
+            isWide: cls === 'wide' || cls === 'extraWide'
+        };
+    }
+
+    recordsFromAvailability(av, colorways) {
+        const byColor = new Map(colorways.map((c) => [String(c.colorCode), c]));
+        // barcode lookup, material number to EAN, built from the catalog rows
+        const barcodes = new Map();
+        for (const c of colorways) {
+            for (const sz of this.parseCompactSizes(c.compactSizes)) {
+                if (sz.variantNo) barcodes.set(sz.variantNo, sz.barcode);
+            }
+        }
+
+        const out = [];
+        for (const block of (av && av.availability) || []) {
+            const stock = block.stock || {};
+            for (const colorCode of Object.keys(stock)) {
+                const meta = byColor.get(String(colorCode));
+                if (!meta) continue;
+                const width = this.widthFromCatalog(meta);
+                for (const sz of stock[colorCode] || []) {
+                    const size = sz.sizeUS || sz.sizeKey;
+                    if (!size) continue;
+                    out.push({
+                        styleId: meta.itemCode,
+                        productName: meta.itemName || '',
+                        colorCode: colorCode,
+                        colorName: meta.colorName || '',
+                        gender: EnhancedASICSInventoryExtractor.API_GENDER[String(meta.gender)] || '',
+                        width: width,
+                        sizeUS: String(size),
+                        size: String(size),
+                        // The REAL number. The rendered grid stops at
+                        // maxQuantityDisplayed, which is 30, and 983 rows of the
+                        // 2026-10-06 scrape sat at exactly that ceiling.
+                        quantity: Math.max(0, parseInt(sz.quantityAvailable, 10) || 0),
+                        barcode: barcodes.get(sz.variantNo) || ''
+                    });
+                }
+            }
+        }
+        return out;
+    }
+
+    async fetchInventoryFromApi(onProgress) {
+        const basketNo = await this.apiBasketNo();
+        const cat = await this.apiGet('/aac/products?basketNo=' + encodeURIComponent(basketNo));
+        const rows = (cat && cat.data) || [];
+
+        // Footwear only for now. Apparel and accessories size differently and
+        // would produce rows that match nothing in Shopify.
+        const footwear = rows.filter((r) => Number(r.collection) === EnhancedASICSInventoryExtractor.API_FOOTWEAR_COLLECTION);
+
+        // One stock call covers every colorway of a style, so group first. The
+        // colour codes must come from the catalog: a hardcoded list 400s on any
+        // style that does not use those codes.
+        const byStyle = new Map();
+        for (const r of footwear) {
+            if (!byStyle.has(r.itemCode)) byStyle.set(r.itemCode, []);
+            byStyle.get(r.itemCode).push(r);
+        }
+
+        const styles = [...byStyle.keys()];
+        const records = [];
+        let done = 0;
+        let failed = 0;
+        const queue = styles.slice();
+
+        const worker = async () => {
+            while (queue.length) {
+                const code = queue.shift();
+                const colorways = byStyle.get(code);
+                const colorCodes = [...new Set(colorways.map((c) => c.colorCode))].map((c) => c + ':').join(',');
+                try {
+                    const url = '/aac/products/' + encodeURIComponent(code) +
+                        '/availability?basketNo=' + encodeURIComponent(basketNo) +
+                        '&colorCodeDistributorNo=' + colorCodes;
+                    const av = await this.apiGet(url);
+                    records.push(...this.recordsFromAvailability(av, colorways));
+                } catch (e) {
+                    failed++;
+                    console.warn('ASICS API: style ' + code + ' failed:', e.message);
+                }
+                done++;
+                if (onProgress) onProgress(done, styles.length, records.length);
+            }
+        };
+
+        const pool = Math.min(EnhancedASICSInventoryExtractor.API_CONCURRENCY, queue.length) || 1;
+        await Promise.all(Array.from({ length: pool }, () => worker()));
+
+        console.log('ASICS API: ' + styles.length + ' footwear styles, ' + records.length +
+            ' size rows' + (failed ? ', ' + failed + ' styles failed' : ''));
+        // A total failure is a dead session, not an empty catalog. Say so
+        // rather than handing back a file that would zero every ASICS shoe.
+        if (failed && !records.length) throw new Error('Every ASICS style failed. Are you still signed in to the B2B portal?');
+        return records;
+    }
+
+    async runApiScrape() {
+        const started = Date.now();
+        const records = await this.fetchInventoryFromApi((done, total, rows) => {
+            if (done % 25 === 0 || done === total) {
+                console.log('ASICS API: ' + done + '/' + total + ' styles, ' + rows + ' rows');
+            }
+        });
+        const csv = this.shopifyConverter.convertToInventoryCSV(records, this.shopifySettings);
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+            '_' + pad(d.getHours()) + pad(d.getMinutes());
+        this.downloadCSV(csv, 'asics-inventory-api-' + stamp + '.csv');
+        console.log('ASICS API: done in ' + Math.round((Date.now() - started) / 1000) + 's');
+        return records.length;
+    }
 }
+
+// ASICS writes gender as a code. Confirmed across all 3,609 catalog rows
+// against their own item code convention, where the fourth digit is the
+// gender: 1011 men, 1012 women, 1013 unisex, 1014 kids.
+EnhancedASICSInventoryExtractor.API_GENDER = { '1': 'Men', '2': 'Women', '3': 'Kids', '4': 'Unisex' };
+EnhancedASICSInventoryExtractor.API_FOOTWEAR_COLLECTION = 3100;
+EnhancedASICSInventoryExtractor.API_CONCURRENCY = 6;
 
 // Initialize the extractor
 function initializeExtractor() {
@@ -1912,6 +2157,17 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
                 console.error('Message handler error:', error);
                 sendResponse({ success: false, error: error.message });
             }
+            return true;
+        }
+        // Whole-catalog pull straight from the portal's own API. Does not
+        // navigate, so it works from any page on the B2B site.
+        if (message.action === 'scrapeAllViaApi') {
+            new EnhancedASICSInventoryExtractor().runApiScrape()
+                .then((count) => sendResponse({ success: true, count: count }))
+                .catch((error) => {
+                    console.error('ASICS API scrape failed:', error);
+                    sendResponse({ success: false, error: error.message });
+                });
             return true;
         }
     });

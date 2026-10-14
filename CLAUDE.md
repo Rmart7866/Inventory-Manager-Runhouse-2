@@ -61,6 +61,7 @@ node test/canon-model.mjs                     # picker model matching: gender fo
 node test/on-title.mjs                        # ON titles: a two-tone color is never the model
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
+node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
