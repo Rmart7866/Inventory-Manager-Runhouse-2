@@ -167,3 +167,22 @@ maurten-created-*.json
 
 # Editor and tool backups, never part of the repo.
 *.bak
+
+# Run artifacts from tools/apply-product-content.mjs. Holds the previous
+# description and category of every product it rewrote, which is the undo.
+product-content-rollback-*.json
+
+# Run artifacts from tools/apply-sizing-block.mjs. Holds each product's whole
+# previous description body, which is the only way to put it back.
+sizing-block-rollback-*.json
+
+# Run artifacts from tools/clear-bogus-specs.mjs. Holds every specs.* field it
+# cleared, per product, which is the undo.
+specs-clear-rollback-*.json
+
+# CATCH ALL, and the reason it is here. Every block above was added by hand
+# when its tool was written, so a tool whose pattern nobody remembered to add
+# tracked its artifact into a public repo and nothing complained. Three did,
+# for months. Keep writing the per-tool blocks above, they say WHY each file
+# exists, but this line is what makes forgetting one harmless.
+*-rollback-*.json
