@@ -163,8 +163,14 @@ console.log('\n202 is a throttle, not an answer, and must never read as success'
 console.log('\nConcurrency stays at the measured ceiling');
 eq('six, because twelve gets a 429 with no throughput gain', Extractor.API_CONCURRENCY, 6);
 eq('footwear collection', Extractor.API_FOOTWEAR_COLLECTION, 3100);
-eq('running only by default, 179 of the 577 footwear styles are court and field', Extractor.API_RUNNING_ONLY, true);
-eq('kids excluded, same as the dropship type rule', Extractor.API_INCLUDE_KIDS, false);
+eq('running only, 179 of the 577 footwear styles are court and field', Extractor.API_RUNNING_ONLY, true);
+// The store carries 1014A396 NOVABLAST 6 GS, a kids shoe. Excluding kids
+// dropped exactly that style, and a dropped style gets ZEROED, so kids stay in.
+eq('kids are NOT excluded, the store carries a GS style', Extractor.API_INCLUDE_KIDS, undefined);
+// SS2027 holds real At Once stock, 2,311 units on SONICBLAST 2, so it must be
+// kept. It is not a preorder gate the way ON's launchDate is.
+eq('SS2027 is kept, it is live stock not a preorder', Extractor.API_SEASONS.includes('SS2027'), true);
+eq('pre-AW2025 is cut, those seasons are run down to about one unit', Extractor.API_SEASONS.includes('AW2024'), false);
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nAll passed\n');
 process.exit(failures ? 1 : 0);

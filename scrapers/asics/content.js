@@ -2060,28 +2060,42 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         const cat = await this.apiGet('/aac/products?basketNo=' + encodeURIComponent(basketNo));
         const rows = (cat && cat.data) || [];
 
-        // FOOTWEAR, THEN RUNNING, THEN ADULT. Each cut has a reason.
+        // NARROWING THE SCRAPE, AND THE RULE THAT DECIDES WHAT IS SAFE TO CUT.
         //
-        // Measured 2026-10-14, collection 3100 is 577 styles and that is NOT
-        // 577 running shoes:
-        //   398  running
-        //   179  court and field, GEL-RESOLUTION, COURT FF, UPCOURT,
-        //        GEL-ROCKET, BLADE FF, FIELD SPEED FF, GEL-LETHAL FIELD
-        //   370  running once kids are dropped (28 kids running styles)
+        // A style left out of the feed is NOT neutral. InventoryTracker zeroes
+        // by comparing the store against every SKU in the feed, so dropping a
+        // style the store CARRIES reads as removed and zeroes its stock. Every
+        // filter below was therefore checked against the 49 styles the store
+        // actually carries, not chosen because it sounded sensible.
         //
-        // Court, volleyball, cricket and field hockey are not dropshipped, and
-        // Kids' Shoes is out of dropship scope the same way it is in
-        // CatalogClient.DROPSHIP_TYPE_RE. Pulling them costs about three
-        // minutes of stock calls for rows nothing downstream will match.
+        // Measured 2026-10-14, collection 3100 is 577 styles, not 577 running:
+        //   577  all footwear
+        //   398  running          179 are court and field, GEL-RESOLUTION,
+        //                         COURT FF, UPCOURT, GEL-ROCKET, BLADE FF,
+        //                         FIELD SPEED FF, GEL-LETHAL FIELD
+        //   323  running, AW2025 onward
         //
-        // Set API_RUNNING_ONLY or API_INCLUDE_KIDS to false and true to widen.
+        // Running only drops ZERO carried styles, so it is safe.
+        //
+        // KIDS ARE IN, deliberately, even though Kids' Shoes is out of dropship
+        // scope elsewhere. The store carries 1014A396, NOVABLAST 6 GS, and
+        // excluding kids dropped exactly that one style, which would have
+        // zeroed it. The scope rule and what is actually stocked disagree, and
+        // the feed has to follow what is stocked.
+        //
+        // SEASON CUTS OFF PRE-AW2025 and nothing else. Older seasons are run
+        // down to about one unit, and the cut drops zero carried styles. Do NOT
+        // extend this to future seasons: SS2027 is NOT a preorder gate the way
+        // ON's launchDate is, it holds real At Once stock, 2,311 units on
+        // SONICBLAST 2 alone. This is the At Once journey, in stock by
+        // definition, so there is no not-yet-shippable problem to filter for.
         const C = EnhancedASICSInventoryExtractor;
         let footwear = rows.filter((r) => Number(r.collection) === C.API_FOOTWEAR_COLLECTION);
         if (C.API_RUNNING_ONLY) {
             footwear = footwear.filter((r) => Object.keys(r.category || {}).indexOf('running') !== -1);
         }
-        if (!C.API_INCLUDE_KIDS) {
-            footwear = footwear.filter((r) => String(r.gender) !== '3');
+        if (C.API_SEASONS && C.API_SEASONS.length) {
+            footwear = footwear.filter((r) => C.API_SEASONS.indexOf(r.season) !== -1);
         }
 
         // One stock call covers every colorway of a style, so group first. The
@@ -2168,9 +2182,11 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
 // gender: 1011 men, 1012 women, 1013 unisex, 1014 kids.
 EnhancedASICSInventoryExtractor.API_GENDER = { '1': 'Men', '2': 'Women', '3': 'Kids', '4': 'Unisex' };
 EnhancedASICSInventoryExtractor.API_FOOTWEAR_COLLECTION = 3100;
-// Running only, adults only. See the cuts explained in fetchInventoryFromApi.
+// Running, every age, recent seasons. Each cut is justified against the styles
+// the store carries in fetchInventoryFromApi. Set API_SEASONS to null for all
+// seasons, or API_RUNNING_ONLY to false to include court and field.
 EnhancedASICSInventoryExtractor.API_RUNNING_ONLY = true;
-EnhancedASICSInventoryExtractor.API_INCLUDE_KIDS = false;
+EnhancedASICSInventoryExtractor.API_SEASONS = ['AW2025', 'SS2026', 'AW2026', 'SS2027'];
 EnhancedASICSInventoryExtractor.API_CONCURRENCY = 6;
 
 // Initialize the extractor
