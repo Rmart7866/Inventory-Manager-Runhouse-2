@@ -404,9 +404,19 @@ class EnhancedASICSInventoryExtractor {
             btn.disabled = true;
             btn.style.background = '#6c757d';
             btn.textContent = 'Starting...';
+            const t0 = Date.now();
             try {
                 const records = await this.fetchInventoryFromApi((done, total, rows) => {
-                    btn.textContent = done + ' / ' + total + ' styles  (' + rows + ' rows)';
+                    // Elapsed and ETA, so a slow run is visibly a slow run and
+                    // not a hung one. Throttling is called out by name because
+                    // that is the usual reason this takes longer than expected.
+                    const secs = (Date.now() - t0) / 1000;
+                    const eta = done ? Math.round((secs / done) * (total - done)) : 0;
+                    const C = EnhancedASICSInventoryExtractor;
+                    const cooling = (C._cooldownUntil || 0) > Date.now();
+                    btn.textContent = done + ' / ' + total + '  ' + rows + ' rows  ' +
+                        Math.round(secs) + 's elapsed, ~' + eta + 's left' +
+                        (cooling ? '  (throttled, waiting)' : '');
                 });
                 const csv = this.shopifyConverter.convertToInventoryCSV(records, this.shopifySettings);
                 const d = new Date();
@@ -1959,7 +1969,35 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
     // 29 units. Trusting it would zero real inventory, so every style gets a
     // stock call.
 
+    // ONE SHARED BRAKE, NOT SIX PRIVATE ONES.
+    //
+    // The first version backed off per request. With six workers that is the
+    // worst possible shape: the portal starts throttling, all six keep firing
+    // and each one independently sleeps and retries, so the portal stays
+    // hammered, stays throttling, and every style burns its full retry ladder.
+    // At 1.5s doubling to 30s over six attempts that is 76 seconds PER STYLE,
+    // which turned a six minute run into an hour plus.
+    //
+    // So the brake is shared. The first worker to see a throttle sets a
+    // cooldown and every worker waits behind it, which means the portal gets a
+    // real pause instead of a continuing barrage, recovers, and the whole run
+    // finishes sooner. Backing off harder is faster here, not slower.
+    async apiWait() {
+        const until = EnhancedASICSInventoryExtractor._cooldownUntil || 0;
+        const ms = until - Date.now();
+        if (ms > 0) await new Promise((r) => setTimeout(r, ms));
+    }
+
+    apiBrake(attempt) {
+        const C = EnhancedASICSInventoryExtractor;
+        const delay = Math.min(20000, 1500 * Math.pow(2, attempt));
+        // Only ever extend the cooldown, never shorten one another worker set.
+        C._cooldownUntil = Math.max(C._cooldownUntil || 0, Date.now() + delay);
+        C._throttleHits = (C._throttleHits || 0) + 1;
+    }
+
     async apiGet(url, attempt = 0) {
+        await this.apiWait();
         const res = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
 
         // 429 AND 202 BOTH MEAN SLOW DOWN, and 202 is the dangerous one.
@@ -1973,7 +2011,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         // style with no sizes, which reads downstream as "this shoe is out of
         // stock everywhere" and zeroes it. Retry it like a 429.
         if ((res.status === 429 || res.status === 202) && attempt < 6) {
-            await new Promise((r) => setTimeout(r, Math.min(30000, 1500 * Math.pow(2, attempt))));
+            this.apiBrake(attempt);
             return this.apiGet(url, attempt + 1);
         }
         if (res.status === 202) throw new Error('ASICS API kept answering 202 (throttled) for ' + url);
@@ -2179,6 +2217,9 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         let done = 0;
         let failed = 0;
         const queue = styles.slice();
+        // Shared brake state is per run, not per page.
+        EnhancedASICSInventoryExtractor._cooldownUntil = 0;
+        EnhancedASICSInventoryExtractor._throttleHits = 0;
 
         const worker = async () => {
             while (queue.length) {
@@ -2203,8 +2244,10 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         const pool = Math.min(EnhancedASICSInventoryExtractor.API_CONCURRENCY, queue.length) || 1;
         await Promise.all(Array.from({ length: pool }, () => worker()));
 
+        const hits = EnhancedASICSInventoryExtractor._throttleHits || 0;
         console.log('ASICS API: ' + styles.length + ' footwear styles, ' + records.length +
-            ' size rows' + (failed ? ', ' + failed + ' styles failed' : ''));
+            ' size rows' + (failed ? ', ' + failed + ' styles failed' : '') +
+            (hits ? ', throttled ' + hits + ' times' : ''));
 
         // A MISSING STYLE IS NOT AN EMPTY STYLE, and the difference matters.
         //

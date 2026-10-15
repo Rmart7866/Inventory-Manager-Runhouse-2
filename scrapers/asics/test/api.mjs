@@ -175,6 +175,19 @@ console.log('\n202 is a throttle, not an answer, and must never read as success'
   eq('retries through 202 and returns the real body', JSON.stringify(got), '{"availability":[]}');
   eq('it actually retried', calls >= 3, true);
 
+  // The brake is shared across workers, so a cooldown one sets must be
+  // visible to all of them and must only ever extend, never shorten.
+  Extractor._cooldownUntil = 0;
+  y.apiBrake(0);
+  const first = Extractor._cooldownUntil;
+  eq('a throttle sets a cooldown every worker can see', first > Date.now(), true);
+  y.apiBrake(3);
+  eq('a longer cooldown extends it', Extractor._cooldownUntil > first, true);
+  const longer = Extractor._cooldownUntil;
+  y.apiBrake(0);
+  eq('a shorter one does NOT shorten it', Extractor._cooldownUntil, longer);
+  Extractor._cooldownUntil = 0;
+
   sb.fetch = async () => mk(202, '');
   let threw = null;
   try { await y.apiGet('/x'); } catch (e) { threw = e.message; }
