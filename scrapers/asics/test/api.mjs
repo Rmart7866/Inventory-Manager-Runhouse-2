@@ -192,6 +192,19 @@ console.log('\n202 is a throttle, not an answer, and must never read as success'
   eq('a 500 still throws', /500/.test(threw || ''), true);
 }
 
+console.log('\nEvery style on the link list is guaranteed into the feed');
+{
+  const L = Extractor.API_ALWAYS_INCLUDE;
+  eq('all 49 carried styles are listed', L.length, 49);
+  eq('no duplicates', new Set(L).size, L.length);
+  // The three that each filter would otherwise have dropped.
+  eq('the kids style the store carries is on the floor', L.includes('1014A396'), true);
+  eq('a 1013 unisex style is on the floor', L.includes('1013A176'), true);
+  eq('the style used throughout these tests is carried', L.includes('1011C127'), true);
+  eq('every entry looks like an ASICS item code',
+     L.every((c) => /^[0-9A-Z]{8}$/.test(c)), true);
+}
+
 console.log('\nConcurrency stays at the measured ceiling');
 eq('six, because twelve gets a 429 with no throughput gain', Extractor.API_CONCURRENCY, 6);
 eq('footwear collection', Extractor.API_FOOTWEAR_COLLECTION, 3100);

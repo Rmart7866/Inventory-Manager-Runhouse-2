@@ -414,8 +414,20 @@ class EnhancedASICSInventoryExtractor {
                 const stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
                     '_' + pad(d.getHours()) + pad(d.getMinutes());
                 this.downloadCSV(csv, 'asics-inventory-api-' + stamp + '.csv');
-                btn.textContent = 'Done: ' + records.length + ' rows';
-                btn.style.background = '#28a745';
+                // A carried style missing from the file will be read as removed
+                // and zeroed, so this cannot live in the console only.
+                const absent = this._lastAbsentCarried || [];
+                if (absent.length) {
+                    btn.textContent = 'Done, but ' + absent.length + ' carried styles missing';
+                    btn.style.background = '#fd7e14';
+                    alert('ASICS scrape finished, but ' + absent.length + ' style(s) the store carries are not ' +
+                        'in the ASICS catalog:\n\n' + absent.join(', ') +
+                        '\n\nThese are absent from the CSV, so the tool will read them as removed and zero ' +
+                        'their stock. Check them before writing inventory.');
+                } else {
+                    btn.textContent = 'Done: ' + records.length + ' rows';
+                    btn.style.background = '#28a745';
+                }
             } catch (e) {
                 console.error('ASICS API scrape failed:', e);
                 btn.textContent = 'Failed, see console';
@@ -2112,13 +2124,46 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         // SONICBLAST 2 alone. This is the At Once journey, in stock by
         // definition, so there is no not-yet-shippable problem to filter for.
         const C = EnhancedASICSInventoryExtractor;
-        let footwear = rows.filter((r) => Number(r.collection) === C.API_FOOTWEAR_COLLECTION);
+        const allFootwear = rows.filter((r) => Number(r.collection) === C.API_FOOTWEAR_COLLECTION);
+        let footwear = allFootwear;
         if (C.API_RUNNING_ONLY) {
             footwear = footwear.filter((r) => Object.keys(r.category || {}).indexOf('running') !== -1);
         }
         if (C.API_SEASONS && C.API_SEASONS.length) {
             footwear = footwear.filter((r) => C.API_SEASONS.indexOf(r.season) !== -1);
         }
+
+        // THE FLOOR. A style the store already carries must NEVER be filtered
+        // out, whatever the filters above say, because a missing style is not
+        // missing data, it reads as removed and zeroes that shoe's stock.
+        //
+        // The checks that justified the filters were run once, against one
+        // day's catalog. Seasons move: a carried style will eventually age out
+        // of API_SEASONS on its own and would then vanish silently. This adds
+        // every carried style back in regardless, so the filters can only ever
+        // decide what EXTRA to pull, never what to lose.
+        const kept = new Set(footwear.map((r) => r.itemCode));
+        const readded = [];
+        for (const r of allFootwear) {
+            if (!kept.has(r.itemCode) && C.API_ALWAYS_INCLUDE.indexOf(r.itemCode) !== -1) {
+                footwear.push(r);
+                if (readded.indexOf(r.itemCode) === -1) readded.push(r.itemCode);
+            }
+        }
+        if (readded.length) {
+            console.log('ASICS API: added back ' + readded.length +
+                ' carried styles the filters would have dropped: ' + readded.join(', '));
+        }
+
+        // And say so loudly if a carried style is not in the catalog at all,
+        // because that one cannot be added back and WILL zero.
+        const present = new Set(allFootwear.map((r) => r.itemCode));
+        const absent = C.API_ALWAYS_INCLUDE.filter((c) => !present.has(c));
+        if (absent.length) {
+            console.warn('ASICS API: ' + absent.length + ' carried styles are not in the ASICS catalog ' +
+                'at all, so they will be absent from the file and read as removed: ' + absent.join(', '));
+        }
+        this._lastAbsentCarried = absent;
 
         // One stock call covers every colorway of a style, so group first. The
         // colour codes must come from the catalog: a hardcoded list 400s on any
@@ -2210,6 +2255,24 @@ EnhancedASICSInventoryExtractor.API_FOOTWEAR_COLLECTION = 3100;
 EnhancedASICSInventoryExtractor.API_RUNNING_ONLY = true;
 EnhancedASICSInventoryExtractor.API_SEASONS = ['AW2025', 'SS2026', 'AW2026', 'SS2027'];
 EnhancedASICSInventoryExtractor.API_CONCURRENCY = 6;
+
+// STYLES THE STORE CARRIES, which the filters are never allowed to drop. Taken
+// from the 2026-10-06 scrape, which is what the Firestore B2B link list
+// produced. This is a FLOOR, not the source of truth: adding a link does not
+// update it. Refresh it from a recent scrape when the link list changes, and
+// note that a style here but absent from ASICS' catalog is reported loudly
+// rather than quietly skipped.
+EnhancedASICSInventoryExtractor.API_ALWAYS_INCLUDE = [
+    '1011B960', '1011B974', '1011C055', '1011C056', '1011C080', '1011C083',
+    '1011C127', '1011C143', '1011C144', '1011C145', '1011C147', '1011C160',
+    '1011C167', '1011C227', '1011C230', '1011C234', '1011C236', '1011C242',
+    '1011C243', '1011C244', '1011C249', '1011C256', '1011C276', '1012B772',
+    '1012B842', '1012B843', '1012B899', '1012B916', '1012B917', '1012B939',
+    '1012B992', '1012B997', '1012B998', '1012C008', '1012C009', '1012C019',
+    '1012C021', '1012C037', '1013A141', '1013A142', '1013A162', '1013A163',
+    '1013A170', '1013A176', '1013A177', '1013A183', '1013A187', '1013A196',
+    '1014A396'
+];
 
 // Initialize the extractor
 function initializeExtractor() {
