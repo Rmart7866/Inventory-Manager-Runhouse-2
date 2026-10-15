@@ -2253,7 +2253,12 @@ EnhancedASICSInventoryExtractor.API_FOOTWEAR_COLLECTION = 3100;
 // the store carries in fetchInventoryFromApi. Set API_SEASONS to null for all
 // seasons, or API_RUNNING_ONLY to false to include court and field.
 EnhancedASICSInventoryExtractor.API_RUNNING_ONLY = true;
-EnhancedASICSInventoryExtractor.API_SEASONS = ['AW2025', 'SS2026', 'AW2026', 'SS2027'];
+// NULL ON PURPOSE, every season. Limiting to recent seasons saved about 90
+// seconds and bought a drift risk that is not worth it: API_ALWAYS_INCLUDE is
+// a hand refreshed floor, so a style added to the B2B link list and then aged
+// out of a season window would be protected by neither and would zero. Pulling
+// all 398 running styles means the season a product sits in never matters.
+EnhancedASICSInventoryExtractor.API_SEASONS = null;
 EnhancedASICSInventoryExtractor.API_CONCURRENCY = 6;
 
 // STYLES THE STORE CARRIES, which the filters are never allowed to drop. Taken

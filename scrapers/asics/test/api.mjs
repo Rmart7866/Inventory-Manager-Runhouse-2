@@ -212,10 +212,9 @@ eq('running only, 179 of the 577 footwear styles are court and field', Extractor
 // The store carries 1014A396 NOVABLAST 6 GS, a kids shoe. Excluding kids
 // dropped exactly that style, and a dropped style gets ZEROED, so kids stay in.
 eq('kids are NOT excluded, the store carries a GS style', Extractor.API_INCLUDE_KIDS, undefined);
-// SS2027 holds real At Once stock, 2,311 units on SONICBLAST 2, so it must be
-// kept. It is not a preorder gate the way ON's launchDate is.
-eq('SS2027 is kept, it is live stock not a preorder', Extractor.API_SEASONS.includes('SS2027'), true);
-eq('pre-AW2025 is cut, those seasons are run down to about one unit', Extractor.API_SEASONS.includes('AW2024'), false);
+// Every season. A season window would have to be refreshed by hand alongside
+// API_ALWAYS_INCLUDE, and a style that fell out of both would zero silently.
+eq('no season filter, so no style can age out of the feed', Extractor.API_SEASONS, null);
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nAll passed\n');
 process.exit(failures ? 1 : 0);
