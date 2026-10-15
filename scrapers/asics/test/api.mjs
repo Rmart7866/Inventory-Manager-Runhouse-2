@@ -178,6 +178,7 @@ console.log('\n202 is a throttle, not an answer, and must never read as success'
   // The brake is shared across workers, so a cooldown one sets must be
   // visible to all of them and must only ever extend, never shorten.
   Extractor._cooldownUntil = 0;
+  Extractor._gapMs = Extractor.API_MIN_GAP_MS;
   y.apiBrake(0);
   const first = Extractor._cooldownUntil;
   eq('a throttle sets a cooldown every worker can see', first > Date.now(), true);
@@ -187,6 +188,19 @@ console.log('\n202 is a throttle, not an answer, and must never read as success'
   y.apiBrake(0);
   eq('a shorter one does NOT shorten it', Extractor._cooldownUntil, longer);
   Extractor._cooldownUntil = 0;
+
+  // A throttle must widen the STEADY pace, not just delay one retry, or the
+  // run goes straight back to the rate that got it throttled.
+  Extractor._gapMs = Extractor.API_MIN_GAP_MS;
+  y.apiBrake(0);
+  eq('a throttle widens the steady gap', Extractor._gapMs > Extractor.API_MIN_GAP_MS, true);
+  const widened = Extractor._gapMs;
+  Extractor._okStreak = 11; y.apiEased();
+  eq('a clean streak narrows it again', Extractor._gapMs < widened, true);
+  Extractor._gapMs = Extractor.API_MIN_GAP_MS;
+  for (let i = 0; i < 40; i++) y.apiBrake(0);
+  eq('the gap is capped', Extractor._gapMs <= Extractor.API_MAX_GAP_MS, true);
+  Extractor._gapMs = Extractor.API_MIN_GAP_MS; Extractor._cooldownUntil = 0;
 
   sb.fetch = async () => mk(202, '');
   let threw = null;
@@ -219,7 +233,8 @@ console.log('\nEvery style on the link list is guaranteed into the feed');
 }
 
 console.log('\nConcurrency stays at the measured ceiling');
-eq('six, because twelve gets a 429 with no throughput gain', Extractor.API_CONCURRENCY, 6);
+eq('four, because the pace is set by the gap not the pool', Extractor.API_CONCURRENCY, 4);
+eq('a steady gap between request starts', Extractor.API_MIN_GAP_MS, 700);
 eq('footwear collection', Extractor.API_FOOTWEAR_COLLECTION, 3100);
 eq('running only, 179 of the 577 footwear styles are court and field', Extractor.API_RUNNING_ONLY, true);
 // The store carries 1014A396 NOVABLAST 6 GS, a kids shoe. Excluding kids

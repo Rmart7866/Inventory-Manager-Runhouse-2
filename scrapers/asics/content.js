@@ -1982,18 +1982,52 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
     // cooldown and every worker waits behind it, which means the portal gets a
     // real pause instead of a continuing barrage, recovers, and the whole run
     // finishes sooner. Backing off harder is faster here, not slower.
+    // PACE, DO NOT BURST. This is the thing that actually fixes the runtime.
+    //
+    // Six workers firing as fast as they can is a burst, and the portal limits
+    // a sustained RATE. So the pattern was: burst, trip the limit, everybody
+    // waits twenty seconds, burst again. Most of the run was spent in cooldown
+    // and the useful throughput was far below what the limit actually allows.
+    //
+    // A steady gap between request STARTS fixes that. If the portal tolerates
+    // roughly one a second, pacing at one a second finishes 398 styles in
+    // about seven minutes having never once been throttled, which beats
+    // bursting and stalling by a wide margin.
+    //
+    // The gap is adaptive because the real limit is unpublished: widen hard on
+    // a throttle, narrow gently on a run of successes. Standard congestion
+    // control, and it settles near whatever the portal actually allows instead
+    // of guessing.
     async apiWait() {
-        const until = EnhancedASICSInventoryExtractor._cooldownUntil || 0;
-        const ms = until - Date.now();
-        if (ms > 0) await new Promise((r) => setTimeout(r, ms));
+        const C = EnhancedASICSInventoryExtractor;
+        for (;;) {
+            const now = Date.now();
+            const until = Math.max(C._cooldownUntil || 0, (C._lastStart || 0) + (C._gapMs || C.API_MIN_GAP_MS));
+            if (now >= until) { C._lastStart = now; return; }
+            await new Promise((r) => setTimeout(r, until - now));
+        }
     }
 
     apiBrake(attempt) {
         const C = EnhancedASICSInventoryExtractor;
-        const delay = Math.min(20000, 1500 * Math.pow(2, attempt));
-        // Only ever extend the cooldown, never shorten one another worker set.
+        // Widen the steady pace, not just this one retry. A throttle means the
+        // CURRENT rate is too fast, so every later request should slow too.
+        C._gapMs = Math.min(C.API_MAX_GAP_MS, Math.max(C._gapMs || C.API_MIN_GAP_MS, C.API_MIN_GAP_MS) * 2);
+        C._okStreak = 0;
+        const delay = Math.min(15000, 1000 * Math.pow(2, attempt));
         C._cooldownUntil = Math.max(C._cooldownUntil || 0, Date.now() + delay);
         C._throttleHits = (C._throttleHits || 0) + 1;
+    }
+
+    apiEased() {
+        // Narrow the gap again after a clean run, so one bad patch does not
+        // leave the rest of the scrape crawling.
+        const C = EnhancedASICSInventoryExtractor;
+        C._okStreak = (C._okStreak || 0) + 1;
+        if (C._okStreak >= 12 && (C._gapMs || 0) > C.API_MIN_GAP_MS) {
+            C._gapMs = Math.max(C.API_MIN_GAP_MS, Math.round((C._gapMs || C.API_MIN_GAP_MS) * 0.8));
+            C._okStreak = 0;
+        }
     }
 
     async apiGet(url, attempt = 0) {
@@ -2020,6 +2054,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         // An empty 200 is the same trap wearing a different number.
         const text = await res.text();
         if (!text.trim()) throw new Error('ASICS API returned an empty body for ' + url);
+        this.apiEased();
         return JSON.parse(text);
     }
 
@@ -2217,9 +2252,12 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         let done = 0;
         let failed = 0;
         const queue = styles.slice();
-        // Shared brake state is per run, not per page.
+        // Shared pacing state is per run, not per page.
         EnhancedASICSInventoryExtractor._cooldownUntil = 0;
         EnhancedASICSInventoryExtractor._throttleHits = 0;
+        EnhancedASICSInventoryExtractor._gapMs = EnhancedASICSInventoryExtractor.API_MIN_GAP_MS;
+        EnhancedASICSInventoryExtractor._lastStart = 0;
+        EnhancedASICSInventoryExtractor._okStreak = 0;
 
         const worker = async () => {
             while (queue.length) {
@@ -2302,7 +2340,13 @@ EnhancedASICSInventoryExtractor.API_RUNNING_ONLY = true;
 // out of a season window would be protected by neither and would zero. Pulling
 // all 398 running styles means the season a product sits in never matters.
 EnhancedASICSInventoryExtractor.API_SEASONS = null;
-EnhancedASICSInventoryExtractor.API_CONCURRENCY = 6;
+// Concurrency only has to cover request LATENCY now, because API_MIN_GAP_MS
+// sets the actual rate. Four in flight against a roughly one second response
+// is plenty, and a smaller pool means a cooldown stalls less work.
+EnhancedASICSInventoryExtractor.API_CONCURRENCY = 4;
+// Milliseconds between request STARTS, adaptive between these two bounds.
+EnhancedASICSInventoryExtractor.API_MIN_GAP_MS = 700;
+EnhancedASICSInventoryExtractor.API_MAX_GAP_MS = 8000;
 
 // STYLES THE STORE CARRIES, which the filters are never allowed to drop. Taken
 // from the 2026-10-06 scrape, which is what the Firestore B2B link list
