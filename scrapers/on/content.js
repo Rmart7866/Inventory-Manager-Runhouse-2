@@ -1318,6 +1318,27 @@ class ONRunningInventoryExtractor {
         picUrl: r.picUrl || ""
       });
     }
+    // SORT, BECAUSE THE API DOES NOT.
+    //
+    // The DOM scraper read each row left to right along the rendered size
+    // header, so sizes came out 7, 7.5, 8 by construction. The API returns rows
+    // in its own order, which for Cloudsurfer 2 was 5, 10.5, 6.5, 7, 5.5, 11.
+    // Nothing downstream re-sorts: the CSV row order IS the variant order
+    // Stage 4 creates, so the size dropdown on a new product came out jumbled.
+    //
+    // Group by colorway first so a product's rows stay contiguous, then by size
+    // as a NUMBER. Sorting size as text puts "10" before "6".
+    const sizeNum = (v) => {
+      const n = parseFloat(String(v).replace(/[^0-9.]/g, ""));
+      return isNaN(n) ? Infinity : n;      // anything unparseable sinks to the end
+    };
+    out.sort((a, b) =>
+      String(a.productName).localeCompare(String(b.productName)) ||
+      String(a.colorName).localeCompare(String(b.colorName)) ||
+      sizeNum(a.sizeUS) - sizeNum(b.sizeUS) ||
+      String(a.sizeUS).localeCompare(String(b.sizeUS))
+    );
+
     console.log("ON API: " + rows.length + " rows returned, " + out.length + " kept (" + want.join(", ") + ")" +
       (notYetLaunched ? ", " + notYetLaunched + " skipped as not yet launched" : ""));
     return out;

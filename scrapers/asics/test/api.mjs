@@ -125,6 +125,38 @@ console.log('\nA colorway the catalog never described is dropped, not invented')
   eq('empty availability yields no rows', x.recordsFromAvailability({}, []).length, 0);
 }
 
+console.log('\nSizes come out in ladder order, because CSV row order IS variant order');
+{
+  // The ON API path shipped unsorted and created products whose size dropdown
+  // read 5, 10.5, 6.5, 7. Same risk here, so the order is pinned.
+  const colorways = [{
+    itemCode: '1011C127', itemName: 'GEL-NIMBUS 28', colorCode: '001', colorName: 'BLACK',
+    gender: '1', width: 'D', widthLabel: 'Standard (D)', widthTranslationCode: 'standard',
+    compactSizes: '',
+  }];
+  const jumbled = ['10', '6.5', '7', '5', '11.5', '8'].map((z, i) => ({
+    variantNo: 'v' + i, quantityAvailable: 1, sizeUS: z, sizeKey: z,
+  }));
+  const recs = x.recordsFromAvailability({ availability: [{ stock: { '001': jumbled } }] }, colorways);
+  eq('sizes sort as numbers, so 10 does not land before 6.5',
+     recs.map((r) => r.sizeUS).join(','), '5,6.5,7,8,10,11.5');
+}
+
+console.log('\nASICS own sorting field wins when present');
+{
+  const colorways = [{
+    itemCode: '1011C127', itemName: 'GEL-NIMBUS 28', colorCode: '001', colorName: 'BLACK',
+    gender: '1', width: 'D', widthLabel: 'Standard (D)', widthTranslationCode: 'standard', compactSizes: '',
+  }];
+  const sized = [
+    { variantNo: 'a', quantityAvailable: 1, sizeUS: '7',  sizeKey: '7',  sorting: 33 },
+    { variantNo: 'b', quantityAvailable: 1, sizeUS: '6',  sizeKey: '6',  sorting: 31 },
+    { variantNo: 'c', quantityAvailable: 1, sizeUS: '6.5', sizeKey: '6H', sorting: 32 },
+  ];
+  const recs = x.recordsFromAvailability({ availability: [{ stock: { '001': sized } }] }, colorways);
+  eq('ladder order from the sorting field', recs.map((r) => r.sizeUS).join(','), '6,6.5,7');
+}
+
 console.log('\n202 is a throttle, not an answer, and must never read as success');
 {
   // Under load the availability route answers 202 Accepted with an EMPTY body.

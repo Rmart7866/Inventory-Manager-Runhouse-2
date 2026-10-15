@@ -2047,11 +2047,33 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                         // maxQuantityDisplayed, which is 30, and 983 rows of the
                         // 2026-10-06 scrape sat at exactly that ceiling.
                         quantity: Math.max(0, parseInt(sz.quantityAvailable, 10) || 0),
-                        barcode: barcodes.get(sz.variantNo) || ''
+                        barcode: barcodes.get(sz.variantNo) || '',
+                        // ASICS' own ladder position, used only for ordering
+                        sorting: typeof sz.sorting === 'number' ? sz.sorting : null
                     });
                 }
             }
         }
+
+        // SORT, BECAUSE NOTHING DOWNSTREAM WILL. The CSV row order is the
+        // variant order Stage 4 creates, so an unsorted feed gives a new
+        // product a jumbled size dropdown. The ON API path had exactly this
+        // bug: it returned 5, 10.5, 6.5, 7 and that is what got created.
+        //
+        // ASICS ships a "sorting" integer per size, which is their own ladder
+        // position and handles half sizes and width runs correctly, so prefer
+        // it. Fall back to the size as a NUMBER, never as text, because text
+        // puts "10" before "6".
+        const sizeNum = (v) => {
+            const n = parseFloat(String(v).replace(/[^0-9.]/g, ''));
+            return isNaN(n) ? Infinity : n;
+        };
+        out.sort((a, b) =>
+            String(a.styleId).localeCompare(String(b.styleId)) ||
+            String(a.colorCode).localeCompare(String(b.colorCode)) ||
+            (a.sorting != null && b.sorting != null ? a.sorting - b.sorting : 0) ||
+            sizeNum(a.sizeUS) - sizeNum(b.sizeUS)
+        );
         return out;
     }
 
