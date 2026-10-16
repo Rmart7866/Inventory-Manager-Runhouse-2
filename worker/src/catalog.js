@@ -187,6 +187,27 @@ export function classify(productType, vendor) {
 // apparel already on this store, in the handle. Footwear is 3xx and apparel 1xx.
 // This is what lets the apparel tool join a feed row to a live product without
 // guessing from a name.
+// The model name a garment belongs to, for grouping colorways in the picker.
+//
+// Footwear groups on modelKey, which is parsed into a model, gender, width
+// class and cw-group. None of that survives contact with apparel: a bra has no
+// width and "Performance Bra" is not a colorway of anything. So this is a much
+// smaller claim, just the human name with the decoration removed.
+//
+//   "On active Bra W (258)"              -> "ON ACTIVE BRA W"
+//   "ON Focus-T MEN (1ME11460069)"       -> "ON FOCUS-T MEN"
+//   "ON 5\" Running Shorts - Auburn/Ruby" -> "ON 5\" RUNNING SHORTS"
+//
+// Case folded because the store is inconsistent about it, "On active Bra" and
+// "ON Performance Bra" sit side by side.
+export function apparelModelKey(title) {
+  let t = String(title || '').trim();
+  t = t.replace(/\s*\([^)]*\)\s*$/, '');     // trailing (1ME11460069) or (258)
+  const dash = t.search(/\s+[-\u2013]\s+/);   // " - Colour", the colorway suffix
+  if (dash > 0) t = t.slice(0, dash);
+  return t.replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
 function articleCodesOf(product) {
   const found = new Set();
   const add = (s) => {
@@ -367,6 +388,18 @@ export function buildApparelFrom(raw, needham, opts = {}) {
       totalOnHand: (typeof n._total === 'number') ? n._total : null,
       needham: needham ? hasNeedham : null,
       needhamOnHand: needham ? (hasNeedham ? needham.onHand.get(n.handle) : 0) : null,
+      // PER SIZE NEEDHAM DETAIL, which is what builds a zero row. Footwear has
+      // carried this since the start; apparel needs it now that apparel is
+      // dropshipped and runs through the same known set, picker and zeroing as
+      // shoes. Without it the client cannot tell WHICH size to zero, only that
+      // the product should be.
+      needhamVariants: (needham && hasNeedham) ? needham.variants.get(n.handle) : undefined,
+      // THE MODEL A GARMENT BELONGS TO, so the picker can group colorways the
+      // way it does for shoes. Deliberately NOT the footwear modelKey: that is
+      // built from a width class and a cw-group, and a sports bra has neither.
+      // The ON article code already identifies the style, and everything before
+      // the first bracket or dash is the human name for it.
+      modelKey: apparelModelKey(n.title),
     });
   }
 

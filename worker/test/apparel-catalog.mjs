@@ -91,7 +91,27 @@ check('Needham on-hand carried (7 + 2)', tee.needhamOnHand === 9, tee.needhamOnH
 const hood = app.products.find((p) => p.handle === 'on-club-hoodie-men-1me10030553');
 check('an apparel product stocked elsewhere is needham false', hood.needham === false && hood.needhamOnHand === 0);
 check('draft status is preserved', hood.status === 'DRAFT');
-check('no swatch or width machinery leaks in', !('cwGroup' in tee) && !('widthTag' in tee) && !('needhamVariants' in tee));
+// The footwear SHAPE still must not leak: a bra has no width class and is not a
+// colorway of anything, so cwGroup and widthTag would be meaningless here.
+check('no swatch or width machinery leaks in', !('cwGroup' in tee) && !('widthTag' in tee));
+// needhamVariants DID used to be banned here, on the grounds that apparel was
+// not dropshipped so nothing would ever zero it. That changed on 2026-10-16:
+// apparel is dropshipped and runs through the same known set and zeroing as
+// shoes, and the per size detail is what builds a zero row. Without it the
+// client knows a product should be zeroed but not which size.
+// Same shape footwear gets: per size, the sku and the on-hand, which is exactly
+// what a zero row needs.
+check('per size Needham detail IS carried, apparel is dropshipped now',
+  tee.needhamVariants
+  && tee.needhamVariants['X-Small'].quantity === 7
+  && tee.needhamVariants['X-Small'].sku === 'ON-1WE11860553-BLA-XS'
+  && tee.needhamVariants.Small.quantity === 2, tee.needhamVariants);
+check('a product with no Needham stock has none', hood.needhamVariants === undefined, hood.needhamVariants);
+// "ON Women's Focus-T - Black" loses the colorway suffix and keeps the rest.
+check('the apparel model key drops the colorway', tee.modelKey === "ON WOMEN'S FOCUS-T", tee.modelKey);
+// Two colorways of one garment must land on the SAME key, which is the point.
+check('another colorway of the same garment agrees',
+  tee.modelKey === app.products.find((p) => p.handle === 'on-focus-t-women-1we11860553').modelKey);
 
 console.log('\nA code claimed twice is published as ambiguous, never guessed');
 const dupe = [
