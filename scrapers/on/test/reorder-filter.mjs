@@ -104,6 +104,33 @@ console.log('\nApparel is matched against apparel, not against footwear');
   eq('without dragging footwear in', got.ids.has('3FW0'), false);
 }
 
+console.log('\nBoth groups at once still clears the bar');
+{
+  // A combined Shoes + Apparel export puts 1xx and 3xx codes in the same
+  // stock set, so the catalog slice has to widen to both. Measured on the
+  // live account: footwear 335 products at 96.1 percent in stock, apparel
+  // 451 at about 86, so the combined slice sits near 90 and clears 80.
+  const cat = [
+    ...Array.from({ length: 335 }, (_, i) => ({ productId: '3FW' + i })),
+    ...Array.from({ length: 451 }, (_, i) => ({ productId: '1AP' + i })),
+    ...Array.from({ length: 100 }, (_, i) => ({ productId: '2AC' + i })),  // accessories, not exported
+  ];
+  sb.fetch = async (url) => {
+    const s = String(url).match(/seasonName=([A-Z0-9]+)/)[1];
+    return { ok: s === 'FW26', status: s === 'FW26' ? 200 : 404, json: async () => (s === 'FW26' ? cat : []) };
+  };
+  const stocked = new Set([
+    ...Array.from({ length: 322 }, (_, i) => '3FW' + i),
+    ...Array.from({ length: 387 }, (_, i) => '1AP' + i),
+  ]);
+  const got = await x.fetchReorderCatalog('acct', stocked);
+  eq('a combined export still finds the season', got.season, 'FW26');
+  eq('shoes kept', got.ids.has('3FW0'), true);
+  eq('apparel kept', got.ids.has('1AP0'), true);
+  eq('accessories left out, they were not exported', got.ids.has('2AC0'), false);
+  eq('the slice is both groups, not one', got.footwear, 786);
+}
+
 console.log('\nNo season resembling a re-order season THROWS');
 {
   // Everything looks like pre-order: nothing is in stock. Filtering on any of

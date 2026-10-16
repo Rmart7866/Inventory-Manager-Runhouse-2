@@ -988,14 +988,18 @@ class ONRunningInventoryExtractor {
 
       <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 16px; border: 2px solid #ff6b35;">
         <h4 style="margin: 0 0 15px 0; color: #ff6b35;">What to export:</h4>
-        <div style="display: flex; gap: 20px;">
+        <div style="display: flex; gap: 12px;">
+          <label style="display: flex; align-items: center; padding: 10px; border: 2px solid #28a745; border-radius: 8px; flex: 1; cursor: pointer;">
+            <input type="radio" name="mainGroup" value="both" checked style="margin-right: 10px; transform: scale(1.2);">
+            <div><strong>Shoes + Apparel</strong><br><small>One file. The picker splits it into two tabs.</small></div>
+          </label>
           <label style="display: flex; align-items: center; padding: 10px; border: 2px solid #ff6b35; border-radius: 8px; flex: 1; cursor: pointer;">
-            <input type="radio" name="mainGroup" value="shoes" checked style="margin-right: 10px; transform: scale(1.2);">
-            <div><strong>Shoes</strong><br><small>Drop on the ASICS style cards in Inventory Manager</small></div>
+            <input type="radio" name="mainGroup" value="shoes" style="margin-right: 10px; transform: scale(1.2);">
+            <div><strong>Shoes only</strong></div>
           </label>
           <label style="display: flex; align-items: center; padding: 10px; border: 2px solid #6f42c1; border-radius: 8px; flex: 1; cursor: pointer;">
             <input type="radio" name="mainGroup" value="apparel" style="margin-right: 10px; transform: scale(1.2);">
-            <div><strong>Apparel</strong><br><small>Drop on apparel.html, NOT the main tool</small></div>
+            <div><strong>Apparel only</strong></div>
           </label>
         </div>
       </div>
@@ -1074,9 +1078,10 @@ class ONRunningInventoryExtractor {
     modal.querySelector("#closeModal").onclick = () => document.body.removeChild(modal);
     modal.querySelector("#exportNow").onclick = () => {
       const selectedFormat = modal.querySelector('input[name="csvFormat"]:checked').value;
-      const mainGroup = modal.querySelector('input[name="mainGroup"]:checked').value;
+      const pick = modal.querySelector('input[name="mainGroup"]:checked').value;
+      const mainGroup = pick === "both" ? ["shoes", "apparel"] : [pick];
       document.body.removeChild(modal);
-      this.extractONRunningInventory(selectedFormat, [mainGroup]);
+      this.extractONRunningInventory(selectedFormat, mainGroup);
     };
     modal.onclick = (e) => {
       if (e.target === modal) document.body.removeChild(modal);
