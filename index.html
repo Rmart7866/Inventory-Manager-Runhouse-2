@@ -130,6 +130,15 @@
         .bp-save-btn:hover { background: rgba(34,197,94,.4); }
         .bp-saved { background: rgba(59,130,246,.35) !important; border-color: rgba(59,130,246,.5) !important; }
         .bp-summary { padding: 6px 16px; background: #fafafa; border-bottom: 1px solid #e4e4e7; font-size: 12px; font-weight: 600; color: #71717a; display: flex; justify-content: space-between; }
+        .bp-tabs { display: flex; gap: 0; border-bottom: 1px solid #e4e4e7; background: #fafafa; }
+        .bp-tab { flex: 1; padding: 9px 12px; border: none; background: transparent; cursor: pointer;
+                  font-size: 13px; font-weight: 600; color: #71717a; border-bottom: 2px solid transparent; }
+        .bp-tab:hover { color: #18181b; }
+        .bp-tab-on { color: #18181b; border-bottom-color: #4c9bff; background: #fff; }
+        .bp-tab-n { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px;
+                    border-radius: 9px; background: #e4e4e7; color: #52525b; font-size: 11px; }
+        .bp-tab-on .bp-tab-n { background: #4c9bff; color: #fff; }
+        .bp-empty { padding: 18px 16px; color: #a1a1aa; font-size: 13px; text-align: center; }
         .bp-list { max-height: 380px; overflow-y: auto; }
         .bp-list::-webkit-scrollbar { width: 5px; }
         .bp-list::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
@@ -1199,7 +1208,7 @@
     <script src="brooks-converter.js?v=2"></script>
     <script src="merrell-converter.js?v=1"></script>
     <script src="altra-converter.js?v=1"></script>
-    <script src="brand-picker.js?v=10"></script>
+    <script src="brand-picker.js?v=11"></script>
     <script src="b2b-links.js"></script>
     <script src="product-enrichment.js?v=37"></script>
     <script src="catalog-tags.js?v=11"></script>

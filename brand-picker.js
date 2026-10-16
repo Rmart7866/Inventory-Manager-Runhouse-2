@@ -54,10 +54,42 @@ var BrandPicker = {
         html += '<span id="' + brand + '-picker-rows">0 rows</span>';
         html += '</div>';
 
+        // TABS, when a brand's file carries more than one kind of product.
+        //
+        // ON's export is one file holding shoes and apparel, and the two match
+        // against DIFFERENT catalogs: shoes against /catalog, apparel against
+        // /catalog/apparel. Showing them in one list would mean one tab's
+        // products are always judged against the wrong known set.
+        //
+        // The split is one character. Every ON SKU carries the article code and
+        // its first digit is the group: 1 apparel, 2 accessories, 3 footwear.
+        // No name parsing, nothing to guess.
+        var groups = null;
+        if (config.tabs && typeof config.tabOf === 'function') {
+            groups = {};
+            config.tabs.forEach(function (t) { groups[t.key] = []; });
+            sorted.forEach(function (prod) {
+                var k = config.tabOf(prod);
+                if (groups[k]) groups[k].push(prod);
+                else (groups._other = groups._other || []).push(prod);
+            });
+        }
+
+        if (groups) {
+            html += '<div class="bp-tabs">';
+            config.tabs.forEach(function (t, i) {
+                var n = (groups[t.key] || []).length;
+                html += '<button class="bp-tab' + (i === 0 ? ' bp-tab-on' : '') + '" data-tab="' + t.key +
+                    '" onclick="BrandPicker.showTab(\'' + brand + '\',\'' + t.key + '\')">' +
+                    t.label + ' <span class="bp-tab-n">' + n + '</span></button>';
+            });
+            html += '</div>';
+        }
+
         // Product list
         html += '<div class="bp-list">';
 
-        sorted.forEach(function(product) {
+        var renderItem = function(product) {
             var modelKey = product.model || product.name;
             // The LIVE Shopify catalog is the source of truth for what is already
             // carried: a model on Shopify starts checked, a genuinely new one
@@ -88,7 +120,25 @@ var BrandPicker = {
             if (colorCount > 0) html += colorCount + 'c · ';
             html += rows + 'r · ' + (inventory > 0 ? '<span class="bp-inv-pos">' + inventory.toLocaleString() + '</span>' : '<span class="bp-inv-zero">0</span>');
             html += '</span></label>';
-        });
+        };
+
+        if (groups) {
+            config.tabs.forEach(function (t, i) {
+                html += '<div class="bp-tabpane" id="' + brand + '-tab-' + t.key + '"' +
+                    (i === 0 ? '' : ' style="display:none;"') + '>';
+                var list = groups[t.key] || [];
+                if (!list.length) html += '<div class="bp-empty">Nothing in this file.</div>';
+                list.forEach(renderItem);
+                html += '</div>';
+            });
+            if (groups._other && groups._other.length) {
+                html += '<div class="bp-tabpane" id="' + brand + '-tab-_other" style="display:none;">';
+                groups._other.forEach(renderItem);
+                html += '</div>';
+            }
+        } else {
+            sorted.forEach(renderItem);
+        }
 
         html += '</div></div>';
         container.innerHTML = html;
@@ -167,6 +217,21 @@ var BrandPicker = {
         var rowsEl = document.getElementById(brand + '-picker-rows');
         if (countEl) countEl.textContent = selected + ' / ' + total + ' selected';
         if (rowsEl) rowsEl.textContent = totalRows.toLocaleString() + ' rows';
+    },
+
+    // Show one tab. The hidden panes keep their checkboxes in the DOM on
+    // purpose: selection and the row count are read from every checkbox, so a
+    // product stays selected whether or not its tab is the visible one.
+    showTab: function (brand, key) {
+        var config = this.configs[brand];
+        if (!config || !config.tabs) return;
+        config.tabs.forEach(function (t) {
+            var pane = document.getElementById(brand + '-tab-' + t.key);
+            if (pane) pane.style.display = (t.key === key) ? 'block' : 'none';
+        });
+        document.querySelectorAll('#' + config.containerId + ' .bp-tab').forEach(function (b) {
+            b.classList.toggle('bp-tab-on', b.getAttribute('data-tab') === key);
+        });
     },
 
     selectAll: function(brand) {
@@ -554,7 +619,23 @@ if (typeof OnConverter !== 'undefined') {
     BrandPicker.register('on', {
         converter: OnConverter, containerId: 'on-picker-container', trackerId: 'on-tracker-report',
         headerGradient: 'linear-gradient(135deg, #333 0%, #1a1a1a 100%)',
-        comparisonKey: '_onTrackerComparison', vendorName: 'ON Running', checkboxClass: 'on-picker-cb'
+        comparisonKey: '_onTrackerComparison', vendorName: 'ON Running', checkboxClass: 'on-picker-cb',
+        // One ON file carries shoes and apparel, and the two are judged against
+        // DIFFERENT catalogs, so they cannot share a list. The group is the
+        // first digit of the ON article code, which every SKU already carries:
+        // 1 apparel, 2 accessories, 3 footwear.
+        tabs: [{ key: 'shoes', label: 'Shoes' }, { key: 'apparel', label: 'Apparel' }],
+        tabOf: function (product) {
+            var cws = product.colorways || [];
+            for (var i = 0; i < cws.length; i++) {
+                var sku = (cws[i] && (cws[i].sku || (cws[i].skus && cws[i].skus[0]))) || '';
+                var m = /^ON-([0-9])/.exec(String(sku).toUpperCase());
+                if (m) return m[1] === '1' ? 'apparel' : 'shoes';
+            }
+            // No SKU to read, so fall back to the article code wherever it sits.
+            var hay = String(product.name || '') + ' ' + String(product.model || '');
+            return /\b1[WMU][A-Z]\d{6,}/.test(hay) ? 'apparel' : 'shoes';
+        }
     });
 }
 if (typeof AsicsConverter !== 'undefined') {
