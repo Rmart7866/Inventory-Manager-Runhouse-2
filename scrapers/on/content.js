@@ -1279,45 +1279,60 @@ class ONRunningInventoryExtractor {
   //
   // Verified by selecting all 158 models in the re-order flow and reading the
   // matrix: 76 shoe model rows on screen, 76 from this filter, exactly.
-  onSeasonName(date) {
-    // ON names seasons SS and FW plus a two digit year, and the re-order season
-    // is the current one. There is no endpoint that reports it: the catalog
-    // route requires seasonName, /api/catalog/seasons is 404 and /api/seasons
-    // is 403. So it is derived, and verified by the caller before use.
-    const d = date || new Date();
-    const yy = String(d.getFullYear()).slice(2);
-    return (d.getMonth() + 1) >= 7 ? "FW" + yy : "SS" + yy;
-  }
-
-  async fetchReorderCatalog(accountId) {
-    // Try the derived season, then the neighbours, so a turn of the season does
-    // not silently empty the filter. The first season that answers with a
-    // plausible catalog wins.
+  async fetchReorderCatalog(accountId, stockedPgns) {
+    // WHICH SEASON IS THE RE-ORDER SEASON IS MEASURED, NOT GUESSED.
+    //
+    // Nothing reports it: the catalog route demands seasonName,
+    // /api/catalog/seasons is 404 and /api/seasons is 403. Deriving it from
+    // the date works today but is an assumption, and a wrong season filters
+    // everything away and zeroes the lot.
+    //
+    // So pick it by overlap with stock instead. A re-order season is already
+    // in the distribution centre, a pre-order season is not. Measured
+    // 2026-10-16 against 713 in-stock colorways:
+    //    SS26  38 products, 97.4 percent of them in stock   re-order
+    //    FW26 335 products, 96.1 percent in stock           re-order, the live one
+    //    SS27 354 products, 27.7 percent in stock           pre-order
+    //    FW27 396 products, 15.9 percent in stock           pre-order
+    // The gap is wide enough to separate them without a date.
+    //
+    // SS26 turned out to be a strict subset of FW26, so the union is the same
+    // 322 colorways either way, but taking the union means a season rolling
+    // over mid-run cannot lose anything.
+    const yy = (d) => String(d.getFullYear()).slice(2);
     const now = new Date();
-    const prev = new Date(now.getTime()); prev.setMonth(prev.getMonth() - 6);
-    const next = new Date(now.getTime()); next.setMonth(next.getMonth() + 6);
-    const tried = [];
-    for (const season of [this.onSeasonName(now), this.onSeasonName(next), this.onSeasonName(prev)]) {
-      if (tried.indexOf(season) !== -1) continue;
-      tried.push(season);
+    const back = new Date(now.getTime()); back.setFullYear(back.getFullYear() - 1);
+    const fwd = new Date(now.getTime()); fwd.setFullYear(fwd.getFullYear() + 1);
+    const candidates = [];
+    for (const d of [back, now, fwd]) for (const h of ["SS", "FW"]) candidates.push(h + yy(d));
+
+    const ids = new Set();
+    const chosen = [];
+    const looked = [];
+    for (const season of candidates) {
       const url = "https://on-backstage-api.on-running.com/api/catalog/products?accountId=" +
         encodeURIComponent(accountId) + "&seasonName=" + encodeURIComponent(season) +
         "&includePreviouslyOrdered=true";
+      let footwear = [];
       try {
         const r = await fetch(url, { credentials: "include" });
         if (!r.ok) continue;
         const j = await r.json();
-        const ids = Array.isArray(j) ? j.map((x) => String(x.productId)) : [];
-        const footwear = ids.filter((x) => /^3/.test(x)).length;
-        // A handful of products is a season that has not opened yet, not the
-        // live one. Keep looking rather than filter everything away.
-        if (footwear >= 50) return { season: season, ids: new Set(ids), footwear: footwear };
-      } catch (e) {
-        console.warn("ON catalog: " + season + " failed:", e.message);
-      }
+        footwear = (Array.isArray(j) ? j : []).map((x) => String(x.productId)).filter((x) => /^3/.test(x));
+      } catch (e) { continue; }
+      if (!footwear.length) continue;
+      const inStock = footwear.filter((x) => stockedPgns.has(x)).length;
+      const pct = (inStock / footwear.length) * 100;
+      looked.push(season + " " + footwear.length + " products, " + pct.toFixed(1) + " percent in stock");
+      // RE-ORDER SEASONS SIT ABOVE 90, PRE-ORDER BELOW 30. 80 is the gap.
+      if (pct >= 80) { chosen.push(season); footwear.forEach((x) => ids.add(x)); }
     }
-    throw new Error("Could not read the ON re-order catalog (tried " + tried.join(", ") +
-      "). Refusing to build a file: without it the export would carry stock you cannot order.");
+
+    if (!chosen.length) {
+      throw new Error("No ON season looked like a re-order season (checked " + looked.join("; ") +
+        "). Refusing to build a file: filtering on the wrong season would zero your ON stock.");
+    }
+    return { season: chosen.join("+"), ids: ids, footwear: ids.size, looked: looked };
   }
 
   async fetchInventoryFromApi(mainGroups) {
@@ -1358,7 +1373,14 @@ class ONRunningInventoryExtractor {
     let notPurchasableUnits = 0;
     const droppedColorways = new Map();
 
-    const catalog = await this.fetchReorderCatalog(accountId);
+    // Build the in-stock set first: the season is chosen by how well a
+    // catalog overlaps actual warehouse stock, so the stock has to come first.
+    const stockedPgns = new Set();
+    for (const r of rows) {
+      if (want.indexOf(r.mainGroup) === -1) continue;
+      if ((parseInt(r.availableQuantity, 10) || 0) > 0) stockedPgns.add(String(r.productGroupNumber));
+    }
+    const catalog = await this.fetchReorderCatalog(accountId, stockedPgns);
 
     const out = [];
     for (const r of rows) {
@@ -1427,6 +1449,7 @@ class ONRunningInventoryExtractor {
       (notYetLaunched ? ", " + notYetLaunched + " skipped as not yet launched" : "") +
       (notPurchasable ? ", " + notPurchasable + " skipped as not orderable" : ""));
     console.log("ON API: re-order catalog " + catalog.season + ", " + catalog.footwear + " footwear products");
+    console.log("ON API: seasons considered: " + catalog.looked.join(" | "));
     if (notPurchasable) {
       console.log("ON API: dropped " + droppedColorways.size + " colorways, " + notPurchasableUnits +
         " units, not in the " + catalog.season + " re-order catalog. First 20:");

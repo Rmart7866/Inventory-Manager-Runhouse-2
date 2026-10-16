@@ -60,41 +60,39 @@ if (!Cls) { console.log('  FAIL  could not reach the extractor class'); process.
 sb.setTimeout = (f) => { if (typeof f === 'function') f(); return 0; };
 const x = Object.create(Cls.prototype);
 
-console.log('\nSeason names follow ON, SS first half of the year, FW second');
-eq('16 Oct 2026 is FW26', x.onSeasonName(new Date('2026-10-16T00:00:00Z')), 'FW26');
-eq('1 Jul 2026 is FW26',  x.onSeasonName(new Date('2026-07-01T12:00:00Z')), 'FW26');
-eq('30 Jun 2026 is SS26', x.onSeasonName(new Date('2026-06-30T12:00:00Z')), 'SS26');
-eq('2 Jan 2027 is SS27',  x.onSeasonName(new Date('2027-01-02T12:00:00Z')), 'SS27');
-eq('31 Dec 2027 is FW27', x.onSeasonName(new Date('2027-12-31T12:00:00Z')), 'FW27');
-
-console.log('\nA thin season is skipped, not accepted as the live catalog');
+console.log('\nThe re-order season is chosen by overlap with stock, not by the date');
 {
-  // A season that has not opened yet answers with a handful of products. Taking
-  // it would filter almost everything away and zero the lot.
-  const big = Array.from({ length: 200 }, (_, i) => ({ productId: '3MF1000' + i }));
-  const thin = [{ productId: '3MF999' }];
-  let calls = [];
-  sb.fetch = async (url) => {
-    calls.push(String(url).match(/seasonName=([A-Z0-9]+)/)[1]);
-    const season = calls[calls.length - 1];
-    const body = season === 'SS27' ? thin : (season === 'FW26' ? big : []);
-    return { ok: true, status: 200, json: async () => body };
+  // A re-order season is already in the warehouse, a pre-order season is not.
+  // Measured 2026-10-16: FW26 96.1 percent in stock, SS27 27.7, FW27 15.9.
+  const catalogs = {
+    FW26: Array.from({ length: 100 }, (_, i) => ({ productId: '3FW' + i })),   // 96 in stock
+    SS27: Array.from({ length: 100 }, (_, i) => ({ productId: '3SS' + i })),   // 20 in stock
+    FW27: Array.from({ length: 100 }, (_, i) => ({ productId: '3F7' + i })),
   };
-  const got = await x.fetchReorderCatalog('acct');
-  eq('settles on the season with a real catalog', got.season, 'FW26');
-  eq('and reports its footwear count', got.footwear, 200);
+  const stocked = new Set([
+    ...Array.from({ length: 96 }, (_, i) => '3FW' + i),
+    ...Array.from({ length: 20 }, (_, i) => '3SS' + i),
+  ]);
+  sb.fetch = async (url) => {
+    const s = String(url).match(/seasonName=([A-Z0-9]+)/)[1];
+    return { ok: !!catalogs[s], status: catalogs[s] ? 200 : 404, json: async () => catalogs[s] || [] };
+  };
+  const got = await x.fetchReorderCatalog('acct', stocked);
+  eq('keeps the season that is actually in the warehouse', got.season, 'FW26');
+  eq('and ignores the pre-order seasons', got.ids.has('3SS1'), false);
+  eq('keeping all of the live catalog', got.footwear, 100);
 }
 
-console.log('\nNo usable catalog THROWS rather than filtering everything away');
+console.log('\nNo season resembling a re-order season THROWS');
 {
-  sb.fetch = async () => ({ ok: true, status: 200, json: async () => [] });
+  // Everything looks like pre-order: nothing is in stock. Filtering on any of
+  // them would drop the lot, so refuse.
+  sb.fetch = async () => ({ ok: true, status: 200,
+    json: async () => Array.from({ length: 50 }, (_, i) => ({ productId: '3XX' + i })) });
   let threw = null;
-  try { await x.fetchReorderCatalog('acct'); } catch (e) { threw = e.message; }
-  eq('refuses when every season is empty', /could not read the on re-order catalog/i.test(threw || ''), true);
-  sb.fetch = async () => ({ ok: false, status: 403, json: async () => ({}) });
-  threw = null;
-  try { await x.fetchReorderCatalog('acct'); } catch (e) { threw = e.message; }
-  eq('refuses when the catalog is forbidden', /could not read/i.test(threw || ''), true);
+  try { await x.fetchReorderCatalog('acct', new Set()); } catch (e) { threw = e.message; }
+  eq('refuses rather than zero the catalog', /no on season looked like a re-order season/i.test(threw || ''), true);
+  eq('and says what it checked', /percent in stock/.test(threw || ''), true);
 }
 
 console.log('\ndropOutDate must never become the filter again');
