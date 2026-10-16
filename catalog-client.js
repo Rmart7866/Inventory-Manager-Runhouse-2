@@ -859,6 +859,96 @@ var CatalogClient = {
 
     // Every handle on Shopify (ACTIVE or DRAFT) for this brand, or null if the
     // set has not been built. See isCarriedByHandles.
+    // ---------- apparel known set ----------
+    //
+    // DELIBERATELY A SEPARATE FUNCTION, not a flag on buildKnownSets.
+    //
+    // buildKnownSets decides what gets ZEROED for footwear. Threading apparel
+    // through it with branches would put the dropship footwear path one typo
+    // away from a garment, and footwear is the bigger and better exercised of
+    // the two. The apparel version is also genuinely simpler: there is no
+    // inheritance index, no width class and no cw-group, because a sports bra
+    // has none of those.
+    //
+    // What it keeps identical, because these are the safety properties:
+    //   NEEDHAM SCOPING. Only products flagged needham === true enter the set,
+    //   so a garment stocked at Walpole or Falmouth can never be zeroed. The
+    //   13 ON apparel products on the store today are exactly that case: 63
+    //   units across Walpole, Falmouth and Warehouse, none at Needham.
+    //   LIVE ONLY. ARCHIVED and DRAFT do not count as carried.
+    //   SKU-LESS PRODUCTS ARE NEVER A REMOVAL TARGET, same no-SKU guard.
+    //
+    // Returns the same shape buildKnownSets does so the tracker and picker can
+    // consume either without caring which they were given.
+    buildApparelKnownSets: function (catalog, toolBrand) {
+        var catBrand = this.BRAND_MAP[toolBrand] || String(toolBrand || '').toUpperCase();
+        var colorways = new Map();
+        var models = new Set();
+        var shopifyModels = new Set();
+        var existingSkus = new Set();
+        var existingHandles = new Set();
+        var byCode = {};
+        var products = (catalog && catalog.products) || [];
+
+        var scoped = !!(catalog && catalog.needhamScoped);
+        if (!scoped) {
+            console.warn('[CatalogClient] Needham scoping is OFF for apparel: removed/zero ' +
+                'detection is not safe to trust until NEEDHAM_LOCATION_ID is set on the Worker.');
+        }
+
+        for (var i = 0; i < products.length; i++) {
+            var p = products[i];
+            if (p.brand !== catBrand) continue;
+
+            // Presence signals are recorded for EVERY status but ARCHIVED, so a
+            // draft created last run is not offered again as new.
+            if (p.status !== 'ARCHIVED') {
+                if (p.handle) existingHandles.add(String(p.handle).toLowerCase());
+                (p.skus || []).forEach(function (sk) { if (sk) existingSkus.add(String(sk).toUpperCase()); });
+                (p.codes || []).forEach(function (c) { if (c) byCode[String(c).toUpperCase()] = p.handle; });
+                if (p.modelKey) shopifyModels.add(p.modelKey);
+            }
+
+            if (!this.LIVE_STATUSES[p.status]) continue;
+            if (scoped && p.needham !== true) continue;   // not at Needham, not dropship
+            // NO SKUS, NEVER A REMOVAL TARGET. Same guard footwear has: without
+            // a SKU there is nothing to write against, and a wrongful zero on a
+            // product we cannot even address is the worst outcome.
+            if (!(p.skus || []).length) continue;
+
+            colorways.set(p.handle, {
+                title: p.title,
+                handle: p.handle,
+                skus: p.skus || [],
+                variants: p.needhamVariants || {},
+                needhamOnHand: (p.needhamOnHand == null ? null : p.needhamOnHand),
+                active: true
+            });
+            if (p.modelKey) models.add(p.modelKey);
+        }
+
+        return {
+            models: models, colorways: colorways, shopifyModels: shopifyModels,
+            existingSkus: existingSkus, existingCwKeys: new Set(), existingHandles: existingHandles,
+            inherit: new Map(),      // apparel inherits nothing, there is no sibling tag to copy
+            byCode: byCode
+        };
+    },
+
+    // Load the apparel catalog and build its known set, the apparel twin of
+    // forBrand. Separate caches so neither can overwrite the other.
+    _apparelSetsByBrand: {},
+    forApparelBrand: function (toolBrand) {
+        var self = this;
+        return this.fetchApparelCatalog().then(function (cat) {
+            if (!cat) return null;
+            var res = self.buildApparelKnownSets(cat, toolBrand);
+            self._apparelSetsByBrand[toolBrand] = res;
+            return res;
+        });
+    },
+    apparelSets: function (toolBrand) { return this._apparelSetsByBrand[toolBrand] || null; },
+
     _existingHandlesByBrand: {},
     existingHandles: function (toolBrand) { return this._existingHandlesByBrand[toolBrand] || null; },
 

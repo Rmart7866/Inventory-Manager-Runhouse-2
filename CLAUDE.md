@@ -58,6 +58,7 @@ node test/auto-tag-queue.mjs                  # post-create auto tagging stays a
 node test/merrell.mjs                         # merrell converter: picker, CSV
 node test/altra.mjs                           # altra converter: the 99+ trap, eight gender spellings
 node test/canon-model.mjs                     # picker model matching: gender forms, NB families
+node test/apparel-known-set.mjs               # apparel zeroing: Needham scoping, no-SKU guard
 node test/on-title.mjs                        # ON titles: a two-tone color is never the model
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
