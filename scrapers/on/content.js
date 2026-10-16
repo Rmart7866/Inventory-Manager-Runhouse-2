@@ -819,11 +819,37 @@ class UnifiedShopifyConverter {
     return tags;
   }
 
+  // THE SIZE SEGMENT OF A SKU HAS TO SURVIVE BEING A SKU.
+  //
+  // Footwear sizes are numeric and the half size is written by turning the dot
+  // into a 5, so 6.5 becomes 655. That is long standing and must not change:
+  // every ON shoe SKU on the store already reads that way.
+  //
+  // Apparel sizes are words and some carry spaces and dashes: "L D-DD",
+  // "XXS A-C", "ONE SIZE", "XS-S". Dropped into a SKU raw those give
+  // "ON-1WF30174944-FOX-L D-DD". A space in a SKU breaks the sku: lookup the
+  // inventory write route resolves variants with, and the inner dash is
+  // ambiguous with the SKU's own separator. So a non numeric size is squashed
+  // to letters and digits only.
+  //
+  //   L D-DD   -> LDDD        XXS A-C -> XXSAC
+  //   ONE SIZE -> ONESIZE     XS-S    -> XSS
+  //
+  // Checked against every size string the ON API returns for apparel: no
+  // collisions, nothing empty.
+  skuSizeToken(raw) {
+    const s = String(raw == null ? "" : raw).trim();
+    if (!s) return "OS";
+    // Numeric, so footwear. Keep the existing dot to 5 rule exactly.
+    if (/^[0-9.]+$/.test(s)) return s.replace(/\./g, "5");
+    const squashed = s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return squashed || "OS";
+  }
+
   generateSKU(variant) {
     const styleId = variant.styleId || "UNK";
     const colorCode = variant.colorCode || variant.colorName || "DEF";
-    const size = (variant.sizeUS || variant.size || "OS").toString().replace(/\./g, "5");
-    return `ON-${styleId}-${colorCode}-${size}`;
+    return `ON-${styleId}-${colorCode}-${this.skuSizeToken(variant.sizeUS || variant.size)}`;
   }
 }
 
