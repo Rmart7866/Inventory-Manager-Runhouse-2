@@ -66,6 +66,7 @@ node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes surviv
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
+node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
@@ -231,8 +232,19 @@ sits on the same Wolverine DAM as
 Saucony, but its path carries a shoot date and season
 ("MRLW-J00005203-091625-F26-000") that appear nowhere in our data, and the
 plain "<code>_1" form that works for Saucony 404s for Merrell, so Merrell can
-only be harvested per product. ON serves product imagery from Contentful, whose
-asset ids are opaque. Hoka was not resolved: hoka.com blocks scripted requests
+only be harvested per product.
+
+**ON is LOOKUP ONLY, not impossible.** Its asset ids are opaque uuids so
+nothing derives from a SKU, but the Backstage catalog response hands the URLs
+over directly and the scrape already fetches that response for the re-order
+filter. Measured 2026-10-16: all 335 in-season footwear products carry assets,
+2,005 gallery images, six each, the host answers an unauthenticated GET with
+200 image/png at about 1 MB, and three different bogus uuids all 404 rather
+than serving a placeholder. The ON PRODUCT CSV carries them. Stage 4 cannot:
+REMOTE_IMAGE_SOURCES maps a brand to a URL PATTERN and ON has none, so that
+needs a feed-supplied source type before it can work there.
+
+Hoka was not resolved: hoka.com blocks scripted requests
 and geo-redirects.
 
 **A folder pools with the CDN, per colorway, and the folder wins.** Since
