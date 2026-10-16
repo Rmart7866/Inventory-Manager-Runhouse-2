@@ -960,6 +960,20 @@ class ONRunningInventoryExtractor {
     modalContent.innerHTML = `
       <h3 style="margin-bottom: 20px; color: #333;"> Export ON Running Inventory</h3>
 
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 16px; border: 2px solid #ff6b35;">
+        <h4 style="margin: 0 0 15px 0; color: #ff6b35;">What to export:</h4>
+        <div style="display: flex; gap: 20px;">
+          <label style="display: flex; align-items: center; padding: 10px; border: 2px solid #ff6b35; border-radius: 8px; flex: 1; cursor: pointer;">
+            <input type="radio" name="mainGroup" value="shoes" checked style="margin-right: 10px; transform: scale(1.2);">
+            <div><strong>Shoes</strong><br><small>Drop on the ASICS style cards in Inventory Manager</small></div>
+          </label>
+          <label style="display: flex; align-items: center; padding: 10px; border: 2px solid #6f42c1; border-radius: 8px; flex: 1; cursor: pointer;">
+            <input type="radio" name="mainGroup" value="apparel" style="margin-right: 10px; transform: scale(1.2);">
+            <div><strong>Apparel</strong><br><small>Drop on apparel.html, NOT the main tool</small></div>
+          </label>
+        </div>
+      </div>
+
       <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #ff6b35;">
         <h4 style="margin: 0 0 15px 0; color: #ff6b35;">Select CSV Format:</h4>
         <div style="display: flex; gap: 20px; margin-bottom: 15px;">
@@ -994,12 +1008,11 @@ class ONRunningInventoryExtractor {
       </div>
 
       <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
-        <h4 style="margin: 0 0 10px 0; color: #856404;">ON Running Stock Status Mapping:</h4>
+        <h4 style="margin: 0 0 10px 0; color: #856404;">What this export contains:</h4>
         <div style="font-size: 12px; color: #856404;">
-          • <strong>"In Stock"</strong> → 30 units<br>
-          • <strong>"Low Stock"</strong> → 5 units<br>
-          • <strong>"Very Low Stock"</strong> → 2 units<br>
-          • <strong>"No Stock"</strong> → 0 units
+          • Real unit counts from ON's API, not the old 30/5/2/0 bands<br>
+          • Only what the re-order catalog says you can actually buy<br>
+          • Not yet launched styles are left out
         </div>
       </div>
 
@@ -1035,8 +1048,9 @@ class ONRunningInventoryExtractor {
     modal.querySelector("#closeModal").onclick = () => document.body.removeChild(modal);
     modal.querySelector("#exportNow").onclick = () => {
       const selectedFormat = modal.querySelector('input[name="csvFormat"]:checked').value;
+      const mainGroup = modal.querySelector('input[name="mainGroup"]:checked').value;
       document.body.removeChild(modal);
-      this.extractONRunningInventory(selectedFormat);
+      this.extractONRunningInventory(selectedFormat, [mainGroup]);
     };
     modal.onclick = (e) => {
       if (e.target === modal) document.body.removeChild(modal);
@@ -1306,6 +1320,12 @@ class ONRunningInventoryExtractor {
     const candidates = [];
     for (const d of [back, now, fwd]) for (const h of ["SS", "FW"]) candidates.push(h + yy(d));
 
+    // The first digit of every ON article code is its group, taken from the
+    // stock we are actually exporting rather than assumed.
+    const prefixes = new Set();
+    stockedPgns.forEach((x) => prefixes.add(String(x).charAt(0)));
+    if (!prefixes.size) throw new Error("No ON stock to match a season against. Nothing has been written.");
+
     const ids = new Set();
     const chosen = [];
     const looked = [];
@@ -1313,19 +1333,25 @@ class ONRunningInventoryExtractor {
       const url = "https://on-backstage-api.on-running.com/api/catalog/products?accountId=" +
         encodeURIComponent(accountId) + "&seasonName=" + encodeURIComponent(season) +
         "&includePreviouslyOrdered=true";
-      let footwear = [];
+      let relevant = [];
       try {
         const r = await fetch(url, { credentials: "include" });
         if (!r.ok) continue;
         const j = await r.json();
-        footwear = (Array.isArray(j) ? j : []).map((x) => String(x.productId)).filter((x) => /^3/.test(x));
+        // COMPARE LIKE WITH LIKE. ON's article code carries the group in its
+        // first digit, 1 apparel, 2 accessories, 3 footwear, and the catalog
+        // holds all three. Measuring a footwear-only slice against apparel
+        // stock would score zero and reject every season, so narrow the
+        // catalog to the groups actually being exported.
+        relevant = (Array.isArray(j) ? j : []).map((x) => String(x.productId))
+          .filter((x) => prefixes.has(x.charAt(0)));
       } catch (e) { continue; }
-      if (!footwear.length) continue;
-      const inStock = footwear.filter((x) => stockedPgns.has(x)).length;
-      const pct = (inStock / footwear.length) * 100;
-      looked.push(season + " " + footwear.length + " products, " + pct.toFixed(1) + " percent in stock");
+      if (!relevant.length) continue;
+      const inStock = relevant.filter((x) => stockedPgns.has(x)).length;
+      const pct = (inStock / relevant.length) * 100;
+      looked.push(season + " " + relevant.length + " products, " + pct.toFixed(1) + " percent in stock");
       // RE-ORDER SEASONS SIT ABOVE 90, PRE-ORDER BELOW 30. 80 is the gap.
-      if (pct >= 80) { chosen.push(season); footwear.forEach((x) => ids.add(x)); }
+      if (pct >= 80) { chosen.push(season); relevant.forEach((x) => ids.add(x)); }
     }
 
     if (!chosen.length) {
@@ -1460,10 +1486,13 @@ class ONRunningInventoryExtractor {
     return out;
   }
 
-  async extractONRunningInventory(format = "inventory") {
+  async extractONRunningInventory(format = "inventory", mainGroups = null) {
     try {
       this.loadShopifySettings();
       this.shopifySettings.exportType = format;
+      // The caller's choice wins over the stored setting, so the modal's
+      // Shoes / Apparel radio actually decides what comes out.
+      if (mainGroups && mainGroups.length) this.shopifySettings.onMainGroups = mainGroups;
 
       // API first. The DOM walk survives only as a fallback, and because it
       // cannot see real numbers it says so rather than quietly producing guesses.

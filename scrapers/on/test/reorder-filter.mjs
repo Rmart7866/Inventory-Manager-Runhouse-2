@@ -83,16 +83,44 @@ console.log('\nThe re-order season is chosen by overlap with stock, not by the d
   eq('keeping all of the live catalog', got.footwear, 100);
 }
 
+console.log('\nApparel is matched against apparel, not against footwear');
+{
+  // ON's article code carries the group in its first digit: 1 apparel,
+  // 2 accessories, 3 footwear. The catalog holds all three. Scoring a
+  // footwear-only slice against apparel stock would reject every season.
+  const mixed = [
+    ...Array.from({ length: 60 }, (_, i) => ({ productId: '1AP' + i })),   // apparel
+    ...Array.from({ length: 60 }, (_, i) => ({ productId: '3FW' + i })),   // footwear
+  ];
+  sb.fetch = async (url) => {
+    const s = String(url).match(/seasonName=([A-Z0-9]+)/)[1];
+    return { ok: s === 'FW26', status: s === 'FW26' ? 200 : 404, json: async () => (s === 'FW26' ? mixed : []) };
+  };
+  // apparel stock only: 58 of the 60 apparel products are in the warehouse
+  const apparelStock = new Set(Array.from({ length: 58 }, (_, i) => '1AP' + i));
+  const got = await x.fetchReorderCatalog('acct', apparelStock);
+  eq('an apparel export still finds its season', got.season, 'FW26');
+  eq('and keeps the apparel products', got.ids.has('1AP0'), true);
+  eq('without dragging footwear in', got.ids.has('3FW0'), false);
+}
+
 console.log('\nNo season resembling a re-order season THROWS');
 {
   // Everything looks like pre-order: nothing is in stock. Filtering on any of
   // them would drop the lot, so refuse.
   sb.fetch = async () => ({ ok: true, status: 200,
     json: async () => Array.from({ length: 50 }, (_, i) => ({ productId: '3XX' + i })) });
+  // Real stock, but none of it is in any catalog: every season looks like
+  // pre-order, so there is nothing safe to filter on.
   let threw = null;
-  try { await x.fetchReorderCatalog('acct', new Set()); } catch (e) { threw = e.message; }
+  try { await x.fetchReorderCatalog('acct', new Set(['3ZZ1', '3ZZ2'])); } catch (e) { threw = e.message; }
   eq('refuses rather than zero the catalog', /no on season looked like a re-order season/i.test(threw || ''), true);
   eq('and says what it checked', /percent in stock/.test(threw || ''), true);
+
+  // And no stock at all is its own, clearer failure.
+  threw = null;
+  try { await x.fetchReorderCatalog('acct', new Set()); } catch (e) { threw = e.message; }
+  eq('no stock to match against is reported separately', /no on stock to match a season/i.test(threw || ''), true);
 }
 
 console.log('\ndropOutDate must never become the filter again');

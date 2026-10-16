@@ -277,10 +277,19 @@ starts in its own lane rather than bending rules the live tool depends on.
 
 Consequences worth knowing:
 
-- The page **never zeroes anything**. Apparel is not dropshipped yet (the goal is
-  that it will be), so a garment missing from a scrape means nothing. Only what
-  is in the file gets a row.
-- The page reads `GET /catalog/apparel` and writes nothing.
+- **Apparel IS dropshipped as of 2026-10-16** and is meant to follow the same
+  rules as footwear, Needham scoped writes and zeroing included. The page does
+  not do that yet: it still reads `GET /catalog/apparel` and writes nothing.
+  Turning zeroing on is blocked on SKUs, see below.
+- **THE BLOCKER IS SKUS, NOT THE FEED.** Measured 2026-10-16, the store carries
+  13 ON apparel products, 61 variants, and **49 of the 61 have no SKU at all**,
+  with one parsable article code between them. Footwear matches by variant SKU,
+  so until those SKUs exist the 387 in-season colorways in the feed join to
+  nothing and would be created as duplicates beside the 13.
+- **The existing apparel stock is PHYSICAL, not dropship.** All of it sits at
+  Walpole (55 variants), Falmouth (5) and Warehouse (3), and **zero at
+  Needham**. Needham scoping is what keeps a dropship write off a garment a
+  human counted on a shelf, so it has to hold before zeroing is enabled.
 - `OnApparelConverter.STORE_BY_CODE` is a hand-baked snapshot of 15 products, now
   only a **fallback** for when the Worker has no apparel catalog yet.
   `useLiveCatalog()` supersedes it and the page says which source is in play.
