@@ -511,6 +511,33 @@ class UnifiedShopifyConverter {
 
         shopifyRows.push(shopifyRow);
       });
+
+      // IMAGES, in Shopify's own product CSV shape.
+      //
+      // ON is lookup only. Brooks and ASICS publish photography at a URL you
+      // can build from the code in the SKU, so Stage 4 derives it. ON's asset
+      // ids are opaque, so the only source is the catalog response, which the
+      // scrape already fetches for the re-order filter.
+      //
+      // Shopify reads the first image off the first variant row and then takes
+      // one per extra row carrying only the handle and an Image Src, which is
+      // why the gallery is appended as bare rows rather than crammed onto the
+      // variants.
+      const urls = (this._onAssets && this._onAssets.get(String(baseProduct.styleId))) || [];
+      if (urls.length) {
+        shopifyRows[shopifyRows.length - variants.length]["Image Src"] = urls[0];
+        shopifyRows[shopifyRows.length - variants.length]["Image Position"] = "1";
+        shopifyRows[shopifyRows.length - variants.length]["Image Alt Text"] =
+          (baseProduct.productName || "") + " " + (baseProduct.colorName || "");
+        for (let i = 1; i < urls.length; i++) {
+          shopifyRows.push({
+            Handle: handle,
+            "Image Src": urls[i],
+            "Image Position": String(i + 1),
+            "Image Alt Text": (baseProduct.productName || "") + " " + (baseProduct.colorName || "")
+          });
+        }
+      }
     });
 
     return shopifyRows;
@@ -1358,6 +1385,7 @@ class ONRunningInventoryExtractor {
     if (!prefixes.size) throw new Error("No ON stock to match a season against. Nothing has been written.");
 
     const ids = new Set();
+    const assets = new Map();     // productGroupNumber -> [image url, ...]
     const chosen = [];
     const looked = [];
     for (const season of candidates) {
@@ -1365,10 +1393,12 @@ class ONRunningInventoryExtractor {
         encodeURIComponent(accountId) + "&seasonName=" + encodeURIComponent(season) +
         "&includePreviouslyOrdered=true";
       let relevant = [];
+      let jLast = [];
       try {
         const r = await fetch(url, { credentials: "include" });
         if (!r.ok) continue;
         const j = await r.json();
+        jLast = j;
         // COMPARE LIKE WITH LIKE. ON's article code carries the group in its
         // first digit, 1 apparel, 2 accessories, 3 footwear, and the catalog
         // holds all three. Measuring a footwear-only slice against apparel
@@ -1382,14 +1412,30 @@ class ONRunningInventoryExtractor {
       const pct = (inStock / relevant.length) * 100;
       looked.push(season + " " + relevant.length + " products, " + pct.toFixed(1) + " percent in stock");
       // RE-ORDER SEASONS SIT ABOVE 90, PRE-ORDER BELOW 30. 80 is the gap.
-      if (pct >= 80) { chosen.push(season); relevant.forEach((x) => ids.add(x)); }
+      if (pct >= 80) {
+        chosen.push(season);
+        relevant.forEach((x) => ids.add(x));
+        // THE PHOTOS ARE ALREADY HERE, so take them while we have the response.
+        // ON serves imagery from a library whose asset ids are opaque: unlike
+        // Brooks and ASICS there is no URL to derive from a SKU, so the only
+        // way to get an ON photo is to be handed it. The catalog hands over a
+        // default and a gallery of six per product.
+        for (const x of (Array.isArray(jLast) ? jLast : [])) {
+          const id = String(x.productId);
+          if (!ids.has(id) || assets.has(id)) continue;
+          const g = (x.assets && Array.isArray(x.assets.gallery)) ? x.assets.gallery : [];
+          const d = (x.assets && x.assets.default) ? [x.assets.default] : [];
+          const urls = [...new Set(d.concat(g))].filter(Boolean);
+          if (urls.length) assets.set(id, urls);
+        }
+      }
     }
 
     if (!chosen.length) {
       throw new Error("No ON season looked like a re-order season (checked " + looked.join("; ") +
         "). Refusing to build a file: filtering on the wrong season would zero your ON stock.");
     }
-    return { season: chosen.join("+"), ids: ids, footwear: ids.size, looked: looked };
+    return { season: chosen.join("+"), ids: ids, footwear: ids.size, looked: looked, assets: assets };
   }
 
   async fetchInventoryFromApi(mainGroups) {
@@ -1530,6 +1576,9 @@ class ONRunningInventoryExtractor {
       for (const [k, u] of droppedColorways) { if (n++ >= 20) break; console.log("    " + k + "  " + u + "u"); }
     }
     this._lastDropped = { season: catalog.season, colorways: droppedColorways.size, units: notPurchasableUnits };
+    // Handed to the product CSV so a created product arrives with its photos.
+    this.shopifyConverter._onAssets = catalog.assets || new Map();
+    console.log("ON API: " + (catalog.assets ? catalog.assets.size : 0) + " products carry image URLs");
     return out;
   }
 
