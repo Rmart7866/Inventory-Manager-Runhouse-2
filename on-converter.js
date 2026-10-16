@@ -372,6 +372,12 @@ var OnConverter = {
                             handle: handle,
                             title: cleanedTitle,
                             color: titleInfo.color,
+                            // The first SKU seen for this colorway. The picker
+                            // reads the ON article code out of it to decide
+                            // whether a product belongs in the Shoes or the
+                            // Apparel tab, and without it everything fell into
+                            // Shoes because the title carries no code.
+                            sku: sku,
                             rows: 0,
                             inventory: 0
                         });

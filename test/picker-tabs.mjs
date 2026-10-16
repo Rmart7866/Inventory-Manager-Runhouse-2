@@ -76,5 +76,16 @@ console.log('\nshowTab does not throw when the DOM is not there');
   eq('unknown brand, no crash', threw, null);
 }
 
+console.log('\nThe converter must actually PUT a sku on each colorway');
+{
+  // This is what was broken: the picker read colorways[i].sku to find the
+  // article code, and OnConverter never set one, so every product fell back to
+  // the title regex and landed in Shoes. A real combined file came out 38
+  // shoes and 0 apparel.
+  const src = fs.readFileSync(new URL('../on-converter.js', import.meta.url), 'utf8');
+  const block = src.slice(src.indexOf('colorways.set(handle, {'), src.indexOf('colorways.set(handle, {') + 600);
+  eq('the colorway object carries a sku', /\bsku:\s*sku\b/.test(block), true);
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nAll passed\n');
 process.exit(failures ? 1 : 0);
