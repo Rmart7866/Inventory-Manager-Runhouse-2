@@ -62,6 +62,7 @@ node test/on-title.mjs                        # ON titles: a two-tone color is n
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
+node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only

@@ -1261,6 +1261,65 @@ class ONRunningInventoryExtractor {
     return null;
   }
 
+  // THE RE-ORDER CATALOG, WHICH IS WHAT "PURCHASABLE" ACTUALLY MEANS.
+  //
+  // products-matrix/v3 returns stock for ON's WHOLE range, including models and
+  // colorways this account cannot re-order. Backstage itself calls that same
+  // endpoint and then filters it client side against this catalog, so without
+  // it the file carries stock nobody can buy. Measured 2026-10-16: 5,819
+  // in-stock shoe rows, of which 2,459 rows and 268,358 units were not
+  // orderable. Cloud 6 alone had 48 colorways in the matrix against 21 on the
+  // order screen.
+  //
+  // AGE IS NOT THE TEST. Old models stay if they are still in the catalog, and
+  // Cloudsurfer Next, Cloudultra 3 and Cloudsurfer 2 all are. The earlier
+  // instinct to filter on dropOutDate was wrong: measured against the order
+  // screen it was 67 percent accurate and wrong in BOTH directions, dropping
+  // 987 purchasable rows and keeping 918 unpurchasable ones.
+  //
+  // Verified by selecting all 158 models in the re-order flow and reading the
+  // matrix: 76 shoe model rows on screen, 76 from this filter, exactly.
+  onSeasonName(date) {
+    // ON names seasons SS and FW plus a two digit year, and the re-order season
+    // is the current one. There is no endpoint that reports it: the catalog
+    // route requires seasonName, /api/catalog/seasons is 404 and /api/seasons
+    // is 403. So it is derived, and verified by the caller before use.
+    const d = date || new Date();
+    const yy = String(d.getFullYear()).slice(2);
+    return (d.getMonth() + 1) >= 7 ? "FW" + yy : "SS" + yy;
+  }
+
+  async fetchReorderCatalog(accountId) {
+    // Try the derived season, then the neighbours, so a turn of the season does
+    // not silently empty the filter. The first season that answers with a
+    // plausible catalog wins.
+    const now = new Date();
+    const prev = new Date(now.getTime()); prev.setMonth(prev.getMonth() - 6);
+    const next = new Date(now.getTime()); next.setMonth(next.getMonth() + 6);
+    const tried = [];
+    for (const season of [this.onSeasonName(now), this.onSeasonName(next), this.onSeasonName(prev)]) {
+      if (tried.indexOf(season) !== -1) continue;
+      tried.push(season);
+      const url = "https://on-backstage-api.on-running.com/api/catalog/products?accountId=" +
+        encodeURIComponent(accountId) + "&seasonName=" + encodeURIComponent(season) +
+        "&includePreviouslyOrdered=true";
+      try {
+        const r = await fetch(url, { credentials: "include" });
+        if (!r.ok) continue;
+        const j = await r.json();
+        const ids = Array.isArray(j) ? j.map((x) => String(x.productId)) : [];
+        const footwear = ids.filter((x) => /^3/.test(x)).length;
+        // A handful of products is a season that has not opened yet, not the
+        // live one. Keep looking rather than filter everything away.
+        if (footwear >= 50) return { season: season, ids: new Set(ids), footwear: footwear };
+      } catch (e) {
+        console.warn("ON catalog: " + season + " failed:", e.message);
+      }
+    }
+    throw new Error("Could not read the ON re-order catalog (tried " + tried.join(", ") +
+      "). Refusing to build a file: without it the export would carry stock you cannot order.");
+  }
+
   async fetchInventoryFromApi(mainGroups) {
     const accountId = (this.shopifySettings && this.shopifySettings.onAccountId) || this.onApiAccountId();
     if (!accountId) throw new Error("Could not determine the ON account id. Open Backstage, sign in, and try again.");
@@ -1295,11 +1354,25 @@ class ONRunningInventoryExtractor {
     // genuinely on the shelf.
     const now = Date.now();
     let notYetLaunched = 0;
+    let notPurchasable = 0;
+    let notPurchasableUnits = 0;
+    const droppedColorways = new Map();
+
+    const catalog = await this.fetchReorderCatalog(accountId);
 
     const out = [];
     for (const r of rows) {
       if (want.indexOf(r.mainGroup) === -1) continue;
       if (r.launchDate && new Date(r.launchDate).getTime() > now) { notYetLaunched++; continue; }
+      // NOT IN THE RE-ORDER CATALOG MEANS YOU CANNOT BUY IT, whatever the
+      // matrix says the warehouse holds.
+      if (!catalog.ids.has(String(r.productGroupNumber))) {
+        notPurchasable++;
+        notPurchasableUnits += Math.max(0, parseInt(r.availableQuantity, 10) || 0);
+        const key = r.productGroupNumber + "  " + String(r.productGroupName || "") + "  " + String(r.color || "");
+        droppedColorways.set(key, (droppedColorways.get(key) || 0) + (parseInt(r.availableQuantity, 10) || 0));
+        continue;
+      }
       // ON writes a two-tone color as "White | Black". The DOM scraper split on
       // the pipe and joined with a space, and the store's titles were built that
       // way, so keeping the pipe would spell every color differently from the
@@ -1339,8 +1412,28 @@ class ONRunningInventoryExtractor {
       String(a.sizeUS).localeCompare(String(b.sizeUS))
     );
 
+    // A WRONG FILTER IS WORSE THAN NO FILE. Anything left out reads as removed
+    // downstream and zeroes that colorway's stock, so refuse rather than hand
+    // over a file that quietly shrank.
+    const kept = out.length;
+    const considered = kept + notPurchasable;
+    if (considered > 0 && kept / considered < 0.3) {
+      throw new Error("The ON re-order catalog for " + catalog.season + " matched only " + kept +
+        " of " + considered + " rows. That is too few to be right, and a short file would read as " +
+        "removed stock and zero it. Nothing has been written. Check the season in Backstage and retry.");
+    }
+
     console.log("ON API: " + rows.length + " rows returned, " + out.length + " kept (" + want.join(", ") + ")" +
-      (notYetLaunched ? ", " + notYetLaunched + " skipped as not yet launched" : ""));
+      (notYetLaunched ? ", " + notYetLaunched + " skipped as not yet launched" : "") +
+      (notPurchasable ? ", " + notPurchasable + " skipped as not orderable" : ""));
+    console.log("ON API: re-order catalog " + catalog.season + ", " + catalog.footwear + " footwear products");
+    if (notPurchasable) {
+      console.log("ON API: dropped " + droppedColorways.size + " colorways, " + notPurchasableUnits +
+        " units, not in the " + catalog.season + " re-order catalog. First 20:");
+      let n = 0;
+      for (const [k, u] of droppedColorways) { if (n++ >= 20) break; console.log("    " + k + "  " + u + "u"); }
+    }
+    this._lastDropped = { season: catalog.season, colorways: droppedColorways.size, units: notPurchasableUnits };
     return out;
   }
 
