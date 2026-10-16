@@ -1494,12 +1494,28 @@ class ONRunningInventoryExtractor {
     // A WRONG FILTER IS WORSE THAN NO FILE. Anything left out reads as removed
     // downstream and zeroes that colorway's stock, so refuse rather than hand
     // over a file that quietly shrank.
-    const kept = out.length;
-    const considered = kept + notPurchasable;
-    if (considered > 0 && kept / considered < 0.3) {
-      throw new Error("The ON re-order catalog for " + catalog.season + " matched only " + kept +
-        " of " + considered + " rows. That is too few to be right, and a short file would read as " +
-        "removed stock and zero it. Nothing has been written. Check the season in Backstage and retry.");
+    //
+    // MEASURE COVERAGE OF THE CATALOG, NOT A SHARE OF THE MATRIX. The first
+    // version of this guard compared kept rows against all rows considered and
+    // threw under 30 percent. That number is meaningless: the matrix is mostly
+    // discontinued stock, and how much of it is dead varies by group. Measured
+    // 2026-10-16, shoes came out at 35 percent and apparel at 20, so the guard
+    // fired on every apparel and combined export and the scrape just said "no
+    // inventory data found".
+    //
+    // The honest question is the other way round: the catalog says these
+    // products are orderable, did we produce rows for them? That sits at 96.7
+    // percent for shoes, 95.8 for apparel and 96.2 combined, so a real run is
+    // nowhere near the floor and a broken join or a wrong season would be.
+    const keptColorways = new Set();
+    for (const r of out) keptColorways.add(String(r.styleId));
+    const sliceSize = catalog.footwear || 0;
+    const coverage = sliceSize ? keptColorways.size / sliceSize : 1;
+    if (sliceSize > 0 && coverage < 0.5) {
+      throw new Error("The ON re-order catalog for " + catalog.season + " lists " + sliceSize +
+        " orderable products but only " + keptColorways.size + " of them came back with rows (" +
+        Math.round(coverage * 100) + " percent). That is too few to be right, and a short file would " +
+        "read as removed stock and zero it. Nothing has been written. Check the season in Backstage and retry.");
     }
 
     console.log("ON API: " + rows.length + " rows returned, " + out.length + " kept (" + want.join(", ") + ")" +

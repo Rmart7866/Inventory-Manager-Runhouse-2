@@ -158,5 +158,19 @@ console.log('\ndropOutDate must never become the filter again');
   eq('the row loop does filter on the catalog', /catalog\.ids\.has/.test(body), true);
 }
 
+console.log('\nThe short-file guard measures CATALOG COVERAGE, not a share of the matrix');
+{
+  // The first version compared kept rows against all rows considered and threw
+  // under 30 percent. The matrix is mostly discontinued stock and how much
+  // varies by group: shoes came out at 35 percent, apparel at 20. So it fired
+  // on every apparel and combined export and the scrape reported "no inventory
+  // data found". Real coverage of the catalog is about 96 percent for both.
+  const src = fs.readFileSync(SRC, 'utf8');
+  const body = src.slice(src.indexOf('async fetchInventoryFromApi'), src.indexOf('async extractONRunningInventory'));
+  eq('the ratio-of-rows guard is gone', /kept \/ considered/.test(body), false);
+  eq('coverage of the catalog is what is measured', /coverage\s*<\s*0\.5/.test(body), true);
+  eq('and it counts distinct colorways', /keptColorways/.test(body), true);
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nAll passed\n');
 process.exit(failures ? 1 : 0);
