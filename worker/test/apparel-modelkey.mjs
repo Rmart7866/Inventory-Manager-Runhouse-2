@@ -24,6 +24,14 @@ console.log('\nThe trailing article code or colour number comes off');
 eq('article code', apparelModelKey('ON Focus-T MEN (1ME11460069)'), 'ON FOCUS-T MEN');
 eq('colour number', apparelModelKey('On active Bra W (258)'), 'ON ACTIVE BRA W');
 
+console.log('\nAn UNCLOSED bracket is still stripped, the store has them');
+// "On Active Bra WOMEN (288.00731" is a real title on the store. With a
+// required closing bracket it kept "(288.00731" in the key and could never
+// group with its own siblings.
+eq('unclosed bracket', apparelModelKey('On Active Bra WOMEN (288.00731'), 'ON ACTIVE BRA WOMEN');
+eq('and it now matches the closed form',
+   apparelModelKey('On Active Bra WOMEN (288.00731'), apparelModelKey('On Active Bra WOMEN (288)'));
+
 console.log('\nThe colorway suffix after a spaced dash comes off');
 eq('colour suffix', apparelModelKey('ON 5" Running Shorts - Auburn/Ruby'), 'ON 5" RUNNING SHORTS');
 eq('en dash too', apparelModelKey('ON Climate Shirt – Fade'), 'ON CLIMATE SHIRT');

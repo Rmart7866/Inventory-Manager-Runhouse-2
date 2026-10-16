@@ -202,7 +202,10 @@ export function classify(productType, vendor) {
 // "ON Performance Bra" sit side by side.
 export function apparelModelKey(title) {
   let t = String(title || '').trim();
-  t = t.replace(/\s*\([^)]*\)\s*$/, '');     // trailing (1ME11460069) or (258)
+  // Trailing "(1ME11460069)" or "(258)". The closing bracket is OPTIONAL
+  // because the store has unclosed ones: "On Active Bra WOMEN (288.00731"
+  // kept its bracket in the key and would never group with its siblings.
+  t = t.replace(/\s*\([^)]*\)?\s*$/, '');
   const dash = t.search(/\s+[-\u2013]\s+/);   // " - Colour", the colorway suffix
   if (dash > 0) t = t.slice(0, dash);
   return t.replace(/\s+/g, ' ').trim().toUpperCase();
