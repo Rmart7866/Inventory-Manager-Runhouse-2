@@ -29,6 +29,7 @@ import { createShopifyClient } from './shopify.js';
 import { buildCatalog } from './catalog.js';
 import { createProducts, createStagedUploads } from './products.js';
 import { zeroInventory, setInventory } from './inventory.js';
+import { dropshipSales } from './sales.js';
 import { applyTagChanges, applyMetafields } from './tags.js';
 import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from './product-edit.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
@@ -367,6 +368,30 @@ async function handleApparelStatus(request, env) {
   return json({ built: true, scope, ageSeconds, ...meta }, 200, request, env);
 }
 
+// Weekly dropship sales. READ ONLY and aggregates only, but write-secret
+// gated anyway: the bearer token is public by construction and revenue is not
+// something to hand to anyone who reads the bundle.
+//
+// `since` is a shop-local date, YYYY-MM-DD, defaulting to 28 days back. The
+// window is capped because this pages every order in it and a careless
+// since=2020-01-01 would be a very long request.
+async function handleDropshipSales(request, env) {
+  const url = new URL(request.url);
+  const tz = 'America/New_York';
+  let since = url.searchParams.get('since') || '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) {
+    const d = new Date(Date.now() - 28 * 86400000);
+    since = d.toISOString().slice(0, 10);
+  }
+  const earliest = new Date(Date.now() - 400 * 86400000).toISOString().slice(0, 10);
+  if (since < earliest) {
+    return json({ error: 'since is too far back', earliest }, 400, request, env);
+  }
+  const client = createShopifyClient(env);
+  const report = await dropshipSales(client, { since, tz });
+  return json(report, 200, request, env);
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -393,6 +418,9 @@ export default {
       // Apparel, its own read-only value in KV, built by the same cron.
       '/catalog/apparel': { handler: handleApparel, forWrite: false, methods: ['GET'] },
       '/catalog/apparel/status': { handler: handleApparelStatus, forWrite: false, methods: ['GET'] },
+      // A READ, so forWrite stays false, but needsWriteSecret is independent of
+      // it and revenue should not sit behind the public bundle token alone.
+      '/sales/dropship': { handler: handleDropshipSales, forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       // Stage 4 WRITE. forWrite:true, so auth.js refuses it in bearer mode (501).
       // Inert in production until AUTH_MODE becomes a real identity/secret gate.
       '/products': { handler: handleCreateProducts, forWrite: true, methods: ['POST'] },

@@ -28,6 +28,7 @@ rule exists. Match that when you edit.
 | `catalog-tags.js` | Bulk width / cw-group / gender tagging and the swatch sibling metafields, plus the post-create swatch queue |
 | `product-library.js` | Full screen browser of every carried product, with single and model-wide editing |
 | `catalog-ui.js` | Freshness bar, refresh button, fallback and building banners |
+| `sales-report.js` | The weekly dropship sales panel. Reads `GET /sales/dropship`, write-secret gated because revenue should not sit behind the public bundle token |
 | `b2b-links.js` | Firestore-backed scraper link lists for ASICS and Brooks |
 | `barcode-data.js` | Generated barcode map (ASICS + ON), about 2 MB, committed |
 | `apparel.html` + `on-apparel-converter.js` | ON apparel, on its own page. See "Apparel" below |
