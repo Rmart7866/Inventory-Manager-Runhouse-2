@@ -63,6 +63,7 @@ node test/apparel-known-set.mjs               # apparel zeroing: Needham scoping
 node test/picker-tabs.mjs                     # ON picker: shoes and apparel split on the article code
 node test/on-supplied-images.mjs              # ON photos reach Stage 4 from the sidecar, no probing
 node test/on-title.mjs                        # ON titles: a two-tone color is never the model
+node test/enrich-csv.mjs                      # applyToCSV round trip: a comma in Tags cannot shift a column
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
@@ -198,6 +199,22 @@ change, change it in Color Swatch and re-copy, then run `npm run parity`.
    "Clear all in Shopify" (dry run, confirm, zero only).
 5. New products go through the enrichment modal, which can download a CSV or
    create drafts directly with metafields and photos.
+
+**The enriched CSV is the ONLY channel between the review modal and Stage 4.**
+`buildCreateSpecs` runs `generateNewProductCSV`, then `applyToCSV`, then parses
+the result back; a product that comes out of that round trip malformed is simply
+not created. So `applyToCSV` has to be a lossless CSV round trip, and it was not
+until 2026-10-20: it read a line at a time with a parser that STRIPS quotes and
+wrote rows back with `cols.join(',')`, which does not put them back. Tags always
+carry commas ("ON Running, Cloud 6, Men"), so one field became three, every
+column right of Tags shifted two places, `Option1 value` read empty, every
+variant was filtered out and so was the whole product. On the ON apparel drop
+that took 674 creatable products down to 109, and the modal said "Nothing to
+create for Performance Volt Vest" about a model it was itself displaying. An
+inch mark in a title was worse: the rejoined field re-emitted a bare quote and
+desynced every row after it. It also killed the thumbnails, because the image
+key is read off `variants[0].sku`, which had shifted too. It is now record
+aware and re-quotes every field. `test/enrich-csv.mjs` pins the round trip.
 
 **Three brands need no photo folder.** Brooks, New Balance and ASICS publish
 their dealer photography unauthenticated at a URL derived from the code already

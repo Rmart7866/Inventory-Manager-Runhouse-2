@@ -1609,8 +1609,19 @@ var ProductEnrichment = {
             return out.join(', ');
         }
 
-        var lines = csvString.split('\n');
-        var headers = parseCSVLineEnrich(lines[0]);
+        // Record aware, NOT line aware, and every field is re-quoted on the way
+        // out. This used to read a line at a time with parseCSVLineEnrich, which
+        // STRIPS the quotes, and write it back with cols.join(','), which does not
+        // put them back. A Tags value the converter had written correctly, say
+        // "ON Running, Performance Volt Vest, Women", came back as three columns
+        // and shifted SKU and Option1 value two places right, so buildCreateSpecs
+        // read an empty size, dropped every variant, dropped the whole spec, and
+        // the modal said "Nothing to create" for a model it was itself showing.
+        // An inch mark in a title ("3\" Core Shorts") was worse: the stripped
+        // field re-emitted a bare quote that desynced every row after it.
+        var records = parseCSVRecordsEnrich(csvString);
+        if (!records.length) return csvString;
+        var headers = records[0];
 
         var handleIdx = headers.indexOf('URL handle');
         var priceIdx = headers.indexOf('Price');
@@ -1622,25 +1633,27 @@ var ProductEnrichment = {
         var seoDescIdx = headers.indexOf('SEO description');
 
         var seenHandle = {};   // product-level fields go on the FIRST row of a handle only
-        var result = [lines[0]];
-        for (var i = 1; i < lines.length; i++) {
-            if (!lines[i].trim()) continue;
-            var cols = parseCSVLineEnrich(lines[i]);
-            var handle = (cols[handleIdx] || '').replace(/^"|"$/g, '');
-            if (!handle) { result.push(lines[i]); continue; }
+        var result = [serializeCSVRowEnrich(headers)];
+        for (var i = 1; i < records.length; i++) {
+            var cols = records[i].slice();
+            if (cols.length <= 1 && !String(cols[0] || '').trim()) continue;
+            var handle = cols[handleIdx] || '';
+            if (!handle) { result.push(serializeCSVRowEnrich(cols)); continue; }
 
             var modelKey = handleToModel[handle];
             var enrich = modelKey ? enrichmentMap[modelKey] : null;
             var inhPair = handleToInherit[handle] || null;
             var inhW = inhPair && inhPair.w;   // width-specific: correct cw-group + width tag
             var inhM = inhPair && inhPair.m;   // model-level: description/type/category/price
-            if (!enrich && !inhPair) { result.push(lines[i]); continue; }
+            if (!enrich && !inhPair) { result.push(serializeCSVRowEnrich(cols)); continue; }
 
-            var q = function (s) { return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"'; };
+            // Values go in RAW. serializeCSVRowEnrich quotes every field once, so
+            // quoting here as well would write the quotes into the data.
+            var q = function (s) { return String(s == null ? '' : s); };
 
             // Pad columns so every index we may write exists.
             var maxIdx = Math.max(priceIdx, descIdx, tagsIdx, typeIdx, catIdx, seoTitleIdx, seoDescIdx);
-            while (cols.length <= maxIdx) cols.push('""');
+            while (cols.length <= maxIdx) cols.push('');
 
             var first = !seenHandle[handle];
             seenHandle[handle] = true;
@@ -1678,11 +1691,21 @@ var ProductEnrichment = {
                 if (seoDescIdx >= 0 && enrich && enrich.seoDesc) cols[seoDescIdx] = q(enrich.seoDesc);
             }
 
-            result.push(cols.join(','));
+            result.push(serializeCSVRowEnrich(cols));
         }
         return result.join('\n');
     },
 };
+
+// Writes a row back out with every field quoted, the same shape the converters
+// emit. Quoting unconditionally is what keeps a comma inside Tags, an inch mark
+// inside a title, and a newline inside an inherited description from turning
+// into extra columns or extra rows.
+function serializeCSVRowEnrich(cols) {
+    return (cols || []).map(function (v) {
+        return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    }).join(',');
+}
 
 // Simple CSV line parser (handles quoted fields)
 function parseCSVLineEnrich(line) {
