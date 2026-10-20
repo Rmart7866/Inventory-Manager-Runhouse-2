@@ -47,7 +47,7 @@ the repo root are gitignored run artifacts and supplier data.
 # Worker
 cd worker && npx wrangler dev --port 8790     # local worker (.dev.vars unlocks writes)
 cd worker && npx wrangler deploy              # deploy, independent of git
-cd worker && npm test                         # auth + needham + known-set + parity
+cd worker && npm test                         # auth + needham + known-set + category + parity
 cd worker && npm run parity                   # tag logic vs the Color Swatch originals
 
 # Frontend
@@ -64,6 +64,7 @@ node test/picker-tabs.mjs                     # ON picker: shoes and apparel spl
 node test/on-supplied-images.mjs              # ON photos reach Stage 4 from the sidecar, no probing
 node test/on-title.mjs                        # ON titles: a two-tone color is never the model
 node test/enrich-csv.mjs                      # applyToCSV round trip: a comma in Tags cannot shift a column
+node test/on-apparel-type.mjs                 # ON apparel: garment type, size ladder, never typed as a shoe
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
@@ -155,6 +156,36 @@ Shopify applies that from the CATEGORY, the shopify.* category metafields only
 become available once one is set, and the Google and Meta feeds read it.
 Measured 2026-09-18, 980 shoes had none and every product this route created
 was one of them, so new shoes were taxed where the older ones were not.
+
+**A GARMENT MUST NEVER WEAR FOOTWEAR'S SHAPE.** One ON feed file carries both
+groups through one dropzone, split by the article code's first digit (1 apparel,
+2 accessories, 3 footwear), and `worker/src/products.js` decides the shipping
+weight AND the taxonomy category from one test, does the product type end in
+"shoes". So a garment typed "Women's Shoes" is not a cosmetic slip: on
+2026-10-20 six 3" Core Shorts were created with the Athletic Shoes leaf and a
+2 lb weight, which is Massachusetts footwear exemption territory, so they were
+set up to sell tax exempt. They were deleted and recreated.
+
+Four places now fork on the group, and all four have to agree about what a shoe
+is, because they all use the same `/shoes$/i` test:
+- `OnConverter.apparelTypeFor` picks the product TYPE from a garment vocabulary.
+  That vocabulary is **not free**: it must be the one `classify()` admits to the
+  apparel catalog (`APPAREL_TYPE_RE`), or the tool creates a product it cannot
+  read back, calls it new again next week, and makes a duplicate.
+- `APPAREL_CATEGORIES` in `worker/src/products.js` maps that type to a real
+  taxonomy leaf, verified against the live taxonomy 2026-10-20. Clothing is
+  exempt under $175 in MA too, so no category is a defect and a wrong one is
+  worse.
+- `OnConverter.sortApparelVariants` imposes a size ladder, apparel only. ON
+  writes apparel sizes alphabetically, so a straight read gave Shopify
+  "L, M, S, XL, XS, XXL" and the product page opened on Large. Footwear is left
+  alone: its numeric sizes arrive from the portal's size header already in order.
+- `buildCreateSpecs` writes `custom.width_class` only for footwear.
+  `_normWidth('')` returns "standard", which is right for a shoe whose feed is
+  silent about width and wrong on a sports bra.
+
+`test/on-apparel-type.mjs` and `worker/test/apparel-category.mjs` pin all of it,
+including the drift between the two type tables.
 
 **Create is create-only and draft-only.** `worker/src/products.js` skips any
 handle that already exists, so `productSet` can never overwrite a live product,
@@ -325,6 +356,10 @@ Consequences worth knowing:
   rules as footwear, Needham scoped writes and zeroing included. The page does
   not do that yet: it still reads `GET /catalog/apparel` and writes nothing.
   Turning zeroing on is blocked on SKUs, see below.
+- **CREATING apparel happens on the MAIN page, not here.** The ON feed carries
+  footwear and apparel in one file through one dropzone, the picker splits them
+  into tabs, and Stage 4 creates either. `apparel.html` is still the only place
+  that reads the apparel catalog, so the two are not yet one thing.
 - **THE BLOCKER IS SKUS, NOT THE FEED.** Measured 2026-10-16, the store carries
   13 ON apparel products, 61 variants, and **49 of the 61 have no SKU at all**,
   with one parsable article code between them. Footwear matches by variant SKU,

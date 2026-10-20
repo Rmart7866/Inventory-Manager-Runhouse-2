@@ -69,11 +69,20 @@ yes('inventory still only real at Needham',
     v.inventoryQuantities.every((q) => (q.locationId === NEEDHAM ? q.quantity === 4 : q.quantity === 0)),
     v.inventoryQuantities);
 
-console.log('\nFootwear also gets the athletic shoes category, apparel does not');
+console.log('\nFootwear gets the athletic shoes category, a garment gets its own');
 eq('shoes', build("Men's Shoes", [{ size: '9', sku: 'A' }]).category, 'gid://shopify/TaxonomyCategory/aa-8-1');
 eq('and every footwear type', build('Running Shoes', [{ size: '9', sku: 'A' }]).category, 'gid://shopify/TaxonomyCategory/aa-8-1');
-eq('a sports bra gets none', build('Sports Bras', [{ size: 'M', sku: 'B' }]).category, undefined);
-eq('nor does a missing type', build(undefined, [{ size: 'M', sku: 'C' }]).category, undefined);
+// A sports bra used to get no category at all, which was the right answer only
+// while the alternative was the ATHLETIC SHOES leaf. It has its own leaf now,
+// because MA exempts clothing under $175 too and the feeds read the field
+// either way. The guarantee that matters here is unchanged and asserted next:
+// a garment never gets FOOTWEAR's category. test/apparel-category.mjs owns the
+// per-type table.
+eq('a sports bra gets the activewear sports bra leaf',
+   build('Sports Bras', [{ size: 'M', sku: 'B' }]).category, 'gid://shopify/TaxonomyCategory/aa-1-1-6');
+eq('and never footwear\'s',
+   build('Sports Bras', [{ size: 'M', sku: 'B' }]).category === 'gid://shopify/TaxonomyCategory/aa-8-1', false);
+eq('an unknown type still gets none', build(undefined, [{ size: 'M', sku: 'C' }]).category, undefined);
 eq('a caller may override it',
    buildProductSetInput({ title: 'T', productType: "Men's Shoes", category: 'gid://shopify/TaxonomyCategory/aa-8',
      variants: [{ size: '9', sku: 'A' }] }, NEEDHAM, [NEEDHAM]).category,

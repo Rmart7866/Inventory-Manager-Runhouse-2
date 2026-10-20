@@ -648,7 +648,15 @@ var ProductEnrichment = {
 
             var mf = [];
             if (meta.color) mf.push({ namespace: 'custom', key: 'color_name', type: 'single_line_text_field', value: meta.color });
-            var wc = normW(meta.width); if (wc) mf.push({ namespace: 'custom', key: 'width_class', type: 'single_line_text_field', value: wc });
+            // WIDTH IS A FOOTWEAR CONCEPT. _normWidth falls back to 'standard'
+            // for a blank width, which is right for a shoe whose feed does not
+            // say B or 2E and wrong for a sports bra. Before this gate every ON
+            // garment was created carrying custom.width_class = standard. Same
+            // "type ends in shoes" test the Worker uses for the weight and the
+            // category, so the three cannot disagree about what a shoe is.
+            var isShoe = /shoes$/i.test(get(first, 'Type').trim());
+            var wc = isShoe ? normW(meta.width) : '';
+            if (wc) mf.push({ namespace: 'custom', key: 'width_class', type: 'single_line_text_field', value: wc });
             var gg = normG(meta.gender); if (gg) mf.push({ namespace: 'custom', key: 'gender', type: 'single_line_text_field', value: gg });
             return {
                 title: get(first, 'Title').trim(),
@@ -856,7 +864,20 @@ var ProductEnrichment = {
             urlsFor: function (code) {
                 if (typeof OnConverter === 'undefined' || !OnConverter.imageUrls) return [];
                 return OnConverter.imageUrls[String(code).toUpperCase()] || [];
-            }
+            },
+            // REQUIRED, even for a supplied source. render() calls
+            // src.thumbFor(url) for every remote image, so a source without one
+            // threw inside the list map and took every thumbnail in the dialog
+            // with it: ON products showed no photo at all while the other brands
+            // did. That is what "no thumbnails like it used to have" was.
+            //
+            // library.on.com ignores every width parameter tried (width, w,
+            // maxWidth, size, scale, dpr all return the same 906 KB master), but
+            // it does honour format and quality: webp at quality 30 is about
+            // 120 KB instead of 906 KB. The row is 44px, so the quality loss is
+            // invisible and only the thumbnail uses it. The URL handed to
+            // Shopify stays bare, as the full size master.
+            thumbFor: function (url) { return url + '?format=webp&quality=30'; }
         },
         brooks: {
             label: 'Brooks',

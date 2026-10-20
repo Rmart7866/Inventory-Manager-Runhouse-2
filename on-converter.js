@@ -185,6 +185,162 @@ var OnConverter = {
         return sku;
     },
 
+    // ===== APPAREL IS NOT FOOTWEAR =====
+    //
+    // The ON article code's first digit is the product group, 1 apparel,
+    // 2 accessories, 3 footwear, and ONE feed file carries both groups through
+    // ONE dropzone. So every footwear-shaped assumption in this converter has
+    // to be gated on the group, and until 2026-10-20 none of them were.
+    //
+    // What that cost, measured on 6 drafts created 2026-10-20: a pair of
+    // running shorts went to Shopify typed "Women's Shoes". That is the same
+    // string footwear uses, so the Worker's isFootwearType said yes and the
+    // shorts also got the Athletic Shoes category and a 2 lb shipping weight.
+    // Category is the field Shopify applies the Massachusetts footwear
+    // exemption from, so all six were set up to sell as tax exempt footwear.
+    isApparelSku: function (sku) {
+        var m = /^ON-([0-9])/.exec(String(sku || '').toUpperCase());
+        return !!m && m[1] === '1';
+    },
+
+    // A model name to a garment type.
+    //
+    // THE VOCABULARY IS NOT FREE. It has to be the one the Worker's classify()
+    // admits to the apparel catalog (APPAREL_TYPE_RE in worker/src/catalog.js),
+    // and the one APPAREL_CATEGORIES in worker/src/products.js keys its
+    // taxonomy leaves on. A type outside it creates a product this tool cannot
+    // read back, so the picker would offer it as new again next week and create
+    // a duplicate. It also matches what the store already uses on its 34 live
+    // ON garments, "Sports Bras", "Hoodies", "T-Shirts", "Shorts".
+    //
+    // ORDER MATTERS, first match wins, because ON stacks these words:
+    //   "Endurance Bra Zip"            bra, not a half-zip
+    //   "Climate Zip Hoodie"           hoodie, not a full zip
+    //   "Core Long-T 1"                long sleeve, not a t-shirt
+    //   "Core Track Jacket"            jacket, not track pants
+    //   "PTR | Focus Tech Sweatpants"  sweatpants, not pants
+    APPAREL_TYPE_RULES: [
+        [/\bbra\b/i,                        'Sports Bras'],
+        [/\bsocks?\b/i,                      'Socks'],
+        [/\bglove/i,                         'Gloves'],
+        [/\b(cap|hat|beanie|headband|visor)/i, 'Headwear'],
+        [/\bvest\b/i,                        'Vests'],
+        [/\bhoodie/i,                        'Hoodies'],
+        [/\bcrew\b|\bcrew\s|\bcrewneck/i,     'Crewnecks'],
+        [/\bjacket/i,                        'Jackets'],
+        [/1\/4\s*zip|half[-\s]?zip|\bquarter\s*zip/i, 'Half-Zips'],
+        [/full[-\s]?zip/i,                    'Full Zips'],
+        [/\bsweatpants?\b/i,                 'Sweatpants'],
+        [/\bjogger/i,                        'Joggers'],
+        [/\btights?\b|\blegging/i,            'Tights/Leggings'],
+        [/\bshorts?\b/i,                     'Shorts'],
+        [/\bpants?\b/i,                      'Pants'],
+        [/\bskort/i,                         'Skorts'],
+        [/\bdress\b/i,                       'Active Dress'],
+        [/\btank\b/i,                        'Tanks'],
+        // Long sleeve before the bare T forms, or "Long-T" reads as a t-shirt.
+        [/long[-\s]?t\b|long[-\s]?sleeve/i,   'Long Sleeves'],
+        // A "Crop" is a cropped TOP here, never a bottom. Short sleeve unless
+        // the name says otherwise, which the rule above has already caught.
+        [/\bcrop\b/i,                        'T-Shirts'],
+        [/\bshirt\b|-t\b|\bt\b|\bte+\b/i,    'T-Shirts'],
+        [/\bsweatshirt/i,                    'Sweatshirts'],
+        [/\bcompression\b/i,                 'Compression'],
+    ],
+
+    // Falls back to T-Shirts rather than to nothing, because an unrecognised
+    // garment with no type at all is invisible to classify() and so cannot be
+    // read back, which is the duplicate-creating failure above. A wrong top is
+    // recoverable by hand in the product library; an uncategorised orphan is
+    // the thing that silently recurs. Anything landing here is worth a rule.
+    apparelTypeFor: function (model) {
+        var m = String(model || '');
+        for (var i = 0; i < this.APPAREL_TYPE_RULES.length; i++) {
+            if (this.APPAREL_TYPE_RULES[i][0].test(m)) return this.APPAREL_TYPE_RULES[i][1];
+        }
+        console.warn('[ON] no garment type rule matched "' + m + '", defaulting to T-Shirts');
+        return 'T-Shirts';
+    },
+
+    // THE SIZE LADDER, apparel only.
+    //
+    // ON writes apparel sizes alphabetically, so reading the feed in order
+    // hands Shopify "L, M, S, XL, XS, XXL" as the option order and the product
+    // page opens on Large. Footwear is untouched: its numeric sizes come from
+    // the portal's size header already in ladder order (7.0, 7.5, 8.0 ...), and
+    // sorting those as words would be the same bug in reverse.
+    //
+    // A size this does not recognise keeps its feed position, so an unknown
+    // label can never jump the queue, it only fails to be promoted.
+    APPAREL_SIZE_LADDER: ['3XS', 'XXXS', '2XS', 'XXS', 'XS', 'S', 'S/M', 'M', 'M/L',
+        'L', 'L/XL', 'XL', 'XXL', '2XL', 'XXXL', '3XL', '4XL', 'OS', 'ONE SIZE'],
+
+    // Bras carry a cup range on top of the band ("Small A-C", "S (D-DD)"), so
+    // the band is what ranks and the cup is the tie break. Without that every
+    // cup of one band would sort arbitrarily against each other.
+    apparelSizeRank: function (size) {
+        var raw = String(size == null ? '' : size).trim().toUpperCase();
+        var cup = '';
+        var cm = raw.match(/\(?\s*([A-D])\s*-\s*(DD|[A-Z])\s*\)?\s*$/);
+        if (cm) { cup = cm[1] + '-' + cm[2]; raw = raw.slice(0, cm.index).trim(); }
+        var band = raw.replace(/[\s()-]/g, '')
+            .replace(/^XSMALL$/, 'XS').replace(/^SMALL$/, 'S')
+            .replace(/^MEDIUM$/, 'M').replace(/^LARGE$/, 'L')
+            .replace(/^(\d)X(SMALL|LARGE)$/, function (_, n, w) { return n + 'X' + w.charAt(0); })
+            .replace(/^XXLARGE$/, 'XXL').replace(/^XXSMALL$/, 'XXS');
+        var i = this.APPAREL_SIZE_LADDER.indexOf(band);
+        return { rank: i < 0 ? -1 : i, cup: cup };
+    },
+
+    // Sorts a product's variants into ladder order, in place, apparel only.
+    // Stable: unrecognised sizes keep their relative feed order at the end.
+    sortApparelVariants: function (variants) {
+        var self = this;
+        var decorated = variants.map(function (v, i) {
+            var r = self.apparelSizeRank(v.size);
+            return { v: v, i: i, rank: r.rank, cup: r.cup };
+        });
+        decorated.sort(function (a, b) {
+            if (a.rank !== b.rank) {
+                if (a.rank < 0) return 1;           // unknown sizes sink
+                if (b.rank < 0) return -1;
+                return a.rank - b.rank;
+            }
+            if (a.cup !== b.cup) return a.cup < b.cup ? -1 : 1;
+            return a.i - b.i;                        // stable
+        });
+        return decorated.map(function (d) { return d.v; });
+    },
+
+    // The human taxonomy PATH for the CSV's 'Product category' column and the
+    // Google feed column. The CREATE route does not use these, it gets a real
+    // taxonomy gid from APPAREL_CATEGORIES in the Worker, so if you change one
+    // change both. These are only for the CSV a human imports by hand.
+    APPAREL_CATEGORY_PATH: {
+        'T-Shirts':        'Apparel & Accessories > Clothing > Activewear > Activewear Tops > T-Shirts',
+        'Long Sleeves':    'Apparel & Accessories > Clothing > Activewear > Activewear Tops > T-Shirts',
+        'Tanks':           'Apparel & Accessories > Clothing > Activewear > Activewear Tops > Tank Tops',
+        'Compression':     'Apparel & Accessories > Clothing > Activewear > Activewear Tops > Base Layer Tops',
+        'Shorts':          'Apparel & Accessories > Clothing > Activewear > Activewear Pants > Shorts',
+        'Pants':           'Apparel & Accessories > Clothing > Activewear > Activewear Pants > Track Pants',
+        'Sweatpants':      'Apparel & Accessories > Clothing > Activewear > Activewear Pants > Sweatpants',
+        'Joggers':         'Apparel & Accessories > Clothing > Activewear > Activewear Pants > Joggers',
+        'Tights/Leggings': 'Apparel & Accessories > Clothing > Activewear > Activewear Pants > Tights',
+        'Hoodies':         'Apparel & Accessories > Clothing > Activewear > Activewear Sweatshirts & Hoodies > Hoodies',
+        'Sweatshirts':     'Apparel & Accessories > Clothing > Activewear > Activewear Sweatshirts & Hoodies > Sweatshirts',
+        'Crewnecks':       'Apparel & Accessories > Clothing > Activewear > Activewear Sweatshirts & Hoodies > Sweatshirts',
+        'Half-Zips':       'Apparel & Accessories > Clothing > Activewear > Activewear Sweatshirts & Hoodies > Sweatshirts',
+        'Full Zips':       'Apparel & Accessories > Clothing > Activewear > Activewear Sweatshirts & Hoodies > Track Jackets',
+        'Jackets':         'Apparel & Accessories > Clothing > Activewear > Activewear Vests & Jackets > Jackets',
+        'Vests':           'Apparel & Accessories > Clothing > Activewear > Activewear Vests & Jackets > Vests',
+        'Sports Bras':     'Apparel & Accessories > Clothing > Activewear > Sports Bras',
+        'Skorts':          'Apparel & Accessories > Clothing > Skorts',
+        'Active Dress':    'Apparel & Accessories > Clothing > Dresses',
+        'Socks':           'Apparel & Accessories > Clothing > Socks > Athletic Socks',
+        'Gloves':          'Apparel & Accessories > Clothing Accessories > Gloves & Mittens',
+        'Headwear':        'Apparel & Accessories > Clothing Accessories > Hats > Baseball Caps',
+    },
+
     // ===== UPC / BARCODE (ON pricat file) =====
     // The scraped ON feed has no barcodes. This loads ON's seasonal pricat export
     // (e.g. pricat-...-FW26.xlsx) and builds an "Item Code|size -> EAN Barcode"
@@ -692,13 +848,34 @@ var OnConverter = {
             var cleanedTitle = self.cleanTitle(product.title);
             var cleanedHandle = self.cleanHandle(product.handle, cleanedTitle);
 
+            // APPAREL FORKS HERE, on the article code of its own SKUs, not on
+            // anything in the title. See isApparelSku for why this gate exists.
+            var isApparel = self.isApparelSku((product.variants[0] || {}).sku || '');
+            var garment = isApparel ? self.apparelTypeFor(product.model) : '';
+
             var tags = ['ON Running', product.model];
             if (product.gender !== 'Unisex') tags.push(product.gender.replace("'s", ''));
             if (product.category) tags.push(product.category);
+            // The garment type as a tag as well as the product type. Apparel has
+            // no cw-group equivalent, the swatch tags are a width-class idea and
+            // a bra has no width, so this is the only tag a collection can group
+            // garments on.
+            if (garment) tags.push(garment);
 
             var productType = "Unisex Shoes";
             if (product.gender === "Men's") productType = "Men's Shoes";
             else if (product.gender === "Women's") productType = "Women's Shoes";
+            // NOT gendered for apparel, matching the 34 ON garments already on
+            // the store ("Sports Bras", "Hoodies"), and never ending in "shoes",
+            // which is the test the weight and the category gate on.
+            if (garment) productType = garment;
+
+            var shopCategory = garment
+                ? (self.APPAREL_CATEGORY_PATH[garment] || 'Apparel & Accessories > Clothing > Activewear')
+                : 'Apparel & Accessories > Shoes';
+
+            // Ladder order, or Shopify opens the product page on Large.
+            if (isApparel) product.variants = self.sortApparelVariants(product.variants);
 
             product.variants.forEach(function(variant, idx) {
                 var row = {};
@@ -708,7 +885,7 @@ var OnConverter = {
                     row['URL handle'] = cleanedHandle;
                     row['Description'] = '';
                     row['Vendor'] = 'ON Running';
-                    row['Product category'] = 'Apparel & Accessories > Shoes';
+                    row['Product category'] = shopCategory;
                     row['Type'] = productType;
                     row['Tags'] = tags.join(', ');
                     row['Published on online store'] = 'FALSE';
@@ -716,7 +893,7 @@ var OnConverter = {
                     row['Option1 name'] = 'Size';
                     row['SEO title'] = cleanedTitle;
                     row['SEO description'] = cleanedTitle;
-                    row['Google Shopping / Google product category'] = 'Apparel & Accessories > Shoes';
+                    row['Google Shopping / Google product category'] = shopCategory;
                     row['Google Shopping / Gender'] = gGender;
                     row['Google Shopping / Age group'] = 'Adult (13+ years old)';
                     row['Google Shopping / Condition'] = 'New';

@@ -102,6 +102,69 @@ const isFootwearType = (t) => /shoes$/i.test(String(t || '').trim());
 // apparel and "Athletic Shoes" is plainly wrong on a sports bra.
 const ATHLETIC_SHOES_CATEGORY = 'gid://shopify/TaxonomyCategory/aa-8-1';
 
+// APPAREL CATEGORIES, one taxonomy leaf per garment type, for the same three
+// reasons footwear has one. Massachusetts exempts CLOTHING under $175 as well
+// as footwear, so a garment with no category is as mispriced at the till as a
+// shoe with none, and the Google and Meta feeds read this field too.
+//
+// WHY THIS TABLE HAD TO EXIST. Before it, the ON converter typed every apparel
+// product "Women's Shoes", which is the same string footwear uses, so
+// isFootwearType said yes and a pair of running shorts was created with the
+// Athletic Shoes leaf AND a 2 lb shipping weight. Measured on 6 drafts created
+// 2026-10-20: all six 3" Core Shorts were set up to sell as tax exempt
+// footwear. A wrong category is worse than none, because it looks deliberate.
+//
+// Keyed on the PRODUCT TYPE, lower cased, and the keys are the same vocabulary
+// classify() admits to the apparel catalog (APPAREL_TYPE_RE in catalog.js). The
+// two lists have to agree: a type this table does not know gets no category,
+// and a type classify() does not know cannot be read back by the tool that
+// created it. worker/test/apparel-category.mjs fails if they drift apart.
+//
+// Leaves verified against the live Shopify taxonomy 2026-10-20. Running apparel
+// sits under Activewear wherever Activewear has a leaf for it, because that is
+// the subtree a running store's catalogue belongs in.
+const APPAREL_CATEGORIES = {
+  // Activewear > Activewear Tops
+  't-shirts': 'aa-1-1-2-2',
+  'short sleeve': 'aa-1-1-2-2',
+  // Shopify's activewear tops have no long sleeve leaf, so a long sleeve
+  // running tee is filed as the T-shirt it is rather than as a base layer.
+  'long sleeves': 'aa-1-1-2-2',
+  'tanks': 'aa-1-1-2-3',
+  'tank': 'aa-1-1-2-3',
+  'compression': 'aa-1-1-2-4',
+  // Activewear > Activewear Pants
+  'shorts': 'aa-1-1-1-3',
+  'pants': 'aa-1-1-1-6',
+  'sweatpants': 'aa-1-1-1-4',
+  'joggers': 'aa-1-1-1-1',
+  'tights/leggings': 'aa-1-1-1-5',
+  // Activewear > Activewear Sweatshirts & Hoodies
+  'hoodies': 'aa-1-1-7-2',
+  'sweatshirts': 'aa-1-1-7-4',
+  'crewnecks': 'aa-1-1-7-4',
+  'half-zips': 'aa-1-1-7-4',
+  'full zips': 'aa-1-1-7-5',
+  // Activewear > Activewear Vests & Jackets
+  'jackets': 'aa-1-1-8-2',
+  'vests': 'aa-1-1-8-1',
+  // Activewear, standalone leaves
+  'sports bras': 'aa-1-1-6',
+  // Neither has an Activewear leaf: Shopify's only activewear dress is a dance
+  // costume, so a running dress and a running skort file under plain Clothing.
+  'active dress': 'aa-1-4',
+  'skorts': 'aa-1-16',
+  // Not clothing, so not under Activewear at all.
+  'socks': 'aa-1-18-2',
+  'gloves': 'aa-2-13',
+  'headwear': 'aa-2-17-1',
+};
+const apparelCategoryFor = (t) => {
+  const key = String(t || '').trim().toLowerCase();
+  const leaf = APPAREL_CATEGORIES[key];
+  return leaf ? 'gid://shopify/TaxonomyCategory/' + leaf : null;
+};
+
 export function buildProductSetInput(spec, needhamLocationId, locationIds) {
   const variantsIn = Array.isArray(spec.variants) ? spec.variants : [];
   const wantsWeight = isFootwearType(spec.productType);
@@ -159,9 +222,15 @@ export function buildProductSetInput(spec, needhamLocationId, locationIds) {
   if (spec.handle) input.handle = spec.handle;
   if (spec.vendor) input.vendor = spec.vendor;
   if (spec.productType) input.productType = spec.productType;
-  // A caller may override, but footwear defaults to the athletic shoes leaf.
+  // A caller may override. Otherwise footwear gets the athletic shoes leaf and
+  // a garment gets the leaf for its type, and the two cannot be confused
+  // because wantsWeight is the same "type ends in shoes" test either way.
   if (spec.category) input.category = spec.category;
   else if (wantsWeight) input.category = ATHLETIC_SHOES_CATEGORY;
+  else {
+    const apparelCat = apparelCategoryFor(spec.productType);
+    if (apparelCat) input.category = apparelCat;
+  }
   if (spec.descriptionHtml) input.descriptionHtml = spec.descriptionHtml;
   if (Array.isArray(spec.metafields) && spec.metafields.length) input.metafields = spec.metafields;
   // Images: each already staged, referenced by its resourceUrl as originalSource.
