@@ -86,6 +86,7 @@ node tools/prune-thin-drafts.mjs --since 2026-10-20 --min-units 10
 node tools/tag-apparel-collections.mjs --since 2026-10-20   # collection tags, add-only
 node tools/apparel-content.mjs --since 2026-10-20   # SEO copy + shopify.* category metafields
 node tools/apparel-collections.mjs            # apparel:<group> tags + the apparel collections
+node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways collapse to one card
 node tools/wire-apparel-swatches.mjs          # swatch metafields, ACTIVE products only
 node tools/delete-apparel-typed-as-shoes.mjs  # repair for the 2026-10-20 mistyping
 
@@ -284,6 +285,51 @@ width and gender back. Apparel has no sibling, so the 2026-10-20 drop created
 all 365 garments carrying exactly `["ON Running", "<model>"]`, losing the gender
 and garment-type tags the collections key on. Union also matches the house rule
 that tagging is add-only outside `product-library.js`.
+
+**COLLECTION-GRID GROUPING IS A DIFFERENT SYSTEM FROM THE PDP SWATCHES, and it
+DOES need a theme edit.** Two things are easy to confuse:
+
+| | File | Reads | Written by |
+|---|---|---|---|
+| PDP swatches | `snippets/colorway-swatches.liquid` | `custom.style_siblings` etc. | `tools/wire-apparel-swatches.mjs` |
+| Collection cards | `snippets/shoe-collection-grid.liquid` | the `cw-group:<key>` TAG | `tools/tag-apparel-groups.mjs` |
+
+The grid collapses products sharing a `cw-group:` tag into ONE card with a
+swatch row under the price, but **only on the collection handles listed in
+`grouped_handles`**, a single comma-separated Liquid string at the top of that
+snippet. Liquid owns the list because two consumers need it, the JS grid and the
+server-rendered seed. The 16 apparel handles were added there 2026-10-20, taking
+it from 32 to 48. **That edit is in the LIVE THEME (`167063912703`), which is
+not in this repo**, so it will not come back from git: re-apply it if the theme
+is ever replaced or rolled back.
+
+The apparel key's second half is the GENDER, not a width class, and the
+vocabularies are disjoint so they can never collide:
+
+    footwear   cw-group:<model>--standard | --wide | --xwide | --narrow
+    apparel    cw-group:<model>--womens   | --mens | --unisex
+
+This is NOT a drift of the ported tag rule. `parsers.js` and `group.js` compute
+FOOTWEAR keys, nothing here touches them, and they never see apparel because
+`classify()` keeps garments out of the footwear catalog. The grid does not parse
+the key, it only groups products whose key strings are equal, so an apparel key
+cannot change a footwear tag or a footwear grouping, and `npm run parity` is
+unaffected.
+
+**THE GROUPING IS ON ONLY, and the reason is worth keeping.** The key comes from
+the title cut at the last `" - "`, which is right only where the title is
+machine generated as `<model> - <colour>`. The first dry run over all 42
+tagged-apparel vendors showed what that costs elsewhere: other brands use `" - "`
+as a BRAND separator, so "90 Degree by Reflex - Powerlux High Rise Leggings"
+gave a model of "90 Degree by Reflex" and **18 unrelated products, leggings, a
+fleece hoodie, a zip jacket and men's pants, collapsed into one card**. Mono B
+(11), Relay Active (7) and Alyth Active (7) did the same. A wrong group is far
+worse than no group: ungrouped just shows one card per product, a wrong group
+HIDES products behind a swatch row they have nothing to do with. Three guards
+now stand in the way, and all three must pass: the derived model must not equal
+the vendor name, every member must be the same garment type, and every member
+must be a distinct colour. Groups of one are never tagged, since they already
+render as a normal card and a later run picks up the pair.
 
 **Apparel swatches need NO theme change.** `snippets/colorway-swatches.liquid` in
 the live theme is pure display and entirely metafield driven: the tiles render on
