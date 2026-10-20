@@ -1039,10 +1039,14 @@
                     </div>
                     <div class="dropzone" id="on-all-dropzone">
                         <h3>Drop ON Inventory CSV</h3>
-                        <p>One file, all genders</p>
-                        <div class="csv-note">Pre-formatted from scraper</div>
-                        <input type="file" class="file-input" id="on-all-file" accept=".csv">
+                        <p>Shoes and apparel, plus the images file</p>
+                        <div class="csv-note">Drop BOTH files from the scraper</div>
+                        <!-- multiple, and .json, because an ON export is two
+                             files: the inventory CSV and the images sidecar
+                             that lets Stage 4 create products with photos. -->
+                        <input type="file" class="file-input" id="on-all-file" accept=".csv,.json" multiple>
                     </div>
+                    <div id="on-images-note" style="display:none;padding:6px 10px;margin-top:6px;font-size:11.5px;color:var(--accent);background:var(--surface-2);border:1px solid var(--line-2);"></div>
                     <div class="uploaded" id="on-all-uploaded" style="display:none;">
                         <div class="uploaded-info"><strong id="on-all-filename"></strong></div>
                         <button class="clear-btn" onclick="clearOnFile('all')">Clear</button>
@@ -1219,6 +1223,6 @@
     <script src="product-library.js?v=8"></script>
     <script src="catalog-ui.js?v=7"></script>
 
-    <script src="main.js?v=15"></script>
+    <script src="main.js?v=16"></script>
 </body>
 </html>

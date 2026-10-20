@@ -69,6 +69,7 @@ node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 c
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
+node scrapers/on/test/csv-quoting.mjs         # ON CSV: an inch mark in a name must not break the row
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only

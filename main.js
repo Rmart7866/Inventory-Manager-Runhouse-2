@@ -97,7 +97,7 @@ var BrandConverter = {
         newbalance: { file: null, inventory: [], csv: '', scanned: false },
         asics: { file: null, inventory: [], csv: '', scanned: false },
         brooks: { file: null, inventory: [], csv: '', scanned: false },
-        on: { allFile: null, inventory: [], csv: '', scanned: false }
+        on: { allFile: null, imagesFile: null, inventory: [], csv: '', scanned: false }
     },
 
     // ON uploads one scraper file per gender. Men's and women's are the normal
@@ -122,10 +122,19 @@ var BrandConverter = {
     // The files currently uploaded, in slot order, empty slots dropped.
     onFiles: function() {
         var b = this.brands.on;
-        return this.ON_SLOTS.map(function(slot) { return b[slot + 'File']; }).filter(Boolean);
+        var list = this.ON_SLOTS.map(function(slot) { return b[slot + 'File']; }).filter(Boolean);
+        // The sidecar rides along. The converter pulls it out before Papa sees
+        // it, so it never reaches the CSV parse.
+        if (b.imagesFile) list.push(b.imagesFile);
+        return list;
     },
 
-    hasOnFile: function() { return this.onFiles().length > 0; },
+    // The CSV only. The sidecar alone is not something to scan: without the
+    // inventory file there is nothing for the images to attach to.
+    hasOnFile: function() {
+        var b = this.brands.on;
+        return this.ON_SLOTS.some(function (slot) { return !!b[slot + 'File']; });
+    },
 
     init: function() {
         var self = this;
@@ -197,12 +206,15 @@ var BrandConverter = {
             dropZone.addEventListener('click', function() { fileInput.click(); });
             dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
             dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
+            // BOTH FILES AT ONCE. The ON export is a CSV plus an images
+            // sidecar, and taking only files[0] meant the second silently
+            // replaced the first or was ignored entirely.
             dropZone.addEventListener('drop', function(e) {
                 e.preventDefault(); dropZone.classList.remove('dragover');
-                if (e.dataTransfer.files.length > 0) self.handleOnFile(gender, e.dataTransfer.files[0]);
+                self.handleOnFiles(gender, e.dataTransfer.files);
             });
             fileInput.addEventListener('change', function(e) {
-                if (e.target.files.length > 0) self.handleOnFile(gender, e.target.files[0]);
+                self.handleOnFiles(gender, e.target.files);
             });
         });
 
@@ -243,6 +255,37 @@ var BrandConverter = {
     },
 
     // ========== ON FILE HANDLING ==========
+    //
+    // An ON export is TWO files: the inventory CSV and an images sidecar whose
+    // URLs let Stage 4 create products with photos. ON's asset ids are opaque,
+    // so the photos cannot be derived from a SKU the way Brooks and ASICS can,
+    // and the 19 column CSV has nowhere to put a URL.
+    //
+    // Both arrive on the same dropzone, in either order and in one drop or
+    // two. The sidecar goes to its own slot so it can never displace the CSV.
+    handleOnFiles: function (gender, fileList) {
+        var files = Array.prototype.slice.call(fileList || []);
+        if (!files.length) return;
+        var self = this;
+        var csvs = files.filter(function (f) { return !/\.json$/i.test(f.name); });
+        var jsons = files.filter(function (f) { return /\.json$/i.test(f.name); });
+        jsons.forEach(function (f) { self.handleOnImagesFile(f); });
+        csvs.forEach(function (f) { self.handleOnFile(gender, f); });
+        // A sidecar dropped on its own, after the CSV, still needs a re-scan so
+        // the images are picked up.
+        if (!csvs.length && jsons.length && this.hasOnFile()) this._scanBrand('on');
+    },
+
+    // The images sidecar. Kept beside the CSV, never in its place.
+    handleOnImagesFile: function (file) {
+        this.brands.on.imagesFile = file;
+        var el = document.getElementById('on-images-note');
+        if (el) {
+            el.textContent = 'Images file loaded: ' + file.name;
+            el.style.display = 'block';
+        }
+    },
+
     handleOnFile: function(gender, file) {
         if (this.ON_SLOTS.indexOf(gender) === -1) return;
         this.brands.on[gender + 'File'] = file;
@@ -539,6 +582,12 @@ function clearFile(brand) {
         BrandConverter.brands.on.inventory = [];
         BrandConverter.brands.on.csv = '';
         BrandConverter.brands.on.scanned = false;
+        // The sidecar goes with the CSV. Leaving it behind would attach the
+        // previous scrape's photos to the next one.
+        BrandConverter.brands.on.imagesFile = null;
+        if (typeof OnConverter !== 'undefined') OnConverter.imageUrls = {};
+        var note = document.getElementById('on-images-note');
+        if (note) note.style.display = 'none';
 
         BrandConverter.ON_SLOTS.forEach(function(slot) {
             BrandConverter.brands.on[slot + 'File'] = null;

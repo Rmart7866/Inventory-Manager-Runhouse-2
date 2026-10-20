@@ -249,6 +249,19 @@ function getONProductInfo(productName, styleId) {
 // --------------------------
 // Size formatting utility
 // --------------------------
+// A CSV field, quoted properly.
+//
+// A quote INSIDE a quoted field has to be doubled. Wrapping with `"${v}"` and
+// hoping is fine until a value contains one, and apparel names do: ON writes
+// 3" Core Shorts and 5" Lightweight Shorts with a literal inch mark. That
+// produced `"ON Women's 3" Core Shorts - Black"`, which is not valid CSV, and
+// every parser including Shopify's reads the title as running to the end of
+// the line and swallows the columns after it. 102 rows of a 7,112 row export,
+// invisible until apparel arrived: no shoe name has ever contained a quote.
+function csvQ(v) {
+  return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+}
+
 function formatSizeForShopify(size) {
   if (!size) return size;
   const sizeStr = String(size).trim();
@@ -383,11 +396,11 @@ class UnifiedShopifyConverter {
         // Build each row manually - ensuring all 19 columns match ASICS format
         const row = [
           handle,                                  // Handle
-          `"${title}"`,                           // Title (quoted for safety)
+          csvQ(title),                             // Title
           'Size',                                  // Option1 Name
           formatSizeForShopify(variant.sizeUS || variant.size),  // Option1 Value - FIX: Add .0 to whole sizes
           'Color',                                 // Option2 Name
-          `"${variant.colorName}"`,               // Option2 Value (quoted for safety)
+          csvQ(variant.colorName),                 // Option2 Value
           '',                                      // Option3 Name
           '',                                      // Option3 Value
           sku,                                     // SKU
