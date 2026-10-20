@@ -341,11 +341,44 @@ const SLEEVE = { 'T-Shirts': 'Short', 'Long Sleeves': 'Long', 'Tanks': 'Sleevele
 const NECKLINE = { 'T-Shirts': 'Crew', 'Long Sleeves': 'Crew', 'Crewnecks': 'Crew',
   'Hoodies': 'Hooded', 'Half-Zips': 'Mock' };
 
-function metafieldPlan(p, st, MO) {
+// WHICH KEYS A CATEGORY WILL EVEN ACCEPT. Each shopify.* definition is
+// constrained to the categories whose taxonomy carries that attribute, so
+// writing shopify.neckline on a pair of shorts is rejected with "Owner subtype
+// does not match the metafield definition's constraints". That is not a soft
+// failure: metafieldsSet is ATOMIC, so one bad entry rejects the whole call.
+// In the first run that cost 450 writes against about a dozen genuinely invalid
+// entries, and Sports Bras and Tights got nothing at all because every chunk
+// they appeared in was poisoned.
+//
+// So the allowlist is read from the taxonomy itself, per category, rather than
+// hand maintained. The attribute display name slugifies to the metafield key,
+// with one exception: the taxonomy calls it "Color" and the metafield is
+// color-pattern.
+const keyForAttr = (name) => {
+  const n = String(name || '').trim();
+  if (n.toLowerCase() === 'color') return 'color-pattern';
+  return n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+};
+const ATTRS = {};   // categoryId -> Set of allowed metafield keys
+async function allowedKeys(categoryId) {
+  if (!categoryId) return null;
+  if (ATTRS[categoryId]) return ATTRS[categoryId];
+  try {
+    const d = await gql(`query($id: ID!) { node(id: $id) { ... on TaxonomyCategory {
+      attributes(first: 50) { nodes { ... on TaxonomyChoiceListAttribute { name } } } } } }`, { id: categoryId });
+    const names = (d.node && d.node.attributes ? d.node.attributes.nodes : []).map((a) => a && a.name).filter(Boolean);
+    ATTRS[categoryId] = new Set(names.map(keyForAttr));
+  } catch (e) { ATTRS[categoryId] = null; }
+  return ATTRS[categoryId];
+}
+
+function metafieldPlan(p, st, MO, allowed) {
   const want = {};
   const put = (key, names) => {
     const defn = MO[key];
     if (!defn) return;
+    // The category has to carry the attribute, or the whole write is rejected.
+    if (allowed && !allowed.has(key)) return;
     const ids = [];
     for (const n of [].concat(names)) { if (n && defn[n]) ids.push(defn[n]); }
     if (ids.length) want[key] = ids;
@@ -367,6 +400,7 @@ const PQ = `query($q: String!, $cursor: String) {
   products(first: 50, after: $cursor, query: $q) {
     pageInfo { hasNextPage endCursor }
     nodes { id handle title productType status descriptionHtml
+      category { id }
       metafields(first: 40, namespace: "custom") { nodes { key value } }
       options { name optionValues { name } }
       variants(first: 1) { nodes { sku } } }
@@ -388,6 +422,7 @@ const modelOf = (title) => {
 const products = raw.filter((p) => p.productType && !isFootwear(p.productType)).map((p) => {
   const sizes = (p.options.find((o) => /size/i.test(o.name)) || {}).optionValues || [];
   return { id: p.id, handle: p.handle, title: he(p.title), type: p.productType, status: p.status,
+    categoryId: p.category ? p.category.id : '',
     descriptionHtml: p.descriptionHtml || '', sku: (p.variants.nodes[0] || {}).sku || '',
     article: articleOf((p.variants.nodes[0] || {}).sku), model: modelOf(p.title),
     color: mf(p, 'color_name'), gender: mf(p, 'gender'),
@@ -463,7 +498,7 @@ for (const p of products) {
     }
   }
   if (DO_MF) {
-    const want = metafieldPlan(p, st, MO);
+    const want = metafieldPlan(p, st, MO, await allowedKeys(p.categoryId));
     for (const [key, ids] of Object.entries(want)) {
       mfOps.push({ ownerId: p.id, handle: p.handle, namespace: 'shopify', key,
         type: 'list.metaobject_reference', value: JSON.stringify(ids) });
@@ -518,7 +553,18 @@ if (mfOps.length) {
     const chunk = mfOps.slice(i, i + 25).map(({ ownerId, namespace, key, type, value }) => ({ ownerId, namespace, key, type, value }));
     const d = await gql(SET, { metafields: chunk });
     const e = d.metafieldsSet.userErrors || [];
-    if (e.length) { bad += chunk.length; console.log('  FAILED chunk ' + i + ' ' + JSON.stringify(e).slice(0, 300)); } else n += chunk.length;
+    if (e.length) {
+      // ATOMIC CALL, so retry the chunk one at a time: only the genuinely
+      // invalid entry is lost, and it gets named instead of taking 24 good
+      // writes down with it.
+      for (const one of chunk) {
+        const r = await gql(SET, { metafields: [one] });
+        const re = r.metafieldsSet.userErrors || [];
+        if (re.length) { bad++; console.log('  REJECTED  shopify.' + one.key + '  ' + (re[0].message || '').slice(0, 90)); }
+        else n++;
+        await new Promise((s) => setTimeout(s, 120));
+      }
+    } else n += chunk.length;
     if (i % 250 === 0) console.log('  metafields ... ' + n + ' / ' + mfOps.length);
     await new Promise((s) => setTimeout(s, 250));
   }
