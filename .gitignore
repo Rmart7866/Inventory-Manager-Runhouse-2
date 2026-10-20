@@ -186,3 +186,9 @@ specs-clear-rollback-*.json
 # for months. Keep writing the per-tool blocks above, they say WHY each file
 # exists, but this line is what makes forgetting one harmless.
 *-rollback-*.json
+
+# tools/apparel-content.mjs caches ON's public product pages here, one per
+# style, about 77 MB. It is third party marketing HTML in a PUBLIC repo and it
+# is rebuildable from the sitemap in a couple of minutes, so it is never
+# committed. Same reason the rollback files above are not.
+on-pdp-cache/

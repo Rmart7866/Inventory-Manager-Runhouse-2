@@ -163,6 +163,100 @@ become available once one is set, and the Google and Meta feeds read it.
 Measured 2026-09-18, 980 shoes had none and every product this route created
 was one of them, so new shoes were taxed where the older ones were not.
 
+**ON'S OWN STATS COME FROM on.com, JOINED ON THE ARTICLE CODE.** The Backstage
+B2B feed carries stock and price but no copy, and the review modal starts every
+description empty, so the 2026-10-20 drop created 282 garments with nothing in
+the description. ON's public site has the real numbers, and the join is exact
+rather than fuzzy: `www.on.com/en-us/products.xml` is a plain sitemap of about
+3,900 product URLs and **every URL ends with the article code**, the same code
+inside our variant SKUs.
+
+    .../3-core-shorts-1wf1015/womens/black-apparel-1WF10150553
+    SKU  ON-1WF10150553-BLA-L
+
+`tools/apparel-content.mjs` walks that, fetches ONE page per 7-character STYLE
+(100 pages covered all 282 products), and reads weight in grams, fabric
+composition, the feature bullets, the recycled-content claim and the country of
+origin. Measured 2026-10-20: 269 of 282 matched on the full article code and the
+other 13 on the style prefix, a colourway we carry that ON does not sell direct.
+All 100 styles yielded a weight, a fabric and a feature list.
+
+Three things are load bearing. The page is a Nuxt app whose data sits in a
+FLATTENED `__NUXT_DATA__` array where every value is an index into one shared
+array, so it has to be resolved by index, not read; a plain `JSON.parse` gives
+numbers where strings belong. The product object is the one carrying BOTH `usps`
+and `materials`, because any looser test picks up the recommendation carousel's
+stubs. And robots.txt disallows `/api` and `/pdp`, so only the sitemap and
+ordinary product pages are fetched, one per style, with a delay. Pages cache to
+the gitignored `on-pdp-cache/`, about 77 MB, rebuildable in minutes.
+
+**The description is composed, not copied.** Publishing ON's own meta description
+verbatim would put a duplicate of their snippet on our page, which is the
+opposite of SEO friendly, so the opening sentence is built here from the facts
+and only ON's FEATURE BULLETS are reproduced, which is what the 41 ON garments
+already live on this store do. Two traps found by reading the first dry run and
+now guarded: a bullet is spliced into the sentence only if it names a PART of the
+garment and carries no comma list, or you get "with recovery, all-day wear, soft
+touch"; and a COTTON-dominant top gets a lifestyle sentence rather than a
+performance one, because calling a 100% cotton Club tee "built for everyday
+miles" is the kind of wrong a returns desk pays for.
+
+**The shopify.\* CATEGORY METAFIELDS are metaobject references, not text.**
+Shopify stores them as `list.metaobject_reference` pointing at entries of the
+reserved `shopify--*` metaobject definitions. This app has `read_metaobjects`
+but **not** `write_metaobjects`, so a value whose metaobject does not already
+exist on the store cannot be created from here: those are reported and skipped.
+Available 2026-10-20: color-pattern (82), fabric (23), activity (23),
+activewear-clothing-features (24), neckline (9), age-group (5), target-gender
+(4), sleeve-length-type (4), top-length-type (3). Empty, so never written:
+size-type, liner-type, pocket-type, hood-design, hood-type, clothing-fit,
+pattern, support-level. Mapping a value WRONG is worse than leaving it unset,
+because a shopper filters on it, so `fabricOf` takes the highest stated
+percentage and the feature rules only fire on phrases that clearly mean the
+listed value.
+
+**THE STORE'S APPAREL NAVIGATION IS TAG DRIVEN, on exact strings.** Read off the
+live collections 2026-10-20:
+
+| Collection | Rule |
+|---|---|
+| Women's Apparel `womens-apparel-1` | TAG = `womens apparel` AND inventory > 0 |
+| Men's Apparel `mens-apparel-2` | TAG = `mens apparel` AND inventory > 0 |
+| Women's `womens` | TAG = `women` OR `women's` |
+| Men's `mens-1` | TAG = `Men's` OR `men` OR `mens` |
+| Socks `socks-1` | TAG = `sock` OR `socks` |
+| Hats & Headwear `headwear` | TAG = `Hats` OR `headband` |
+| Short Sleeve `short-sleeve` | TAG = `short sleeve` |
+| On Footwear and Apparel `on-running` | VENDOR = `On Running` |
+
+A garment without those tags is on the site by direct link only: in no apparel
+collection and no gender collection. The lowercase spellings are what the 41 ON
+garments already live on the store carry, so they are the proven form, not a
+guess. `OnConverter` emits them for 1xx article codes and
+`tools/tag-apparel-collections.mjs` backfills, add-only. `short sleeve` is
+deliberately NOT emitted: that collection is curated at 47 products and the tees
+alone would nearly triple it.
+
+**And the tag merge in `applyToCSV` is a UNION, not a replace.** The review modal
+pre-fills its Tags box with `"<vendor>, <model>"`, so `enrich.tags` is never
+empty, so the old two-way union replaced the column with just those two.
+Footwear never noticed because inheritance from a live sibling puts cw-group,
+width and gender back. Apparel has no sibling, so the 2026-10-20 drop created
+all 365 garments carrying exactly `["ON Running", "<model>"]`, losing the gender
+and garment-type tags the collections key on. Union also matches the house rule
+that tagging is add-only outside `product-library.js`.
+
+**Apparel swatches need NO theme change.** `snippets/colorway-swatches.liquid` in
+the live theme is pure display and entirely metafield driven: the tiles render on
+`custom.style_siblings.size > 1`, the WIDTH pills on
+`custom.model_widths.size > 1`, the gender tabs on `custom.gender_sibling`. So a
+garment gets the same swatch grid as a shoe by writing `style_siblings` grouped
+on model + GENDER, since a garment has no width class, and gets no width pills
+simply by leaving `model_widths` and `width_class` unset.
+`tools/wire-apparel-swatches.mjs` does it, ACTIVE only, because a swatch tile is
+a link and a DRAFT product's URL 404s. Measured on the drop: 78 swatch rows with
+more than one colourway, 30 garments carried in both genders.
+
 **A GARMENT MUST NEVER WEAR FOOTWEAR'S SHAPE.** One ON feed file carries both
 groups through one dropzone, split by the article code's first digit (1 apparel,
 2 accessories, 3 footwear), and `worker/src/products.js` decides the shipping
