@@ -1582,6 +1582,34 @@ class ONRunningInventoryExtractor {
     return out;
   }
 
+  // The second download, behind its own click. See the note in
+  // extractONRunningInventory: a browser will not give us two automatically.
+  showImagesButton() {
+    const self = this;
+    const old = document.getElementById("on-images-btn");
+    if (old) old.remove();
+    const p = this._pendingImages;
+    if (!p) return;
+    const btn = document.createElement("button");
+    btn.id = "on-images-btn";
+    btn.innerHTML = "Download ON images file<br><span style='font-weight:400;font-size:11px;opacity:.85'>" +
+      p.products + " products, " + p.images + " photos. Drop it WITH the CSV.</span>";
+    btn.style.cssText = `
+      position: fixed; top: 92px; right: 20px; z-index: 10000;
+      background: #6f42c1; color: #fff; border: none; padding: 10px 16px;
+      border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700;
+      box-shadow: 0 2px 10px rgba(0,0,0,.3); text-align: left; line-height: 1.35;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    `;
+    btn.onclick = () => {
+      self.downloadCSV(p.json, p.name);
+      btn.innerHTML = "Images file downloaded";
+      btn.style.background = "#28a745";
+      setTimeout(() => { const b = document.getElementById("on-images-btn"); if (b) b.remove(); }, 4000);
+    };
+    document.body.appendChild(btn);
+  }
+
   async extractONRunningInventory(format = "inventory", mainGroups = null) {
     try {
       this.loadShopifySettings();
@@ -1622,28 +1650,32 @@ class ONRunningInventoryExtractor {
 
       this.downloadCSV(csv, filename);
 
-      // THE IMAGE SIDECAR, so Stage 4 can create ON products with photos.
+      // THE IMAGE SIDECAR NEEDS ITS OWN CLICK.
       //
       // ON's asset ids are opaque, so unlike Brooks and ASICS there is no URL
       // to derive from a SKU: the only source is the catalog response, which
-      // only the extension can reach (it needs the Backstage session and the
-      // tool runs on a different origin). The inventory CSV is 19 fixed
-      // columns with nowhere to put a URL, and widening it would change the
-      // shape Shopify's import screen depends on for every brand.
+      // only the extension can reach. The inventory CSV is 19 fixed columns
+      // with nowhere to put a URL, so the URLs ride in their own file.
       //
-      // So the URLs ride alongside in their own file. The ON dropzone already
-      // takes several files, so this needs no new UI: drop both.
+      // IT CANNOT BE DOWNLOADED AUTOMATICALLY. Chrome allows one download per
+      // user gesture: firing a second straight after the CSV is silently
+      // dropped, and trying again gets the whole site flagged for multiple
+      // downloads so NEITHER arrives. Verified on backstage 2026-10-20, one
+      // file of two landed the first time and none the second.
       //
-      // Nothing is downloaded here or by the browser later. Shopify fetches
-      // each URL itself, which is the same path the Brooks and ASICS photos
-      // already take.
+      // So it is parked and a button is offered. One click, always arrives.
       const assets = this.shopifyConverter._onAssets;
       if (assets && assets.size) {
         const map = {};
         for (const [code, urls] of assets) map[code] = urls;
-        this.downloadCSV(JSON.stringify({ kind: 'on-images', generatedAt: new Date().toISOString(),
-          products: assets.size, images: Object.values(map).reduce((t, u) => t + u.length, 0), map }, null, 1),
-          filename.replace(/\.csv$/, '') + '-images.json');
+        this._pendingImages = {
+          name: filename.replace(/\.csv$/, '') + '-images.json',
+          json: JSON.stringify({ kind: 'on-images', generatedAt: new Date().toISOString(),
+            products: assets.size, images: Object.values(map).reduce((t, u) => t + u.length, 0), map }, null, 1),
+          products: assets.size,
+          images: Object.values(map).reduce((t, u) => t + u.length, 0)
+        };
+        this.showImagesButton();
       }
 
       const importInstructions =

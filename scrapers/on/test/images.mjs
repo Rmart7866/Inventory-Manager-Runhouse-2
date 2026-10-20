@@ -89,5 +89,19 @@ console.log('\nA style with no assets in a mixed run is simply left alone');
   eq('only the one that has assets gets an image', withImg.length, 1);
 }
 
+console.log('\nThe sidecar is parked for a click, never auto-downloaded');
+{
+  // A browser gives a page ONE download per user gesture. Firing a second
+  // straight after the CSV is silently dropped, and retrying gets the site
+  // flagged so NEITHER arrives. Verified on backstage 2026-10-20: one file of
+  // two landed the first time, none the second.
+  const src = fs.readFileSync(SRC, 'utf8');
+  const body = src.slice(src.indexOf('async extractONRunningInventory'));
+  const dls = (body.match(/this\.downloadCSV\(/g) || []).length;
+  eq('extractONRunningInventory downloads exactly once', dls, 1);
+  eq('the sidecar is parked instead', /_pendingImages\s*=/.test(body), true);
+  eq('and a button is offered', /showImagesButton\(\)/.test(body), true);
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nAll passed\n');
 process.exit(failures ? 1 : 0);
