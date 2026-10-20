@@ -84,6 +84,8 @@ node tools/clear-bogus-specs.mjs              # specs.* written from a blank reg
 # ON apparel, after a create batch. Dry run by default, --apply writes.
 node tools/prune-thin-drafts.mjs --since 2026-10-20 --min-units 10
 node tools/tag-apparel-collections.mjs --since 2026-10-20   # collection tags, add-only
+node tools/apparel-content.mjs --since 2026-10-20   # SEO copy + shopify.* category metafields
+node tools/apparel-collections.mjs            # apparel:<group> tags + the apparel collections
 node tools/wire-apparel-swatches.mjs          # swatch metafields, ACTIVE products only
 node tools/delete-apparel-typed-as-shoes.mjs  # repair for the 2026-10-20 mistyping
 
@@ -162,6 +164,43 @@ Shopify applies that from the CATEGORY, the shopify.* category metafields only
 become available once one is set, and the Google and Meta feeds read it.
 Measured 2026-09-18, 980 shoes had none and every product this route created
 was one of them, so new shoes were taxed where the older ones were not.
+
+**THE APPAREL NAVIGATION IS A GROUP TAG, and three other options were ruled
+out first.** `tools/apparel-collections.mjs` writes one `apparel:<group>` tag
+per garment and the collections key on it. Why not something cleverer:
+
+- **Not the product type.** 5,837 products carry an apparel type, but The Run
+  House's own printed and team gear is the largest vendor in most of them (188
+  Hoodies, 174 T-Shirts, 80 Shorts), so a type-keyed collection becomes a spirit
+  wear page. Outside ON the types are also inconsistent: "Clothing", "Bra",
+  "Legging", "Pant", "Shirts & Tops", and 293 women's products with no type.
+- **Not the taxonomy category.** 1,382 of the 1,390 tagged garments do have one,
+  but only ON's sit at a LEAF. 220 of the others stop at the parent "Activewear
+  Pants", which lumps shorts, tights, joggers and track pants together, and 313
+  stop at bare "Activewear". Useless for the split. It IS the right rule for the
+  `on-apparel` brand collection though: `aa-1` is Clothing, so with descendants
+  it takes every ON garment and NO ON shoe (shoes are `aa-8`, a different
+  branch), needs no tag, and picks up future ON apparel automatically because
+  the create route sets a category.
+- **Not a smarter rule.** A Shopify smart collection is either all-AND or
+  all-OR, NEVER mixed, so `tag = "womens apparel" AND (type = T-Shirts OR type
+  = Tanks)` cannot be expressed at all. One tag per group is what makes the AND
+  form possible.
+
+The opt-in set is the `womens apparel` / `mens apparel` / `unisex apparel` tags
+the two pre-existing apparel collections already use: 1,390 products, 42
+vendors. Classification reads the product type first and falls back to the
+TITLE, which is the only signal left for the untyped ones; measured 2026-10-20,
+1,382 of 1,390 classified and the 8 that did not are listed and left alone,
+never guessed. Rule order matters: bra first, then legging and tight before
+short so "Zero Short Tights" is a tight, and the loose shirt and top words last
+so "Tank Top" does not beat "tank".
+
+`VENDOR` matching is CASE INSENSITIVE, verified 2026-10-20: the store holds both
+"On Running" and "ON Running" and both sit in the collection whose rule says
+"On Running". Socks, gloves and headwear get a group tag but deliberately no
+collection, because `socks-1` (392) and `headwear` (59) already cover them store
+wide and a second page for the same thing splits the SEO.
 
 **ON'S OWN STATS COME FROM on.com, JOINED ON THE ARTICLE CODE.** The Backstage
 B2B feed carries stock and price but no copy, and the review modal starts every
