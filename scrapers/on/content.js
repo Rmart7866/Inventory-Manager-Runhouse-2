@@ -1622,6 +1622,30 @@ class ONRunningInventoryExtractor {
 
       this.downloadCSV(csv, filename);
 
+      // THE IMAGE SIDECAR, so Stage 4 can create ON products with photos.
+      //
+      // ON's asset ids are opaque, so unlike Brooks and ASICS there is no URL
+      // to derive from a SKU: the only source is the catalog response, which
+      // only the extension can reach (it needs the Backstage session and the
+      // tool runs on a different origin). The inventory CSV is 19 fixed
+      // columns with nowhere to put a URL, and widening it would change the
+      // shape Shopify's import screen depends on for every brand.
+      //
+      // So the URLs ride alongside in their own file. The ON dropzone already
+      // takes several files, so this needs no new UI: drop both.
+      //
+      // Nothing is downloaded here or by the browser later. Shopify fetches
+      // each URL itself, which is the same path the Brooks and ASICS photos
+      // already take.
+      const assets = this.shopifyConverter._onAssets;
+      if (assets && assets.size) {
+        const map = {};
+        for (const [code, urls] of assets) map[code] = urls;
+        this.downloadCSV(JSON.stringify({ kind: 'on-images', generatedAt: new Date().toISOString(),
+          products: assets.size, images: Object.values(map).reduce((t, u) => t + u.length, 0), map }, null, 1),
+          filename.replace(/\.csv$/, '') + '-images.json');
+      }
+
       const importInstructions =
         format === "inventory" ? "Import to: Products → Inventory → Import" : "Import to: Products → Import";
       this.showSuccessMessage(` Exported ${inventoryData.length} ON Running variants as ${format.toUpperCase()} CSV! ${importInstructions}`);

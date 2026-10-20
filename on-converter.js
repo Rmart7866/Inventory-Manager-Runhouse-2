@@ -160,6 +160,19 @@ var OnConverter = {
         'ON-3WG10361200-WHI': 'on-womens-cloud-6-wide-whi',
     },
 
+    // article code -> [image url, ...], loaded from the scraper's sidecar.
+    // Empty until a sidecar is dropped, which is the safe default: no images
+    // beats wrong images, and Stage 4 simply attaches none.
+    imageUrls: {},
+
+    // Every image for the colorway a SKU belongs to. The article code is the
+    // join, the same one the re-order filter and the picker tabs use.
+    imagesForSku: function (sku) {
+        var m = /^ON-([0-9A-Z.]+)-/i.exec(String(sku || '').toUpperCase());
+        if (!m) return [];
+        return this.imageUrls[m[1]] || [];
+    },
+
     // Extract SKU base: ON-3WF10060755-PEA-5 -> ON-3WF10060755-PEA
     getSkuBase: function(sku) {
         if (!sku) return '';
@@ -331,6 +344,26 @@ var OnConverter = {
             Promise.all(promises).then(function(texts) {
                 var allRows = [];
 
+                // THE IMAGE SIDECAR RIDES IN THE SAME DROP.
+                //
+                // ON photos cannot be derived from a SKU the way Brooks and
+                // ASICS can, so the scraper writes the URLs beside the CSV and
+                // both get dropped together. Pulled out before the CSV parse,
+                // because Papa would make nonsense of JSON.
+                texts = texts.filter(function (t) {
+                    var head = String(t || '').slice(0, 300);
+                    if (head.indexOf('on-images') === -1) return true;
+                    try {
+                        var j = JSON.parse(t);
+                        self.imageUrls = j.map || {};
+                        console.log('[ON] image sidecar: ' + Object.keys(self.imageUrls).length +
+                            ' products, ' + (j.images || 0) + ' images');
+                    } catch (e) {
+                        console.warn('[ON] image sidecar could not be read:', e && e.message);
+                    }
+                    return false;           // not a CSV, do not parse it as one
+                });
+
                 texts.forEach(function(csvText) {
                     var parsed = Papa.parse(csvText, { header: true });
                     var rows = parsed.data.filter(function(row) {
@@ -424,6 +457,14 @@ var OnConverter = {
 
             Promise.all(promises).then(function(texts) {
                 var allRows = [];
+
+                // Same sidecar guard as scanFiles. convert() is handed the same
+                // files, and Papa parsing JSON yields rows with no Handle that
+                // are silently dropped, so this is tidiness rather than a bug,
+                // but a future change to the row filter should not resurrect it.
+                texts = texts.filter(function (t) {
+                    return String(t || '').slice(0, 300).indexOf('on-images') === -1;
+                });
 
                 texts.forEach(function(csvText) {
                     var parsed = Papa.parse(csvText, { header: true });

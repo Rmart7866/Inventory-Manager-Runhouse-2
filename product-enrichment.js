@@ -837,6 +837,27 @@ var ProductEnrichment = {
     // Partial coverage is exactly why a folder can still be pooled in, see
     // _rebuildImageIndex.
     REMOTE_IMAGE_SOURCES: {
+        // ON IS SUPPLIED, NOT DERIVED, and is the only source of this kind.
+        //
+        // Brooks, New Balance and ASICS publish at a URL you can build from
+        // the code in the SKU, so they have a views list and a urlFor. ON's
+        // asset ids are opaque uuids, so nothing is derivable: the URLs come
+        // from the catalog response, reach the tool in the scraper's sidecar
+        // file, and are read back out of OnConverter here.
+        //
+        // No HEAD check, deliberately. The others are probed because coverage
+        // is partial and a guessed URL may not exist. These were not guessed,
+        // they were handed over by the same API that lists the product, so a
+        // probe would only cost six requests a colorway to confirm what the
+        // catalog already said.
+        on: {
+            label: 'ON Running',
+            supplied: true,
+            urlsFor: function (code) {
+                if (typeof OnConverter === 'undefined' || !OnConverter.imageUrls) return [];
+                return OnConverter.imageUrls[String(code).toUpperCase()] || [];
+            }
+        },
         brooks: {
             label: 'Brooks',
             // Lateral leads, so the flat side profile is the featured image.
@@ -1009,6 +1030,26 @@ var ProductEnrichment = {
             var k = self._imageKeyIn(brand, ((sp.variants || [])[0] || {}).sku || '');
             if (k && !seen[k]) { seen[k] = 1; codes.push(k); }
         });
+        // A SUPPLIED source already knows its URLs, so there is nothing to
+        // probe and nothing to build. Index them straight away.
+        if (src.supplied) {
+            var sidx = {};
+            codes.forEach(function (c) {
+                var urls = src.urlsFor(c) || [];
+                urls.forEach(function (u, i) {
+                    (sidx[c] = sidx[c] || []).push({
+                        name: c + '_' + String(i + 1).padStart(2, '0') + '_supplied',
+                        url: u, remote: true, brand: brand
+                    });
+                });
+            });
+            self._imageIndexRemote = sidx;
+            self._imageBrand = brand;
+            self._rebuildImageIndex();
+            if (onProgress) onProgress(1, 1);
+            return Promise.resolve(sidx);
+        }
+
         var jobs = [];
         codes.forEach(function (c) {
             src.views.forEach(function (v, i) { jobs.push({ code: c, view: v, i: i }); });

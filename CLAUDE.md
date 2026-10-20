@@ -61,6 +61,7 @@ node test/altra.mjs                           # altra converter: the 99+ trap, e
 node test/canon-model.mjs                     # picker model matching: gender forms, NB families
 node test/apparel-known-set.mjs               # apparel zeroing: Needham scoping, no-SKU guard
 node test/picker-tabs.mjs                     # ON picker: shoes and apparel split on the article code
+node test/on-supplied-images.mjs              # ON photos reach Stage 4 from the sidecar, no probing
 node test/on-title.mjs                        # ON titles: a two-tone color is never the model
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
@@ -241,9 +242,18 @@ over directly and the scrape already fetches that response for the re-order
 filter. Measured 2026-10-16: all 335 in-season footwear products carry assets,
 2,005 gallery images, six each, the host answers an unauthenticated GET with
 200 image/png at about 1 MB, and three different bogus uuids all 404 rather
-than serving a placeholder. The ON PRODUCT CSV carries them. Stage 4 cannot:
-REMOTE_IMAGE_SOURCES maps a brand to a URL PATTERN and ON has none, so that
-needs a feed-supplied source type before it can work there.
+than serving a placeholder. Both the ON product CSV and Stage 4 carry them now.
+REMOTE_IMAGE_SOURCES gained a SUPPLIED source type for this: ON has
+`supplied: true` and a `urlsFor(code)` instead of a views list and a urlFor,
+and loadRemoteImages indexes those without probing, because they were handed
+over by the same API that lists the product rather than guessed.
+
+The URLs reach the tool in a SIDECAR the scraper writes beside the CSV,
+`...-images.json`. The inventory CSV is 19 fixed columns with nowhere to put
+a URL, and the page cannot fetch the catalog itself (it needs the Backstage
+session and runs on another origin). The ON dropzone already takes several
+files, so both are simply dropped together. No sidecar means no images, never
+wrong ones.
 
 Hoka was not resolved: hoka.com blocks scripted requests
 and geo-redirects.
