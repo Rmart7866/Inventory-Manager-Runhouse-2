@@ -81,6 +81,12 @@ node tools/backfill-brooks-barcodes.mjs
 node tools/tag-recent-products.mjs            # cw-group/width/gender on a new drop
 node tools/clear-bogus-specs.mjs              # specs.* written from a blank registry cell
 
+# ON apparel, after a create batch. Dry run by default, --apply writes.
+node tools/prune-thin-drafts.mjs --since 2026-10-20 --min-units 10
+node tools/tag-apparel-collections.mjs --since 2026-10-20   # collection tags, add-only
+node tools/wire-apparel-swatches.mjs          # swatch metafields, ACTIVE products only
+node tools/delete-apparel-typed-as-shoes.mjs  # repair for the 2026-10-20 mistyping
+
 # New Balance photos: Widen TIFs to a Stage 4 gallery folder (macOS sips)
 node tools/convert-nb-images.mjs
 

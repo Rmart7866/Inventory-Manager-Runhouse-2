@@ -1615,18 +1615,33 @@ var ProductEnrichment = {
         }
 
         // Union inherited tags (which carry the correct cw-group + width tag for
-        // this colorway) with any tags the user typed. Inherited first, deduped
-        // case-insensitively, so the grouping tag is always present.
-        function mergeTags(inhTags, userTagsStr) {
+        // this colorway), the tags the CONVERTER already wrote into the row, and
+        // any tags the user typed. Deduped case-insensitively.
+        //
+        // THE CONVERTER'S OWN TAGS USED TO BE DROPPED HERE, and that is not a
+        // small thing. The modal pre-fills its Tags box with
+        // "<vendor>, <model>" (see the `saved.tags ||` fallback in open()), so
+        // enrich.tags is never empty, so the old two-way union REPLACED the
+        // column with those two tags. For footwear it was masked: inheritance
+        // puts cw-group, width and gender back from a live sibling. Apparel has
+        // no sibling to inherit from, so nothing put them back. Measured on the
+        // 2026-10-20 ON drop: all 365 garments were created carrying exactly
+        // ["ON Running", "<model>"], with the gender and garment-type tags the
+        // converter had computed thrown away, and the store's Women's Apparel
+        // and Men's Apparel collections key on a gender tag. 365 new products
+        // would not have appeared in either.
+        //
+        // Union, not replace, is also the house rule: tagging is add-only
+        // everywhere except product-library.js, where a human edits one product.
+        function mergeTags(inhTags, csvTagsStr, userTagsStr) {
             var out = [], seen = {};
-            (inhTags || []).forEach(function (t) {
-                var s = String(t).trim(); var k = s.toLowerCase();
+            var push = function (t) {
+                var s = String(t == null ? '' : t).trim(); var k = s.toLowerCase();
                 if (s && !seen[k]) { seen[k] = 1; out.push(s); }
-            });
-            String(userTagsStr || '').split(',').forEach(function (t) {
-                var s = t.trim(); var k = s.toLowerCase();
-                if (s && !seen[k]) { seen[k] = 1; out.push(s); }
-            });
+            };
+            (inhTags || []).forEach(push);
+            String(csvTagsStr || '').split(',').forEach(push);
+            String(userTagsStr || '').split(',').forEach(push);
             return out.join(', ');
         }
 
@@ -1695,7 +1710,7 @@ var ProductEnrichment = {
                     // width tag are right for this colorway. If the store carries
                     // no sibling in this width, inherit no tags rather than stamp a
                     // wrong-width cw-group (which would misgroup the product).
-                    var tags = mergeTags(inhW && inhW.tags, enrich && enrich.tags);
+                    var tags = mergeTags(inhW && inhW.tags, cols[tagsIdx], enrich && enrich.tags);
                     if (tags) cols[tagsIdx] = q(tags);
                 }
                 // Type is GENDERED ("Men's Shoes" / "Women's Shoes"), so it may

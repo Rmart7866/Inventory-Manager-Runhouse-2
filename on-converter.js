@@ -861,6 +861,25 @@ var OnConverter = {
             // a bra has no width, so this is the only tag a collection can group
             // garments on.
             if (garment) tags.push(garment);
+            // THE TAGS THE LIVE COLLECTIONS ACTUALLY KEY ON, apparel only.
+            //
+            // The store's apparel navigation is tag driven and the rules are
+            // exact strings, read off the live collections 2026-10-20:
+            //   Women's Apparel  TAG = "womens apparel" AND inventory > 0
+            //   Men's Apparel    TAG = "mens apparel"   AND inventory > 0
+            //   Women's          TAG = "women" OR "women's"
+            //   Men's            TAG = "Men's" OR "men" OR "mens"
+            // A garment without these is on the site only by direct link: it is
+            // in no apparel collection and no gender collection. The lowercase
+            // spellings are the ones the 41 ON garments already on the store
+            // carry, so they are the proven form rather than the guessed one.
+            // Footwear is left alone, its collections key on other tags.
+            if (isApparel) {
+                var gKey = product.gender === "Men's" ? 'mens'
+                    : product.gender === "Women's" ? 'womens' : 'unisex';
+                tags.push(gKey + ' apparel');
+                tags.push(gKey === 'mens' ? 'men' : gKey === 'womens' ? 'women' : 'unisex');
+            }
 
             var productType = "Unisex Shoes";
             if (product.gender === "Men's") productType = "Men's Shoes";

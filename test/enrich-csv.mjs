@@ -123,12 +123,17 @@ eq('same column count on every row', rows.slice(1).every(r => r.length === HEADE
 
 console.log('\nA comma inside Tags stays ONE field, it does not shift the row');
 const ti = col(rows, 'Tags'), si = col(rows, 'Option1 value'), ki = col(rows, 'SKU');
-// Typing tags REPLACES the column (inherited tags union what the user typed,
-// the converter's own tags are not in that union), so the comma test has to be
-// the row where nobody typed any: its tags must come back as one whole field.
+// Typing tags ADDS to the column, it does not replace it. It used to replace,
+// and because the modal pre-fills that box with "<vendor>, <model>" the box is
+// never empty, so every created product lost whatever else the converter had
+// computed. Footwear survived on inheritance putting its tags back; the
+// 2026-10-20 ON drop had no sibling to inherit from and all 365 garments were
+// created without their gender or garment-type tag, which is what the store's
+// Women's Apparel and Men's Apparel collections key on.
 eq('converter tags survive whole when none are typed',
   rows[4][ti], 'ON Running, Cloud 6, Men');
-eq('typed tags replace the column, still one field', rows[1][ti], 'vest, outerwear');
+eq('typed tags are ADDED to the converter\'s, all still one field',
+  rows[1][ti], 'ON Running, Performance Volt Vest, Women, vest, outerwear');
 eq('size still under Option1 value', rows[1][si], 'L');
 eq('SKU still under SKU', rows[1][ki], 'ON-1WG30740561-GLA-L');
 eq('row 2 size', rows[2][si], 'M');
