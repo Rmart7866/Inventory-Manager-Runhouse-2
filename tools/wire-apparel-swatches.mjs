@@ -157,10 +157,16 @@ for (const p of usable) {
     const cur = others.get(og);
     if (!cur || byColor(o, cur) < 0) others.set(og, o);
   }
+  // color_name is NOT written here, deliberately. Stage 4 writes it correctly
+  // for everything it creates (282 of 323 ON garments have it). The remaining
+  // 41 are older products whose titles end in the GENDER and the article code,
+  // so the title fallback produced "WOMEN (1WE11821907)" and that string is
+  // what the PDP prints as the swatch label. A wrong colour name is worse than
+  // a missing one, exactly as with the group tags, so those are reported at the
+  // end for a human to fill in instead.
   const want = {
     style_siblings: style.map((x) => x.id),
     gender_sibling: [...others.values()].map((x) => x.id),
-    color_name: colorOf(p),
   };
   // DIFF, so a correct product is not rewritten. A list metafield is compared
   // as JSON because order is meaningful, it is the tile order on the page.
@@ -193,6 +199,16 @@ console.log(`\none-colourway styles (no tiles rendered, by design): ${single}`);
 const paired = [...byModel.values()].filter((v) => new Set(v.map(genderOf)).size > 1).length;
 console.log(`garments carried in both genders (gender tabs render): ${paired}`);
 console.log(`\nproducts to update: ${perProduct.length}  |  metafields to write: ${inputs.length}`);
+
+// The swatch LABEL comes from custom.color_name, so a product without one
+// shows a blank label even when its tiles render. These need a human.
+const noColor = usable.filter((p) => !mfOf(p, 'color_name'));
+if (noColor.length) {
+  console.log(`\nNO custom.color_name, so their swatch tile has no label (${noColor.length}).`);
+  console.log('Set these by hand in the product library, the title cannot be parsed for a colour:');
+  noColor.slice(0, 25).forEach((p) => console.log('   ' + p.handle + '   ' + p.title));
+  if (noColor.length > 25) console.log('   ... and ' + (noColor.length - 25) + ' more');
+}
 const keyTally = {};
 inputs.forEach((i) => { keyTally[i.key] = (keyTally[i.key] || 0) + 1; });
 Object.entries(keyTally).forEach(([k, v]) => console.log('  ' + String(v).padStart(4) + '  custom.' + k));

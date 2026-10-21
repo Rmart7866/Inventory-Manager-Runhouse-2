@@ -87,6 +87,10 @@ node tools/tag-apparel-collections.mjs --since 2026-10-20   # collection tags, a
 node tools/apparel-content.mjs --since 2026-10-20   # SEO copy + shopify.* category metafields
 node tools/apparel-collections.mjs            # apparel:<group> tags + the apparel collections
 node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways collapse to one card
+
+# Collective, the dropship marketplace: 2,728 products across 40+ vendors.
+node tools/tag-collective-apparel.mjs         # the apparel tags, by VENDOR verdict
+node tools/group-collective-colorways.mjs     # cw-group + swatches for one-product-per-colour
 node tools/wire-apparel-swatches.mjs          # swatch metafields, ACTIVE products only
 node tools/delete-apparel-typed-as-shoes.mjs  # repair for the 2026-10-20 mistyping
 
@@ -285,6 +289,46 @@ width and gender back. Apparel has no sibling, so the 2026-10-20 drop created
 all 365 garments carrying exactly `["ON Running", "<model>"]`, losing the gender
 and garment-type tags the collections key on. Union also matches the house rule
 that tagging is add-only outside `product-library.js`.
+
+**COLLECTIVE IS A DROPSHIP MARKETPLACE, and it is not shaped like a supplier
+feed.** 2,728 products from 40+ vendors, brought in mostly 2026-08 and 2026-10.
+It arrives with no `custom.*` metafields at all (1 of 2,728), 1,161 products
+with no product type, and types like "Premiums Sport", "Big Kahuna",
+"Companions" and "Block Square" where there is one.
+
+**`Clothing` and `Clothing Accessories` are DIFFERENT BRANCHES, and the obvious
+regex conflates them.** `/^Apparel & Accessories > Clothing/` also matches
+"Clothing Accessories", which on the first pass counted 506 sunglasses and
+watches as garments and had me about to "fix" categories that were already
+right. The test must be `Clothing > ` WITH the separator. Measured 2026-10-21
+over 2,140 active Collective products: 871 real clothing, 502 clothing
+accessories (500 of them sunglasses), 767 neither.
+
+**GENDER COMES FROM THE VENDOR, not the title.** A marketplace has 40 house
+styles and most titles carry no gender word: "The Glee Halter Tank Top",
+"Ombré Pink Purple - (Standard & Extra Wide)", "Uluwatu Seapine". Reading
+gender off titles found a signal on 75 of 558. Reading it off the vendor
+resolved 495, because these vendors each sell one thing. `VENDOR_VERDICT` in
+`tools/tag-collective-apparel.mjs` holds the table, a per-product title gender
+OVERRIDES it so Swift Running's "Men's Running Tank Top" is still right, and a
+garment with neither is reported rather than guessed. Three were left for a
+human. A SOCK is classified by its garment word alone, no verdict needed, and
+socks take NO gender tag because the apparel collections are gender gated and
+there is no Unisex Apparel collection: what makes them reachable is the `socks`
+tag the live Socks collection keys on.
+
+**One product per colour is only SOMETIMES groupable.** 695 Collective products
+already carry Color as a real multi-value option and need nothing. Of the
+clothing that does not, 401 are candidates and only 27 groups over 84 products
+survive the guards. The colour NAME comes from a single-value `Color` option
+first and the title second, because Comrad lists six products all titled
+"Knee-High Compression Socks - Solid" with no colour in the title at all.
+Crazy Compression's 127 products are deliberately NOT grouped: their titles ARE
+the colour ("Tie Dye Rainbow", "Sequin") so the model reduces to nothing, and
+one group of 127 would hide 121 products behind a swatch row that caps at 6.
+
+Result 2026-10-21: the 16 apparel collections went from 396 to 1,165 active
+products, plus 395 in Socks.
 
 **COLLECTION-GRID GROUPING IS A DIFFERENT SYSTEM FROM THE PDP SWATCHES, and it
 DOES need a theme edit.** Two things are easy to confuse:
