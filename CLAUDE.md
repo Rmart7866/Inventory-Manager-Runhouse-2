@@ -91,6 +91,10 @@ node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways col
 # Collective, the dropship marketplace: 2,728 products across 40+ vendors.
 node tools/tag-collective-apparel.mjs         # the apparel tags, by VENDOR verdict
 node tools/group-collective-colorways.mjs     # cw-group + swatches for one-product-per-colour
+
+# Storefront navigation, 2026-10-21 restructure
+node tools/split-trail-by-gender.mjs          # trail:mens / trail:womens + the 2 collections
+node tools/build-nav-menu.mjs                 # writes main-menu-v2, never touches main-menu
 node tools/wire-apparel-swatches.mjs          # swatch metafields, ACTIVE products only
 node tools/delete-apparel-typed-as-shoes.mjs  # repair for the 2026-10-20 mistyping
 
@@ -289,6 +293,46 @@ width and gender back. Apparel has no sibling, so the 2026-10-20 drop created
 all 365 garments carrying exactly `["ON Running", "<model>"]`, losing the gender
 and garment-type tags the collections key on. Union also matches the house rule
 that tagging is add-only outside `product-library.js`.
+
+**A SHOPIFY MENU IS NOT IN THE THEME, and it is GLOBAL.** It lives in admin
+under Content > Menus (`main-menu` is `gid://shopify/Menu/199495745791`).
+Editing it changes every theme that points at it, live included, with no
+preview. What makes a safe preview possible is that `sections/header.liquid`
+reads `section.settings.menu`, so WHICH menu a theme uses is a per-theme
+setting: write a NEW menu and point a duplicate theme's header at it.
+`tools/build-nav-menu.mjs` writes `main-menu-v2` and never touches `main-menu`.
+
+**THE HEADER RENDERS EXACTLY THREE LEVELS.** `header.liquid` loops `link`,
+`child`, `grandchild` and stops, and Shopify's own menu editor caps at three
+too. The old nav spent one of those levels on a single "Shop" item, so
+everything was crammed into `Shop > Men > Apparel` with nowhere left to
+subdivide: Apparel was ONE link instead of ten, and footwear had no
+subnavigation at all despite the collections existing. Promoting the sections to
+the top level is what gives that level back.
+
+**ONLY THREE THINGS ON THIS STORE ARE GENDERED**, checked against every
+collection's rule 2026-10-21: all-shoes by product type, the width collections,
+and apparel. Trail, Race Day, Carbon Plate, Stability, Max Cushion, Cross
+Country, Pickleball and every accessory have no gender in their rule and no
+gendered variant exists, so listing them under both Men's and Women's was
+duplicating one link under two headings. That is how Cross Country appeared in
+the old nav FOUR times, and Pickleball and Stanley twice each.
+
+Trail is the one exception worth splitting, at 255 men's and 252 women's. It
+could not be done with a rule: the Trail collection matches ANY of seven tags
+and a smart collection is all-AND or all-OR, never mixed, so
+"(any of those seven) AND (this gender)" is inexpressible.
+`tools/split-trail-by-gender.mjs` writes a flat `trail:mens` / `trail:womens`
+tag instead, giving the 10 unisex shoes BOTH so they appear under each heading.
+
+**Every menu link is a RESOURCE reference, never an absolute URL.** The old menu
+had three hardcoded `https://therunhouse.com/...` links (Women's Apparel,
+Merrell, Watches). Those break on a preview theme and on any other domain.
+`build-nav-menu.mjs` resolves every handle to an id up front and REFUSES to
+write if one is missing, so a typo cannot become a dead link.
+
+**Sale is `sale`, not `discount-collection`.** The latter is a 23,002 product
+utility set covering the whole catalogue.
 
 **COLLECTIVE IS A DROPSHIP MARKETPLACE, and it is not shaped like a supplier
 feed.** 2,728 products from 40+ vendors, brought in mostly 2026-08 and 2026-10.
