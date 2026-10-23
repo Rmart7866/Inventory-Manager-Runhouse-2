@@ -346,7 +346,18 @@ class UnifiedCSVManager {
             variants.forEach(variant => {
                 const sku = this.generateSKU(variant);
                 const quantity = Math.max(0, parseInt(variant.quantity) || 0);
-                
+
+                // THE LOCATION IS PER ROW, AND THIS IS THE CONVERTER THAT
+                // DECIDES IT. The content script has a converter of its own,
+                // but the file staff actually import is rebuilt HERE from the
+                // stored chunks, so a Needham hardcoded in this row was the
+                // only thing the import ever saw. Print on demand race merch
+                // lives at the Warehouse, and writing a few hundred singlets
+                // into Needham reads downstream as real dropship footwear
+                // stock. A record with no location still says Needham, so
+                // every existing link list is unaffected.
+                const location = variant.locationName || 'Needham';
+
                 // Build each row manually - ensuring all 19 columns
                 const row = [
                     handle,                                  // Handle
@@ -360,7 +371,7 @@ class UnifiedCSVManager {
                     sku,                                     // SKU
                     '',                                      // HS Code
                     '',                                      // COO
-                    'Needham',                              // Location
+                    location,                               // Location
                     '',                                      // Bin name
                     '',                                      // Incoming (not editable)
                     '',                                      // Unavailable (not editable)

@@ -70,6 +70,7 @@ node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes surviv
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
 node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock to Warehouse
 node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, the API does not
+node scrapers/asics/test/api-record-shape.mjs # the API path's colorways must be CATALOG rows
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -310,6 +311,32 @@ from in the first place. `extractInventoryDataFromApi` now asks the same
 availability endpoint the fast path uses and the DOM is a FALLBACK that warns
 loudly, because quietly writing 30s is how this went unnoticed.
 
+**AND THE COLORWAYS IT PASSES MUST BE CATALOG ROWS, which is how the first
+version of that fix broke the scraper outright.** `recordsFromAvailability` was
+written for the fast path, so it reads CATALOG fields: `itemCode`, `itemName`, a
+NUMERIC `gender`, `widthLabel` and `widthTranslationCode`, and `compactSizes`
+for the barcodes. The first version built its colorways out of `getProductInfo`
+and `findColors` instead, which carry `styleId`, `productName` and a gender
+WORD. Only `colorName` overlapped. So it read the right quantities and attached
+them to records with no style id, no product name and no gender, and because
+the array was not empty the DOM fallback never fired either: the scrape ran,
+reported a record count, and produced nothing that could join to a Shopify
+product. `extractInventoryDataFromApi` now fetches the catalog and filters it to
+the style, narrowing to the colours the PAGE shows so that moving this path off
+the DOM changes the quantities and nothing else. Codes are compared with leading
+zeros stripped, because the page prints "090" where the URL and the catalog say
+"90", and a colour set that matches nothing falls through to the whole style
+rather than to an empty array, since empty reads downstream as out of stock.
+
+The catalog is one request per basket, cached on the class AND in
+`sessionStorage`, because the link scraper NAVIGATES and that tears the content
+script down between pages. Same origin and same tab for the whole run, so
+sessionStorage lasts exactly as long as the run does.
+
+`quantity-cap.mjs` did not catch any of this because it only regex matches the
+source for the presence of the function. `api-record-shape.mjs` RUNS it, and
+pins the broken shape too so the difference stays visible.
+
 **NOTHING FETCHES SUPPLIER STOCK ON A SCHEDULE, and the daily cron is not that.**
 `0 9 * * *` rebuilds the catalog KV, which READS Shopify into cache. Dropship
 shoes are updated when a human opens the B2B portal, runs the scraper, drops the
@@ -333,6 +360,21 @@ a per-run setting would mean two runs and a standing chance of pointing one at
 the wrong place. Writing 300 singlets into Needham would look exactly like real
 dropship stock. A line with no location still reads Needham, so every existing
 list is unaffected. `scrapers/asics/test/location-per-link.mjs` pins that.
+
+**THE CONVERTER THAT DECIDES THE LOCATION IS IN `background.js`, NOT
+`content.js`.** There are two, and only one writes the file staff import: the
+content script sends its records to the background chunk store, and
+`UnifiedCSVManager.convertToInventoryCSV` REBUILDS the CSV from those chunks at
+download time. That one had `'Needham'` written into the Location column as a
+literal, so the per line location was carried the whole way to the export and
+then dropped at the last step, with a CSV that looked completely normal. Fixing
+`content.js` alone fixed the validation copy and the "download each" file and
+nothing that mattered. Both now read `variant.locationName` with a Needham
+fallback, and the test executes the BACKGROUND one.
+
+The stamp also has to happen BEFORE any CSV is built. It used to run after
+`convertToInventoryCSV` had already been called, so even the content script's
+own output said Needham.
 
 The match is on the PATH, not the whole URL: the portal rewrites the address as
 it loads, appending `colorCode` and `deliveryDate`, so `window.location.href` is

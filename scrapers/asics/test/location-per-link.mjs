@@ -94,5 +94,48 @@ const row = /variant\.locationName \|\| csvSettings\.locationName \|\| 'Needham'
 row ? ok("row reads variant.locationName, then the run setting, then Needham")
     : bad('the row builder no longer prefers variant.locationName');
 
+// AND THE ONE THAT MATTERS IS IN background.js.
+//
+// content.js has a converter, but the file staff actually import is rebuilt
+// from the stored chunks by UnifiedCSVManager.convertToInventoryCSV, and that
+// one had 'Needham' written into the Location column as a literal. So the per
+// line location was being carried all the way to the export and then dropped
+// at the last step, silently, with the CSV looking completely normal. This
+// RUNS the background converter rather than reading it.
+console.log('\nThe background converter is the one that writes the file');
+{
+  const bgSrc = fs.readFileSync(new URL('../background.js', import.meta.url), 'utf8');
+  const cut = bgSrc.indexOf('const csvManager = new UnifiedCSVManager()');
+  if (cut < 0) { bad('could not find where background.js stops being class definitions'); }
+  else {
+    const Manager = new Function('chrome', 'console',
+      bgSrc.slice(0, cut) + '\nreturn UnifiedCSVManager;'
+    )({ runtime: { onMessage: { addListener() {} } } }, { log() {}, warn() {}, error() {} });
+    const mgr = Object.create(Manager.prototype);
+
+    const base = {
+      styleId: 'TF3085', productName: "Men's Rival II Singlet", colorCode: '90',
+      colorName: 'BLACK', gender: 'Men', width: { code: 'D', name: 'Standard', isWide: false },
+    };
+    const csv = mgr.convertToInventoryCSV([
+      { ...base, sizeUS: 'S', quantity: 161, locationName: 'Warehouse' },
+      { ...base, sizeUS: 'M', quantity: 205, locationName: 'Warehouse' },
+      // A footwear line in the same run, with no location on it.
+      { ...base, styleId: 'ZK1234', productName: 'NOVABLAST 5', sizeUS: '9', quantity: 4 },
+    ]);
+    const lines = csv.split('\n');
+    const locIdx = 11;   // Handle,Title,O1N,O1V,O2N,O2V,O3N,O3V,SKU,HS,COO,Location
+    eq('the header still names Location in column 12', lines[0].split(',')[11], 'Location');
+    const singlets = lines.slice(1).filter((l) => l.indexOf('TF3085') !== -1 || l.toLowerCase().indexOf('rival') !== -1);
+    const shoes = lines.slice(1).filter((l) => l.indexOf('ZK1234') !== -1 || l.toLowerCase().indexOf('novablast') !== -1);
+    eq('both singlet rows are there', singlets.length, 2);
+    eq('the singlet rows say Warehouse', singlets.every((l) => l.split(',')[locIdx] === 'Warehouse'), true);
+    eq('and the real quantity survives, not the page cap', singlets.some((l) => l.trim().endsWith('205')), true);
+    eq('the footwear row is there', shoes.length, 1);
+    eq('and still says Needham', shoes[0].split(',')[locIdx], 'Needham');
+    eq('so one run can carry both', new Set(lines.slice(1).map((l) => l.split(',')[locIdx])).size, 2);
+  }
+}
+
 console.log(failures ? '\n' + failures + ' FAILED\n' : '\nall good\n');
 process.exit(failures ? 1 : 0);

@@ -1043,7 +1043,18 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 console.warn('ASICS: USING THE PAGE GRID, quantities above 30 are CAPPED at 30 for ' + window.location.href);
             }
             console.log(`Extracted ${inventoryData.length} inventory records from the ${quantitySource.toUpperCase()}`);
-            
+
+            // STAMP THE LOCATION BEFORE ANY CSV IS BUILT, from the line that
+            // asked for this URL. It used to be stamped further down, after
+            // convertToInventoryCSV had already run, so the per page file from
+            // "download each" and the validation copy both said Needham while
+            // only the chunked records carried the real location.
+            const rowLocation = this.locationForScrapedUrl(config, window.location.href);
+            if (rowLocation) {
+                inventoryData = inventoryData.map(item => ({ ...item, locationName: rowLocation }));
+                console.log('ASICS: this URL writes to ' + rowLocation + ', not Needham');
+            }
+
             if (inventoryData.length === 0) {
                 config.results.push({
                     url: window.location.href,
@@ -1096,15 +1107,13 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                     console.log(`AUTO-SCRAPER: Product CSV format verified - ${csvHeaders.length} columns`);
                 }
                 
-                // STAMP THE LOCATION ONTO EVERY RECORD, from the line that
-                // asked for this URL. The CSV row builder reads
-                // variant.locationName first, so a single run can carry
-                // Needham rows and Warehouse rows together.
-                const rowLocation = this.locationForScrapedUrl(config, window.location.href);
-
+                // The location is already on every record, stamped above so
+                // the CSVs built in between carry it too. The row builders read
+                // variant.locationName first, so a single run can carry Needham
+                // rows and Warehouse rows together.
                 const dataRecords = inventoryData.map(item => ({
                     ...item,
-                    locationName: rowLocation || item.locationName || '',
+                    locationName: item.locationName || rowLocation || '',
                     sourceUrl: window.location.href,
                     extractedAt: new Date().toISOString(),
                     urlIndex: config.currentIndex + 1,
@@ -1408,24 +1417,85 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
     // the same endpoint the fast path uses, so this asks for them directly and
     // falls back to the DOM only if that fails. A fallback scrape is still
     // capped, so it says so loudly rather than quietly writing 30s.
+    // AND THE COLORWAYS MUST BE CATALOG ROWS, NOT ANYTHING THE PAGE SHOWS.
+    //
+    // recordsFromAvailability was written for the fast path, which hands it raw
+    // rows from /aac/products. It reads itemCode, itemName, the NUMERIC gender,
+    // widthLabel and widthTranslationCode, and compactSizes for the barcodes.
+    // The first version of this function built colorways out of getProductInfo
+    // and findColors instead, which carry styleId, productName and a gender
+    // word, so every single field it read came back undefined or empty: real
+    // quantities attached to records with no style, no name and no gender, and
+    // because the array was non-empty the DOM fallback never fired either. The
+    // scrape looked like it ran and produced nothing usable.
+    //
+    // So fetch the catalog and use that style's own rows.
     async extractInventoryDataFromApi() {
         const info = this.getProductInfo();
         const styleId = info && info.styleId;
         const basketNo = this.basketNoFromUrl();
-        if (!styleId || !basketNo) return null;
-        const colors = this.findColors();
-        if (!colors.length) return null;
-        const colorCodes = [...new Set(colors.map((c) => c.code))].map((c) => c + ':').join(',');
+        // getProductInfo defaults styleId to the STRING "Unknown", not to a
+        // falsy value, so test for it explicitly or the URL becomes
+        // /aac/products/Unknown/availability.
+        if (!styleId || styleId === 'Unknown' || !basketNo) return null;
+
+        const rows = await this.apiCatalogRows(basketNo);
+        let colorways = rows.filter((r) => String(r.itemCode) === String(styleId));
+        if (!colorways.length) return null;
+
+        // Keep the COLOUR SET THE PAGE SHOWS, so switching this path from the
+        // DOM to the API changes the quantities and nothing else. A style's
+        // catalog rows cover every colour ASICS sells, which is wider than the
+        // link was pointing at, and an extra colour reads downstream as a new
+        // colorway. Codes are compared with leading zeros stripped because the
+        // page prints "090" where the URL and the catalog say "90".
+        const bare = (c) => String(c).replace(/^0+/, '');
+        const onPage = new Set(this.findColors().map((c) => bare(c.code)));
+        if (onPage.size) {
+            const narrowed = colorways.filter((r) => onPage.has(bare(r.colorCode)));
+            // Only narrow if it actually matched something. Returning nothing
+            // here would be read as "no stock" rather than as a failed match.
+            if (narrowed.length) colorways = narrowed;
+        }
+
+        const colorCodes = [...new Set(colorways.map((c) => c.colorCode))].map((c) => c + ':').join(',');
         const url = '/aac/products/' + encodeURIComponent(styleId) +
             '/availability?basketNo=' + encodeURIComponent(basketNo) +
             '&colorCodeDistributorNo=' + colorCodes;
         const av = await this.apiGet(url);
-        const colorways = colors.map((c) => ({
-            styleId: styleId, colorCode: c.code, colorName: c.name,
-            productName: info.productName, gender: info.gender, width: info.width,
-        }));
         const records = this.recordsFromAvailability(av, colorways);
         return records && records.length ? records : null;
+    }
+
+    // The catalog is the same for every link in a run, so it is fetched once
+    // and cached. The cache goes in sessionStorage as well as on the class
+    // because the link scraper NAVIGATES, which tears the content script down
+    // between pages and loses anything held in memory. Same origin and same
+    // tab throughout, so sessionStorage survives exactly as far as the run
+    // does. A quota failure is not worth failing a scrape over, so it falls
+    // back to re-fetching.
+    async apiCatalogRows(basketNo) {
+        const C = EnhancedASICSInventoryExtractor;
+        const key = 'rhAsicsCatalog:' + basketNo;
+        if (C._catalogRows && C._catalogBasket === basketNo) return C._catalogRows;
+        try {
+            const cached = sessionStorage.getItem(key);
+            if (cached) {
+                const rows = JSON.parse(cached);
+                if (Array.isArray(rows) && rows.length) {
+                    C._catalogRows = rows;
+                    C._catalogBasket = basketNo;
+                    return rows;
+                }
+            }
+        } catch (e) { /* unreadable cache, fetch it again */ }
+
+        const cat = await this.apiGet('/aac/products?basketNo=' + encodeURIComponent(basketNo));
+        const rows = (cat && cat.data) || [];
+        C._catalogRows = rows;
+        C._catalogBasket = basketNo;
+        try { sessionStorage.setItem(key, JSON.stringify(rows)); } catch (e) { /* over quota, fine */ }
+        return rows;
     }
 
     // The basket number is in the path: /orders/100671391/products/TF3085
