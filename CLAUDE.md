@@ -87,6 +87,11 @@ node tools/prune-thin-drafts.mjs --since 2026-10-20 --min-units 10
 node tools/tag-apparel-collections.mjs --since 2026-10-20   # collection tags, add-only
 node tools/apparel-content.mjs --since 2026-10-20   # SEO copy + shopify.* category metafields
 node tools/apparel-collections.mjs            # apparel:<group> tags + the apparel collections
+
+# LA 2027 print on demand singlets. ASICS availability -> Warehouse.
+node tools/audit-pod-pools.mjs --csv pod-audit.csv   # read only, the whole picture
+node tools/set-inventory-policy.mjs --handles <a,b>  # turn OFF continue selling
+node tools/push-asics-availability.mjs               # write ASICS stock to the LA listings
 node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways collapse to one card
 
 # Collective, the dropship marketplace: 2,728 products across 40+ vendors.
@@ -314,6 +319,43 @@ list is unaffected. `scrapers/asics/test/location-per-link.mjs` pins that.
 The match is on the PATH, not the whole URL: the portal rewrites the address as
 it loads, appending `colorCode` and `deliveryDate`, so `window.location.href` is
 never the string that was pasted in.
+
+**"CONTINUE SELLING WHEN OUT OF STOCK" MAKES INVENTORY DECORATIVE.** A variant
+with `inventoryPolicy: CONTINUE` sells whatever the number says, so tying a
+listing's stock to anything achieves nothing while it is set. Measured
+2026-10-23, 553 of the 576 variants across the four LA 2027 singlet listings
+were CONTINUE and one pool had reached -61. The BASE garment listings were
+correctly DENY throughout, which is exactly why only the mirrors went negative.
+All 553 are now DENY. `tools/set-inventory-policy.mjs` takes EXPLICIT handles
+and never a search, because CONTINUE is legitimate on made-to-order and preorder
+listings and flipping one of those would silently stop it selling.
+
+**THE LA LISTINGS SHOW WHAT ASICS CAN SHIP, not what is on a shelf.** They sell
+to order: the blank is bought from ASICS and printed. The two numbers are wildly
+different, TF3085 Black Medium is 205 at ASICS and was 4 at the Warehouse.
+`tools/push-asics-availability.mjs` writes the ASICS figure to Warehouse and
+nowhere else.
+
+The ASICS scraper's CSV cannot reach those listings, which is why this is a
+separate tool: the CSV is keyed on the handle and option values the SCRAPER
+generates, and the LA listings match none of them. Different handles, the colour
+spelled "Black" where the base garment says "Black-090", and a third option the
+scraper leaves blank. The scraper's per-line Warehouse location handles the BASE
+listings; this handles the LA ones.
+
+Three vocabularies have to be reconciled and that is most of the work: ASICS
+says S/M/L/XL/2XL, Shopify says Small/Medium/Large/Xlarge/2Xlarge; ASICS uses
+numeric colour codes, Shopify uses names; and ASICS carries sizes these listings
+do not sell (4XS through XS on the men's), which are simply not written.
+
+**ONE GARMENT IS EIGHT VARIANTS.** The Charities listings carry a third option,
+"Event Logo(s)", with 7 values that change neither the garment nor the price
+(verified: price never varies by logo), so one size and colour is 7 variants
+there plus 1 in Run Clubs, and all 8 get the same ASICS figure. That is 8x the
+real availability in aggregate. It is survivable only because ASICS stock is
+deep and because DENY now stops each variant at its own number. Moving the logo
+to a line-item property would collapse it to one pool; the owner has kept it as
+a variant option for now, deliberately.
 
 **ASICS COLOUR CODES ARE ALREADY IN THE SHOPIFY COLOUR NAMES.** Read off the
 B2B page 2026-10-23: `90` BLACK, `50` NAVY, `43` ROYAL, `01` WHITE, `23` RED,

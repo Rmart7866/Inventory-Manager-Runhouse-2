@@ -193,3 +193,4 @@ specs-clear-rollback-*.json
 # committed. Same reason the rollback files above are not.
 on-pdp-cache/
 main-menu-rollback-*.json
+asics-availability.json
