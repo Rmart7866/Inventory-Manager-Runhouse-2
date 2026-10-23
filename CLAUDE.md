@@ -340,6 +340,24 @@ sessionStorage lasts exactly as long as the run does.
 source for the presence of the function. `api-record-shape.mjs` RUNS it, and
 pins the broken shape too so the difference stays visible.
 
+**THE LOADED EXTENSION IS `scrapers/asics`, AND CHROME DOES NOT RE-READ IT ON
+A PAGE RELOAD.** Verified 2026-10-23 out of Chrome's Secure Preferences: the
+Default profile loads extension id `jenlmlkpgjkimakmkcpffmbhpcmhiamf` unpacked
+from `/Users/ryanmartin/Inventory-Manager-Runhouse-2/scrapers/asics`, so the
+repo IS the live extension. Two stale copies sit on the Desktop
+(`asics-scraper-2`, both 2026-09-15, 37 KB smaller) and neither is loaded. Do
+not edit those.
+
+A fix can therefore be correct on disk, committed, and still not be what the
+page runs: the content script is re-read when the extension is RELOADED on
+chrome://extensions, and `background.js` only then. `content.js` now prints a
+build stamp and a three way capability check in its startup banner, so the
+console answers "is this my code" in one glance instead of a round trip.
+
+Also worth knowing when reading a B2B console: `/Users/ryanmartin/Desktop/chrome
+extensions /shipping` also injects on b2b.asics.com and logs
+`detectB2BSite returned: asics`, which is NOT this scraper.
+
 **A COLOUR CODE IS TWO OR THREE DIGITS, and `findColors` demanded three.**
 Footwear codes are three ("001", "020") so the test `/^\d{3}$/` was never wrong
 on a shoe, which is why it survived this long. Apparel codes are TWO. On the

@@ -2638,7 +2638,20 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-console.log('🚀 ASICS Enhanced Unified Extension Loaded Successfully!');
+// A BUILD STAMP, because "is Chrome running my edit?" cost a whole round trip.
+// Chrome serves an unpacked extension's files from disk, but the content script
+// is not re-read until the extension is reloaded on chrome://extensions, and
+// background.js never is. So a fix can be correct on disk, committed, and still
+// not be what the page is running. Reload the extension, open any product page,
+// and this line says which build answered.
+const RH_BUILD = '2026-10-23c';
+console.log('🚀 ASICS Enhanced Unified Extension Loaded Successfully!  build ' + RH_BUILD);
+console.log('   build check: 2 digit colour codes ' +
+    (/^\d{2,3}$/.test('90') ? 'OK' : 'MISSING') +
+    ', availability API reader ' +
+    (typeof EnhancedASICSInventoryExtractor.prototype.extractInventoryDataFromApi === 'function' ? 'OK' : 'MISSING') +
+    ', catalog rows ' +
+    (typeof EnhancedASICSInventoryExtractor.prototype.apiCatalogRows === 'function' ? 'OK' : 'MISSING'));
 console.log('✅ FINAL CORRECT: Inventory CSV now uses BOTH "Location" AND "On hand" columns');
 console.log('📦 INVENTORY CSV: Uses "Location" + "On hand" columns - imports to Products > Inventory > Import');
 console.log('🏪 PRODUCT CSV: Uses "Inventory at Needham" - imports to Products > Import');
