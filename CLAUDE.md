@@ -820,6 +820,31 @@ which starts admitting that vendor's garments to the apparel catalog.
 - No Chrome extension is available for UI checks. Render with WebKit instead:
   `qlmanage -t -s 1000 -o <outdir> <file>.html`, then read the PNG.
 
+## What is still manual, and what blocks each one
+
+The stated goal is to automate every step of this. Recorded here so the next
+person does not have to rediscover why each one is still a human. The common
+blocker is authentication: every supplier portal is behind a session that only a
+logged-in browser has, which is why the scrapers are Chrome extensions and why a
+Worker cron cannot replace them.
+
+| Step | Blocker | What would actually fix it |
+|---|---|---|
+| Capturing ASICS stock | b2b.asics.com needs the staff session | An ASICS EDI or inventory feed. Already on the rep list with the Schedule A |
+| Capturing ON stock | Backstage session, and the re-order filter needs the catalog response | An ON feed, same conversation |
+| Capturing Brooks stock | FastTrack returns 401 without auth, and the export flag is off on the account | The `is-export-products-allowed` flag, then a feed |
+| Dropping the file and pressing Write | Nothing, this is only manual because the capture above is | Falls out for free once a feed exists |
+| The ON image sidecar | Same Backstage session as the stock | Same feed |
+| ON apparel descriptions | The Backstage response may not carry the copy, unverified | Confirm the fields, then capture into the sidecar like the images |
+| LA 2027 singlet availability | `tools/push-asics-availability.mjs` takes a JSON captured in the browser | Same ASICS feed |
+| Wiring swatches after activation | `wire-apparel-swatches.mjs` is ACTIVE only, so it waits for a human to publish | `CatalogTags.processSwatchQueue` already does this for footwear; apparel could join it |
+
+**The one automation deliberately NOT built: a `chrome.alarms` daily scrape.**
+It would fire only when Chrome happens to be open and logged in, and silently do
+nothing otherwise. A scheduled job that quietly skips is worse than a manual one
+someone owns, because the stock looks fresh and is not. The honest versions are
+a real feed, or a human with a routine.
+
 ## Current state
 
 Branch `api-integration`, in sync with origin. Stage 4 (create products) is live
