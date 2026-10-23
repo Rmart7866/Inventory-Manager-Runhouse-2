@@ -1027,8 +1027,22 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             
             console.log(`AUTO-SCRAPER: Using ${config.format} settings:`, this.shopifySettings);
             
-            const inventoryData = this.extractInventoryData();
-            console.log(`Extracted ${inventoryData.length} inventory records`);
+            // API FIRST, DOM SECOND. The rendered grid caps every deep size at
+            // "30+", so a page scrape silently writes 30 where the real figure
+            // can be 302. See extractInventoryDataFromApi.
+            let inventoryData = null;
+            let quantitySource = 'api';
+            try {
+                inventoryData = await this.extractInventoryDataFromApi();
+            } catch (apiErr) {
+                console.warn('ASICS: availability API failed, falling back to the page grid:', apiErr.message);
+            }
+            if (!inventoryData || !inventoryData.length) {
+                quantitySource = 'dom';
+                inventoryData = this.extractInventoryData();
+                console.warn('ASICS: USING THE PAGE GRID, quantities above 30 are CAPPED at 30 for ' + window.location.href);
+            }
+            console.log(`Extracted ${inventoryData.length} inventory records from the ${quantitySource.toUpperCase()}`);
             
             if (inventoryData.length === 0) {
                 config.results.push({
@@ -1376,6 +1390,48 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 }
             }
         }, 1000);
+    }
+
+    // THE RENDERED GRID IS CAPPED AT 30 AND THE API IS NOT.
+    //
+    // The portal prints "30+" for any size with more than 30 available, which
+    // is maxQuantityDisplayed in the data behind it. parseQuantity turns that
+    // string into the number 30, so every deep size was being written to
+    // Shopify as 30. Measured on TF3085 2026-10-23: Black Small is really 161,
+    // Black Medium 205, Red Medium 302, and all three read as 30 off the page.
+    //
+    // For dropship footwear that understates a popular shoe. For the race merch
+    // singlets it is worse, because those listings sell to a whole marathon
+    // field against ASICS stock that runs into the hundreds.
+    //
+    // The page has already fetched the real figures by the time this runs, from
+    // the same endpoint the fast path uses, so this asks for them directly and
+    // falls back to the DOM only if that fails. A fallback scrape is still
+    // capped, so it says so loudly rather than quietly writing 30s.
+    async extractInventoryDataFromApi() {
+        const info = this.getProductInfo();
+        const styleId = info && info.styleId;
+        const basketNo = this.basketNoFromUrl();
+        if (!styleId || !basketNo) return null;
+        const colors = this.findColors();
+        if (!colors.length) return null;
+        const colorCodes = [...new Set(colors.map((c) => c.code))].map((c) => c + ':').join(',');
+        const url = '/aac/products/' + encodeURIComponent(styleId) +
+            '/availability?basketNo=' + encodeURIComponent(basketNo) +
+            '&colorCodeDistributorNo=' + colorCodes;
+        const av = await this.apiGet(url);
+        const colorways = colors.map((c) => ({
+            styleId: styleId, colorCode: c.code, colorName: c.name,
+            productName: info.productName, gender: info.gender, width: info.width,
+        }));
+        const records = this.recordsFromAvailability(av, colorways);
+        return records && records.length ? records : null;
+    }
+
+    // The basket number is in the path: /orders/100671391/products/TF3085
+    basketNoFromUrl() {
+        const m = /\/orders\/(\d+)\//.exec(window.location.pathname);
+        return m ? m[1] : '';
     }
 
     extractInventoryData() {

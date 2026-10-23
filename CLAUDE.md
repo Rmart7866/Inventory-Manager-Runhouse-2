@@ -69,6 +69,7 @@ node test/supplier-images.mjs                 # CDN photo keys, URL attach, fold
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
 node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock to Warehouse
+node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, the API does not
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -299,6 +300,23 @@ width and gender back. Apparel has no sibling, so the 2026-10-20 drop created
 all 365 garments carrying exactly `["ON Running", "<model>"]`, losing the gender
 and garment-type tags the collections key on. Union also matches the house rule
 that tagging is add-only outside `product-library.js`.
+
+**THE LINK SCRAPER READ A CAPPED GRID.** The portal prints "30+" for any size
+over 30, and `parseQuantity` turned that into the number 30, so every deep size
+reached Shopify as 30. Measured off one page on 2026-10-23: Black S is really
+161, Black M 205, Red M 302, all three read as 30. The link-iterating scraper
+predates the API path, which is where the "real qty not the 30 cap" note came
+from in the first place. `extractInventoryDataFromApi` now asks the same
+availability endpoint the fast path uses and the DOM is a FALLBACK that warns
+loudly, because quietly writing 30s is how this went unnoticed.
+
+**NOTHING FETCHES SUPPLIER STOCK ON A SCHEDULE, and the daily cron is not that.**
+`0 9 * * *` rebuilds the catalog KV, which READS Shopify into cache. Dropship
+shoes are updated when a human opens the B2B portal, runs the scraper, drops the
+CSV on the tool and presses Write. The scraper is a Chrome extension precisely
+because it rides the staff member's authenticated session; a Worker has no way
+into ASICS B2B. Any "daily update" for these singlets is the same manual run
+until there is an ASICS EDI feed, which is already on the rep list.
 
 **PRINT ON DEMAND RACE MERCH IS NOT DROPSHIP, and it lives at the WAREHOUSE.**
 One blank garment is bought from ASICS and every team, charity and event gets
