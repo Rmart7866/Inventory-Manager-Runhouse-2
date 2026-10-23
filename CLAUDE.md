@@ -95,6 +95,8 @@ node tools/apparel-collections.mjs            # apparel:<group> tags + the appar
 node tools/audit-pod-pools.mjs --csv pod-audit.csv   # read only, the whole picture
 node tools/set-inventory-policy.mjs --handles <a,b>  # turn OFF continue selling
 node tools/push-asics-availability.mjs               # write ASICS stock to the LA listings
+# and the capture that feeds it, pasted into the B2B console, not run by node:
+#   tools/capture-asics-availability.js
 node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways collapse to one card
 
 # Collective, the dropship marketplace: 2,728 products across 40+ vendors.
@@ -402,6 +404,34 @@ correctly DENY throughout, which is exactly why only the mirrors went negative.
 All 553 are now DENY. `tools/set-inventory-policy.mjs` takes EXPLICIT handles
 and never a search, because CONTINUE is legitimate on made-to-order and preorder
 listings and flipping one of those would silently stop it selling.
+
+**THE AVAILABILITY RESPONSE IS ONE BLOCK PER DELIVERY WINDOW, and merging
+them reports a stocked shoe as zero.** `availability[]` is not a list of chunks
+to concatenate, it is a list of future delivery dates, each carrying what ASICS
+can ship THEN. Measured 2026-10-23:
+
+| style | block | date | qty |
+|---|---|---|---|
+| TF3085 Red M | 0 | 2026-10-24 | **302** |
+| TF3085 Red M | 1 | 2026-10-26 | 0 |
+| TF3085 Red M | 2 | 2026-11-03 | 0 |
+| 1011C244 10.5 | 0 | 2026-10-24 | **173** |
+| 1011C244 10.5 | 1 | 2026-11-11 | 83 |
+| 1011C244 10.5 | 2 to 5 | to 2027-05-28 | 0 |
+
+Block 0 is the At Once journey, in stock and shippable today, which is what a
+shopper on the site is buying. `capture-asics-availability.js` takes block 0 and
+ignores the rest.
+
+**`recordsFromAvailability` DOES NOT, and that is an open defect.** It loops
+every block and pushes a record per block, with no dedupe, so one shoe size
+emits up to 6 rows carrying 173, 83, 0, 0, 0, 0. A Shopify inventory CSV with
+duplicate rows for one variant applies the LAST, so that shoe imports as zero.
+Verified 2026-10-23 that the blocks exist, differ, and are not deduped anywhere
+downstream; NOT yet verified how often the zero row lands last, and not yet
+fixed, because it changes dropship footwear numbers store wide and that wants
+measuring first. The LA singlet path is unaffected: it goes through
+`push-asics-availability.mjs` from a block 0 capture.
 
 **THE LA LISTINGS SHOW WHAT ASICS CAN SHIP, not what is on a shelf.** They sell
 to order: the blank is bought from ASICS and printed. The two numbers are wildly
