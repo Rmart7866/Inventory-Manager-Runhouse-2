@@ -1678,6 +1678,20 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         return { productName, styleId, width, gender };
     }
 
+    // A COLOUR CODE IS TWO OR THREE DIGITS, and insisting on three is what
+    // made this scraper read nothing at all on apparel.
+    //
+    // Footwear codes are three digits ("001", "020") so the old /^\d{3}$/ was
+    // never wrong on a shoe. Apparel codes are TWO: measured off TF3085 on
+    // 2026-10-23 the swatch row is 23-RED, 01-WHITE, 43-ROYAL, 50-NAVY,
+    // 90-BLACK, 94-STEEL GREY. The selector found all six elements and the
+    // digit test then threw every one of them away, so findColors returned an
+    // empty array, and extractInventoryData loops over colours, so the page
+    // scrape produced ZERO records on every singlet page. It reported "No
+    // inventory data found" and looked like a page that had not loaded.
+    //
+    // This is also why the API path cannot rely on the page for the colour
+    // set: with no colours readable it falls through to the whole style.
     findColors() {
         const colors = [];
         
@@ -1690,7 +1704,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 const separator = spans[1].textContent.trim();
                 const name = spans[2].textContent.trim();
                 
-                if (code.match(/^\d{3}$/) && separator === '-') {
+                if (code.match(/^\d{2,3}$/) && separator === '-') {
                     colors.push({ code, name });
                 }
             }
@@ -1702,7 +1716,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             
             allElements.forEach(el => {
                 const text = el.textContent.trim();
-                const colorMatch = text.match(/^(\d{3})\s*-\s*([A-Z\/\s]+)$/);
+                const colorMatch = text.match(/^(\d{2,3})\s*-\s*([A-Z\/\s]+)$/);
                 if (colorMatch && !seenCodes.has(colorMatch[1])) {
                     seenCodes.add(colorMatch[1]);
                     colors.push({

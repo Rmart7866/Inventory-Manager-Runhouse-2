@@ -71,6 +71,7 @@ node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 c
 node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock to Warehouse
 node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, the API does not
 node scrapers/asics/test/api-record-shape.mjs # the API path's colorways must be CATALOG rows
+node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO digits, not three
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -337,6 +338,18 @@ sessionStorage lasts exactly as long as the run does.
 source for the presence of the function. `api-record-shape.mjs` RUNS it, and
 pins the broken shape too so the difference stays visible.
 
+**A COLOUR CODE IS TWO OR THREE DIGITS, and `findColors` demanded three.**
+Footwear codes are three ("001", "020") so the test `/^\d{3}$/` was never wrong
+on a shoe, which is why it survived this long. Apparel codes are TWO. On the
+live TF3085 page the swatch row is `23-RED 01-WHITE 43-ROYAL 50-NAVY 90-BLACK
+94-STEEL GREY`: the selector found all six elements and the digit test threw
+all six away. `findColors` returned an empty array, `extractInventoryData`
+loops over colours, so the page scrape produced ZERO records on every singlet
+page and said "No inventory data found", which reads exactly like a page that
+failed to load. This is the bug that made the scraper look dead on these pages,
+and it predates the API path entirely. `color-code-digits.mjs` pins both widths
+and keeps the things that must still be rejected rejected.
+
 **NOTHING FETCHES SUPPLIER STOCK ON A SCHEDULE, and the daily cron is not that.**
 `0 9 * * *` rebuilds the catalog KV, which READS Shopify into cache. Dropship
 shoes are updated when a human opens the B2B portal, runs the scraper, drops the
@@ -400,8 +413,29 @@ The ASICS scraper's CSV cannot reach those listings, which is why this is a
 separate tool: the CSV is keyed on the handle and option values the SCRAPER
 generates, and the LA listings match none of them. Different handles, the colour
 spelled "Black" where the base garment says "Black-090", and a third option the
-scraper leaves blank. The scraper's per-line Warehouse location handles the BASE
-listings; this handles the LA ones.
+scraper leaves blank. This tool is the ONLY thing that can
+reach any of them, base listings included.
+
+**AND THE SCRAPER'S CSV CANNOT UPDATE THE BASE LISTINGS EITHER.** This was
+written here the other way round and it was wrong. Checked against
+`asics-mens-rival-ii-singlet-black-tf3085` on 2026-10-23, every join key the
+Shopify inventory import could use is a miss:
+
+| | the scraper emits | the listing has |
+|---|---|---|
+| Handle | `tf3085-90` | `asics-mens-rival-ii-singlet-black-tf3085` |
+| Option1 Size | `XS`, `S`, `M` | `XSmall`, `Small`, `Medium` |
+| Option2 Color | `BLACK` | `Black-090` |
+| SKU | `TF3085-90-M` | none, 0 of 7 variants carry one |
+
+`generateHandle` builds `<styleId>-<colorCode>` and `generateSKU` builds
+`<styleId>-<colorCode>-<size>`, which is the vocabulary the FOOTWEAR listings
+were created in. Nothing in the singlet range was. So the per line Warehouse
+location is still right and still necessary, but it only decides which location
+a row names; it cannot make a row match a product that shares no key with it.
+Reconciling those three vocabularies is exactly what
+`push-asics-availability.mjs` exists to do, and it currently covers the four LA
+2027 listings only.
 
 Three vocabularies have to be reconciled and that is most of the work: ASICS
 says S/M/L/XL/2XL, Shopify says Small/Medium/Large/Xlarge/2Xlarge; ASICS uses
