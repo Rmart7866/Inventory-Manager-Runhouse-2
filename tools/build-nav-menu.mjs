@@ -109,7 +109,9 @@ const TREE = [
       ['Skirts & Skorts',       { c: 'womens-skirts' }],
     ]],
   ]],
-  // Ungendered, by what the shoe is for. None of these have gender in their rule.
+  // Ungendered, by what the shoe is for. None of these carry gender in their
+  // rule, which is why listing them under both genders duplicated one link
+  // under two headings in the old nav.
   ['Shoes', { c: 'maximum-cushion-running-shoes' }, [
     ['Trail',          { c: 'trail-running-shoes' }],
     ['Race Day',       { c: 'race-shoes' }],
@@ -121,6 +123,8 @@ const TREE = [
     ['Recovery',       { c: 'recovery' }],
     ['Waterproof',     { c: 'gore-tex-and-waterproof-shoes' }],
   ]],
+  // Stanley is NOT repeated here: it is a brand, it lives under Brands, and
+  // having it in both places was one of the duplicates in the old nav.
   ['Accessories', { c: 'accessories' }, [
     ['Socks',            { c: 'socks-1' }],
     ['Sunglasses',       { c: 'sunglasses' }],
@@ -130,19 +134,43 @@ const TREE = [
     ['Insoles',          { c: 'insoles' }],
     ['Visibility',       { c: 'visibility' }],
     ['Watches',          { c: 'watches' }],
-    ['Stanley',          { c: 'stanley' }],
     ['Gift Cards',       { c: 'gift-cards' }],
   ]],
-  // `sale`, NOT `discount-collection`. The latter is a 23,002 product utility
-  // set covering the whole catalogue, not a shopper-facing sale.
-  ['Sale', { c: 'sale' }],
-  ['Team & Race', { p: 'team-stores' }, [
-    ['Team Stores',       { p: 'team-stores' }],
-    ['Race Merchandise',  { p: 'race-stores' }],
-    ['Falmouth Road Race',{ c: 'asics-falmouth-road-race-2026' }],
+  // Alphabetical, which is how a brand list is scanned. Every one was checked
+  // for ACTIVE products first so none of these is a dead link: Reebok (11) and
+  // Speedland (13) are dropped for being spent, Goodr (16) and Oofos (13) added
+  // because they are stocked running brands that were never listed. Under
+  // Armour, Nike, Knockaround and Detour are deliberately absent.
+  ['Brands', { c: 'hoka' }, [
+    ['Altra',                 { c: 'altra' }],
+    ['ASICS',                 { c: 'asics-running-shoes' }],
+    ['Brooks',                { c: 'brooks' }],
+    ['Charles River Apparel', { c: 'charles-river-apparel' }],
+    ['Diadora',               { c: 'diadora' }],
+    ['Goodr',                 { c: 'goodr' }],
+    ['Hoka',                  { c: 'hoka' }],
+    ['Merrell',               { c: 'merrell' }],
+    ['New Balance',           { c: 'new-balance' }],
+    ['On Running',            { c: 'on-running' }],
+    ['Oofos',                 { c: 'oofos' }],
+    ['Puma',                  { c: 'puma' }],
+    ['Saucony',               { c: 'saucony' }],
+    ['Stanley',               { c: 'stanley' }],
   ]],
+  // Absorbs the old "Featured" and the old top-level "Race Apparel". A nav slot
+  // for one race goes stale the moment the race ends, which is how the store
+  // ended up with Falmouth collections for 2023, 2024, 2026 and "prior
+  // collections". Seasonal promotion belongs in the Home Banner instead.
+  ['Team & Race', { p: 'team-stores' }, [
+    ['Team Stores',        { p: 'team-stores' }],
+    ['Race Merchandise',   { p: 'race-stores' }],
+    ['Falmouth Road Race', { c: 'asics-falmouth-road-race-2026' }],
+    ['Cross Country',      { c: 'cross-country-spikes' }],
+  ]],
+  // `sale`, NOT `discount-collection`: the latter is a 23,002 product utility
+  // set covering the whole catalogue.
+  ['Sale', { c: 'sale' }],
   ['Membership', { p: 'run-house-membership' }],
-  ['Contact Us', { p: 'contact' }],
 ];
 
 // Resolve every handle to a real id up front, so a typo is caught before a

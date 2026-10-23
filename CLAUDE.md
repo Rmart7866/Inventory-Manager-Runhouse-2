@@ -68,6 +68,7 @@ node test/on-apparel-type.mjs                 # ON apparel: garment type, size l
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
+node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock to Warehouse
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -293,6 +294,41 @@ width and gender back. Apparel has no sibling, so the 2026-10-20 drop created
 all 365 garments carrying exactly `["ON Running", "<model>"]`, losing the gender
 and garment-type tags the collections key on. Union also matches the house rule
 that tagging is add-only outside `product-library.js`.
+
+**PRINT ON DEMAND RACE MERCH IS NOT DROPSHIP, and it lives at the WAREHOUSE.**
+One blank garment is bought from ASICS and every team, charity and event gets
+its own Shopify listing of it with their logo: TF3085 (men's Rival II Singlet)
+has 41 listings and TF2934 (women's) has 50. The blanks are held at Warehouse,
+not Needham, so the ASICS URL list now takes an optional location after the URL:
+
+    https://b2b.asics.com/.../products/ZK1234              -> Needham
+    https://b2b.asics.com/.../products/TF3085?colorCode=23  Warehouse
+
+`locationName` was hardcoded in four places with the UI field marked LOCKED. It
+is now per LINE, because these come from the same portal in the same scrape and
+a per-run setting would mean two runs and a standing chance of pointing one at
+the wrong place. Writing 300 singlets into Needham would look exactly like real
+dropship stock. A line with no location still reads Needham, so every existing
+list is unaffected. `scrapers/asics/test/location-per-link.mjs` pins that.
+
+The match is on the PATH, not the whole URL: the portal rewrites the address as
+it loads, appending `colorCode` and `deliveryDate`, so `window.location.href` is
+never the string that was pasted in.
+
+**ASICS COLOUR CODES ARE ALREADY IN THE SHOPIFY COLOUR NAMES.** Read off the
+B2B page 2026-10-23: `90` BLACK, `50` NAVY, `43` ROYAL, `01` WHITE, `23` RED,
+`94` STEEL GREY. The base listings spell them `Black-090`, `Navy-050`,
+`Royal-043`, `White-001`, which is the join. Red and Steel Grey have no base
+listing on Shopify even though ASICS stocks both.
+
+**SHOPIFY CANNOT SHARE AN INVENTORY POOL.** An inventory item belongs to exactly
+one variant, verified 2026-10-23: a base and its mirror carry different
+inventoryItem ids, so the matching numbers are a human copying by hand. Nothing
+decrements the base when a mirror sells. Measured over TF3085 and TF2934: the
+bases hold 352 units and the mirrors offer 1,037, and 54 pools are already
+NEGATIVE, one listing at -61. The Charities listings multiply this further with
+a third option, Event Logo(s) with 7 values, so ONE physical garment maps to 8
+Shopify variants. `tools/audit-pod-pools.mjs` measures all of it, read only.
 
 **A SHOPIFY MENU IS NOT IN THE THEME, and it is GLOBAL.** It lives in admin
 under Content > Menus (`main-menu` is `gid://shopify/Menu/199495745791`).

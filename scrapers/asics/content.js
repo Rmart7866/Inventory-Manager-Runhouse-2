@@ -37,6 +37,27 @@ class UnifiedShopifyConverter {
         };
     }
 
+    // Which location did the URL list ask for, for the page just scraped?
+    //
+    // MATCHED ON THE PATH, NOT THE WHOLE URL. The portal rewrites the address
+    // as it loads, appending colorCode and deliveryDate, so the string in
+    // window.location.href is not the string that was pasted in. The current
+    // index is the authority where it is available; the path match is the
+    // fallback for a resumed run, where currentIndex has already advanced.
+    //
+    // Returns '' when the line carried no location, and the row builder then
+    // falls back to Needham exactly as it always did.
+    locationForScrapedUrl(config, href) {
+        const map = (config && config.locationByUrl) || {};
+        if (!Object.keys(map).length) return '';
+        const asked = (config.urls || [])[(config.currentIndex || 1) - 1];
+        if (asked && map[asked]) return map[asked];
+        if (map[href]) return map[href];
+        const path = String(href || '').split('?')[0];
+        const hit = Object.keys(map).find(u => u.split('?')[0] === path);
+        return hit ? map[hit] : '';
+    }
+
     convertToInventoryCSV(inventoryData, settings = {}) {
         const csvSettings = { ...this.defaultSettings, ...settings };
         
@@ -73,7 +94,7 @@ class UnifiedShopifyConverter {
                     sku,
                     '', // HS Code
                     '', // COO
-                    csvSettings.locationName || 'Needham',
+                    variant.locationName || csvSettings.locationName || 'Needham',
                     '', // Bin name
                     '', // Incoming
                     '', // Unavailable
@@ -816,9 +837,33 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             return;
         }
         
-        const urls = urlInput.split('\n')
-            .map(url => url.trim())
-            .filter(url => url && url.startsWith('http'));
+        // A LINE MAY CARRY ITS OWN LOCATION, written after the URL:
+        //
+        //   https://b2b.asics.com/.../products/ZK1234            -> Needham
+        //   https://b2b.asics.com/.../products/TF3085  Warehouse -> Warehouse
+        //
+        // WHY PER LINE AND NOT PER RUN. Nearly every ASICS link is dropship
+        // footwear counted at Needham, but the Rival II singlets (TF3085 and
+        // TF2934) are race merch blanks held at the Warehouse and printed to
+        // order. Those come from the same portal in the same scrape, so one
+        // location per run would mean two runs and a chance to mix them up.
+        //
+        // The urls array stays a plain list of STRINGS so every step of the
+        // navigation loop below is untouched; the locations ride alongside in
+        // their own map. An existing list is unaffected: a line with no
+        // location still reads Needham, exactly as before.
+        const urlLines = urlInput.split('\n')
+            .map(line => line.trim())
+            .filter(line => line && line.startsWith('http'));
+        const urls = [];
+        const locationByUrl = {};
+        urlLines.forEach(line => {
+            const parts = line.split(/\s+/);
+            const url = parts[0];
+            const loc = parts.slice(1).join(' ').trim();
+            urls.push(url);
+            if (loc) locationByUrl[url] = loc;
+        });
         
         if (urls.length === 0) {
             alert('Please enter valid URLs (starting with http)');
@@ -848,6 +893,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         const scrapingConfig = {
             scrapingId: Date.now().toString(),
             urls: urls,
+            locationByUrl: locationByUrl,
             currentIndex: 0,
             downloadEach: downloadEach,
             downloadChunked: downloadChunked,
@@ -1036,8 +1082,15 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                     console.log(`AUTO-SCRAPER: Product CSV format verified - ${csvHeaders.length} columns`);
                 }
                 
+                // STAMP THE LOCATION ONTO EVERY RECORD, from the line that
+                // asked for this URL. The CSV row builder reads
+                // variant.locationName first, so a single run can carry
+                // Needham rows and Warehouse rows together.
+                const rowLocation = this.locationForScrapedUrl(config, window.location.href);
+
                 const dataRecords = inventoryData.map(item => ({
                     ...item,
+                    locationName: rowLocation || item.locationName || '',
                     sourceUrl: window.location.href,
                     extractedAt: new Date().toISOString(),
                     urlIndex: config.currentIndex + 1,

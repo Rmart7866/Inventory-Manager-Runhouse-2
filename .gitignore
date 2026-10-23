@@ -192,3 +192,4 @@ specs-clear-rollback-*.json
 # is rebuildable from the sitemap in a couple of minutes, so it is never
 # committed. Same reason the rollback files above are not.
 on-pdp-cache/
+main-menu-rollback-*.json
