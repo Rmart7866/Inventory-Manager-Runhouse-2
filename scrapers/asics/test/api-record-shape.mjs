@@ -210,25 +210,65 @@ console.log('\nGuards');
   eq('a style the catalog does not carry is refused, so the DOM can try', await z.extractInventoryDataFromApi(), null);
 }
 
-console.log('\nThe catalog is fetched once, not once per page');
+console.log('\nThe catalog is fetched once per RUN, not once per page');
 {
+  // THE CACHE ONLY WORKS BECAUSE IT IS FILTERED. The whole catalog is 5.7 MB
+  // and sessionStorage throws on it every time, so the run's own url list is
+  // what makes the slice small enough to keep. Without a config there is no
+  // list, nothing is cached, and every page refetches: that was the "stuck on
+  // footwear" bug.
+  const config = { urls: [
+    'https://b2b.asics.com/orders/100671391/products/TF3085?colorCode=23',
+    'https://b2b.asics.com/orders/100671391/products/1011B956',
+  ] };
   store.clear();
   Extractor._catalogRows = null;
-  Extractor._catalogBasket = null;
+  Extractor._catalogKey = null;
   const x = makeExtractor([{ code: '090', name: 'BLACK' }]);
-  await x.extractInventoryDataFromApi();
+  await x.extractInventoryDataFromApi(config);
   const first = x.apiCalls.filter((u) => u.indexOf('/aac/products?basketNo=') !== -1).length;
-  eq('the first scrape fetches it', first, 1);
+  eq('the first link fetches it', first, 1);
+  eq('and it got cached, because it was filtered to the run', store.size > 0, true);
 
   // A fresh extractor is what the next link gets, because navigating tears the
-  // content script down. sessionStorage is what carries the catalog across.
+  // content script down. sessionStorage is what carries the slice across.
   Extractor._catalogRows = null;
-  Extractor._catalogBasket = null;
+  Extractor._catalogKey = null;
   const y = makeExtractor([{ code: '090', name: 'BLACK' }]);
-  const recs = await y.extractInventoryDataFromApi();
+  const recs = await y.extractInventoryDataFromApi(config);
   const second = y.apiCalls.filter((u) => u.indexOf('/aac/products?basketNo=') !== -1).length;
   eq('the next link reads it back from sessionStorage', second, 0);
   eq('and still gets its records', recs.length, 2);
+
+  // The cached slice carries only the styles the run visits.
+  const cached = JSON.parse([...store.values()][0]);
+  eq('the slice holds only this run\'s styles', cached.every((r) => ['TF3085', '1011B956'].indexOf(r.itemCode) !== -1), true);
+  eq('and it is small', cached.length <= 4, true);
+}
+
+console.log('\nstylesFromUrls, which is what keeps the slice small');
+{
+  const f = (u) => Extractor.stylesFromUrls(u);
+  eq('reads the style off a product url', f(['https://b2b.asics.com/orders/1/products/TF3085'])[0], 'TF3085');
+  eq('ignores the query string the portal appends',
+    f(['https://b2b.asics.com/orders/1/products/TF3085?colorCode=23&deliveryDate=2026-10-24'])[0], 'TF3085');
+  eq('is not fooled by the order number', f(['https://b2b.asics.com/orders/100671391/products/1011C244']).join(), '1011C244');
+  eq('dedupes, since several links can share a style',
+    f(['https://x/products/TF3085?a=1', 'https://x/products/TF3085?a=2']).length, 1);
+  eq('a line that is not a product url contributes nothing', f(['https://b2b.asics.com/orders/1']).length, 0);
+  eq('and an empty list is empty, not a crash', f([]).length, 0);
+}
+
+console.log('\nAn unfiltered fetch must not even attempt the cache');
+{
+  store.clear();
+  Extractor._catalogRows = null;
+  Extractor._catalogKey = null;
+  const x = makeExtractor([{ code: '090', name: 'BLACK' }]);
+  // No config, so no url list, so no style filter.
+  await x.extractInventoryDataFromApi();
+  eq('it still works', x.apiCalls.filter((u) => u.indexOf('/aac/products?basketNo=') !== -1).length, 1);
+  eq('but writes nothing, because 5.7 MB always throws', store.size, 0);
 }
 
 console.log(failures ? '\n' + failures + ' FAILED\n' : '\nall good\n');

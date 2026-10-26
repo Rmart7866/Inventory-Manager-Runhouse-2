@@ -54,10 +54,11 @@ eq('"30+" reads as 30, which is the whole problem', parseQuantity('30+'), 30);
 eq('so 161 at ASICS would reach Shopify as', parseQuantity('30+'), 30);
 
 console.log('\nThe scraper must therefore prefer the API');
-const hasApiReader = /async extractInventoryDataFromApi\(\)/.test(src);
+const hasApiReader = /async extractInventoryDataFromApi\(config\)/.test(src);
 hasApiReader ? ok('extractInventoryDataFromApi exists') : bad('the API reader is gone');
 
-const prefersApi = /inventoryData = await this\.extractInventoryDataFromApi\(\)/.test(src);
+// Raced against a timeout budget now, so the API can never hang the run.
+const prefersApi = /Promise\.race\(\[this\.extractInventoryDataFromApi\(config\), budget\]\)/.test(src);
 prefersApi ? ok('the auto-scrape path calls it FIRST') : bad('the auto-scrape path no longer calls the API first');
 
 const fallsBack = /quantitySource = 'dom'[\s\S]{0,200}extractInventoryData\(\)/.test(src);

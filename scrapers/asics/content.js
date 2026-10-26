@@ -1045,8 +1045,24 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             let inventoryData = null;
             let quantitySource = 'api';
             let apiFailure = null;
+            // A BOUNDED WAIT, because an unbounded one looks like a hang.
+            //
+            // apiGet retries a 202 soft throttle six times with a backoff that
+            // reaches 15s, and apiBrake widens the steady gap on top, so a
+            // throttled style can sit here for a minute with nothing on screen
+            // and no way to tell a slow answer from a dead one. The page grid
+            // is right there and only costs the 30+ cap, so give the API a
+            // fixed budget and take the DOM if it overruns.
+            const API_BUDGET_MS = 45000;
             try {
-                inventoryData = await this.extractInventoryDataFromApi();
+                let timer;
+                const budget = new Promise((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(
+                        'gave up after ' + (API_BUDGET_MS / 1000) + 's (throttled or a slow catalog fetch)')), API_BUDGET_MS);
+                });
+                try {
+                    inventoryData = await Promise.race([this.extractInventoryDataFromApi(config), budget]);
+                } finally { clearTimeout(timer); }
                 if (!inventoryData) apiFailure = 'returned nothing (no style id, no basket number in the URL, or the style is not in this basket\'s catalog)';
             } catch (apiErr) {
                 apiFailure = apiErr.message;
@@ -1457,7 +1473,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
     // scrape looked like it ran and produced nothing usable.
     //
     // So fetch the catalog and use that style's own rows.
-    async extractInventoryDataFromApi() {
+    async extractInventoryDataFromApi(config) {
         const info = this.getProductInfo();
         const styleId = info && info.styleId;
         const basketNo = this.basketNoFromUrl();
@@ -1466,7 +1482,11 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         // /aac/products/Unknown/availability.
         if (!styleId || styleId === 'Unknown' || !basketNo) return null;
 
-        const rows = await this.apiCatalogRows(basketNo);
+        // Only the styles in THIS run's url list, so the 5.7 MB catalog is
+        // fetched once and cached instead of once per link.
+        const wanted = EnhancedASICSInventoryExtractor.stylesFromUrls(
+            (config && config.urls) || [window.location.href]);
+        const rows = await this.apiCatalogRows(basketNo, wanted);
         let colorways = rows.filter((r) => String(r.itemCode) === String(styleId));
         if (!colorways.length) return null;
 
@@ -1501,27 +1521,80 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
     // tab throughout, so sessionStorage survives exactly as far as the run
     // does. A quota failure is not worth failing a scrape over, so it falls
     // back to re-fetching.
-    async apiCatalogRows(basketNo) {
+    // CACHE ONLY THE STYLES THIS RUN WILL VISIT. The catalog is 5.7 MB.
+    //
+    // The first version cached the whole thing in sessionStorage, which CANNOT
+    // HOLD IT: measured 2026-10-26, the body is 5,974,837 bytes and the write
+    // throws QuotaExceededError every time. The throw was caught, so nothing
+    // looked wrong, and the consequence was that every page in the run
+    // re-downloaded 5.7 MB. One link is 813 ms on a good connection, which is
+    // survivable; a list of fifty is 285 MB against an endpoint that soft
+    // throttles with 202, and once apiBrake starts doubling the gap the run
+    // crawls and then fails. That is the "stuck on footwear" report.
+    //
+    // The run only ever needs the styles in its OWN url list, which config
+    // already holds: 4 rows of the 3,713 for one link, a couple of hundred for
+    // a long list. Filtered and slimmed to the fields recordsFromAvailability
+    // actually reads, that caches comfortably and is fetched ONCE per run.
+    static slimCatalogRow(r) {
+        return {
+            itemCode: r.itemCode, itemName: r.itemName,
+            colorCode: r.colorCode, colorName: r.colorName,
+            gender: r.gender, width: r.width,
+            widthTranslationCode: r.widthTranslationCode, widthLabel: r.widthLabel,
+            compactSizes: r.compactSizes,
+        };
+    }
+
+    // The style id is the last path segment of a product url.
+    static stylesFromUrls(urls) {
+        const out = [];
+        for (const u of urls || []) {
+            const m = /\/products\/([0-9A-Za-z]+)/.exec(String(u).split('?')[0]);
+            if (m && out.indexOf(m[1]) === -1) out.push(m[1]);
+        }
+        return out;
+    }
+
+    async apiCatalogRows(basketNo, wantedStyles) {
         const C = EnhancedASICSInventoryExtractor;
-        const key = 'rhAsicsCatalog:' + basketNo;
-        if (C._catalogRows && C._catalogBasket === basketNo) return C._catalogRows;
+        const wanted = (wantedStyles && wantedStyles.length) ? wantedStyles.slice().sort() : null;
+        // The key carries the style set, so a run over a different list cannot
+        // be served a cache that is missing its styles.
+        const key = 'rhAsicsCatalog:' + basketNo + ':' + (wanted ? wanted.join(',') : 'all');
+
+        if (C._catalogRows && C._catalogKey === key) return C._catalogRows;
         try {
             const cached = sessionStorage.getItem(key);
             if (cached) {
                 const rows = JSON.parse(cached);
                 if (Array.isArray(rows) && rows.length) {
                     C._catalogRows = rows;
-                    C._catalogBasket = basketNo;
+                    C._catalogKey = key;
+                    console.log('ASICS: catalog served from the session cache, ' + rows.length + ' rows');
                     return rows;
                 }
             }
         } catch (e) { /* unreadable cache, fetch it again */ }
 
+        const started = Date.now();
         const cat = await this.apiGet('/aac/products?basketNo=' + encodeURIComponent(basketNo));
-        const rows = (cat && cat.data) || [];
+        const all = (cat && cat.data) || [];
+        const rows = wanted
+            ? all.filter((r) => wanted.indexOf(String(r.itemCode)) !== -1).map(C.slimCatalogRow)
+            : all;
+        console.log('ASICS: fetched the catalog in ' + (Date.now() - started) + 'ms, ' +
+            all.length + ' rows, kept ' + rows.length +
+            (wanted ? ' for ' + wanted.length + ' styles in this run' : ' (UNFILTERED, 5.7 MB, will not cache)'));
+
         C._catalogRows = rows;
-        C._catalogBasket = basketNo;
-        try { sessionStorage.setItem(key, JSON.stringify(rows)); } catch (e) { /* over quota, fine */ }
+        C._catalogKey = key;
+        // Only ever attempt the write when it has been filtered. An unfiltered
+        // catalog is guaranteed to throw and there is no point pretending.
+        if (wanted) {
+            try { sessionStorage.setItem(key, JSON.stringify(rows)); }
+            catch (e) { console.warn('ASICS: could not cache the catalog slice: ' + e.name); }
+        }
         return rows;
     }
 
@@ -2760,7 +2833,7 @@ document.head.appendChild(style);
 // background.js never is. So a fix can be correct on disk, committed, and still
 // not be what the page is running. Reload the extension, open any product page,
 // and this line says which build answered.
-const RH_BUILD = '2026-10-26b';
+const RH_BUILD = '2026-10-26c';
 console.log('🚀 ASICS Enhanced Unified Extension Loaded Successfully!  build ' + RH_BUILD);
 console.log('   build check: 2 digit colour codes ' +
     (/^\d{2,3}$/.test('90') ? 'OK' : 'MISSING') +

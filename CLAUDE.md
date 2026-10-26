@@ -360,6 +360,30 @@ Also worth knowing when reading a B2B console: `/Users/ryanmartin/Desktop/chrome
 extensions /shipping` also injects on b2b.asics.com and logs
 `detectB2BSite returned: asics`, which is NOT this scraper.
 
+**THE CATALOG IS 5.7 MB AND sessionStorage CANNOT HOLD IT, so the cache that
+was supposed to make the API path cheap made every page refetch.** Measured
+2026-10-26: `/aac/products?basketNo=` is 5,974,837 bytes over 3,713 rows, 813 ms
+on a good connection, and `sessionStorage.setItem` throws QuotaExceededError on
+it every single time. The throw was caught, so nothing looked wrong, and the
+result was 5.7 MB per LINK against an endpoint that soft throttles with 202.
+One link survives that; a list of fifty is 285 MB, and once `apiBrake` starts
+doubling the steady gap the run crawls and then fails. That is the "stuck on
+footwear" report, and it was introduced by the fix for the 30 cap.
+
+A run only needs the styles in its OWN url list, which `config.urls` already
+holds. `apiCatalogRows` now filters to those and slims each row to the nine
+fields `recordsFromAvailability` reads. Measured over a realistic six style
+list: 3,713 rows and 5.68 MB become 25 rows and 25.7 KB, which caches, reads
+back intact, and is fetched ONCE per run. An unfiltered call does not attempt
+the write at all, because it is certain to throw.
+
+**And the API path is now time boxed, because an unbounded wait looks like a
+hang.** `apiGet` retries a 202 six times with a backoff reaching 15 s, and
+`apiBrake` widens the steady gap on top, so a throttled style could sit there
+for a minute with nothing on screen and no way to tell a slow answer from a
+dead one. The page grid is right there and only costs the 30+ cap, so the API
+gets 45 seconds and the DOM takes over if it overruns.
+
 **THE READINESS GATE WAS THE THING REFUSING THE PAGE, not the extractor.**
 `checkPageReadinessEnhanced` decides whether a scrape may run at all, and on
 timeout it reports "No inventory data found" WITHOUT EVER CALLING THE
