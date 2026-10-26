@@ -72,6 +72,7 @@ node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock t
 node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, a known limitation
 node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO digits, not three
 node scrapers/asics/test/readiness-gate.mjs   # the gate must open on a garment, not just a shoe
+node scrapers/asics/test/delivery-windows.mjs # one delivery window, not six concatenated
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -335,13 +336,8 @@ blocked was never the cap at all. What went wrong, so it is not repeated:
   soft throttles with 202. Filtering to the run's own styles fixes that (25
   rows, 25.7 KB) but is more machinery again.
 - `availability[]` is ONE BLOCK PER DELIVERY WINDOW, not chunks to merge.
-  TF3085 Red M is 302 in block 0 for today and 0 in the two later windows;
-  footwear reaches six blocks, and 1011C244 size 10.5 is 173 now, 83 in
-  November, 0 after. `recordsFromAvailability` pushes a record per block with no
-  dedupe, so one variant emits up to six rows ending in 0, and a Shopify
-  inventory CSV applies the LAST row for a variant. That defect is still live in
-  the fast path and is NOT fixed, because it moves footwear numbers store wide
-  and wants measuring first.
+  This one is now FIXED, and it had been doing real damage. See the next
+  section.
 
 If it is worth doing, build it ALONGSIDE the page path and compare both against
 real pages before anything switches over.
@@ -531,15 +527,30 @@ Block 0 is the At Once journey, in stock and shippable today, which is what a
 shopper on the site is buying. `capture-asics-availability.js` takes block 0 and
 ignores the rest.
 
-**`recordsFromAvailability` DOES NOT, and that is an open defect.** It loops
-every block and pushes a record per block, with no dedupe, so one shoe size
-emits up to 6 rows carrying 173, 83, 0, 0, 0, 0. A Shopify inventory CSV with
-duplicate rows for one variant applies the LAST, so that shoe imports as zero.
-Verified 2026-10-23 that the blocks exist, differ, and are not deduped anywhere
-downstream; NOT yet verified how often the zero row lands last, and not yet
-fixed, because it changes dropship footwear numbers store wide and that wants
-measuring first. The LA singlet path is unaffected: it goes through
-`push-asics-availability.mjs` from a block 0 capture.
+**`recordsFromAvailability` DID NOT, AND IT WAS ZEROING THREE THOUSAND SHOES A
+RUN. Fixed 2026-10-26.** It looped every block and pushed a record per block
+with no dedupe, and a Shopify inventory CSV applies the LAST row for a variant,
+so the zeros won. Measured on the real output of the fast button, the file
+`asics-inventory-api-2026-10-14_1205.csv`:
+
+| | |
+|---|---|
+| rows | 39,131 |
+| unique variants | 8,037 |
+| variants duplicated | 5,703, up to 15 times each |
+| **variants whose LAST row was 0 while an earlier row was not** | **3,066** |
+
+It now takes the EARLIEST window only, selected by `atpDate` rather than by
+array position because nothing documents the order. A genuine zero in that
+window is still reported as zero, so the fix cannot hide a real out of stock.
+`delivery-windows.mjs` pins one row instead of six, the 302 beating the 0,
+selection by date against a reversed response, and that every colour and size in
+the chosen window still comes through.
+
+**Anyone who imported a fast-scrape CSV before 2026-10-26 should assume it
+wrongly zeroed shoes** and re-run before trusting the store's numbers. The LA
+singlet path was never affected: it goes through `push-asics-availability.mjs`
+from an at-once capture.
 
 **THE FOUR LA LISTINGS WERE CREATED WITHOUT CATEGORY, SEO, VENDOR OR TYPE.**
 `tools/fix-la-singlet-listings.mjs` set them 2026-10-26. The category was
