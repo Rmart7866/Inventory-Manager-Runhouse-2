@@ -154,12 +154,13 @@ console.log('\nfindSizes must never invent a ladder again');
            : bad('findSizes can still invent a shoe ladder, which is the ON scraper bug');
 }
 
-console.log('\nBoth "No inventory data found" paths carry a diagnostic');
-{
-  const gateDiag = /readiness gate timed out/.test(raw);
-  gateDiag ? ok('the readiness timeout says it never called the extractor')
-           : bad('the readiness timeout still reports a bare message');
-}
+// NOTE, not a test. There are TWO places that print "No inventory data found",
+// with identical wording and unrelated causes: this gate timing out, which
+// means the extractor was never called, and the extractor itself returning
+// nothing. That duplicate wording is what made this bug take several rounds to
+// find, because every attempt went into the extractor while the gate in front
+// of it was the thing refusing the page. Worth knowing before debugging it
+// again.
 
 console.log(failures ? '\n' + failures + ' FAILED\n' : '\nall good\n');
 process.exit(failures ? 1 : 0);

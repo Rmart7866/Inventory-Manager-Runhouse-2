@@ -451,10 +451,10 @@ class EnhancedASICSInventoryExtractor {
                 if (absent.length) {
                     btn.textContent = 'Done, but ' + absent.length + ' carried styles missing';
                     btn.style.background = '#fd7e14';
-                    EnhancedASICSInventoryExtractor.notify('Scrape finished, but ' + absent.length +
-                        ' style(s) the store carries are not in the ASICS catalog:\n\n' + absent.join(', ') +
-                        '\n\nThese are absent from the CSV, so the tool will read them as removed and ZERO ' +
-                        'their stock. Check them before writing inventory.', 'warn');
+                    alert('ASICS scrape finished, but ' + absent.length + ' style(s) the store carries are not ' +
+                        'in the ASICS catalog:\n\n' + absent.join(', ') +
+                        '\n\nThese are absent from the CSV, so the tool will read them as removed and zero ' +
+                        'their stock. Check them before writing inventory.');
                 } else {
                     btn.textContent = 'Done: ' + records.length + ' rows';
                     btn.style.background = '#28a745';
@@ -833,7 +833,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         const selectedFormat = document.querySelector('input[name="csvFormat"]:checked').value;
         
         if (!urlInput) {
-            EnhancedASICSInventoryExtractor.notify('Enter at least one URL first.', 'bad');
+            alert('Please enter at least one URL');
             return;
         }
         
@@ -866,7 +866,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         });
         
         if (urls.length === 0) {
-            EnhancedASICSInventoryExtractor.notify('No usable URLs. Each line must start with http.', 'bad');
+            alert('Please enter valid URLs (starting with http)');
             return;
         }
         
@@ -972,23 +972,11 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                     console.log('Found partial data, proceeding');
                     setTimeout(() => this.extractCurrentPageDataBackground(config, modal), 1000);
                 } else {
-                    // THE OTHER "No inventory data found", and the one that
-                    // actually fires on a garment. This is the readiness gate
-                    // timing out, which means the extractor was NEVER CALLED,
-                    // so nothing in extractCurrentPageDataBackground can
-                    // report on it. The identical wording in two places with
-                    // completely different causes is what made this take four
-                    // rounds to find: every fix went into the extractor while
-                    // the gate in front of it was the thing refusing the page.
-                    const diag = this.extractionDiagnostic(
-                        'not called, the page readiness gate timed out after ' +
-                        Math.round(maxWaitTime / 1000) + 's');
-                    console.error('ASICS: READINESS GATE TIMED OUT for ' +
-                        window.location.href + '\n' + diag);
+                    console.log('No usable data found, skipping');
                     config.results.push({
                         url: window.location.href,
                         data: [],
-                        error: 'No inventory data found (readiness gate timed out). ' + diag,
+                        error: 'No inventory data found',
                         timestamp: new Date().toISOString(),
                         success: false,
                         recordCount: 0
@@ -1039,70 +1027,14 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             
             console.log(`AUTO-SCRAPER: Using ${config.format} settings:`, this.shopifySettings);
             
-            // API FIRST, DOM SECOND. The rendered grid caps every deep size at
-            // "30+", so a page scrape silently writes 30 where the real figure
-            // can be 302. See extractInventoryDataFromApi.
-            let inventoryData = null;
-            let quantitySource = 'api';
-            let apiFailure = null;
-            // A BOUNDED WAIT, because an unbounded one looks like a hang.
-            //
-            // apiGet retries a 202 soft throttle six times with a backoff that
-            // reaches 15s, and apiBrake widens the steady gap on top, so a
-            // throttled style can sit here for a minute with nothing on screen
-            // and no way to tell a slow answer from a dead one. The page grid
-            // is right there and only costs the 30+ cap, so give the API a
-            // fixed budget and take the DOM if it overruns.
-            const API_BUDGET_MS = 45000;
-            try {
-                let timer;
-                const budget = new Promise((_, reject) => {
-                    timer = setTimeout(() => reject(new Error(
-                        'gave up after ' + (API_BUDGET_MS / 1000) + 's (throttled or a slow catalog fetch)')), API_BUDGET_MS);
-                });
-                try {
-                    inventoryData = await Promise.race([this.extractInventoryDataFromApi(config), budget]);
-                } finally { clearTimeout(timer); }
-                if (!inventoryData) apiFailure = 'returned nothing (no style id, no basket number in the URL, or the style is not in this basket\'s catalog)';
-            } catch (apiErr) {
-                apiFailure = apiErr.message;
-                console.warn('ASICS: availability API failed, falling back to the page grid:', apiErr.message);
-            }
-            if (!inventoryData || !inventoryData.length) {
-                quantitySource = 'dom';
-                inventoryData = this.extractInventoryData();
-                console.warn('ASICS: USING THE PAGE GRID, quantities above 30 are CAPPED at 30 for ' + window.location.href);
-            }
-            console.log(`Extracted ${inventoryData.length} inventory records from the ${quantitySource.toUpperCase()}`);
-
-            // STAMP THE LOCATION BEFORE ANY CSV IS BUILT, from the line that
-            // asked for this URL. It used to be stamped further down, after
-            // convertToInventoryCSV had already run, so the per page file from
-            // "download each" and the validation copy both said Needham while
-            // only the chunked records carried the real location.
-            const rowLocation = this.locationForScrapedUrl(config, window.location.href);
-            if (rowLocation) {
-                inventoryData = inventoryData.map(item => ({ ...item, locationName: rowLocation }));
-                console.log('ASICS: this URL writes to ' + rowLocation + ', not Needham');
-            }
-
+            const inventoryData = this.extractInventoryData();
+            console.log(`Extracted ${inventoryData.length} inventory records`);
+            
             if (inventoryData.length === 0) {
-                // SAY WHY, BECAUSE "No inventory data found" NAMES NO CAUSE.
-                //
-                // Both paths have to come back empty to land here, and the two
-                // fail for completely unrelated reasons: the API for a missing
-                // basket number or a style the basket does not carry, the DOM
-                // because the grid had not rendered yet or because a selector
-                // stopped matching. The bare message sent three separate
-                // debugging rounds down the wrong path, including two fixes to
-                // things that were not the blocker, so it now carries the
-                // readings that tell the two apart.
-                const diag = this.extractionDiagnostic(apiFailure);
-                console.error('ASICS: NO INVENTORY DATA for ' + window.location.href + '\n' + diag);
                 config.results.push({
                     url: window.location.href,
                     data: [],
-                    error: 'No inventory data found. ' + diag,
+                    error: 'No inventory data found',
                     timestamp: new Date().toISOString(),
                     success: false,
                     recordCount: 0,
@@ -1150,13 +1082,15 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                     console.log(`AUTO-SCRAPER: Product CSV format verified - ${csvHeaders.length} columns`);
                 }
                 
-                // The location is already on every record, stamped above so
-                // the CSVs built in between carry it too. The row builders read
-                // variant.locationName first, so a single run can carry Needham
-                // rows and Warehouse rows together.
+                // STAMP THE LOCATION ONTO EVERY RECORD, from the line that
+                // asked for this URL. The CSV row builder reads
+                // variant.locationName first, so a single run can carry
+                // Needham rows and Warehouse rows together.
+                const rowLocation = this.locationForScrapedUrl(config, window.location.href);
+
                 const dataRecords = inventoryData.map(item => ({
                     ...item,
-                    locationName: item.locationName || rowLocation || '',
+                    locationName: rowLocation || item.locationName || '',
                     sourceUrl: window.location.href,
                     extractedAt: new Date().toISOString(),
                     urlIndex: config.currentIndex + 1,
@@ -1305,18 +1239,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             ? 'Import to: Products → Inventory → Import'
             : 'Import to: Products → Import';
         
-        // NOT an alert. This ran at the end of every single run and left the
-        // tab unresponsive, which is what "stuck" turned out to mean. Every
-        // field above already says the same thing in the modal.
-        EnhancedASICSInventoryExtractor.notify(
-            formatUpper + ' CSV scrape finished in ' + totalTime + 's.\n' +
-            'Succeeded: ' + successfulResults.length + '   Failed: ' + failedResults.length + '\n' +
-            importInstructions,
-            failedResults.length ? 'warn' : 'ok');
-        if (failedResults.length) {
-            // The per url reason, which now carries the diagnostic.
-            failedResults.forEach((r) => console.error('ASICS: FAILED ' + r.url + '\n' + (r.error || 'no reason recorded')));
-        }
+        alert(`${formatUpper} CSV Auto-scraping completed in ${totalTime} seconds!\n\nSuccessful: ${successfulResults.length}\nFailed: ${failedResults.length}\n${formatUpper} CSV files downloaded\n\n${importInstructions}\nReady for Shopify import!`);
     }
 
     setupExtractionAfterNavigationBackground(config, modal, url) {
@@ -1453,234 +1376,6 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 }
             }
         }, 1000);
-    }
-
-    // THE RENDERED GRID IS CAPPED AT 30 AND THE API IS NOT.
-    //
-    // The portal prints "30+" for any size with more than 30 available, which
-    // is maxQuantityDisplayed in the data behind it. parseQuantity turns that
-    // string into the number 30, so every deep size was being written to
-    // Shopify as 30. Measured on TF3085 2026-10-23: Black Small is really 161,
-    // Black Medium 205, Red Medium 302, and all three read as 30 off the page.
-    //
-    // For dropship footwear that understates a popular shoe. For the race merch
-    // singlets it is worse, because those listings sell to a whole marathon
-    // field against ASICS stock that runs into the hundreds.
-    //
-    // The page has already fetched the real figures by the time this runs, from
-    // the same endpoint the fast path uses, so this asks for them directly and
-    // falls back to the DOM only if that fails. A fallback scrape is still
-    // capped, so it says so loudly rather than quietly writing 30s.
-    // AND THE COLORWAYS MUST BE CATALOG ROWS, NOT ANYTHING THE PAGE SHOWS.
-    //
-    // recordsFromAvailability was written for the fast path, which hands it raw
-    // rows from /aac/products. It reads itemCode, itemName, the NUMERIC gender,
-    // widthLabel and widthTranslationCode, and compactSizes for the barcodes.
-    // The first version of this function built colorways out of getProductInfo
-    // and findColors instead, which carry styleId, productName and a gender
-    // word, so every single field it read came back undefined or empty: real
-    // quantities attached to records with no style, no name and no gender, and
-    // because the array was non-empty the DOM fallback never fired either. The
-    // scrape looked like it ran and produced nothing usable.
-    //
-    // So fetch the catalog and use that style's own rows.
-    async extractInventoryDataFromApi(config) {
-        const info = this.getProductInfo();
-        const styleId = info && info.styleId;
-        const basketNo = this.basketNoFromUrl();
-        // getProductInfo defaults styleId to the STRING "Unknown", not to a
-        // falsy value, so test for it explicitly or the URL becomes
-        // /aac/products/Unknown/availability.
-        if (!styleId || styleId === 'Unknown' || !basketNo) return null;
-
-        // Only the styles in THIS run's url list, so the 5.7 MB catalog is
-        // fetched once and cached instead of once per link.
-        const wanted = EnhancedASICSInventoryExtractor.stylesFromUrls(
-            (config && config.urls) || [window.location.href]);
-        const rows = await this.apiCatalogRows(basketNo, wanted);
-        let colorways = rows.filter((r) => String(r.itemCode) === String(styleId));
-        if (!colorways.length) return null;
-
-        // Keep the COLOUR SET THE PAGE SHOWS, so switching this path from the
-        // DOM to the API changes the quantities and nothing else. A style's
-        // catalog rows cover every colour ASICS sells, which is wider than the
-        // link was pointing at, and an extra colour reads downstream as a new
-        // colorway. Codes are compared with leading zeros stripped because the
-        // page prints "090" where the URL and the catalog say "90".
-        const bare = (c) => String(c).replace(/^0+/, '');
-        const onPage = new Set(this.findColors().map((c) => bare(c.code)));
-        if (onPage.size) {
-            const narrowed = colorways.filter((r) => onPage.has(bare(r.colorCode)));
-            // Only narrow if it actually matched something. Returning nothing
-            // here would be read as "no stock" rather than as a failed match.
-            if (narrowed.length) colorways = narrowed;
-        }
-
-        const colorCodes = [...new Set(colorways.map((c) => c.colorCode))].map((c) => c + ':').join(',');
-        const url = '/aac/products/' + encodeURIComponent(styleId) +
-            '/availability?basketNo=' + encodeURIComponent(basketNo) +
-            '&colorCodeDistributorNo=' + colorCodes;
-        const av = await this.apiGet(url);
-        const records = this.recordsFromAvailability(av, colorways);
-        return records && records.length ? records : null;
-    }
-
-    // The catalog is the same for every link in a run, so it is fetched once
-    // and cached. The cache goes in sessionStorage as well as on the class
-    // because the link scraper NAVIGATES, which tears the content script down
-    // between pages and loses anything held in memory. Same origin and same
-    // tab throughout, so sessionStorage survives exactly as far as the run
-    // does. A quota failure is not worth failing a scrape over, so it falls
-    // back to re-fetching.
-    // CACHE ONLY THE STYLES THIS RUN WILL VISIT. The catalog is 5.7 MB.
-    //
-    // The first version cached the whole thing in sessionStorage, which CANNOT
-    // HOLD IT: measured 2026-10-26, the body is 5,974,837 bytes and the write
-    // throws QuotaExceededError every time. The throw was caught, so nothing
-    // looked wrong, and the consequence was that every page in the run
-    // re-downloaded 5.7 MB. One link is 813 ms on a good connection, which is
-    // survivable; a list of fifty is 285 MB against an endpoint that soft
-    // throttles with 202, and once apiBrake starts doubling the gap the run
-    // crawls and then fails. That is the "stuck on footwear" report.
-    //
-    // The run only ever needs the styles in its OWN url list, which config
-    // already holds: 4 rows of the 3,713 for one link, a couple of hundred for
-    // a long list. Filtered and slimmed to the fields recordsFromAvailability
-    // actually reads, that caches comfortably and is fetched ONCE per run.
-    static slimCatalogRow(r) {
-        return {
-            itemCode: r.itemCode, itemName: r.itemName,
-            colorCode: r.colorCode, colorName: r.colorName,
-            gender: r.gender, width: r.width,
-            widthTranslationCode: r.widthTranslationCode, widthLabel: r.widthLabel,
-            compactSizes: r.compactSizes,
-        };
-    }
-
-    // The style id is the last path segment of a product url.
-    static stylesFromUrls(urls) {
-        const out = [];
-        for (const u of urls || []) {
-            const m = /\/products\/([0-9A-Za-z]+)/.exec(String(u).split('?')[0]);
-            if (m && out.indexOf(m[1]) === -1) out.push(m[1]);
-        }
-        return out;
-    }
-
-    async apiCatalogRows(basketNo, wantedStyles) {
-        const C = EnhancedASICSInventoryExtractor;
-        const wanted = (wantedStyles && wantedStyles.length) ? wantedStyles.slice().sort() : null;
-        // The key carries the style set, so a run over a different list cannot
-        // be served a cache that is missing its styles.
-        const key = 'rhAsicsCatalog:' + basketNo + ':' + (wanted ? wanted.join(',') : 'all');
-
-        if (C._catalogRows && C._catalogKey === key) return C._catalogRows;
-        try {
-            const cached = sessionStorage.getItem(key);
-            if (cached) {
-                const rows = JSON.parse(cached);
-                if (Array.isArray(rows) && rows.length) {
-                    C._catalogRows = rows;
-                    C._catalogKey = key;
-                    console.log('ASICS: catalog served from the session cache, ' + rows.length + ' rows');
-                    return rows;
-                }
-            }
-        } catch (e) { /* unreadable cache, fetch it again */ }
-
-        const started = Date.now();
-        const cat = await this.apiGet('/aac/products?basketNo=' + encodeURIComponent(basketNo));
-        const all = (cat && cat.data) || [];
-        const rows = wanted
-            ? all.filter((r) => wanted.indexOf(String(r.itemCode)) !== -1).map(C.slimCatalogRow)
-            : all;
-        console.log('ASICS: fetched the catalog in ' + (Date.now() - started) + 'ms, ' +
-            all.length + ' rows, kept ' + rows.length +
-            (wanted ? ' for ' + wanted.length + ' styles in this run' : ' (UNFILTERED, 5.7 MB, will not cache)'));
-
-        C._catalogRows = rows;
-        C._catalogKey = key;
-        // Only ever attempt the write when it has been filtered. An unfiltered
-        // catalog is guaranteed to throw and there is no point pretending.
-        if (wanted) {
-            try { sessionStorage.setItem(key, JSON.stringify(rows)); }
-            catch (e) { console.warn('ASICS: could not cache the catalog slice: ' + e.name); }
-        }
-        return rows;
-    }
-
-    // A NOTICE THAT DOES NOT FREEZE THE BROWSER.
-    //
-    // alert() is a MODAL dialog: it blocks the renderer, the extension stops
-    // receiving events, and the navigation loop cannot advance. On a scraper
-    // that is not a cosmetic choice, it is a hang. The completion alert in
-    // particular fired at the end of every run and left a tab that answered
-    // nothing, which is most of what "stuck" meant. The modal's own status
-    // fields already carry the same information, so this paints a banner and
-    // returns immediately.
-    static notify(message, tone) {
-        const colours = { ok: '#28a745', warn: '#fd7e14', bad: '#dc3545' };
-        try {
-            document.querySelectorAll('.asics-notice').forEach((n) => n.remove());
-            const el = document.createElement('div');
-            el.className = 'asics-notice';
-            el.style.cssText = 'position:fixed;top:70px;right:20px;z-index:30000;max-width:420px;' +
-                'background:' + (colours[tone] || colours.ok) + ';color:#fff;padding:14px 40px 14px 16px;' +
-                'border-radius:5px;font:13px/1.45 system-ui,sans-serif;white-space:pre-wrap;' +
-                'box-shadow:0 4px 18px rgba(0,0,0,.35);cursor:pointer';
-            el.textContent = message;
-            const x = document.createElement('span');
-            x.textContent = '\u00d7';
-            x.style.cssText = 'position:absolute;top:8px;right:12px;font-size:18px;line-height:1';
-            el.appendChild(x);
-            el.onclick = () => el.remove();
-            document.body.appendChild(el);
-            // Long enough to read, and it never blocks anything meanwhile.
-            setTimeout(() => el.remove(), tone === 'ok' ? 12000 : 60000);
-        } catch (e) { /* no DOM to paint into, the console still has it */ }
-        (tone === 'bad' ? console.error : tone === 'warn' ? console.warn : console.log)('ASICS: ' + message);
-    }
-
-    // WHY THE EXTRACTION CAME BACK EMPTY, in one line per possible cause.
-    //
-    // Reads cheaply off the DOM and the URL, never refetches, and is only
-    // called on the failure path, so it cannot slow a good scrape down.
-    extractionDiagnostic(apiFailure) {
-        const n = (sel) => { try { return document.querySelectorAll(sel).length; } catch (e) { return 'selector error'; } };
-        const colors = this.findColors();
-        const sizes = this.findSizes();
-        const matrix = this.findQuantityMatrix();
-        const lines = [
-            // RH_BUILD is a top level const declared further down the file, so
-            // typeof THROWS rather than returning undefined if this somehow
-            // runs before it initialises. A diagnostic that can throw is worse
-            // than useless, it masks the error it was printed to explain.
-            '  build            ' + (() => { try { return RH_BUILD; } catch (e) { return 'unknown, old code'; } })(),
-            '  style id         ' + (this.getProductInfo().styleId || '(none)'),
-            '  basket in URL    ' + (this.basketNoFromUrl() || '(NONE, the API path cannot run without it)'),
-            '  API path         ' + (apiFailure ? 'FAILED: ' + apiFailure : 'returned no rows'),
-            '  colours read     ' + colors.length + (colors.length ? '  [' + colors.map((c) => c.code).join(' ') + ']' : '  <- findColors found nothing'),
-            '  sizes read       ' + sizes.length,
-            '  quantity rows    ' + matrix.length,
-            '  colour swatches  ' + n('li div.flex.items-center.gap-2'),
-            '  grid containers  ' + n('ul[data-v-1cad65fe]') + '   (vue scope hash, changes when ASICS redeploys)',
-            '  grid rows        ' + n('li[data-v-e4dd3fec]') + '   (hash, 0 is expected, the generic li fallback covers it)',
-            '  quantity cells   ' + n('.flex.items-center.justify-center span'),
-        ];
-        if (!colors.length && !matrix.length) {
-            lines.push('  LIKELY CAUSE     the page had not finished rendering. Raise the wait time per page.');
-        } else if (!colors.length) {
-            lines.push('  LIKELY CAUSE     the colour swatch markup changed. findColors wants <span>code</span><span>-</span><span>NAME</span>.');
-        } else if (!matrix.length) {
-            lines.push('  LIKELY CAUSE     the quantity grid markup changed, or this basket shows no availability for the style.');
-        }
-        return lines.join('\n');
-    }
-
-    // The basket number is in the path: /orders/100671391/products/TF3085
-    basketNoFromUrl() {
-        const m = /\/orders\/(\d+)\//.exec(window.location.pathname);
-        return m ? m[1] : '';
     }
 
     extractInventoryData() {
@@ -1857,20 +1552,13 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         return { productName, styleId, width, gender };
     }
 
-    // A COLOUR CODE IS TWO OR THREE DIGITS, and insisting on three is what
-    // made this scraper read nothing at all on apparel.
+    // A COLOUR CODE IS TWO OR THREE DIGITS.
     //
-    // Footwear codes are three digits ("001", "020") so the old /^\d{3}$/ was
-    // never wrong on a shoe. Apparel codes are TWO: measured off TF3085 on
-    // 2026-10-23 the swatch row is 23-RED, 01-WHITE, 43-ROYAL, 50-NAVY,
-    // 90-BLACK, 94-STEEL GREY. The selector found all six elements and the
-    // digit test then threw every one of them away, so findColors returned an
-    // empty array, and extractInventoryData loops over colours, so the page
-    // scrape produced ZERO records on every singlet page. It reported "No
-    // inventory data found" and looked like a page that had not loaded.
-    //
-    // This is also why the API path cannot rely on the page for the colour
-    // set: with no colours readable it falls through to the whole style.
+    // Footwear codes are three ("001", "020"), so demanding three was never
+    // wrong on a shoe and survived for as long as this only saw shoes. Apparel
+    // codes are TWO. Read off the live TF3085 page 2026-10-26 the swatch row is
+    // 23-RED, 01-WHITE, 43-ROYAL, 50-NAVY, 90-BLACK, 94-STEEL GREY: the
+    // selector found all six and the digit test threw all six away.
     findColors() {
         const colors = [];
         
@@ -1911,48 +1599,45 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
 
     // THE SIZE LADDER IS NUMERIC ON A SHOE AND A WORD ON A GARMENT.
     //
-    // `.bg-primary.text-white` is not a size selector, it is a style, and it
-    // also catches "Yes", "Accept", "Add to Cart" and a staff email address.
-    // So the cells have to be filtered by what a size LOOKS like, and there
-    // are two vocabularies. ASICS footwear runs 6 to 16 in half steps. ASICS
-    // apparel runs 4XS, 3XS, 2XS, XS, S, M, L, XL, 2XL, 3XL.
+    // `.bg-primary.text-white` is a style, not a size selector, so it also
+    // catches "Yes", "Accept", "Add to Cart" and a staff email address. The
+    // cells therefore have to be filtered by what a size LOOKS like, and there
+    // are two vocabularies: footwear 3.5 to 16 in half steps, apparel 4XS, 3XS,
+    // 2XS, XS, S, M, L, XL, 2XL, 3XL.
     static sizeTokenKind(text) {
         const t = String(text || '').trim();
         if (/^\d+\.?\d*$/.test(t)) {
             const n = parseFloat(t);
             return (n >= 1 && n <= 20) ? 'numeric' : null;
         }
-        // 4XS and 2XL, then XS and XL, then the bare three, then XXL forms.
         if (/^(?:[2-9]X[SL]|X[SL]|S|M|L|XX+[SL])$/.test(t)) return 'word';
         return null;
     }
 
     findSizes() {
         const sizes = [];
-        const C = EnhancedASICSInventoryExtractor;
-
+        
         const sizeElements = document.querySelectorAll('.bg-primary.text-white');
-
+        
         sizeElements.forEach(el => {
             const sizeText = el.textContent.trim();
-            if (C.sizeTokenKind(sizeText)) {
+            if (EnhancedASICSInventoryExtractor.sizeTokenKind(sizeText)) {
                 sizes.push(sizeText);
             }
         });
-
+        
         // NO INVENTED LADDER. This used to return a hardcoded 17 slot shoe
-        // ladder when it read nothing, and then extractInventoryData maps the
+        // ladder when it read nothing, and extractInventoryData maps the
         // quantity cells onto it BY POSITION. On a garment that silently turns
-        // six apparel quantities into shoe sizes 6, 6.5, 7, 7.5, 8, 8.5, and
-        // the file looks perfectly valid. The ON scraper had exactly this bug
-        // and `checkFile` now refuses its output on sight, so the same mistake
-        // is not worth keeping here. Reading nothing means the header has not
-        // rendered, and the honest answer is no rows.
+        // six apparel quantities into shoe sizes 6 through 8.5, in a file that
+        // looks perfectly valid. The ON scraper had exactly this bug and
+        // `checkFile` now refuses its output on sight. Reading nothing means
+        // the header has not rendered, and the honest answer is no rows.
         if (sizes.length === 0) {
-            console.warn('ASICS: no size header cells matched a size, so no rows. ' +
-                'The grid had probably not rendered. Previously this invented a shoe ladder.');
+            console.warn('ASICS: no size header cell matched a size, so no rows. ' +
+                'The grid had probably not rendered. This used to invent a shoe ladder.');
         }
-
+        
         return sizes;
     }
 
@@ -2095,12 +1780,10 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 const code = spans[0].textContent.trim();
                 const separator = spans[1].textContent.trim();
                 const name = spans[2].textContent.trim();
-                // Two OR three digits. Apparel codes are two, and demanding
-                // three here meant the gate never opened on a garment, so the
-                // scrape timed out and reported "No inventory data found"
-                // without ever calling the extractor. Must agree with
-                // findColors or the gate and the reader disagree about what
-                // the page says.
+                // Two or three digits, matching findColors. Demanding three
+                // here meant the gate never opened on a garment, so the scrape
+                // timed out and reported "No inventory data found" without
+                // ever calling the extractor.
                 if (code.match(/^\d{2,3}$/) && separator === '-' && name.length > 0) {
                     checks.hasColors = true;
                     checks.colorCount++;
@@ -2113,8 +1796,10 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         console.log('[PAGE READINESS] Size elements found:', sizeElements.length);
         sizeElements.forEach(el => {
             const sizeText = el.textContent.trim();
-            // Numeric 6 to 16 was a footwear ladder. A garment's sizes are
-            // words, so nothing matched and the gate stayed shut.
+            // Numeric 6 to 16 was a footwear ladder, so a garment's word
+            // sizes scored zero. It was also wrong on footwear: 1013A141 runs
+            // 3.5 to 13, so this counted 15 sizes where the ladder is 20 and
+            // disagreed with findSizes, which has no such bound.
             if (EnhancedASICSInventoryExtractor.sizeTokenKind(sizeText)) {
                 checks.hasSizes = true;
                 checks.sizeCount++;
@@ -2124,20 +1809,15 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         
         const quantityRows = document.querySelectorAll('.grid.grid-flow-col.items-center');
         console.log('[PAGE READINESS] Quantity rows found:', quantityRows.length);
-        // A FULL ROW IS AS WIDE AS THE LADDER, not ten cells.
-        //
-        // Ten was a proxy for "the grid has finished rendering", and it holds
-        // on footwear because a shoe runs 15 sizes. The women's singlet runs
-        // SIX, so no row ever reached ten and the gate stayed shut on a page
-        // that was completely rendered. Comparing against the ladder actually
-        // expresses the thing ten was guessing at, and it is stricter on
-        // footwear than ten was.
+        // A FULL ROW IS AS WIDE AS THE LADDER, not ten cells. Ten was a proxy
+        // for "the grid has finished rendering" that only holds when the
+        // ladder is a shoe's. The women's singlet runs SIX sizes, so no row
+        // ever reached ten on a page that was completely drawn.
         const fullRow = Math.max(3, checks.sizeCount);
         quantityRows.forEach(row => {
             const cells = row.querySelectorAll('.flex.items-center.justify-center span');
-            // A colourway that says "Product not available" has no cells at
-            // all, which is legitimate, so rows are never required to match
-            // the colour count.
+            // A colourway reading "Product not available" has no cells, which
+            // is legitimate, so rows are never required to match the colours.
             if (cells.length >= fullRow) {
                 checks.hasQuantities = true;
                 checks.quantityRowCount++;
@@ -2167,10 +1847,9 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         const hasProductImages = document.querySelectorAll('picture img').length > 0;
         
         // Ten sizes and fifty quantities were footwear numbers too: a garment
-        // has six sizes and one colourway of it is six quantities, so a fully
-        // rendered apparel page scored 0 and 0 against both. Express the same
-        // intent, one complete ladder actually read, against the shape of the
-        // page in front of us.
+        // has six sizes, and one colourway of it is six quantities, so a fully
+        // rendered apparel page scored 0 against both. Same intent, one
+        // complete ladder actually read, against the shape of this page.
         const hasMinimumColors = checks.colorCount >= 1;
         const hasMinimumSizes = checks.sizeCount >= 3;
         const hasMinimumQuantities = checks.quantityCount >= checks.sizeCount;
@@ -2334,7 +2013,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 console.log('CSV download succeeded with fallback method');
             } catch (fallbackError) {
                 console.error('Fallback CSV download also failed:', fallbackError);
-                EnhancedASICSInventoryExtractor.notify('Could not download the CSV file. The console has the reason.', 'bad');
+                alert('Error downloading CSV file. Check console for details.');
             }
         }
     }
@@ -2870,20 +2549,7 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// A BUILD STAMP, because "is Chrome running my edit?" cost a whole round trip.
-// Chrome serves an unpacked extension's files from disk, but the content script
-// is not re-read until the extension is reloaded on chrome://extensions, and
-// background.js never is. So a fix can be correct on disk, committed, and still
-// not be what the page is running. Reload the extension, open any product page,
-// and this line says which build answered.
-const RH_BUILD = '2026-10-26d';
-console.log('🚀 ASICS Enhanced Unified Extension Loaded Successfully!  build ' + RH_BUILD);
-console.log('   build check: 2 digit colour codes ' +
-    (/^\d{2,3}$/.test('90') ? 'OK' : 'MISSING') +
-    ', availability API reader ' +
-    (typeof EnhancedASICSInventoryExtractor.prototype.extractInventoryDataFromApi === 'function' ? 'OK' : 'MISSING') +
-    ', catalog rows ' +
-    (typeof EnhancedASICSInventoryExtractor.prototype.apiCatalogRows === 'function' ? 'OK' : 'MISSING'));
+console.log('🚀 ASICS Enhanced Unified Extension Loaded Successfully!');
 console.log('✅ FINAL CORRECT: Inventory CSV now uses BOTH "Location" AND "On hand" columns');
 console.log('📦 INVENTORY CSV: Uses "Location" + "On hand" columns - imports to Products > Inventory > Import');
 console.log('🏪 PRODUCT CSV: Uses "Inventory at Needham" - imports to Products > Import');

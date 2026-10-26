@@ -69,12 +69,9 @@ node test/supplier-images.mjs                 # CDN photo keys, URL attach, fold
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
 node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock to Warehouse
-node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, the API does not
-node scrapers/asics/test/api-record-shape.mjs # the API path's colorways must be CATALOG rows
+node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, a known limitation
 node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO digits, not three
-node scrapers/asics/test/extraction-diagnostic.mjs # "no inventory data" must name its cause
 node scrapers/asics/test/readiness-gate.mjs   # the gate must open on a garment, not just a shoe
-node scrapers/asics/test/no-blocking-dialogs.mjs # alert() in a scraper is a hang, not a message
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -308,43 +305,47 @@ all 365 garments carrying exactly `["ON Running", "<model>"]`, losing the gender
 and garment-type tags the collections key on. Union also matches the house rule
 that tagging is add-only outside `product-library.js`.
 
-**THE LINK SCRAPER READ A CAPPED GRID.** The portal prints "30+" for any size
-over 30, and `parseQuantity` turned that into the number 30, so every deep size
-reached Shopify as 30. Measured off one page on 2026-10-23: Black S is really
-161, Black M 205, Red M 302, all three read as 30. The link-iterating scraper
-predates the API path, which is where the "real qty not the 30 cap" note came
-from in the first place. `extractInventoryDataFromApi` now asks the same
-availability endpoint the fast path uses and the DOM is a FALLBACK that warns
-loudly, because quietly writing 30s is how this went unnoticed.
+**THE LINK SCRAPER READS A CAPPED GRID, and that is a known, accepted
+limitation.** The portal prints "30+" for any size over 30, which is
+`maxQuantityDisplayed` in the data behind the page, and `parseQuantity` turns
+that string into 30. Measured on TF3085 2026-10-23: Black S is really 161,
+Black M 205, Red M 302, and all three read as 30. It UNDERSTATES, never
+overstates, so the failure mode is a shoe looking less available than it is,
+never overselling.
 
-**AND THE COLORWAYS IT PASSES MUST BE CATALOG ROWS, which is how the first
-version of that fix broke the scraper outright.** `recordsFromAvailability` was
-written for the fast path, so it reads CATALOG fields: `itemCode`, `itemName`, a
-NUMERIC `gender`, `widthLabel` and `widthTranslationCode`, and `compactSizes`
-for the barcodes. The first version built its colorways out of `getProductInfo`
-and `findColors` instead, which carry `styleId`, `productName` and a gender
-WORD. Only `colorName` overlapped. So it read the right quantities and attached
-them to records with no style id, no product name and no gender, and because
-the array was not empty the DOM fallback never fired either: the scrape ran,
-reported a record count, and produced nothing that could join to a Shopify
-product. `extractInventoryDataFromApi` now fetches the catalog and filters it to
-the style, narrowing to the colours the PAGE shows so that moving this path off
-the DOM changes the quantities and nothing else. Codes are compared with leading
-zeros stripped, because the page prints "090" where the URL and the catalog say
-"90", and a colour set that matches nothing falls through to the whole style
-rather than to an empty array, since empty reads downstream as out of stock.
+**A version that called the availability API instead was built and REVERTED on
+2026-10-26. Do not simply rebuild it.** The API does return the real figures,
+and the fast "Scrape All Shoes" button already uses it successfully. But
+swapping the data source under the link scraper caused a chain of regressions
+that cost far more than the cap does, and the bug that actually had staff
+blocked was never the cap at all. What went wrong, so it is not repeated:
 
-The catalog is one request per basket, cached on the class AND in
-`sessionStorage`, because the link scraper NAVIGATES and that tears the content
-script down between pages. Same origin and same tab for the whole run, so
-sessionStorage lasts exactly as long as the run does.
+- `recordsFromAvailability` was written for the fast path and reads CATALOG row
+  fields (`itemCode`, `itemName`, a NUMERIC gender, `widthLabel`,
+  `compactSizes`). Colorways built from `getProductInfo` and `findColors` carry
+  `styleId`, `productName` and a gender WORD, so only `colorName` overlapped and
+  every record came back with no style, no name and no gender. The array was
+  non-empty, so the DOM fallback never fired either.
+- Fetching the catalog to fix that costs 5.7 MB per call (3,713 rows,
+  measured), and `sessionStorage` CANNOT hold it: the write throws
+  QuotaExceededError every time. The throw was caught, so the cache silently
+  never worked and every link re-downloaded 5.7 MB against an endpoint that
+  soft throttles with 202. Filtering to the run's own styles fixes that (25
+  rows, 25.7 KB) but is more machinery again.
+- `availability[]` is ONE BLOCK PER DELIVERY WINDOW, not chunks to merge.
+  TF3085 Red M is 302 in block 0 for today and 0 in the two later windows;
+  footwear reaches six blocks, and 1011C244 size 10.5 is 173 now, 83 in
+  November, 0 after. `recordsFromAvailability` pushes a record per block with no
+  dedupe, so one variant emits up to six rows ending in 0, and a Shopify
+  inventory CSV applies the LAST row for a variant. That defect is still live in
+  the fast path and is NOT fixed, because it moves footwear numbers store wide
+  and wants measuring first.
 
-`quantity-cap.mjs` did not catch any of this because it only regex matches the
-source for the presence of the function. `api-record-shape.mjs` RUNS it, and
-pins the broken shape too so the difference stays visible.
+If it is worth doing, build it ALONGSIDE the page path and compare both against
+real pages before anything switches over.
 
-**THE LOADED EXTENSION IS `scrapers/asics`, AND CHROME DOES NOT RE-READ IT ON
-A PAGE RELOAD.** Verified 2026-10-23 out of Chrome's Secure Preferences: the
+**THE LOADED EXTENSION IS `scrapers/asics`, AND CHROME DOES NOT RE-READ IT ON A
+PAGE RELOAD.** Verified 2026-10-23 out of Chrome's Secure Preferences: the
 Default profile loads extension id `jenlmlkpgjkimakmkcpffmbhpcmhiamf` unpacked
 from `/Users/ryanmartin/Inventory-Manager-Runhouse-2/scrapers/asics`, so the
 repo IS the live extension. Two stale copies sit on the Desktop
@@ -353,62 +354,32 @@ not edit those.
 
 A fix can therefore be correct on disk, committed, and still not be what the
 page runs: the content script is re-read when the extension is RELOADED on
-chrome://extensions, and `background.js` only then. `content.js` now prints a
-build stamp and a three way capability check in its startup banner, so the
-console answers "is this my code" in one glance instead of a round trip.
+chrome://extensions, and `background.js` only then.
 
 Also worth knowing when reading a B2B console: `/Users/ryanmartin/Desktop/chrome
 extensions /shipping` also injects on b2b.asics.com and logs
 `detectB2BSite returned: asics`, which is NOT this scraper.
 
-**alert() IS A HANG, NOT A MESSAGE, and `completeBackgroundScraping` ended
-EVERY run with one.** A modal dialog blocks the renderer: the extension stops
-receiving events, the navigation loop cannot advance, the tab answers nothing,
-and Chrome reports that it is waiting for the user. Reproduced 2026-10-26 by
-running a one url scrape and watching the tab stop evaluating `1 + 1`, then
-again when closing that tab failed with "Chrome may be waiting for the user".
-The completion alert fired immediately after setting the six modal status
-fields that already said the same thing, so a finished scrape froze the page it
-finished in. That is most of what "stuck" meant, and it is why no CSV appeared:
-the run never got past the dialog to the next url.
+**`alert()` ON COMPLETION FREEZES THE TAB.** `completeBackgroundScraping` ends
+every run with a modal `alert()`, which blocks the renderer: the extension stops
+receiving events, the navigation loop cannot advance, and Chrome itself reports
+that it is waiting for the user. Reproduced 2026-10-26 by running a one url
+scrape and watching the tab stop evaluating `1 + 1`, then failing to close with
+"Chrome may be waiting for the user". Four more sit on the fast path, on a
+download error and on two input validations.
 
-All five are now `notify()`, a self-removing banner that paints and returns.
-The carried-styles-missing warning is KEPT as a banner rather than dropped,
-because a style absent from the file is read as removed and zeroed, so it
-cannot live in the console only. `no-blocking-dialogs.mjs` fails if an `alert`,
-`confirm` or `prompt` comes back to either file, comments and strings excluded.
+This is NOT fixed, deliberately: it is long standing behaviour staff work
+around, and the one change that mattered was the apparel fix below. Replacing
+them with a non-blocking banner is a small, separate change, and the modal's own
+status fields already carry everything the completion alert says.
 
-**THE CATALOG IS 5.7 MB AND sessionStorage CANNOT HOLD IT, so the cache that
-was supposed to make the API path cheap made every page refetch.** Measured
-2026-10-26: `/aac/products?basketNo=` is 5,974,837 bytes over 3,713 rows, 813 ms
-on a good connection, and `sessionStorage.setItem` throws QuotaExceededError on
-it every single time. The throw was caught, so nothing looked wrong, and the
-result was 5.7 MB per LINK against an endpoint that soft throttles with 202.
-One link survives that; a list of fifty is 285 MB, and once `apiBrake` starts
-doubling the steady gap the run crawls and then fails. That is the "stuck on
-footwear" report, and it was introduced by the fix for the 30 cap.
-
-A run only needs the styles in its OWN url list, which `config.urls` already
-holds. `apiCatalogRows` now filters to those and slims each row to the nine
-fields `recordsFromAvailability` reads. Measured over a realistic six style
-list: 3,713 rows and 5.68 MB become 25 rows and 25.7 KB, which caches, reads
-back intact, and is fetched ONCE per run. An unfiltered call does not attempt
-the write at all, because it is certain to throw.
-
-**And the API path is now time boxed, because an unbounded wait looks like a
-hang.** `apiGet` retries a 202 six times with a backoff reaching 15 s, and
-`apiBrake` widens the steady gap on top, so a throttled style could sit there
-for a minute with nothing on screen and no way to tell a slow answer from a
-dead one. The page grid is right there and only costs the 30+ cap, so the API
-gets 45 seconds and the DOM takes over if it overruns.
-
-**THE READINESS GATE WAS THE THING REFUSING THE PAGE, not the extractor.**
+**THE READINESS GATE WAS THE THING REFUSING APPAREL, not the extractor.**
 `checkPageReadinessEnhanced` decides whether a scrape may run at all, and on
 timeout it reports "No inventory data found" WITHOUT EVER CALLING THE
 EXTRACTOR. The same words are printed by a second, unrelated path inside
 `extractCurrentPageDataBackground`. That duplicate wording is why this took
-four rounds: three fixes went into the extractor while the gate in front of it
-never opened.
+several rounds: fix after fix went into the extractor while the gate in front
+of it never opened.
 
 The gate was footwear shaped in four independent ways. Measured on the live
 women's singlet TF2934, 2026-10-26, on a FULLY rendered page:
@@ -420,59 +391,44 @@ women's singlet TF2934, 2026-10-26, on a FULLY rendered page:
 | cells per row | `>= 10` | 6 | 0 valid rows |
 | minimum sizes | `>= 10` | 6 | fails |
 
-Every threshold was an absolute number ststanding in for "the ladder has
-finished rendering", which only holds when the ladder is a shoe's. They are now
-relative to the page's own shape: a full row is `max(3, sizeCount)` cells, and
+Every threshold was an absolute number standing in for "the ladder has finished
+rendering", which only holds when the ladder is a shoe's. They are now relative
+to the page's own shape: a full row is `max(3, sizeCount)` cells, and
 completeness is `quantityCount >= sizeCount`. That is STRICTER on footwear than
-ten was, so it cannot fire early.
+ten was, so it cannot fire early on a half drawn grid. Verified after the fix:
+the singlet gate opens with 6 colours, 6 sizes, 6 rows and 36 quantities, and
+1013A141 still opens with 4 colours and 4 full rows, emitting the same 80
+records as before.
 
-**A fifth bug fell out of fixing it: the `>= 6` bound was wrong on FOOTWEAR
-too.** Style 1013A141 runs 3.5 to 13, so the gate counted 15 sizes where the
-ladder is 20 and silently ignored 3.5 through 5.5. `findSizes` has no such
-bound and read all 20, so the gate and the reader disagreed about the same page.
+**A fifth bug fell out of it: the `>= 6` bound was wrong on FOOTWEAR too.**
+Style 1013A141 runs 3.5 to 13, so the gate counted 15 sizes where the ladder is
+20 and silently ignored 3.5 through 5.5. `findSizes` has no such bound and read
+all 20, so the gate and the reader disagreed about the same page.
 `sizeTokenKind` is now the single vocabulary both use, numeric 1 to 20 or the
 apparel words, and it rejects what `.bg-primary.text-white` also catches:
 "Yes", "Accept", "Add to Cart" and a staff email address.
+
+**A COLOUR CODE IS TWO OR THREE DIGITS, and `findColors` demanded three.**
+Footwear codes are three ("001", "020") so the test was never wrong on a shoe,
+which is why it survived this long. Apparel codes are TWO. On the live TF3085
+page the swatch row is `23-RED 01-WHITE 43-ROYAL 50-NAVY 90-BLACK 94-STEEL
+GREY`: the selector found all six elements and the digit test threw all six
+away. `color-code-digits.mjs` pins both widths and keeps the rejections
+rejected.
 
 **And `findSizes` no longer INVENTS a ladder.** It used to return a hardcoded 17
 slot shoe ladder when it read nothing, and `extractInventoryData` maps quantity
 cells onto the ladder BY POSITION, so on a garment six apparel quantities
 silently became shoe sizes 6 through 8.5 in a file that looks perfectly valid.
-That is the exact ON scraper bug `checkFile` now refuses on sight. Reading
-nothing means the header has not rendered, and the honest answer is no rows.
+That is the exact ON scraper bug `checkFile` exists to refuse. Reading nothing
+now means no rows, which is the honest answer.
 
-**"NO INVENTORY DATA FOUND" NAMES NO CAUSE, and that is why it took three
-rounds.** Landing on that message means BOTH extraction paths returned empty,
-and they fail for unrelated reasons: the API for a missing basket number or a
-style the basket does not carry, the DOM because the grid had not rendered or
-because a selector stopped matching. Two fixes got shipped against things that
-were real bugs but were not the blocker, because the message could not tell
-those apart. `extractionDiagnostic` now prints the readings that separate them,
-on the failure path only: build stamp, style id, basket number, the API error
-verbatim, colours read, sizes read, quantity rows, and each raw selector count,
-then names the likely cause. Verified against live pages 2026-10-26: on a
-rendered footwear page the API path returns 360 rows with correct identity and
-the DOM path returns 4 colours by 15 sizes, so neither path is broken on a good
-page and an empty result means something specific that the diagnostic will now
-say out loud.
-
-Two readings worth knowing before reading one: `li[data-v-e4dd3fec]` is ALREADY
-0 on the live site, the vue scope hash changed and the generic `li` fallback
-covers it, so a zero there is normal and not the fault. And the colour swatches
-and quantity grid render ASYNC, several seconds after navigation, so a scrape
-that runs too early sees zero of everything.
-
-**A COLOUR CODE IS TWO OR THREE DIGITS, and `findColors` demanded three.**
-Footwear codes are three ("001", "020") so the test `/^\d{3}$/` was never wrong
-on a shoe, which is why it survived this long. Apparel codes are TWO. On the
-live TF3085 page the swatch row is `23-RED 01-WHITE 43-ROYAL 50-NAVY 90-BLACK
-94-STEEL GREY`: the selector found all six elements and the digit test threw
-all six away. `findColors` returned an empty array, `extractInventoryData`
-loops over colours, so the page scrape produced ZERO records on every singlet
-page and said "No inventory data found", which reads exactly like a page that
-failed to load. This is the bug that made the scraper look dead on these pages,
-and it predates the API path entirely. `color-code-digits.mjs` pins both widths
-and keeps the things that must still be rejected rejected.
+**Two readings that look alarming and are not the fault.**
+`li[data-v-e4dd3fec]` is ALREADY 0 on the live site, that vue scope hash
+changed and the generic `li` fallback covers it. And the colour swatches and
+quantity grid render ASYNC, several seconds after navigation, so a scrape that
+runs too early sees zero of everything; that is what the wait time per page is
+for.
 
 **NOTHING FETCHES SUPPLIER STOCK ON A SCHEDULE, and the daily cron is not that.**
 `0 9 * * *` rebuilds the catalog KV, which READS Shopify into cache. Dropship

@@ -53,38 +53,25 @@ eq('a dash is zero', parseQuantity('-'), 0);
 eq('"30+" reads as 30, which is the whole problem', parseQuantity('30+'), 30);
 eq('so 161 at ASICS would reach Shopify as', parseQuantity('30+'), 30);
 
-console.log('\nThe scraper must therefore prefer the API');
-const hasApiReader = /async extractInventoryDataFromApi\(config\)/.test(src);
-hasApiReader ? ok('extractInventoryDataFromApi exists') : bad('the API reader is gone');
-
-// Raced against a timeout budget now, so the API can never hang the run.
-const prefersApi = /Promise\.race\(\[this\.extractInventoryDataFromApi\(config\), budget\]\)/.test(src);
-prefersApi ? ok('the auto-scrape path calls it FIRST') : bad('the auto-scrape path no longer calls the API first');
-
-const fallsBack = /quantitySource = 'dom'[\s\S]{0,200}extractInventoryData\(\)/.test(src);
-fallsBack ? ok('it still falls back to the page if the API fails') : bad('the DOM fallback is missing');
-
-const warnsOnFallback = /CAPPED at 30/.test(src);
-warnsOnFallback ? ok('and says so loudly when it does, rather than quietly writing 30s')
-                : bad('the fallback no longer warns that quantities are capped');
-
-console.log('\nThe availability URL is built the way the portal builds it');
-const url = /\/availability\?basketNo=' \+ encodeURIComponent\(basketNo\) \+\s*\n?\s*'&colorCodeDistributorNo=' \+ colorCodes/.test(src.replace(/\s+/g, ' ').replace(/ /g, ' '));
-const urlLoose = /availability\?basketNo=/.test(src) && /colorCodeDistributorNo=/.test(src);
-urlLoose ? ok('basketNo and colorCodeDistributorNo are both present')
-         : bad('the availability URL no longer carries the expected parameters');
-
-const basketFromPath = /\/\\\/orders\\\/\(\\d\+\)\\\//.test(src) || /orders\\\/\(\\d\+\)/.test(src);
-basketFromPath ? ok('the basket number is read from /orders/<n>/ in the path')
-               : bad('basketNoFromUrl no longer reads the order number from the path');
-
-console.log('\nThe real numbers this protects, from TF3085 on 2026-10-23');
-const real = { 'Black S': 161, 'Black M': 205, 'Red M': 302 };
-for (const [label, n] of Object.entries(real)) {
-  const capped = parseQuantity('30+');
-  n > capped ? ok(label + ' is ' + n + ' at ASICS, the page would have said ' + capped)
-             : bad(label + ' no longer exceeds the cap', { n });
-}
+// KNOWN LIMITATION, deliberately not fixed here.
+//
+// The page is the only source this scraper reads, so a size with more than 30
+// available is written to Shopify as 30. The availability API does return the
+// real figure, and a version of this scraper that called it was tried and
+// reverted on 2026-10-26: swapping the data source out from under a working
+// tool caused a chain of regressions that cost more than the cap does. If it
+// is worth fixing, it should be built alongside the page path and compared
+// against it on real pages before anything switches over.
+//
+// What the cap actually costs, measured on TF3085 2026-10-23:
+//
+//     size          page    API
+//     Black S       30+     161
+//     Black M       30+     205
+//     Red   M       30+     302
+//
+// It UNDERSTATES, never overstates, so the failure mode is a shoe looking less
+// available than it is, not overselling.
 
 console.log(failures ? '\n' + failures + ' FAILED\n' : '\nall good\n');
 process.exit(failures ? 1 : 0);
