@@ -581,7 +581,7 @@ same file under the same name**:
 | around | gates |
 |---|---|
 | L29 | the MARKUP, the upload box inside the product form |
-| L499 | the SCRIPT, the Cloudinary logic after `{%- endform -%}` |
+| L499 | the SCRIPT, the Cloudinary logic after the form tag closes |
 
 A handle in only the first gives the customer a file input that does nothing. In
 only the second, the script runs against markup that is not there. They had
@@ -594,6 +594,16 @@ concatenated with no comma between them
 so that entry matches no product and that long sleeve tee has been silently
 missing its upload box. Left alone, because enabling a product nobody asked
 about is a different decision, but it wants fixing.
+
+**Do not paste raw Liquid tags into this file.** GitHub Pages serves the
+frontend from this branch and its default build runs the markdown through
+Jekyll, which parses Liquid BEFORE markdown, so backticks do not protect it. A
+An endform tag written here as documentation, with its Liquid braces intact,
+failed the Pages build with "Liquid syntax error: Unknown tag 'endform'" and the
+site stopped deploying.
+A `.nojekyll` file at the root now turns Jekyll off entirely, which is right for
+a repo of plain HTML and JS with no templates, but describe Liquid in prose
+anyway rather than relying on it.
 
 `tools/enable-file-upload.mjs` adds handles to BOTH lists, reads the live theme
 by ROLE rather than by id (ids on this shop change and the live theme has been
