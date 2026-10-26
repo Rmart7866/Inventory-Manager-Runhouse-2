@@ -1032,9 +1032,12 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             // can be 302. See extractInventoryDataFromApi.
             let inventoryData = null;
             let quantitySource = 'api';
+            let apiFailure = null;
             try {
                 inventoryData = await this.extractInventoryDataFromApi();
+                if (!inventoryData) apiFailure = 'returned nothing (no style id, no basket number in the URL, or the style is not in this basket\'s catalog)';
             } catch (apiErr) {
+                apiFailure = apiErr.message;
                 console.warn('ASICS: availability API failed, falling back to the page grid:', apiErr.message);
             }
             if (!inventoryData || !inventoryData.length) {
@@ -1056,10 +1059,22 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             }
 
             if (inventoryData.length === 0) {
+                // SAY WHY, BECAUSE "No inventory data found" NAMES NO CAUSE.
+                //
+                // Both paths have to come back empty to land here, and the two
+                // fail for completely unrelated reasons: the API for a missing
+                // basket number or a style the basket does not carry, the DOM
+                // because the grid had not rendered yet or because a selector
+                // stopped matching. The bare message sent three separate
+                // debugging rounds down the wrong path, including two fixes to
+                // things that were not the blocker, so it now carries the
+                // readings that tell the two apart.
+                const diag = this.extractionDiagnostic(apiFailure);
+                console.error('ASICS: NO INVENTORY DATA for ' + window.location.href + '\n' + diag);
                 config.results.push({
                     url: window.location.href,
                     data: [],
-                    error: 'No inventory data found',
+                    error: 'No inventory data found. ' + diag,
                     timestamp: new Date().toISOString(),
                     success: false,
                     recordCount: 0,
@@ -1496,6 +1511,42 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         C._catalogBasket = basketNo;
         try { sessionStorage.setItem(key, JSON.stringify(rows)); } catch (e) { /* over quota, fine */ }
         return rows;
+    }
+
+    // WHY THE EXTRACTION CAME BACK EMPTY, in one line per possible cause.
+    //
+    // Reads cheaply off the DOM and the URL, never refetches, and is only
+    // called on the failure path, so it cannot slow a good scrape down.
+    extractionDiagnostic(apiFailure) {
+        const n = (sel) => { try { return document.querySelectorAll(sel).length; } catch (e) { return 'selector error'; } };
+        const colors = this.findColors();
+        const sizes = this.findSizes();
+        const matrix = this.findQuantityMatrix();
+        const lines = [
+            // RH_BUILD is a top level const declared further down the file, so
+            // typeof THROWS rather than returning undefined if this somehow
+            // runs before it initialises. A diagnostic that can throw is worse
+            // than useless, it masks the error it was printed to explain.
+            '  build            ' + (() => { try { return RH_BUILD; } catch (e) { return 'unknown, old code'; } })(),
+            '  style id         ' + (this.getProductInfo().styleId || '(none)'),
+            '  basket in URL    ' + (this.basketNoFromUrl() || '(NONE, the API path cannot run without it)'),
+            '  API path         ' + (apiFailure ? 'FAILED: ' + apiFailure : 'returned no rows'),
+            '  colours read     ' + colors.length + (colors.length ? '  [' + colors.map((c) => c.code).join(' ') + ']' : '  <- findColors found nothing'),
+            '  sizes read       ' + sizes.length,
+            '  quantity rows    ' + matrix.length,
+            '  colour swatches  ' + n('li div.flex.items-center.gap-2'),
+            '  grid containers  ' + n('ul[data-v-1cad65fe]') + '   (vue scope hash, changes when ASICS redeploys)',
+            '  grid rows        ' + n('li[data-v-e4dd3fec]') + '   (hash, 0 is expected, the generic li fallback covers it)',
+            '  quantity cells   ' + n('.flex.items-center.justify-center span'),
+        ];
+        if (!colors.length && !matrix.length) {
+            lines.push('  LIKELY CAUSE     the page had not finished rendering. Raise the wait time per page.');
+        } else if (!colors.length) {
+            lines.push('  LIKELY CAUSE     the colour swatch markup changed. findColors wants <span>code</span><span>-</span><span>NAME</span>.');
+        } else if (!matrix.length) {
+            lines.push('  LIKELY CAUSE     the quantity grid markup changed, or this basket shows no availability for the style.');
+        }
+        return lines.join('\n');
     }
 
     // The basket number is in the path: /orders/100671391/products/TF3085
@@ -2644,7 +2695,7 @@ document.head.appendChild(style);
 // background.js never is. So a fix can be correct on disk, committed, and still
 // not be what the page is running. Reload the extension, open any product page,
 // and this line says which build answered.
-const RH_BUILD = '2026-10-23c';
+const RH_BUILD = '2026-10-26a';
 console.log('🚀 ASICS Enhanced Unified Extension Loaded Successfully!  build ' + RH_BUILD);
 console.log('   build check: 2 digit colour codes ' +
     (/^\d{2,3}$/.test('90') ? 'OK' : 'MISSING') +

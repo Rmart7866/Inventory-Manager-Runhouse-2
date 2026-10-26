@@ -72,6 +72,7 @@ node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock t
 node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, the API does not
 node scrapers/asics/test/api-record-shape.mjs # the API path's colorways must be CATALOG rows
 node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO digits, not three
+node scrapers/asics/test/extraction-diagnostic.mjs # "no inventory data" must name its cause
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -357,6 +358,27 @@ console answers "is this my code" in one glance instead of a round trip.
 Also worth knowing when reading a B2B console: `/Users/ryanmartin/Desktop/chrome
 extensions /shipping` also injects on b2b.asics.com and logs
 `detectB2BSite returned: asics`, which is NOT this scraper.
+
+**"NO INVENTORY DATA FOUND" NAMES NO CAUSE, and that is why it took three
+rounds.** Landing on that message means BOTH extraction paths returned empty,
+and they fail for unrelated reasons: the API for a missing basket number or a
+style the basket does not carry, the DOM because the grid had not rendered or
+because a selector stopped matching. Two fixes got shipped against things that
+were real bugs but were not the blocker, because the message could not tell
+those apart. `extractionDiagnostic` now prints the readings that separate them,
+on the failure path only: build stamp, style id, basket number, the API error
+verbatim, colours read, sizes read, quantity rows, and each raw selector count,
+then names the likely cause. Verified against live pages 2026-10-26: on a
+rendered footwear page the API path returns 360 rows with correct identity and
+the DOM path returns 4 colours by 15 sizes, so neither path is broken on a good
+page and an empty result means something specific that the diagnostic will now
+say out loud.
+
+Two readings worth knowing before reading one: `li[data-v-e4dd3fec]` is ALREADY
+0 on the live site, the vue scope hash changed and the generic `li` fallback
+covers it, so a zero there is normal and not the fault. And the colour swatches
+and quantity grid render ASYNC, several seconds after navigation, so a scrape
+that runs too early sees zero of everything.
 
 **A COLOUR CODE IS TWO OR THREE DIGITS, and `findColors` demanded three.**
 Footwear codes are three ("001", "020") so the test `/^\d{3}$/` was never wrong
