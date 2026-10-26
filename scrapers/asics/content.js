@@ -451,10 +451,10 @@ class EnhancedASICSInventoryExtractor {
                 if (absent.length) {
                     btn.textContent = 'Done, but ' + absent.length + ' carried styles missing';
                     btn.style.background = '#fd7e14';
-                    alert('ASICS scrape finished, but ' + absent.length + ' style(s) the store carries are not ' +
-                        'in the ASICS catalog:\n\n' + absent.join(', ') +
-                        '\n\nThese are absent from the CSV, so the tool will read them as removed and zero ' +
-                        'their stock. Check them before writing inventory.');
+                    EnhancedASICSInventoryExtractor.notify('Scrape finished, but ' + absent.length +
+                        ' style(s) the store carries are not in the ASICS catalog:\n\n' + absent.join(', ') +
+                        '\n\nThese are absent from the CSV, so the tool will read them as removed and ZERO ' +
+                        'their stock. Check them before writing inventory.', 'warn');
                 } else {
                     btn.textContent = 'Done: ' + records.length + ' rows';
                     btn.style.background = '#28a745';
@@ -833,7 +833,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         const selectedFormat = document.querySelector('input[name="csvFormat"]:checked').value;
         
         if (!urlInput) {
-            alert('Please enter at least one URL');
+            EnhancedASICSInventoryExtractor.notify('Enter at least one URL first.', 'bad');
             return;
         }
         
@@ -866,7 +866,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         });
         
         if (urls.length === 0) {
-            alert('Please enter valid URLs (starting with http)');
+            EnhancedASICSInventoryExtractor.notify('No usable URLs. Each line must start with http.', 'bad');
             return;
         }
         
@@ -1305,7 +1305,18 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             ? 'Import to: Products → Inventory → Import'
             : 'Import to: Products → Import';
         
-        alert(`${formatUpper} CSV Auto-scraping completed in ${totalTime} seconds!\n\nSuccessful: ${successfulResults.length}\nFailed: ${failedResults.length}\n${formatUpper} CSV files downloaded\n\n${importInstructions}\nReady for Shopify import!`);
+        // NOT an alert. This ran at the end of every single run and left the
+        // tab unresponsive, which is what "stuck" turned out to mean. Every
+        // field above already says the same thing in the modal.
+        EnhancedASICSInventoryExtractor.notify(
+            formatUpper + ' CSV scrape finished in ' + totalTime + 's.\n' +
+            'Succeeded: ' + successfulResults.length + '   Failed: ' + failedResults.length + '\n' +
+            importInstructions,
+            failedResults.length ? 'warn' : 'ok');
+        if (failedResults.length) {
+            // The per url reason, which now carries the diagnostic.
+            failedResults.forEach((r) => console.error('ASICS: FAILED ' + r.url + '\n' + (r.error || 'no reason recorded')));
+        }
     }
 
     setupExtractionAfterNavigationBackground(config, modal, url) {
@@ -1596,6 +1607,38 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             catch (e) { console.warn('ASICS: could not cache the catalog slice: ' + e.name); }
         }
         return rows;
+    }
+
+    // A NOTICE THAT DOES NOT FREEZE THE BROWSER.
+    //
+    // alert() is a MODAL dialog: it blocks the renderer, the extension stops
+    // receiving events, and the navigation loop cannot advance. On a scraper
+    // that is not a cosmetic choice, it is a hang. The completion alert in
+    // particular fired at the end of every run and left a tab that answered
+    // nothing, which is most of what "stuck" meant. The modal's own status
+    // fields already carry the same information, so this paints a banner and
+    // returns immediately.
+    static notify(message, tone) {
+        const colours = { ok: '#28a745', warn: '#fd7e14', bad: '#dc3545' };
+        try {
+            document.querySelectorAll('.asics-notice').forEach((n) => n.remove());
+            const el = document.createElement('div');
+            el.className = 'asics-notice';
+            el.style.cssText = 'position:fixed;top:70px;right:20px;z-index:30000;max-width:420px;' +
+                'background:' + (colours[tone] || colours.ok) + ';color:#fff;padding:14px 40px 14px 16px;' +
+                'border-radius:5px;font:13px/1.45 system-ui,sans-serif;white-space:pre-wrap;' +
+                'box-shadow:0 4px 18px rgba(0,0,0,.35);cursor:pointer';
+            el.textContent = message;
+            const x = document.createElement('span');
+            x.textContent = '\u00d7';
+            x.style.cssText = 'position:absolute;top:8px;right:12px;font-size:18px;line-height:1';
+            el.appendChild(x);
+            el.onclick = () => el.remove();
+            document.body.appendChild(el);
+            // Long enough to read, and it never blocks anything meanwhile.
+            setTimeout(() => el.remove(), tone === 'ok' ? 12000 : 60000);
+        } catch (e) { /* no DOM to paint into, the console still has it */ }
+        (tone === 'bad' ? console.error : tone === 'warn' ? console.warn : console.log)('ASICS: ' + message);
     }
 
     // WHY THE EXTRACTION CAME BACK EMPTY, in one line per possible cause.
@@ -2291,7 +2334,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 console.log('CSV download succeeded with fallback method');
             } catch (fallbackError) {
                 console.error('Fallback CSV download also failed:', fallbackError);
-                alert('Error downloading CSV file. Check console for details.');
+                EnhancedASICSInventoryExtractor.notify('Could not download the CSV file. The console has the reason.', 'bad');
             }
         }
     }
@@ -2833,7 +2876,7 @@ document.head.appendChild(style);
 // background.js never is. So a fix can be correct on disk, committed, and still
 // not be what the page is running. Reload the extension, open any product page,
 // and this line says which build answered.
-const RH_BUILD = '2026-10-26c';
+const RH_BUILD = '2026-10-26d';
 console.log('🚀 ASICS Enhanced Unified Extension Loaded Successfully!  build ' + RH_BUILD);
 console.log('   build check: 2 digit colour codes ' +
     (/^\d{2,3}$/.test('90') ? 'OK' : 'MISSING') +

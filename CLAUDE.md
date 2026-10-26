@@ -74,6 +74,7 @@ node scrapers/asics/test/api-record-shape.mjs # the API path's colorways must be
 node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO digits, not three
 node scrapers/asics/test/extraction-diagnostic.mjs # "no inventory data" must name its cause
 node scrapers/asics/test/readiness-gate.mjs   # the gate must open on a garment, not just a shoe
+node scrapers/asics/test/no-blocking-dialogs.mjs # alert() in a scraper is a hang, not a message
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -359,6 +360,23 @@ console answers "is this my code" in one glance instead of a round trip.
 Also worth knowing when reading a B2B console: `/Users/ryanmartin/Desktop/chrome
 extensions /shipping` also injects on b2b.asics.com and logs
 `detectB2BSite returned: asics`, which is NOT this scraper.
+
+**alert() IS A HANG, NOT A MESSAGE, and `completeBackgroundScraping` ended
+EVERY run with one.** A modal dialog blocks the renderer: the extension stops
+receiving events, the navigation loop cannot advance, the tab answers nothing,
+and Chrome reports that it is waiting for the user. Reproduced 2026-10-26 by
+running a one url scrape and watching the tab stop evaluating `1 + 1`, then
+again when closing that tab failed with "Chrome may be waiting for the user".
+The completion alert fired immediately after setting the six modal status
+fields that already said the same thing, so a finished scrape froze the page it
+finished in. That is most of what "stuck" meant, and it is why no CSV appeared:
+the run never got past the dialog to the next url.
+
+All five are now `notify()`, a self-removing banner that paints and returns.
+The carried-styles-missing warning is KEPT as a banner rather than dropped,
+because a style absent from the file is read as removed and zeroed, so it
+cannot live in the console only. `no-blocking-dialogs.mjs` fails if an `alert`,
+`confirm` or `prompt` comes back to either file, comments and strings excluded.
 
 **THE CATALOG IS 5.7 MB AND sessionStorage CANNOT HOLD IT, so the cache that
 was supposed to make the API path cheap made every page refetch.** Measured
