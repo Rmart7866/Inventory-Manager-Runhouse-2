@@ -194,3 +194,6 @@ specs-clear-rollback-*.json
 on-pdp-cache/
 main-menu-rollback-*.json
 asics-availability.json
+
+# Theme asset backups written by tools/enable-file-upload.mjs
+product-form-backup-*.liquid

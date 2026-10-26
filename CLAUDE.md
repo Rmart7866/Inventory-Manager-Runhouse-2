@@ -99,6 +99,7 @@ node tools/push-asics-availability.mjs               # write ASICS stock to the 
 #   tools/capture-asics-availability.js
 node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways collapse to one card
 node tools/fix-la-singlet-listings.mjs       # category, SEO, vendor and type on the four LA listings
+node tools/enable-file-upload.mjs            # logo upload on, by handle, in the LIVE theme
 
 # Collective, the dropship marketplace: 2,728 products across 40+ vendors.
 node tools/tag-collective-apparel.mjs         # the apparel tags, by VENDOR verdict
@@ -565,6 +566,46 @@ against 0.2 lb on the base garments, and shipping is rated off it, so guessing
 low undercharges real postage on every order; someone should weigh a printed
 singlet in its mailer. And the "Event Logo(s)" option stays a variant option by
 owner's decision, with the 8x aggregate consequence recorded above.
+
+**THE LOGO FILE UPLOAD IS HARDCODED IN THE THEME, AND IT IS TWO ALLOWLISTS
+THAT MUST AGREE.** It is not an app and not a metafield. The block lives in
+`snippets/product-form.liquid` in the LIVE theme, posts to Cloudinary (cloud
+`drc8rx5xh`, preset `logo_uploads`) and records the result on the line item as
+`properties[_file_url]`, `_file_name`, `_file_size`, `_file_type`,
+`_cloudinary_id`, plus `FLOW TRIGGER`, `LOGO STATUS` and two fulfillment notes.
+It accepts `.svg,.ai,.eps` only and rejects raster files.
+
+The gate is a handle allowlist, `file_upload_products`, **assigned TWICE in the
+same file under the same name**:
+
+| around | gates |
+|---|---|
+| L29 | the MARKUP, the upload box inside the product form |
+| L499 | the SCRIPT, the Cloudinary logic after `{%- endform -%}` |
+
+A handle in only the first gives the customer a file input that does nothing. In
+only the second, the script runs against markup that is not there. They had
+already drifted when found 2026-10-26: 19 entries against 20, one handle listed
+twice in the second, and the FIRST entry of the first list is two handles
+concatenated with no comma between them
+
+    ...performance-tee-lst353ls2026-los-angeles-marathon-sponsors-partners...
+
+so that entry matches no product and that long sleeve tee has been silently
+missing its upload box. Left alone, because enabling a product nobody asked
+about is a different decision, but it wants fixing.
+
+`tools/enable-file-upload.mjs` adds handles to BOTH lists, reads the live theme
+by ROLE rather than by id (ids on this shop change and the live theme has been
+renamed more than once), refuses to write if anything outside the two
+allowlists differs, backs the file up first and takes `--restore <backup>`.
+
+The four LA 2027 singlets were added 2026-10-26 and verified against the live
+storefront: all four render the box and the Cloudinary script, while a base
+garment, a shoe and last year's charity singlet are unchanged. Checking the
+rendered HTML for the string `product-file-upload` is NOT a valid test, because
+the CSS block carrying that class name is emitted on every product page
+regardless of the gate. Test for the heading "Upload your logo" instead.
 
 **THE LA LISTINGS SHOW WHAT ASICS CAN SHIP, not what is on a shelf.** They sell
 to order: the blank is bought from ASICS and printed. The two numbers are wildly
