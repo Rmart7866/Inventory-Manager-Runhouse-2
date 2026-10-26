@@ -617,11 +617,53 @@ rendered HTML for the string `product-file-upload` is NOT a valid test, because
 the CSS block carrying that class name is emitted on every product page
 regardless of the gate. Test for the heading "Upload your logo" instead.
 
-**THE LA LISTINGS SHOW WHAT ASICS CAN SHIP, not what is on a shelf.** They sell
-to order: the blank is bought from ASICS and printed. The two numbers are wildly
-different, TF3085 Black Medium is 205 at ASICS and was 4 at the Warehouse.
-`tools/push-asics-availability.mjs` writes the ASICS figure to Warehouse and
-nowhere else.
+**EVERY SINGLET LISTING SHOWS WHAT ASICS CAN SHIP, not what is on a shelf, and
+that includes the BASE garments.** Nothing is held and counted: the blank is
+bought from ASICS when an order comes in and printed, so the number a shopper
+should see is supplier availability. The two are wildly different. Measured
+2026-10-26 before the base listings were brought in line:
+
+| | on the shelf | ASICS can ship |
+|---|---|---|
+| TF3085 Black Small | 7 | 161 |
+| TF3085 Black Medium | 4 | 205 |
+| TF3085 Black Large | 8 | **0** |
+| TF2934 Black Medium | **77** | 8 |
+
+The old numbers were stale counts, wrong in both directions, and Large was
+selling a size ASICS cannot supply. `tools/push-asics-availability.mjs` now
+covers all TWELVE listings, the four LA 2027 mirrors and the eight base
+garments, writing to Warehouse and nowhere else. 50 base variants were corrected
+on 2026-10-26. All 52 base variants are DENY, so a zero genuinely stops the sale.
+
+**THE BASE LISTINGS SPELL BOTH OPTIONS DIFFERENTLY FROM THE MIRRORS**, which is
+why one tool did not already reach them. The mirrors say "Black" and "3Xlarge";
+the base garments say "Black-090" and "3XLarge". Rather than a second pair of
+tables that could drift from the first, the match now ignores case and
+punctuation and reads the ASICS colour code off the END of the colour name when
+one is there, so "Black-090" resolves to ASICS 90 and "White-001" to 01. All 52
+base variants map with none left over.
+
+**AND THIS IS WHY THE LINK LIST IS THE WRONG MECHANISM FOR SINGLETS, even
+though the intent is right.** Treating them as dropship out of Warehouse is
+exactly correct, and the ASICS URL list even supports a per line Warehouse
+location. Two things stop the scraper doing it:
+
+- **The join.** The scraper's CSV is keyed on the handle, option values and SKU
+  it GENERATES (`tf3085-90`, size `S`, colour `BLACK`, SKU `TF3085-90-S`). The
+  base listings have handle `asics-mens-rival-ii-singlet-black-tf3085`, sizes
+  `XSmall` to `3XLarge`, colours `Black-090`, and **0 SKUs on all 52 variants**.
+  Verified 2026-10-26: a scraped TF3085 CSV matched nothing at all, which is the
+  only reason it has never done damage.
+- **The 30 cap.** The scraper reads the rendered grid, which prints "30+" for
+  anything over 30. Black Small would import as 30 against a real 161. For a
+  garment sold to a whole marathon field that is not a rounding error.
+
+So singlets stay on `push-asics-availability.mjs`, which has the real uncapped
+figures and needs no SKUs because it joins on the option values. Leaving the
+TF3085 and TF2934 lines in the link list is harmless today, since they match
+nothing, but it is a loaded gun: add SKUs to those listings to "make the scrape
+work" and it would start writing 30s over the real numbers.
 
 The ASICS scraper's CSV cannot reach those listings, which is why this is a
 separate tool: the CSV is keyed on the handle and option values the SCRAPER

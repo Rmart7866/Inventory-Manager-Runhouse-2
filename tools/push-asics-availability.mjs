@@ -77,12 +77,59 @@ async function gql(q, v = {}, attempt = 0) {
 // the base garment listings as "Black-090", "Navy-050" and so on.
 const COLOUR = { '90': 'Black', '50': 'Navy', '43': 'Royal', '01': 'White', '23': 'Red', '94': 'Steel Grey' };
 const SIZE = { 'XS': 'XSmall', 'S': 'Small', 'M': 'Medium', 'L': 'Large', 'XL': 'Xlarge', '2XL': '2Xlarge', '3XL': '3Xlarge' };
+// THE BASE GARMENTS ARE ORDER ON DEMAND TOO, so they get ASICS availability
+// exactly like the mirrors. The Warehouse numbers that were on them before this
+// (measured 2026-10-26: women's Black Medium read 77 on the shelf against 8 at
+// ASICS, men's Black Large read 8 against 0) were stale counts, not a stock
+// take worth preserving. Nothing is held and counted; the blank is bought when
+// an order comes in, so what a shopper should see is what ASICS can ship.
+//
+// Red and Steel Grey are stocked by ASICS but have no base listing on Shopify,
+// so those two colours are simply never written.
 const TARGETS = [
+  // the four LA 2027 mirror listings
   { style: 'TF3085', handle: '2027-asics-la-marathon-charities-asics-mens-rival-ii-singlet-tf3085' },
   { style: 'TF3085', handle: '2026-asics-los-angeles-marathon-run-clubs-asics-mens-rival-ii-singlet' },
   { style: 'TF2934', handle: '2026-los-angeles-marathon-womens-performance-tank' },
   { style: 'TF2934', handle: '2026-asics-los-angeles-marathon-run-clubs-asics-womens-rival-ii-singlet' },
+  // the base garments, one listing per colour
+  { style: 'TF3085', handle: 'asics-mens-rival-ii-singlet-black-tf3085' },
+  { style: 'TF3085', handle: 'asics-mens-rival-ii-singlet-navy-tf3085' },
+  { style: 'TF3085', handle: 'asics-mens-rival-ii-singlet-royal-tf3085' },
+  { style: 'TF3085', handle: 'asics-mens-rival-ii-singlet-white-tf3085' },
+  { style: 'TF2934', handle: 'asics-womens-rival-ii-singlet-black-tf2934' },
+  { style: 'TF2934', handle: 'asics-womens-rival-ii-singlet-navy-tf2934' },
+  { style: 'TF2934', handle: 'asics-womens-rival-ii-singlet-royal-tf2934' },
+  { style: 'TF2934', handle: 'asics-womens-rival-ii-singlet-white-tf2934' },
 ];
+
+// THE BASE LISTINGS SPELL BOTH OPTIONS DIFFERENTLY FROM THE MIRRORS, so the
+// exact string match that served the mirrors reaches none of them. The mirrors
+// say "Black" and "3Xlarge"; the base garments say "Black-090" and "3XLarge".
+//
+// Rather than a second pair of tables that can drift from the first, match
+// loosely in the two ways the store actually varies: ignore case and
+// punctuation, and read the ASICS colour code off the END of the colour name
+// when one is there. "Black-090" gives 090, which is the 90 ASICS uses, and
+// "White-001" gives 001, which is their 01.
+const norm = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+function asicsColourCode(colourValue) {
+  const m = /(\d{2,3})\s*$/.exec(String(colourValue || ''));
+  if (m) {
+    const bare = String(parseInt(m[1], 10));
+    const byCode = Object.keys(COLOUR).find((k) => String(parseInt(k, 10)) === bare);
+    if (byCode) return byCode;
+  }
+  return Object.keys(COLOUR).find((k) => norm(COLOUR[k]) === norm(colourValue));
+}
+
+function asicsSizeToken(sizeValue) {
+  // The Shopify spelling first, then the ASICS token itself, in case a listing
+  // was built with "2XL" rather than "2Xlarge".
+  return Object.keys(SIZE).find((k) => norm(SIZE[k]) === norm(sizeValue))
+      || Object.keys(SIZE).find((k) => norm(k) === norm(sizeValue));
+}
 
 const avail = JSON.parse(fs.readFileSync(path.join(ROOT, FILE), 'utf8'));
 console.log('availability captured ' + (avail.capturedAt || '(unknown)') + ', basket ' + (avail.basketNo || '-'));
@@ -113,8 +160,8 @@ for (const t of TARGETS) {
   for (const v of vars) {
     const size = (v.selectedOptions.find((o) => /^size$/i.test(o.name)) || {}).value;
     const colour = (v.selectedOptions.find((o) => /^colou?r$/i.test(o.name)) || {}).value;
-    const code = Object.keys(COLOUR).find((k) => COLOUR[k].toLowerCase() === String(colour).toLowerCase());
-    const asicsSize = Object.keys(SIZE).find((k) => SIZE[k].toLowerCase() === String(size).toLowerCase());
+    const code = asicsColourCode(colour);
+    const asicsSize = asicsSizeToken(size);
     if (!code || !asicsSize) { unmapped.add(JSON.stringify({ size, colour })); miss++; continue; }
     const qty = stock[code] && stock[code][asicsSize];
     if (qty == null) { missing.push(t.style + ' ' + colour + ' ' + size + '  not stocked by ASICS'); miss++; continue; }
