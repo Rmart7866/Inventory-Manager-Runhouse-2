@@ -98,6 +98,7 @@ node tools/push-asics-availability.mjs               # write ASICS stock to the 
 # and the capture that feeds it, pasted into the B2B console, not run by node:
 #   tools/capture-asics-availability.js
 node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways collapse to one card
+node tools/fix-la-singlet-listings.mjs       # category, SEO, vendor and type on the four LA listings
 
 # Collective, the dropship marketplace: 2,728 products across 40+ vendors.
 node tools/tag-collective-apparel.mjs         # the apparel tags, by VENDOR verdict
@@ -538,6 +539,32 @@ downstream; NOT yet verified how often the zero row lands last, and not yet
 fixed, because it changes dropship footwear numbers store wide and that wants
 measuring first. The LA singlet path is unaffected: it goes through
 `push-asics-availability.mjs` from a block 0 capture.
+
+**THE FOUR LA LISTINGS WERE CREATED WITHOUT CATEGORY, SEO, VENDOR OR TYPE.**
+`tools/fix-la-singlet-listings.mjs` set them 2026-10-26. The category was
+"Clothing Tops > T-Shirts" on all four and is now
+`aa-1-1-2-3`, Activewear Tops > Tank Tops, because a singlet is a sleeveless
+running top and the category is what the Google and Meta feeds read. Unlike
+footwear this is NOT a tax change: Massachusetts exempts clothing under $175
+either way. SEO title and description were null on all four and are now written
+per listing, distinct, so the four do not compete for one phrase. The women's
+Charities listing alone read vendor "The Run House" with an EMPTY type against
+"ASICS" and "Singlets" on its three siblings, and is now consistent with them.
+
+Checked before writing the vendor: the only vendor keyed collection is
+`asics-running-shoes`, and its rule is VENDOR EQUALS "Asics" **AND** taxonomy
+node 352, the shoes node. So an ASICS garment cannot fall into a shoes
+collection, which the two already-ASICS singlets confirm.
+
+**Three things on those listings are deliberately NOT scripted.** The HANDLE on
+the women's Charities listing is still
+`2026-los-angeles-marathon-womens-performance-tank` while the title says 2027;
+changing it changes the live URL and these links are going to the McCourt team,
+so it needs a redirect and a decision, not a script. The WEIGHT is 0.5 lb
+against 0.2 lb on the base garments, and shipping is rated off it, so guessing
+low undercharges real postage on every order; someone should weigh a printed
+singlet in its mailer. And the "Event Logo(s)" option stays a variant option by
+owner's decision, with the 8x aggregate consequence recorded above.
 
 **THE LA LISTINGS SHOW WHAT ASICS CAN SHIP, not what is on a shelf.** They sell
 to order: the blank is bought from ASICS and printed. The two numbers are wildly
