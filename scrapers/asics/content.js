@@ -2253,8 +2253,30 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             }
         }
 
+        // ONE BLOCK ONLY, THE EARLIEST. availability[] IS ONE ENTRY PER
+        // DELIVERY WINDOW, NOT CHUNKS TO CONCATENATE.
+        //
+        // Each entry carries what ASICS can ship on its own atpDate, and the
+        // later windows are mostly zeros. Looping all of them pushed a record
+        // per window with no dedupe, and a Shopify inventory CSV applies the
+        // LAST row it sees for a variant. Measured on the 2026-10-14 fast
+        // scrape: 39,131 rows for 8,037 variants, duplicated up to 15 times,
+        // and 3,066 variants whose last row was 0 while an earlier row was
+        // not. Importing that file zeroed three thousand shoes that had stock.
+        //
+        // The earliest window is the At Once journey, in stock and shippable
+        // today, which is what a shopper on the site is buying. Chosen by DATE
+        // rather than by array position, because nothing documents the order.
+        const blocks = (av && av.availability) || [];
+        const atOnce = blocks.slice().sort((a, b) =>
+            String(a.atpDate || a.date || '').localeCompare(String(b.atpDate || b.date || '')))[0];
+        if (blocks.length > 1) {
+            console.log('ASICS: ' + blocks.length + ' delivery windows, using ' +
+                (atOnce && (atOnce.atpDate || atOnce.date)) + ' and ignoring the rest');
+        }
+
         const out = [];
-        for (const block of (av && av.availability) || []) {
+        for (const block of (atOnce ? [atOnce] : [])) {
             const stock = block.stock || {};
             for (const colorCode of Object.keys(stock)) {
                 const meta = byColor.get(String(colorCode));
