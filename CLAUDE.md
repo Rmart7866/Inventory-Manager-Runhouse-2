@@ -73,6 +73,7 @@ node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, the API do
 node scrapers/asics/test/api-record-shape.mjs # the API path's colorways must be CATALOG rows
 node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO digits, not three
 node scrapers/asics/test/extraction-diagnostic.mjs # "no inventory data" must name its cause
+node scrapers/asics/test/readiness-gate.mjs   # the gate must open on a garment, not just a shoe
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -358,6 +359,45 @@ console answers "is this my code" in one glance instead of a round trip.
 Also worth knowing when reading a B2B console: `/Users/ryanmartin/Desktop/chrome
 extensions /shipping` also injects on b2b.asics.com and logs
 `detectB2BSite returned: asics`, which is NOT this scraper.
+
+**THE READINESS GATE WAS THE THING REFUSING THE PAGE, not the extractor.**
+`checkPageReadinessEnhanced` decides whether a scrape may run at all, and on
+timeout it reports "No inventory data found" WITHOUT EVER CALLING THE
+EXTRACTOR. The same words are printed by a second, unrelated path inside
+`extractCurrentPageDataBackground`. That duplicate wording is why this took
+four rounds: three fixes went into the extractor while the gate in front of it
+never opened.
+
+The gate was footwear shaped in four independent ways. Measured on the live
+women's singlet TF2934, 2026-10-26, on a FULLY rendered page:
+
+| condition | demanded | actually present | result |
+|---|---|---|---|
+| colour code | `/^\d{3}$/` | 2 digits | 0 valid |
+| size cell | numeric 6 to 16 | XS S M L XL 2XL | 0 valid |
+| cells per row | `>= 10` | 6 | 0 valid rows |
+| minimum sizes | `>= 10` | 6 | fails |
+
+Every threshold was an absolute number ststanding in for "the ladder has
+finished rendering", which only holds when the ladder is a shoe's. They are now
+relative to the page's own shape: a full row is `max(3, sizeCount)` cells, and
+completeness is `quantityCount >= sizeCount`. That is STRICTER on footwear than
+ten was, so it cannot fire early.
+
+**A fifth bug fell out of fixing it: the `>= 6` bound was wrong on FOOTWEAR
+too.** Style 1013A141 runs 3.5 to 13, so the gate counted 15 sizes where the
+ladder is 20 and silently ignored 3.5 through 5.5. `findSizes` has no such
+bound and read all 20, so the gate and the reader disagreed about the same page.
+`sizeTokenKind` is now the single vocabulary both use, numeric 1 to 20 or the
+apparel words, and it rejects what `.bg-primary.text-white` also catches:
+"Yes", "Accept", "Add to Cart" and a staff email address.
+
+**And `findSizes` no longer INVENTS a ladder.** It used to return a hardcoded 17
+slot shoe ladder when it read nothing, and `extractInventoryData` maps quantity
+cells onto the ladder BY POSITION, so on a garment six apparel quantities
+silently became shoe sizes 6 through 8.5 in a file that looks perfectly valid.
+That is the exact ON scraper bug `checkFile` now refuses on sight. Reading
+nothing means the header has not rendered, and the honest answer is no rows.
 
 **"NO INVENTORY DATA FOUND" NAMES NO CAUSE, and that is why it took three
 rounds.** Landing on that message means BOTH extraction paths returned empty,

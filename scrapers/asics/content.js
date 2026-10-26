@@ -972,11 +972,23 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                     console.log('Found partial data, proceeding');
                     setTimeout(() => this.extractCurrentPageDataBackground(config, modal), 1000);
                 } else {
-                    console.log('No usable data found, skipping');
+                    // THE OTHER "No inventory data found", and the one that
+                    // actually fires on a garment. This is the readiness gate
+                    // timing out, which means the extractor was NEVER CALLED,
+                    // so nothing in extractCurrentPageDataBackground can
+                    // report on it. The identical wording in two places with
+                    // completely different causes is what made this take four
+                    // rounds to find: every fix went into the extractor while
+                    // the gate in front of it was the thing refusing the page.
+                    const diag = this.extractionDiagnostic(
+                        'not called, the page readiness gate timed out after ' +
+                        Math.round(maxWaitTime / 1000) + 's');
+                    console.error('ASICS: READINESS GATE TIMED OUT for ' +
+                        window.location.href + '\n' + diag);
                     config.results.push({
                         url: window.location.href,
                         data: [],
-                        error: 'No inventory data found',
+                        error: 'No inventory data found (readiness gate timed out). ' + diag,
                         timestamp: new Date().toISOString(),
                         success: false,
                         recordCount: 0
@@ -1781,22 +1793,50 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         return colors;
     }
 
+    // THE SIZE LADDER IS NUMERIC ON A SHOE AND A WORD ON A GARMENT.
+    //
+    // `.bg-primary.text-white` is not a size selector, it is a style, and it
+    // also catches "Yes", "Accept", "Add to Cart" and a staff email address.
+    // So the cells have to be filtered by what a size LOOKS like, and there
+    // are two vocabularies. ASICS footwear runs 6 to 16 in half steps. ASICS
+    // apparel runs 4XS, 3XS, 2XS, XS, S, M, L, XL, 2XL, 3XL.
+    static sizeTokenKind(text) {
+        const t = String(text || '').trim();
+        if (/^\d+\.?\d*$/.test(t)) {
+            const n = parseFloat(t);
+            return (n >= 1 && n <= 20) ? 'numeric' : null;
+        }
+        // 4XS and 2XL, then XS and XL, then the bare three, then XXL forms.
+        if (/^(?:[2-9]X[SL]|X[SL]|S|M|L|XX+[SL])$/.test(t)) return 'word';
+        return null;
+    }
+
     findSizes() {
         const sizes = [];
-        
+        const C = EnhancedASICSInventoryExtractor;
+
         const sizeElements = document.querySelectorAll('.bg-primary.text-white');
-        
+
         sizeElements.forEach(el => {
             const sizeText = el.textContent.trim();
-            if (sizeText.match(/^\d+\.?\d*$/)) {
+            if (C.sizeTokenKind(sizeText)) {
                 sizes.push(sizeText);
             }
         });
-        
+
+        // NO INVENTED LADDER. This used to return a hardcoded 17 slot shoe
+        // ladder when it read nothing, and then extractInventoryData maps the
+        // quantity cells onto it BY POSITION. On a garment that silently turns
+        // six apparel quantities into shoe sizes 6, 6.5, 7, 7.5, 8, 8.5, and
+        // the file looks perfectly valid. The ON scraper had exactly this bug
+        // and `checkFile` now refuses its output on sight, so the same mistake
+        // is not worth keeping here. Reading nothing means the header has not
+        // rendered, and the honest answer is no rows.
         if (sizes.length === 0) {
-            return ['6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10.5', '11', '11.5', '12', '12.5', '13', '14', '15'];
+            console.warn('ASICS: no size header cells matched a size, so no rows. ' +
+                'The grid had probably not rendered. Previously this invented a shoe ladder.');
         }
-        
+
         return sizes;
     }
 
@@ -1939,7 +1979,13 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 const code = spans[0].textContent.trim();
                 const separator = spans[1].textContent.trim();
                 const name = spans[2].textContent.trim();
-                if (code.match(/^\d{3}$/) && separator === '-' && name.length > 0) {
+                // Two OR three digits. Apparel codes are two, and demanding
+                // three here meant the gate never opened on a garment, so the
+                // scrape timed out and reported "No inventory data found"
+                // without ever calling the extractor. Must agree with
+                // findColors or the gate and the reader disagree about what
+                // the page says.
+                if (code.match(/^\d{2,3}$/) && separator === '-' && name.length > 0) {
                     checks.hasColors = true;
                     checks.colorCount++;
                 }
@@ -1951,7 +1997,9 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         console.log('[PAGE READINESS] Size elements found:', sizeElements.length);
         sizeElements.forEach(el => {
             const sizeText = el.textContent.trim();
-            if (sizeText.match(/^\d+\.?\d*$/) && parseFloat(sizeText) >= 6 && parseFloat(sizeText) <= 16) {
+            // Numeric 6 to 16 was a footwear ladder. A garment's sizes are
+            // words, so nothing matched and the gate stayed shut.
+            if (EnhancedASICSInventoryExtractor.sizeTokenKind(sizeText)) {
                 checks.hasSizes = true;
                 checks.sizeCount++;
             }
@@ -1960,9 +2008,21 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         
         const quantityRows = document.querySelectorAll('.grid.grid-flow-col.items-center');
         console.log('[PAGE READINESS] Quantity rows found:', quantityRows.length);
+        // A FULL ROW IS AS WIDE AS THE LADDER, not ten cells.
+        //
+        // Ten was a proxy for "the grid has finished rendering", and it holds
+        // on footwear because a shoe runs 15 sizes. The women's singlet runs
+        // SIX, so no row ever reached ten and the gate stayed shut on a page
+        // that was completely rendered. Comparing against the ladder actually
+        // expresses the thing ten was guessing at, and it is stricter on
+        // footwear than ten was.
+        const fullRow = Math.max(3, checks.sizeCount);
         quantityRows.forEach(row => {
             const cells = row.querySelectorAll('.flex.items-center.justify-center span');
-            if (cells.length >= 10) {
+            // A colourway that says "Product not available" has no cells at
+            // all, which is legitimate, so rows are never required to match
+            // the colour count.
+            if (cells.length >= fullRow) {
                 checks.hasQuantities = true;
                 checks.quantityRowCount++;
                 
@@ -1990,9 +2050,14 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         const hasSeasonInfo = document.querySelector('[class*="bg-secondary"]') !== null;
         const hasProductImages = document.querySelectorAll('picture img').length > 0;
         
+        // Ten sizes and fifty quantities were footwear numbers too: a garment
+        // has six sizes and one colourway of it is six quantities, so a fully
+        // rendered apparel page scored 0 and 0 against both. Express the same
+        // intent, one complete ladder actually read, against the shape of the
+        // page in front of us.
         const hasMinimumColors = checks.colorCount >= 1;
-        const hasMinimumSizes = checks.sizeCount >= 10;
-        const hasMinimumQuantities = checks.quantityCount >= 50;
+        const hasMinimumSizes = checks.sizeCount >= 3;
+        const hasMinimumQuantities = checks.quantityCount >= checks.sizeCount;
         const hasMinimumRows = checks.quantityRowCount >= 1;
         
         checks.hasCompleteData = (
@@ -2695,7 +2760,7 @@ document.head.appendChild(style);
 // background.js never is. So a fix can be correct on disk, committed, and still
 // not be what the page is running. Reload the extension, open any product page,
 // and this line says which build answered.
-const RH_BUILD = '2026-10-26a';
+const RH_BUILD = '2026-10-26b';
 console.log('🚀 ASICS Enhanced Unified Extension Loaded Successfully!  build ' + RH_BUILD);
 console.log('   build check: 2 digit colour codes ' +
     (/^\d{2,3}$/.test('90') ? 'OK' : 'MISSING') +
