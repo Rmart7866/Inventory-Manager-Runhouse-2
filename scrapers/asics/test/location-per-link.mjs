@@ -67,13 +67,40 @@ eq('TF2934 -> Warehouse', locationByUrl['https://b2b.asics.com/orders/100671391/
 eq('a plain line is absent from the map', locationByUrl['https://b2b.asics.com/orders/100671391/products/ZK1234'], undefined);
 eq('only two entries in the map', Object.keys(locationByUrl).length, 2);
 
-// ---- locationForScrapedUrl, taken from the real file ----------------------
-const m = /^\s*locationForScrapedUrl\(config, href\) \{[\s\S]*?\n    \}/m.exec(src);
-if (!m) { bad('could not find locationForScrapedUrl in content.js'); process.exit(1); }
-const sandbox = {};
-vm.createContext(sandbox);
-vm.runInContext('var fn = function(config, href) {' + m[0].replace(/^\s*locationForScrapedUrl\(config, href\) \{/, '') .replace(/\}\s*$/, '') + '};', sandbox);
-const lookup = sandbox.fn;
+// ---- locationForScrapedUrl, ON THE REAL CLASS -----------------------------
+//
+// THE OLD VERSION OF THIS TEST IS WHY THE BUG SHIPPED. It pulled the method's
+// TEXT out of content.js with a regex and ran it as a standalone function, so
+// it proved the logic was right and proved nothing about whether anything could
+// CALL it. The method was defined inside UnifiedShopifyConverter while its only
+// caller sits on EnhancedASICSInventoryExtractor, so every real scrape threw
+// "TypeError: this.locationForScrapedUrl is not a function" right after
+// extracting its rows, and this test stayed green through all of it.
+//
+// So: load the actual class and call the actual method on an instance of it.
+const cut = src.indexOf('function initializeExtractor()');
+const Extractor = new Function('window', 'document', 'sessionStorage', 'console',
+  src.slice(0, cut) + '\nreturn EnhancedASICSInventoryExtractor;'
+)({ location: { pathname: '/', href: '' }, addEventListener() {} },
+  { addEventListener() {}, createElement: () => ({ style: {}, appendChild() {} }),
+    head: { appendChild() {} }, querySelector: () => null, querySelectorAll: () => [] },
+  { getItem: () => null, setItem() {} },
+  { log() {}, warn() {}, error() {} });
+
+const instance = Object.create(Extractor.prototype);
+typeof instance.locationForScrapedUrl === 'function'
+  ? ok('locationForScrapedUrl is callable on EnhancedASICSInventoryExtractor')
+  : bad('locationForScrapedUrl is NOT on the extractor, so every scrape throws on it');
+
+// And it must NOT be on the converter, where it cannot be reached.
+const Converter = new Function('window', 'document', 'console',
+  src.slice(0, cut) + '\nreturn UnifiedShopifyConverter;'
+)({ location: { pathname: '/', href: '' } }, { addEventListener() {} }, { log() {}, warn() {} });
+typeof Object.create(Converter.prototype).locationForScrapedUrl === 'undefined'
+  ? ok('and it is not left behind on UnifiedShopifyConverter')
+  : bad('it is still on the converter, where nothing calls it');
+
+const lookup = (config, href) => instance.locationForScrapedUrl(config, href);
 
 console.log('\nThe lookup survives the portal rewriting the address');
 const cfg = { urls, locationByUrl, currentIndex: 2 };   // just scraped urls[1]

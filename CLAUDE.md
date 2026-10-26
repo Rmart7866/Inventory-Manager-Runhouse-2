@@ -360,6 +360,32 @@ Also worth knowing when reading a B2B console: `/Users/ryanmartin/Desktop/chrome
 extensions /shipping` also injects on b2b.asics.com and logs
 `detectB2BSite returned: asics`, which is NOT this scraper.
 
+**THE BUG THAT HAD EVERY SCRAPE FAILING WAS A METHOD ON THE WRONG CLASS.**
+`locationForScrapedUrl` was written inside `UnifiedShopifyConverter` while its
+only caller, `extractCurrentPageDataBackground`, is on
+`EnhancedASICSInventoryExtractor`. So `this.locationForScrapedUrl` was
+undefined and EVERY page of EVERY run threw
+
+    TypeError: this.locationForScrapedUrl is not a function
+
+immediately AFTER extracting its rows successfully. The console read
+"Extracted 80 inventory records", then "AUTO-SCRAPER: Inventory CSV format
+verified", and then the run died. So the symptom was a scrape that plainly
+found its data and still produced no file, on footwear and apparel alike, and
+nothing in the message pointed anywhere near a location feature.
+
+The timeline pins it: the last CSV the link scraper produced is dated
+2026-10-22 13:19, and the commit that introduced this is 2026-10-23 10:19. It
+broke the tool for four days and survived a revert, because it predates the
+work that was reverted.
+
+`location-per-link.mjs` is the OTHER half of the lesson. It pulled the method's
+TEXT out of content.js with a regex and ran it as a standalone function, so it
+proved the logic correct and proved nothing about whether anything could CALL
+it. It stayed green throughout. It now loads the real class and asserts the
+method is callable on an instance of the extractor and absent from the
+converter.
+
 **`alert()` ON COMPLETION FREEZES THE TAB.** `completeBackgroundScraping` ends
 every run with a modal `alert()`, which blocks the renderer: the extension stops
 receiving events, the navigation loop cannot advance, and Chrome itself reports
@@ -368,10 +394,12 @@ scrape and watching the tab stop evaluating `1 + 1`, then failing to close with
 "Chrome may be waiting for the user". Four more sit on the fast path, on a
 download error and on two input validations.
 
-This is NOT fixed, deliberately: it is long standing behaviour staff work
-around, and the one change that mattered was the apparel fix below. Replacing
-them with a non-blocking banner is a small, separate change, and the modal's own
-status fields already carry everything the completion alert says.
+The completion one IS now fixed, because with the TypeError above repaired it
+became the next thing standing between a working scrape and a usable file: the
+run finished, downloaded, and then froze the tab it finished in. It is a banner
+now, and the six status fields above it already said the same thing. The four
+remaining alerts fire on a human mistake before a run starts, or on the fast
+path, which is a different situation; replacing those is a separate change.
 
 **THE READINESS GATE WAS THE THING REFUSING APPAREL, not the extractor.**
 `checkPageReadinessEnhanced` decides whether a scrape may run at all, and on

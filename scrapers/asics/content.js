@@ -41,22 +41,6 @@ class UnifiedShopifyConverter {
     //
     // MATCHED ON THE PATH, NOT THE WHOLE URL. The portal rewrites the address
     // as it loads, appending colorCode and deliveryDate, so the string in
-    // window.location.href is not the string that was pasted in. The current
-    // index is the authority where it is available; the path match is the
-    // fallback for a resumed run, where currentIndex has already advanced.
-    //
-    // Returns '' when the line carried no location, and the row builder then
-    // falls back to Needham exactly as it always did.
-    locationForScrapedUrl(config, href) {
-        const map = (config && config.locationByUrl) || {};
-        if (!Object.keys(map).length) return '';
-        const asked = (config.urls || [])[(config.currentIndex || 1) - 1];
-        if (asked && map[asked]) return map[asked];
-        if (map[href]) return map[href];
-        const path = String(href || '').split('?')[0];
-        const hit = Object.keys(map).find(u => u.split('?')[0] === path);
-        return hit ? map[hit] : '';
-    }
 
     convertToInventoryCSV(inventoryData, settings = {}) {
         const csvSettings = { ...this.defaultSettings, ...settings };
@@ -1004,6 +988,35 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         setTimeout(checkForData, 3000);
     }
 
+    // THIS LIVES ON THE EXTRACTOR, NOT ON THE CONVERTER, and putting it on
+    // the wrong one broke every single scrape.
+    //
+    // It was first written inside UnifiedShopifyConverter while its only
+    // caller, extractCurrentPageDataBackground, is on this class. So
+    // `this.locationForScrapedUrl` was undefined and every page threw
+    // "TypeError: this.locationForScrapedUrl is not a function" immediately
+    // AFTER extracting its rows successfully. The console said "Extracted 80
+    // inventory records" and then the run died, so the symptom was a scrape
+    // that found data and still produced nothing, on footwear and apparel
+    // alike. Nothing about the message pointed at a location feature.
+    //
+    // window.location.href is not the string that was pasted in. The current
+    // index is the authority where it is available; the path match is the
+    // fallback for a resumed run, where currentIndex has already advanced.
+    //
+    // Returns '' when the line carried no location, and the row builder then
+    // falls back to Needham exactly as it always did.
+    locationForScrapedUrl(config, href) {
+        const map = (config && config.locationByUrl) || {};
+        if (!Object.keys(map).length) return '';
+        const asked = (config.urls || [])[(config.currentIndex || 1) - 1];
+        if (asked && map[asked]) return map[asked];
+        if (map[href]) return map[href];
+        const path = String(href || '').split('?')[0];
+        const hit = Object.keys(map).find(u => u.split('?')[0] === path);
+        return hit ? map[hit] : '';
+    }
+
     async extractCurrentPageDataBackground(config, modal) {
         console.log(`Starting extraction with ${config.format.toUpperCase()} CSV format...`);
         
@@ -1239,7 +1252,34 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             ? 'Import to: Products → Inventory → Import'
             : 'Import to: Products → Import';
         
-        alert(`${formatUpper} CSV Auto-scraping completed in ${totalTime} seconds!\n\nSuccessful: ${successfulResults.length}\nFailed: ${failedResults.length}\n${formatUpper} CSV files downloaded\n\n${importInstructions}\nReady for Shopify import!`);
+        // NOT an alert. A modal dialog BLOCKS THE RENDERER: the extension stops
+        // receiving events, the navigation loop cannot advance to the next url,
+        // and Chrome itself reports that it is waiting for the user. This one
+        // ran at the end of every single run, immediately after the six status
+        // fields above already said the same thing, so a finished scrape froze
+        // the tab it finished in. Verified 2026-10-26: with the run otherwise
+        // working, the tab stopped evaluating `1 + 1` and would not even close.
+        //
+        // Only this one is replaced. The input validation alerts fire on a
+        // human mistake before anything starts, which is a different thing.
+        const summary = formatUpper + ' CSV scrape finished in ' + totalTime + 's.\n' +
+            'Succeeded: ' + successfulResults.length + '   Failed: ' + failedResults.length + '\n' +
+            importInstructions;
+        console.log('ASICS: ' + summary.replace(/\n/g, '  '));
+        failedResults.forEach((r) => console.error('ASICS: FAILED ' + r.url + '  ' + (r.error || 'no reason recorded')));
+        try {
+            document.querySelectorAll('.asics-done-notice').forEach((n) => n.remove());
+            const note = document.createElement('div');
+            note.className = 'asics-done-notice';
+            note.style.cssText = 'position:fixed;top:70px;right:20px;z-index:30000;max-width:420px;' +
+                'background:' + (failedResults.length ? '#fd7e14' : '#28a745') + ';color:#fff;' +
+                'padding:14px 16px;border-radius:5px;font:13px/1.45 system-ui,sans-serif;' +
+                'white-space:pre-wrap;box-shadow:0 4px 18px rgba(0,0,0,.35);cursor:pointer';
+            note.textContent = summary;
+            note.onclick = () => note.remove();
+            document.body.appendChild(note);
+            setTimeout(() => note.remove(), 20000);
+        } catch (e) { /* the console already has it */ }
     }
 
     setupExtractionAfterNavigationBackground(config, modal, url) {
