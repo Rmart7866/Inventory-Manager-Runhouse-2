@@ -103,6 +103,7 @@ node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways col
 node tools/fix-la-singlet-listings.mjs       # category, SEO, vendor and type on the four LA listings
 node tools/enable-file-upload.mjs            # logo upload on, by handle, in the LIVE theme
 node tools/backfill-singlet-skus.mjs         # SKUs so a scraped singlet row can join
+node tools/clear-singlet-needham.mjs         # repair: singlets must have NO Needham level
 
 # Collective, the dropship marketplace: 2,728 products across 40+ vendors.
 node tools/tag-collective-apparel.mjs         # the apparel tags, by VENDOR verdict
@@ -678,6 +679,33 @@ the grid prints "30+" over 30, so a page scrape would write 30 against a real
 only, `extractSingletInventoryFromApi` takes quantities from the availability
 endpoint's at-once window. Footwear is not in the list and still reads the page,
 unchanged.
+
+**RELOADING THE EXTENSION IS PART OF SHIPPING A SCRAPER FIX, and skipping it
+has already cost a bad write.** On 2026-10-27 a scrape ran against an extension
+that had not been reloaded, so it executed the PREVIOUS content.js. Two of the
+fixes were therefore absent at once and they compounded:
+
+- the per line Warehouse location never reached the CSV, so all 7,647 rows said
+  Needham, singlets included;
+- `API_ONLY_STYLES` did not exist, so the singlets were read off the capped
+  grid, and Black XS, S, M and 3XL all came out as 30 against real figures of
+  67, 161, 205 and 68.
+
+And this time the rows LANDED, because `backfill-singlet-skus.mjs` had just
+given those variants SKUs. 45 Needham inventory levels were created on the base
+singlet listings carrying capped numbers, which is precisely the failure this
+file warns about: a few hundred singlets at Needham read as real dropship
+footwear stock. Warehouse was untouched and stayed correct.
+
+`tools/clear-singlet-needham.mjs` is the repair. It zeroes then DEACTIVATES the
+Needham level so the location is gone rather than merely empty, and it never
+reads or writes Warehouse.
+
+The lesson is ordering, not the fixes themselves: **adding SKUs to a listing
+turns a harmless no-op scrape into a live write.** Before the SKUs existed, a
+capped Needham singlet row matched nothing. After, it matched everything. Any
+future backfill that creates a join key should land AFTER the code that feeds
+it is confirmed running, not before.
 
 **THERE IS NO DOM FALLBACK FOR AN API ONLY STYLE, and that is the point.**
 Before the SKUs existed a scraped singlet row matched nothing, so a capped
