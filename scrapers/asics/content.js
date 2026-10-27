@@ -1040,7 +1040,22 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             
             console.log(`AUTO-SCRAPER: Using ${config.format} settings:`, this.shopifySettings);
             
-            const inventoryData = this.extractInventoryData();
+            // Singlets take the API, everything else reads the page exactly as
+            // it always has. The style list is the whole of the difference.
+            const styleNow = (this.getProductInfo() || {}).styleId;
+            let inventoryData;
+            if (EnhancedASICSInventoryExtractor.API_ONLY_STYLES.indexOf(styleNow) !== -1) {
+                try {
+                    inventoryData = await this.extractSingletInventoryFromApi(styleNow);
+                } catch (e) {
+                    // No fallback. See extractSingletInventoryFromApi.
+                    console.error('ASICS: ' + styleNow + ' is API only and the API failed: ' + e.message +
+                        '. Writing NO rows for it rather than the page grid, which caps at 30.');
+                    inventoryData = [];
+                }
+            } else {
+                inventoryData = this.extractInventoryData();
+            }
             console.log(`Extracted ${inventoryData.length} inventory records`);
             
             if (inventoryData.length === 0) {
@@ -1416,6 +1431,76 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 }
             }
         }, 1000);
+    }
+
+    // The earliest delivery window, which is the At Once journey: in stock and
+    // shippable today. Chosen by date rather than array position because
+    // nothing documents the order. See delivery-windows.mjs.
+    static atOnceWindow(av) {
+        const blocks = (av && av.availability) || [];
+        if (!blocks.length) return null;
+        return blocks.slice().sort((a, b) =>
+            String(a.atpDate || a.date || '').localeCompare(String(b.atpDate || b.date || '')))[0];
+    }
+
+    // SINGLETS READ THE API, NOT THE GRID, AND NEVER FALL BACK TO IT.
+    //
+    // These are print on demand race merch: one blank bought from ASICS per
+    // order, held at the Warehouse, so the number a shopper sees should be
+    // supplier availability exactly like a dropship shoe. The difference is
+    // the DEPTH. ASICS carries these in the hundreds, and the rendered grid
+    // prints "30+" for anything over 30, so a page scrape would write 30 where
+    // the real figure is 161 or 302. On a garment sold to a whole marathon
+    // field that is not a rounding error.
+    //
+    // So for these styles only, quantities come from the availability
+    // endpoint. Footwear is untouched and still reads the page.
+    //
+    // AND THERE IS NO DOM FALLBACK HERE, deliberately. The base singlet
+    // listings now carry SKUs so a scraped row DOES join to them, which means
+    // a quiet fall back to the grid would overwrite a real 161 with a 30.
+    // Reading nothing is recoverable; writing 30s over real stock is not.
+    async extractSingletInventoryFromApi(styleId) {
+        const basketNo = this.basketNoFromUrl();
+        if (!basketNo) throw new Error('no basket number in the URL, so the availability API cannot be called');
+        const colors = this.findColors();
+        if (!colors.length) throw new Error('no colours read off the page, so there is nothing to ask about');
+
+        const codes = [...new Set(colors.map((c) => c.code))].map((c) => c + ':').join(',');
+        const av = await this.apiGet('/aac/products/' + encodeURIComponent(styleId) +
+            '/availability?basketNo=' + encodeURIComponent(basketNo) +
+            '&colorCodeDistributorNo=' + codes);
+
+        const atOnce = EnhancedASICSInventoryExtractor.atOnceWindow(av);
+        if (!atOnce) throw new Error('the availability response carried no delivery windows');
+
+        const info = this.getProductInfo();
+        const nameByCode = new Map(colors.map((c) => [String(c.code), c.name]));
+        const out = [];
+        for (const code of Object.keys(atOnce.stock || {})) {
+            for (const sz of atOnce.stock[code] || []) {
+                const size = sz.sizeUS || sz.sizeKey;
+                if (!size) continue;
+                out.push({
+                    productName: info.productName,
+                    styleId: styleId,
+                    colorCode: code,
+                    colorName: nameByCode.get(String(code)) || '',
+                    sizeUS: String(size),
+                    // The SKU the converter builds from these is
+                    // <style>-<code>-<size>, which is exactly what
+                    // tools/backfill-singlet-skus.mjs wrote onto the listings.
+                    quantity: Math.max(0, parseInt(sz.quantityAvailable, 10) || 0),
+                    width: info.width,
+                    gender: info.gender,
+                    extractedAt: new Date().toISOString(),
+                    url: window.location.href
+                });
+            }
+        }
+        console.log('ASICS: ' + styleId + ' read from the availability API, ' + out.length +
+            ' rows, window ' + (atOnce.atpDate || atOnce.date) + ', uncapped');
+        return out;
     }
 
     extractInventoryData() {
@@ -2268,8 +2353,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         // today, which is what a shopper on the site is buying. Chosen by DATE
         // rather than by array position, because nothing documents the order.
         const blocks = (av && av.availability) || [];
-        const atOnce = blocks.slice().sort((a, b) =>
-            String(a.atpDate || a.date || '').localeCompare(String(b.atpDate || b.date || '')))[0];
+        const atOnce = EnhancedASICSInventoryExtractor.atOnceWindow(av);
         if (blocks.length > 1) {
             console.log('ASICS: ' + blocks.length + ' delivery windows, using ' +
                 (atOnce && (atOnce.atpDate || atOnce.date)) + ' and ignoring the rest');
@@ -2494,6 +2578,14 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
 // ASICS writes gender as a code. Confirmed across all 3,609 catalog rows
 // against their own item code convention, where the fourth digit is the
 // gender: 1011 men, 1012 women, 1013 unisex, 1014 kids.
+// STYLES WHOSE QUANTITIES MUST COME FROM THE API, NEVER THE PAGE.
+//
+// The Rival II singlets are print on demand race merch, bought from ASICS per
+// order and held at the Warehouse. ASICS stocks them in the hundreds and the
+// grid caps at "30+", so a page scrape writes 30 against a real 161 or 302.
+// Their Shopify listings now carry SKUs, so those rows DO land. Footwear is
+// not in this list and is completely unaffected.
+EnhancedASICSInventoryExtractor.API_ONLY_STYLES = ['TF3085', 'TF2934'];
 EnhancedASICSInventoryExtractor.API_GENDER = { '1': 'Men', '2': 'Women', '3': 'Kids', '4': 'Unisex' };
 EnhancedASICSInventoryExtractor.API_FOOTWEAR_COLLECTION = 3100;
 // Running, every age, recent seasons. Each cut is justified against the styles

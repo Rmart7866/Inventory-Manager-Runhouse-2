@@ -73,6 +73,7 @@ node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, a known li
 node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO digits, not three
 node scrapers/asics/test/readiness-gate.mjs   # the gate must open on a garment, not just a shoe
 node scrapers/asics/test/delivery-windows.mjs # one delivery window, not six concatenated
+node scrapers/asics/test/singlet-api-only.mjs # singlets read the API and never the capped grid
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -101,6 +102,7 @@ node tools/push-asics-availability.mjs               # write ASICS stock to the 
 node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways collapse to one card
 node tools/fix-la-singlet-listings.mjs       # category, SEO, vendor and type on the four LA listings
 node tools/enable-file-upload.mjs            # logo upload on, by handle, in the LIVE theme
+node tools/backfill-singlet-skus.mjs         # SKUs so a scraped singlet row can join
 
 # Collective, the dropship marketplace: 2,728 products across 40+ vendors.
 node tools/tag-collective-apparel.mjs         # the apparel tags, by VENDOR verdict
@@ -655,8 +657,40 @@ punctuation and reads the ASICS colour code off the END of the colour name when
 one is there, so "Black-090" resolves to ASICS 90 and "White-001" to 01. All 52
 base variants map with none left over.
 
-**AND THIS IS WHY THE LINK LIST IS THE WRONG MECHANISM FOR SINGLETS, even
-though the intent is right.** Treating them as dropship out of Warehouse is
+**THE SINGLETS NOW RIDE THE DAILY LINK LIST, and the whole of the difference is
+a two entry style list.** They are dropship out of the Warehouse, so they belong
+in the same routine as the shoes. Two things had to be true first, and both now
+are.
+
+**One: a scraped row has to JOIN.** A Shopify inventory CSV import matches on
+the SKU, which this repo's own output proves: the scraper generates handles like
+`1013a187-250`, no such product exists on the store, and those imports have
+worked for months, while the variant SKU `1013A187-250-9` does exist.
+`tools/backfill-singlet-skus.mjs` put SKUs on all 52 base variants in exactly
+the format `generateSKU` builds, `<style>-<2 digit colour>-<ASICS size>`, so
+Black Small on the men's is `TF3085-90-S`. It only ever writes to a variant with
+NO SKU and never overwrites one. **If `generateSKU` ever changes, that backfill
+must change with it or the join silently breaks.**
+
+**Two: the numbers must not be capped.** ASICS carries these in the hundreds and
+the grid prints "30+" over 30, so a page scrape would write 30 against a real
+161 or 302. `API_ONLY_STYLES` is `['TF3085', 'TF2934']`, and for those styles
+only, `extractSingletInventoryFromApi` takes quantities from the availability
+endpoint's at-once window. Footwear is not in the list and still reads the page,
+unchanged.
+
+**THERE IS NO DOM FALLBACK FOR AN API ONLY STYLE, and that is the point.**
+Before the SKUs existed a scraped singlet row matched nothing, so a capped
+number was harmless. Now it lands. A quiet fall back to the grid would overwrite
+a real 161 with a 30, so a failed API call writes NO rows and says why. Reading
+nothing is recoverable; writing 30s over real stock is not.
+
+So the daily routine is unchanged: put the singlet URLs in the link list with
+`Warehouse` after them, scrape, import. `push-asics-availability.mjs` remains
+the tool for the four LA 2027 MIRROR listings, which have no SKUs and are not
+in the link list.
+
+**What the old objection was, for the record:** Treating them as dropship out of Warehouse is
 exactly correct, and the ASICS URL list even supports a per line Warehouse
 location. Two things stop the scraper doing it:
 
