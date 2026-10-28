@@ -1129,6 +1129,28 @@ Balance are both on Scene7 and behave differently: New Balance's preset serves
 therefore carries `?scl=1`, scale factor 1, for the native asset. Without it the
 pull attached visibly blurry photos to 21 real products before anyone noticed.
 
+**PUMA'S CLOUDINARY ORIGINAL IS A TRANSPARENT CUT-OUT, and our own url hides
+that.** `urlFor` appends `b_rgb:ffffff`, which FLATTENS it onto white so it
+matches the rest of the catalogue. Right for a product listing, wrong when a
+cut-out is what you want. Drop the parameter and the alpha comes through at
+whatever `w_` asks for:
+
+    https://images.puma.com/image/upload/f_auto,q_auto,w_2400/global/312060/07/sv03/fnd/PNA/fmt/png
+
+Measured 2026-10-28 on the FAST-R Nitro Elite 3: 2400x2400 PNG, transparent,
+no baked shadow, 543 KB, against 720x405 for the copy sitting on the store.
+
+**A WHITE BACKGROUND CANNOT BE KEYED OFF A PALE SHOE, so do not try.** Removing
+a studio background by colour works by flood filling from the edges, and that
+is safe only while the shoe is darker or more saturated than the background.
+Measured over these nine: it came out cleanly on Puma, New Balance and Merrell,
+which are dark or saturated, and destroyed every pale one. Saucony's white
+Endorphin Elite lost 69 percent of itself on the first attempt and 57 percent
+on a tighter second. A drop shadow is opaque neutral grey and so is a white
+midsole, and nothing in the pixels separates them. That needs subject
+detection, not a colour rule. Always LOOK at the output; the percentage removed
+is the tell, anything past about 10 percent is eating the shoe.
+
 **Test more than one bogus code before declaring a host dishonest.** Puma was
 ruled out once on the strength of a single probe, "999999/99", which returns
 200 because it is a real asset in Puma's library, a stock photo of a beach.
