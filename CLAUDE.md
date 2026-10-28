@@ -92,6 +92,7 @@ node tools/prune-thin-drafts.mjs --since 2026-10-20 --min-units 10
 node tools/tag-apparel-collections.mjs --since 2026-10-20   # collection tags, add-only
 node tools/apparel-content.mjs --since 2026-10-20   # SEO copy + shopify.* category metafields
 node tools/apparel-collections.mjs            # apparel:<group> tags + the apparel collections
+node tools/reorder-on-apparel-media.mjs      # lead with the on-model shot, not ON's flat render
 
 # LA 2027 print on demand singlets. ASICS availability -> Warehouse.
 node tools/audit-pod-pools.mjs --csv pod-audit.csv   # read only, the whole picture
@@ -227,6 +228,29 @@ so "Tank Top" does not beat "tank".
 "On Running". Socks, gloves and headwear get a group tag but deliberately no
 collection, because `socks-1` (392) and `headwear` (59) already cover them store
 wide and a second page for the same thing splits the SEO.
+
+**ON'S LEAD IMAGE IS A FLAT CUT-OUT, AND THE RULE FOR FIXING IT IS THE
+FILENAME, NOT THE POSITION.** Every garment the 2026-10-20 drop created led
+with ON's flat render: the garment alone on a transparent background, no model
+and no drape, which reads as a CAD mock up on a collection grid. The shot type
+is in the asset name:
+
+| suffix | what it is |
+|---|---|
+| `...-d.png` | flat cut-out, 2500x2500 square |
+| `...-4x5-...-g1.jpg` | on-model studio shot, 2000x2500 |
+| `...-1x1-...-ka-g1.png` | ANOTHER flat, also square |
+
+**"Promote the second image" is almost right and quietly wrong.** On
+`on-womens-club-boxy-t-barberry` the second image is a `ka` flat, so that rule
+swaps one cut-out for another. Matching the 4x5 on-model pattern picks the right
+shot wherever it sits and skips a product that has none.
+
+Measured 2026-10-28 over the 282 garments: 1,660 on-model images, 253 flat `-d`,
+9 flat `ka`, 23 other. 266 products had an on-model shot and exactly ONE already
+led with it. `tools/reorder-on-apparel-media.mjs` promoted the other 265, moving
+one image per product so the rest of the gallery order survives, and leaving the
+16 with no on-model shot untouched.
 
 **ON'S OWN STATS COME FROM on.com, JOINED ON THE ARTICLE CODE.** The Backstage
 B2B feed carries stock and price but no copy, and the review modal starts every

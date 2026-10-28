@@ -197,3 +197,6 @@ asics-availability.json
 
 # Theme asset backups written by tools/enable-file-upload.mjs
 product-form-backup-*.liquid
+
+# ON media reorder rollbacks
+on-media-order-rollback-*.json
