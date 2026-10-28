@@ -200,3 +200,6 @@ product-form-backup-*.liquid
 
 # ON media reorder rollbacks
 on-media-order-rollback-*.json
+
+# Redo location rollbacks
+redo-location-rollback-*.json

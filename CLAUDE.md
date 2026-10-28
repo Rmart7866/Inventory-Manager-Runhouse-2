@@ -106,6 +106,9 @@ node tools/enable-file-upload.mjs            # logo upload on, by handle, in the
 node tools/backfill-singlet-skus.mjs         # SKUs so a scraped singlet row can join
 node tools/clear-singlet-needham.mjs         # repair: singlets must have NO Needham level
 
+# Redo, the returns app's cart line item
+node tools/move-redo-location.mjs            # which store orders carrying it route to
+
 # Collective, the dropship marketplace: 2,728 products across 40+ vendors.
 node tools/tag-collective-apparel.mjs         # the apparel tags, by VENDOR verdict
 node tools/group-collective-colorways.mjs     # cw-group + swatches for one-product-per-colour
@@ -490,6 +493,25 @@ CSV on the tool and presses Write. The scraper is a Chrome extension precisely
 because it rides the staff member's authenticated session; a Worker has no way
 into ASICS B2B. Any "daily update" for these singlets is the same manual run
 until there is an ASICS EDI feed, which is already on the rep list.
+
+**THE REDO LINE ITEM'S LOCATION DECIDES WHERE ITS ORDERS ROUTE.** `re:do` is
+the returns app. It drops a line item into the cart: product handle
+`free-returns-on-shoes-only-does-not-apply-to-printed-apparel`, UNLISTED,
+vendor `re:do`, five variants all sharing the SKU `x-redo`, inventory NOT
+tracked, quantities a nominal million.
+
+Because Shopify assigns an order to a location that stocks EVERY line item,
+and this line was stocked at Walpole and nowhere else, every order carrying it
+was pulled to Walpole. Moved to Scituate on 2026-10-28.
+
+Two things to know before touching it again. The quantity is cosmetic, since
+tracking is off, but it is set to a million to match what Redo itself wrote, so
+nothing breaks if tracking is ever switched on. And the ORDER OF OPERATIONS
+matters: `tools/move-redo-location.mjs` activates the new location BEFORE
+deactivating the old, and refuses to deactivate if any variant failed to reach
+the new one, because an item stocked at zero locations cannot be fulfilled at
+all. It also refuses outright if the target location is inactive or does not
+fulfil online orders.
 
 **PRINT ON DEMAND RACE MERCH IS NOT DROPSHIP, and it lives at the WAREHOUSE.**
 One blank garment is bought from ASICS and every team, charity and event gets
