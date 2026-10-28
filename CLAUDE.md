@@ -93,6 +93,7 @@ node tools/tag-apparel-collections.mjs --since 2026-10-20   # collection tags, a
 node tools/apparel-content.mjs --since 2026-10-20   # SEO copy + shopify.* category metafields
 node tools/apparel-collections.mjs            # apparel:<group> tags + the apparel collections
 node tools/reorder-on-apparel-media.mjs      # lead with the on-model shot, not ON's flat render
+node tools/fix-on-blurry-images.mjs          # replace images uploaded at thumbnail size
 
 # LA 2027 print on demand singlets. ASICS availability -> Warehouse.
 node tools/audit-pod-pools.mjs --csv pod-audit.csv   # read only, the whole picture
@@ -231,6 +232,42 @@ so "Tank Top" does not beat "tank".
 "On Running". Socks, gloves and headwear get a group tag but deliberately no
 collection, because `socks-1` (392) and `headwear` (59) already cover them store
 wide and a second page for the same thing splits the SEO.
+
+**SOME ON IMAGES WERE UPLOADED AT 200x200, AND THE CAUSE IS A CDN PARAMETER.**
+ON's photography lives on CONTENTFUL, and a Contentful url takes sizing
+parameters. The BARE url is the original; `?w=200` returns a 200 pixel crop.
+Eight ON Club garments were created from a sized url, so the file sitting on
+Shopify's CDN IS 200x200 and cannot be sharpened, only replaced from source:
+
+| url | result |
+|---|---|
+| bare | 4000 x 4000, 3.4 MB |
+| `?w=2500&fm=png` | 2500 x 2500, 1.7 MB |
+| `?w=200` | 200 x 200 |
+
+**This is the ASICS Scene7 trap again** (see the `?scl=1` note): check the size
+a CDN returns BY DEFAULT, per host, before trusting it. Two hosts on this store
+have now shipped tiny images this way.
+
+2500 and PNG are not arbitrary: every other ON flat here is a 2500x2500 PNG and
+PNG preserves the cut-out's transparency, so matching them matters more than the
+last pixels of the 4000px original.
+
+**The filename is the join back to the original.** The Shopify copy keeps
+Contentful's filename, and `on-pdp-cache/` already holds the on.com pages
+fetched by `apparel-content.mjs`, which carry the full Contentful paths. Index
+the cache by filename, look it up, rebuild the url. 7,084 assets indexed from
+101 cached pages, which covered all 8. A filename not in the cache is reported
+and skipped, never guessed.
+
+`fix-on-blurry-images.mjs` uploads the replacement and waits for Shopify to
+report it READY before deleting the old one, because media processing is
+asynchronous and deleting first would leave a product with no image at all.
+
+**107 other small images remain**, on older products whose assets are not in
+the cache: mostly footwear at 600 to 780px, from `Small-JPEG-...` and
+`..._fpx.webp` sources that predate this pipeline. They are legible, unlike the
+200px ones, and fixing them needs a source this cache does not have.
 
 **ON'S LEAD IMAGE IS A FLAT CUT-OUT, AND THE RULE FOR FIXING IT IS THE
 FILENAME, NOT THE POSITION.** Every garment the 2026-10-20 drop created led

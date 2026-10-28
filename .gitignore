@@ -203,3 +203,6 @@ on-media-order-rollback-*.json
 
 # Redo location rollbacks
 redo-location-rollback-*.json
+
+# ON blurry image rollbacks
+on-blurry-rollback-*.json
