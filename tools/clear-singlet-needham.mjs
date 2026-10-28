@@ -89,7 +89,9 @@ for (const h of HANDLES) {
     if (!lvl) continue;
     n++;
     found.push({ handle: h, label: v.selectedOptions.map((o) => o.value).join(' / '),
-      sku: v.sku || '', inventoryItemId: v.inventoryItem.id, was: lvl.quantities[0].quantity });
+      sku: v.sku || '', inventoryItemId: v.inventoryItem.id,
+      // inventoryDeactivate takes the LEVEL id, not the item id and location.
+      inventoryLevelId: lvl.id, was: lvl.quantities[0].quantity });
   }
   console.log('  ' + h.slice(0, 54).padEnd(56) + (n ? n + ' Needham level(s)' : 'clean'));
 }
@@ -120,15 +122,19 @@ for (let i = 0; i < found.length; i += 100) {
   else { zeroed += chunk.length; console.log('  zeroed ' + zeroed + ' / ' + found.length); }
 }
 
-const DEACT = `mutation($inventoryItemId: ID!, $locationId: ID!){
-  inventoryDeactivate(inventoryItemId:$inventoryItemId, locationId:$locationId){ userErrors{ field message } } }`;
+// inventoryDeactivate identifies the level by its OWN id. Passing
+// inventoryItemId plus locationId, which is how inventorySetQuantities works,
+// is rejected outright, and swallowing that in a bare catch is how the first
+// run reported "deactivated 0" with no reason. Errors are printed now.
+const DEACT = `mutation($id: ID!){
+  inventoryDeactivate(inventoryLevelId:$id){ userErrors{ field message } } }`;
 let off = 0, failed = 0;
 for (const f of found) {
   try {
-    const d = await gql(DEACT, { inventoryItemId: f.inventoryItemId, locationId: needham.id });
+    const d = await gql(DEACT, { id: f.inventoryLevelId });
     const e = d.inventoryDeactivate.userErrors || [];
-    if (e.length) { failed++; if (failed <= 3) console.log('  deactivate kept at 0 for ' + f.sku + ': ' + JSON.stringify(e).slice(0, 140)); }
+    if (e.length) { failed++; if (failed <= 3) console.log('  kept at 0, not deactivated: ' + f.sku + '  ' + JSON.stringify(e).slice(0, 160)); }
     else off++;
-  } catch (err) { failed++; }
+  } catch (err) { failed++; if (failed <= 3) console.log('  deactivate threw for ' + f.sku + ': ' + String(err.message).slice(0, 200)); }
 }
 console.log(`\nzeroed ${zeroed}, deactivated ${off}, left at zero ${failed}.`);
