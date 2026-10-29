@@ -640,11 +640,29 @@ Measured over the newest real file per brand, 2026-10-29:
 | ON | 7,112 | 4,069 | 1, 5% | healthy |
 
 The signature that separates a cap from honest round numbers is that on a
-capped feed the MOST COMMON non-zero value is also the MAXIMUM, because
-everything deeper piles onto the ceiling. That rule classifies all five
-correctly; any fixed number gets four of them wrong. HOKA is the case that
-makes a naive rule fail: 300 is its commonest value but 2,100 is its maximum,
-so those are real pack quantities.
+capped feed almost NOTHING sits above the most common non-zero value, because
+everything deeper piles onto the ceiling instead. HOKA is the case that makes a
+naive rule fail: 300 is its commonest value but 2,100 exists, so those are real
+pack quantities.
+
+**"NOTHING above it" was the first rule and it was too strict**, which cost the
+warning on the very first clean run. One ASICS file now carries BOTH sources:
+the page scrape caps at 30, and the two singlet styles come from the uncapped
+availability API and run into the hundreds. So 1,051 rows sat at 30, 38% of the
+non-zero ones, 57 rows exceeded it, the maximum was 302 and the ceiling went
+unreported. A mixed file is the NORMAL case now that the singlets ride the link
+list. Measured 2026-10-29, share of non-zero rows above the modal value:
+
+| file | above modal | verdict |
+|---|---|---|
+| ASICS page only | 0.0% | ceiling |
+| BROOKS | 0.0% | ceiling |
+| ASICS page + api, mixed | 2.0% | ceiling |
+| HOKA | 17.2% | no ceiling |
+| PUMA | 88.3% | no ceiling |
+| ON | 95.5% | no ceiling |
+
+Nought to 2 against 17 and up is a wide gap, so the threshold sits at 5%.
 
 The ceiling EXISTING is a warning, since it is a known limitation. What blocks
 is the ceiling MOVING, which means the capture changed under you, or more of
@@ -700,6 +718,16 @@ rows whose every quantity was NaN, and the verdict read "a row has a non
 numeric quantity", which sends you hunting for a bad row in a file whose
 problem is that it is the wrong KIND of file. It says which column is missing
 now.
+
+**THE BASELINE CARRIES A VERSION, because changing what a field MEANS is a
+silent trap.** `atCapShare` used to be the share of ALL rows and is now the
+share of NON-ZERO rows. An old baseline's 0.14 against a new run's 0.38 is a
+units mismatch, not a change in the data, and it blocked a run that had just
+been verified good at 47 links out of 47. An older baseline is now reported as
+stale and the fields whose definition moved are SKIPPED for that run, while
+rows and units, which never changed meaning, are still compared. A safety
+device whose reference format changes has to say so and ask to be re-accepted,
+never produce a confident wrong answer from a stale reference.
 
 **It fails closed.** No baseline is a BLOCK, not a pass, so the first run has
 to be looked at by a human. `--accept` refuses to record a file that failed any
@@ -757,10 +785,10 @@ run was for:
 | 2 | `basketNoFromUrl is not a function`, both singlets | defining it, see above |
 | 3 | the grid never drew inside 40 seconds | one retry per link |
 
-Re-run of those 3 afterwards: all 3 captured, one of them on its retry. Re-run
-of the 2 singlets: 96 rows, all Warehouse, uncapped. So the honest state is
-that a clean 47 of 47 has not yet been observed in a single pass; the parts
-have each been verified and the next scheduled run is the test of the whole.
+**A clean 47 of 47 was then observed**, 2026-10-29 18:52: 7,007 rows in 696
+seconds, one retry used, both singlets via the API to Warehouse, verdict PASS,
+exit code 0. That run is now the recorded baseline, so the next one is compared
+against a file somebody actually looked at.
 
 **A PARTIAL FILE IS A BLOCK, AND ONLY THE RUNNER KNOWS IT IS PARTIAL.** The
 guardrail sees the file and nothing else, so a run that skipped eight links

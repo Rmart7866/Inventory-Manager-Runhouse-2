@@ -37,7 +37,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { check, rowsFromCSV, POD_STYLES, POD_LOCATION, LIMITS } from './inventory-guardrail.mjs';
+import { check, rowsFromCSV, POD_STYLES, POD_LOCATION, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-scrape-profile');
@@ -530,7 +530,8 @@ async function main() {
         groupZeroShare[b] = s.zeros / s.rows;
       }
     }
-    fs.writeFileSync(BASELINE, JSON.stringify({ at: new Date().toISOString(), file: path.basename(out),
+    fs.writeFileSync(BASELINE, JSON.stringify({ v: BASELINE_VERSION,
+      at: new Date().toISOString(), file: path.basename(out),
       rows: res.summary.rows, units: res.summary.units, atCapShare: res.summary.atCapShare,
       cap: res.summary.cap, zeroShare: res.summary.zeroShare, groupZeroShare,
       locations: res.summary.locations }, null, 2));

@@ -9,7 +9,7 @@
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 
-import { check, rowsFromCSV, LIMITS, POD_STYLES, detectCap } from '../tools/inventory-guardrail.mjs';
+import { check, rowsFromCSV, LIMITS, POD_STYLES, detectCap, BASELINE_VERSION } from '../tools/inventory-guardrail.mjs';
 
 let failures = 0;
 const ok = (m) => console.log('  ok    ' + m);
@@ -31,7 +31,7 @@ function baselineFor(rows, at = '2026-10-20') {
   for (const [b, st] of Object.entries(res.summary.brands)) {
     if (st.rows >= 20) brandZeroShare[b] = st.zeros / st.rows;
   }
-  return { at, rows: res.summary.rows, units: res.summary.units,
+  return { v: BASELINE_VERSION, at, rows: res.summary.rows, units: res.summary.units,
     atCapShare: res.summary.atCapShare, cap: res.summary.cap,
     brandZeroShare, locations: res.summary.locations };
 }
@@ -100,6 +100,22 @@ console.log('\nThe ceiling is DETECTED, not configured, which is how Brooks was 
   detectCap(hoka) === null
     ? ok('a common round number that is NOT the maximum is left alone, the HOKA case')
     : bad('HOKA shaped round numbers were called a ceiling', detectCap(hoka));
+
+  // A MIXED FILE IS THE NORMAL CASE FOR ASICS NOW, and the first rule missed
+  // it. One run carries both sources: the page scrape caps at 30 and the two
+  // singlet styles come from the uncapped availability API and run into the
+  // hundreds. So "nothing above the modal value" was too strict, and the real
+  // 2026-10-29 run lost its ceiling warning entirely: 1,051 rows at 30, 38% of
+  // the non-zero ones, with 57 above it making the maximum 302.
+  const mixed = make(1000, (i) => (
+    i < 250 ? { qty: 30 }
+      : i < 850 ? { qty: 0 }
+      : i < 980 ? { qty: 1 + (i % 11) }
+      : { sku: 'ASICS-TF3085-90-' + i, qty: 150 + (i % 150) }));
+  const mc = detectCap(mixed);
+  mc && mc.value === 30
+    ? ok('a capped page scrape mixed with uncapped API rows still shows its ceiling')
+    : bad('the mixed file lost its ceiling, which is what happened for real', mc);
 
   // and a ceiling nobody is really pressed against is not worth reporting
   const thin = make(1000, (i) => ({ qty: i < 20 ? 60 : (i < 500 ? 0 : 1 + (i % 11)) }));
@@ -192,6 +208,33 @@ console.log('\nPrint on demand must never be written to Needham');
   // a small drift in the normal direction is not worth stopping a run for
   passes(check(make(1000, (i) => ({ qty: i < 140 ? 30 : (i < 740 ? 0 : 12) })), BASE_ASICS),
     '66% to 60% is ordinary movement and allowed');
+}
+
+console.log('\nAn older baseline is handled, not trusted blindly');
+{
+  // CHANGING WHAT A FIELD MEANS IS A SILENT TRAP. atCapShare used to be the
+  // share of ALL rows and is now the share of NON-ZERO rows, so an old 0.14
+  // against a new 0.38 is a units mismatch rather than a change in the data.
+  // It blocked a run that had just been verified good, 47 links of 47.
+  const old1 = { at: '2026-10-22', rows: 1000, units: BASE_ASICS.units,
+    atCapShare: 0.14, brandZeroShare: { ASICS: 0.66 }, locations: { Needham: 1000 } };
+  const res = check(make(1000, asicsShaped), old1);
+  res.warnings.some((w) => w.includes('older format'))
+    ? ok('an unversioned baseline is reported as stale rather than compared against')
+    : bad('a stale baseline was used silently', res.warnings);
+  res.blocks.some((b) => b.includes('CEILING'))
+    ? bad('the ceiling comparison ran against incompatible units', res.blocks)
+    : ok('and the ceiling comparison is skipped, so it cannot block spuriously');
+
+  // rows and units never changed meaning, so those comparisons must survive
+  blocks(check(make(400), { ...old1, rows: 1000 }), 'ROW COLLAPSE',
+    'row count is still compared, since that field never changed meaning');
+
+  // a current baseline is compared in full
+  const fresh = baselineFor(make(1000, asicsShaped));
+  fresh.v === BASELINE_VERSION
+    ? ok('a baseline written now carries the current version')
+    : bad('the version is not stamped on write', fresh.v);
 }
 
 console.log('\nA partial scrape, which looks like a small clean file');

@@ -62,6 +62,7 @@ export const LIMITS = {
   atCapShareJump: 0.10,        // 10 points more rows at the cap than last time
   minCapShare: 0.10,           // a ceiling holding under 10% of non-zero rows is probably real stock
   minGroupShare: 0.04,         // a style family smaller than 4% of the file is too small to judge
+  maxAboveCeiling: 0.05,       // a real ceiling has almost nothing above it, see detectCap
   minRows: 50,
 };
 
@@ -155,10 +156,28 @@ export function rowsFromCSV(text) {
 // spanning six weeks: the maximum is exactly 100 every single time and NEVER
 // once above it, which no real distribution does.
 //
-// The signature that separates a cap from honest round numbers is simple: on a
-// capped feed the MOST COMMON non-zero value is also the MAXIMUM, because
-// everything deeper piles onto the ceiling. It classifies all five brands
-// above correctly, where any fixed number gets four of them wrong.
+// The signature that separates a cap from honest round numbers is that on a
+// capped feed almost NOTHING sits above the most common non-zero value,
+// because everything deeper piles onto the ceiling instead.
+//
+// "NOTHING above it" was the first rule and it was too strict, which cost the
+// warning on the first clean run of the headless runner. One ASICS file now
+// carries BOTH sources: the page scrape caps at 30, and the two singlet styles
+// come from the uncapped availability API and run into the hundreds. So 1,051
+// rows sat at 30, 38% of the non-zero ones, and 57 rows exceeded it, which
+// made the maximum 302 and the ceiling invisible. A mixed file is the normal
+// case for ASICS now that the singlets ride the link list.
+//
+// Measured 2026-10-29, share of non-zero rows ABOVE the modal value:
+//
+//   ASICS page only    0.0%     ceiling
+//   BROOKS             0.0%     ceiling
+//   ASICS page + api   2.0%     ceiling, the mixed file above
+//   HOKA              17.2%     no ceiling, 300 is a pack size and 2100 exists
+//   PUMA              88.3%     no ceiling
+//   ON                95.5%     no ceiling
+//
+// Nought to 2 against 17 and up is a wide gap, so the threshold sits at 5%.
 export function detectCap(rows) {
   const nz = rows.map(r => r.qty).filter(q => Number.isFinite(q) && q > 0);
   if (nz.length < 50) return null;
@@ -166,12 +185,13 @@ export function detectCap(rows) {
   for (const q of nz) freq.set(q, (freq.get(q) || 0) + 1);
   let value = 0, count = 0;
   for (const [q, c] of freq) if (c > count || (c === count && q > value)) { value = q; count = c; }
-  const max = Math.max(...nz);
-  // the modal value must BE the ceiling, and hold a real share of the file
-  if (value !== max) return null;
   const share = count / nz.length;
   if (share < LIMITS.minCapShare) return null;
-  return { value, count, share };
+  // almost nothing may sit above it, or it is an ordinary common number
+  const above = nz.filter((q) => q > value).length;
+  const aboveShare = above / nz.length;
+  if (aboveShare > LIMITS.maxAboveCeiling) return null;
+  return { value, count, share, above, aboveShare };
 }
 
 // THESE ARE STYLE FAMILIES, NOT BRANDS, and the name mattered because it hid
@@ -199,8 +219,27 @@ const groupOf = (r) => {
 };
 
 // ------------------------------------------------------------- checks -----
+// THE BASELINE CARRIES A VERSION, BECAUSE CHANGING WHAT A FIELD MEANS IS A
+// SILENT TRAP. `atCapShare` used to be the share of ALL rows and is now the
+// share of NON-ZERO rows, so an old baseline's 0.14 against a new run's 0.38
+// is a units mismatch, not a change in the data. It blocked a run that had
+// just been verified good 47 links out of 47. A safety device whose reference
+// format changes must say so and ask to be re-accepted, never produce a
+// confident wrong answer from a stale reference.
+export const BASELINE_VERSION = 2;
+
 export function check(rows, baseline, limits = LIMITS) {
   const blocks = [], warnings = [];
+  // an older baseline is still useful for rows and units, which never changed
+  // meaning, so only the fields whose definition moved are ignored
+  const stale = baseline && (baseline.v || 1) < BASELINE_VERSION;
+  if (stale) {
+    warnings.push('the baseline was recorded in an older format (v' + (baseline.v || 1) + ' against v' +
+      BASELINE_VERSION + '), so the ceiling and zeroing comparisons are SKIPPED this run. ' +
+      'Row count and totals are still compared. Re-accept a run you trust to restore them.');
+    baseline = { ...baseline, atCapShare: null, cap: null, zeroShare: null,
+      brandZeroShare: null, groupZeroShare: null };
+  }
   const n = rows.length;
   const summary = { rows: n, units: 0, zeros: 0, atCap: 0, locations: {}, brands: {} };
 
@@ -284,8 +323,9 @@ export function check(rows, baseline, limits = LIMITS) {
   summary.atCapShare = cap ? cap.share : 0;
   if (cap) {
     warnings.push('CEILING AT ' + cap.value + ': ' + cap.count + ' rows (' +
-      (100 * cap.share).toFixed(0) + '% of non-zero) sit on it and none go higher, so the feed ' +
-      'prints "' + cap.value + '+" and this understates every size deeper than that.');
+      (100 * cap.share).toFixed(0) + '% of non-zero) sit on it and only ' + cap.above +
+      ' go higher, so the feed prints "' + cap.value + '+" and this understates every size ' +
+      'deeper than that.');
   }
   // THE CEILING MOVING IS THE ALARM, not the ceiling existing. A brand that
   // suddenly caps lower means the capture changed under you, which is what a
@@ -456,6 +496,7 @@ if (isMain) {
       }
     }
     fs.writeFileSync(BASELINE, JSON.stringify({
+      v: BASELINE_VERSION,
       at: new Date().toISOString(), file: path.basename(file),
       rows: res.summary.rows, units: res.summary.units,
       atCapShare: res.summary.atCapShare, cap: res.summary.cap,
