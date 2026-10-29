@@ -206,3 +206,7 @@ redo-location-rollback-*.json
 
 # ON blurry image rollbacks
 on-blurry-rollback-*.json
+
+# guardrail state, per machine. Row counts only, no pricing, but it is a run
+# artifact and a shared one would compare two different link lists.
+inventory-guardrail-baseline.json

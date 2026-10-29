@@ -66,6 +66,7 @@ node test/on-title.mjs                        # ON titles: a two-tone color is n
 node test/enrich-csv.mjs                      # applyToCSV round trip: a comma in Tags cannot shift a column
 node test/on-apparel-type.mjs                 # ON apparel: garment type, size ladder, never typed as a shoe
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
+node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
 node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock to Warehouse
@@ -78,6 +79,10 @@ node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order cata
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
 node scrapers/on/test/csv-quoting.mjs         # ON CSV: an inch mark in a name must not break the row
+
+# Check a scraper CSV before writing it. Exit 0 means safe. Writes nothing.
+node tools/inventory-guardrail.mjs <csv>
+node tools/inventory-guardrail.mjs <csv> --accept   # record it as the baseline
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
@@ -530,6 +535,63 @@ CSV on the tool and presses Write. The scraper is a Chrome extension precisely
 because it rides the staff member's authenticated session; a Worker has no way
 into ASICS B2B. Any "daily update" for these singlets is the same manual run
 until there is an ASICS EDI feed, which is already on the rep list.
+
+**AN UNATTENDED RUN NEEDS A GATE, AND A STATISTICAL ONE IS NOT ENOUGH.**
+`tools/inventory-guardrail.mjs` reads a scraper CSV and exits 0 only if it
+looks safe to write. It is an ADDON: nothing calls it yet, the write path is
+unchanged, and it writes nothing itself. The point is that a human watching a
+run catches a broken file by eye, and a thrice-daily job has nobody watching.
+
+It was calibrated against six weeks of real ASICS files, 2026-09-15 to
+2026-10-27, and that is the only reason it is useful. The first version used
+ABSOLUTE thresholds and blocked nine of eleven good runs:
+
+- **ASICS is routinely 63 to 68% zero.** Most sizes of most colourways really
+  are out of stock at the supplier. An absolute "15% of a brand at zero" rule
+  fires on every single run.
+- **13 to 15% of rows really do sit on exactly 30**, because the portal prints
+  "30+" and the page path reads it literally. That is a known, accepted
+  limitation, not an event.
+- **A style can be genuinely sold out.** `1011B` read 97% zero on 2026-09-18
+  and 97% again on 2026-09-21, two good runs three days apart.
+
+So every threshold is measured against the LAST ACCEPTED RUN, not against an
+absolute. What matters is a brand zeroing out 20 points MORE than last time, or
+the cap share jumping 10 points, never the level itself. A gate that fires on
+good runs gets switched off, which is worse than no gate.
+
+**AND THE CHECK THAT MATTERS MOST IS NOT STATISTICAL AT ALL.** The 2026-10-27
+file, the one that created 45 Needham inventory levels on print-on-demand
+singlets, is statistically indistinguishable from a good run: 7,647 rows,
+48,771 units, 63% zero, 15% at the cap, every figure in line with the five
+runs before it. The fault was 96 rows out of 7,647 carrying `Needham` instead
+of `Warehouse`, which is noise to every threshold above and always will be.
+`POD_STYLES` is therefore a NAMED rule: TF3085 and TF2934 rows must go to
+Warehouse, full stop. The list is explicit rather than a `/^TF/` pattern for
+the same reason `tools/set-inventory-policy.mjs` takes explicit handles, a
+pattern would quietly catch a future ASICS apparel style that genuinely is
+stocked at Needham.
+
+Against the real history it now passes nine of eleven files and blocks exactly
+the two that caused damage: 2026-10-14 on `DUPLICATE VARIANTS` (31,094 of
+39,131 rows, the delivery-window bug) and 2026-10-27 on `PRINT ON DEMAND IN
+THE WRONG PLACE`. 2026-09-22 also blocks, correctly, at 2,343 rows against
+7,745, a partial scrape.
+
+    node tools/inventory-guardrail.mjs <csv>            # exit 0 means safe
+    node tools/inventory-guardrail.mjs <csv> --accept    # record as the baseline
+
+**It fails closed.** No baseline is a BLOCK, not a pass, so the first run has
+to be looked at by a human. `--accept` refuses to record a file that failed any
+check other than the missing baseline, because the baseline is what every later
+run is judged against and accepting a bad one makes that fault the new normal.
+`inventory-guardrail-baseline.json` is gitignored: it is per-machine, and a
+shared one would be comparing two different link lists.
+
+`test/inventory-guardrail.mjs` is 32 assertions and every one reproduces a bug
+that shipped. Both calibration findings are pinned there too, so a future
+tightening of a threshold fails the suite rather than quietly blocking every
+run.
 
 **THE REDO LINE ITEM'S LOCATION DECIDES WHERE ITS ORDERS ROUTE.** `re:do` is
 the returns app. It drops a line item into the cart: product handle
