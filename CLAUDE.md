@@ -67,11 +67,11 @@ node test/enrich-csv.mjs                      # applyToCSV round trip: a comma i
 node test/on-apparel-type.mjs                 # ON apparel: garment type, size ladder, never typed as a shoe
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
+node test/method-wiring.mjs                   # every this.x() call resolves, whole repo
 node test/asics-headless.mjs                  # headless runner: row location, real converter, POD drift
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
 node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock to Warehouse
-node scrapers/asics/test/methods-exist.mjs    # every this.x() call resolves on its own class
 node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, a known limitation
 node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO digits, not three
 node scrapers/asics/test/readiness-gate.mjs   # the gate must open on a garment, not just a shoe
@@ -544,6 +544,42 @@ because it rides the staff member's authenticated session; a Worker has no way
 into ASICS B2B. Any "daily update" for these singlets is the same manual run
 until there is an ASICS EDI feed, which is already on the rep list.
 
+**BROOKS HAS A CEILING AT 100 AND NOBODY KNEW.** This file documents the ASICS
+"30+" cap at length and said nothing about Brooks, which has exactly the same
+bug and more of it. `scrapers/brooks/content.js` reads the FastTrack grid and
+does, literally:
+
+    if (placeholderText === '100+') {
+        currentInventory = 100;
+    }
+
+Measured 2026-10-29 across 14 real Brooks files spanning six weeks: the maximum
+is **exactly 100 every single time and NEVER once above it**, with 58 to 59% of
+non-zero rows pinned there, about 1,900 rows a run. No real distribution does
+that. ASICS by comparison puts 40% of its non-zero rows on its ceiling.
+
+It UNDERSTATES, never overstates, so the failure direction is the safe one and
+nothing has been oversold because of it. Fixing it properly needs an API path
+the way ASICS has one, and the Brooks account's
+`is-export-products-allowed` flag is off, so it stays a known limitation for
+now. It is recorded here so the next person does not rediscover it, and the
+guardrail reports it on every run.
+
+**AND BROOKS DELIBERATELY DISTORTS LOW STOCK.** `applyInventorySecurity` in the
+same file is applied to every quantity before it reaches the CSV:
+
+| real quantity | what is written |
+|---|---|
+| 3 or fewer | **0** |
+| 4 to 10 | **1** |
+| above 10 | the actual number |
+
+So a Brooks zero does not mean the supplier has none, and a Brooks 1 means
+somewhere between 4 and 10. That is intentional, presumably to avoid selling
+thin supplier stock, and it is left alone. Two consequences worth holding:
+Brooks' 35% zero share is partly synthetic, and its most common non-zero value
+being 1 is this rule, not the data.
+
 **AN UNATTENDED RUN NEEDS A GATE, AND A STATISTICAL ONE IS NOT ENOUGH.**
 `tools/inventory-guardrail.mjs` reads a scraper CSV and exits 0 only if it
 looks safe to write. It is an ADDON: nothing calls it yet, the write path is
@@ -557,9 +593,11 @@ ABSOLUTE thresholds and blocked nine of eleven good runs:
 - **ASICS is routinely 63 to 68% zero.** Most sizes of most colourways really
   are out of stock at the supplier. An absolute "15% of a brand at zero" rule
   fires on every single run.
-- **13 to 15% of rows really do sit on exactly 30**, because the portal prints
-  "30+" and the page path reads it literally. That is a known, accepted
-  limitation, not an event.
+- **Rows really do sit on exactly 30**, because the portal prints "30+" and the
+  page path reads it literally: 13 to 15% of ALL rows, which is 36 to 40% of
+  the NON-ZERO ones. The guardrail reports the second figure, since a ceiling
+  is a statement about rows that carry a number. Either way it is a known,
+  accepted limitation, not an event.
 - **A style can be genuinely sold out.** `1011B` read 97% zero on 2026-09-18
   and 97% again on 2026-09-21, two good runs three days apart.
 
@@ -571,8 +609,8 @@ good runs gets switched off, which is worse than no gate.
 **AND THE CHECK THAT MATTERS MOST IS NOT STATISTICAL AT ALL.** The 2026-10-27
 file, the one that created 45 Needham inventory levels on print-on-demand
 singlets, is statistically indistinguishable from a good run: 7,647 rows,
-48,771 units, 63% zero, 15% at the cap, every figure in line with the five
-runs before it. The fault was 96 rows out of 7,647 carrying `Needham` instead
+48,771 units, 63% zero, 40% of its non-zero rows on the ceiling, every figure
+in line with the five runs before it. The fault was 96 rows out of 7,647 carrying `Needham` instead
 of `Warehouse`, which is noise to every threshold above and always will be.
 `POD_STYLES` is therefore a NAMED rule: TF3085 and TF2934 rows must go to
 Warehouse, full stop. The list is explicit rather than a `/^TF/` pattern for
@@ -588,6 +626,80 @@ THE WRONG PLACE`. 2026-09-22 also blocks, correctly, at 2,343 rows against
 
     node tools/inventory-guardrail.mjs <csv>            # exit 0 means safe
     node tools/inventory-guardrail.mjs <csv> --accept    # record as the baseline
+
+**THE CEILING IS DETECTED, NOT CONFIGURED, and that is how Brooks was found.**
+The first version hardcoded 30, so it was blind to every brand but ASICS.
+Measured over the newest real file per brand, 2026-10-29:
+
+| brand | rows | max | most common non-zero | verdict |
+|---|---|---|---|---|
+| ASICS | 7,647 | 30 | 30, 40% of non-zero | a ceiling |
+| BROOKS | 5,003 | 100 | 100, 58% of non-zero | a ceiling |
+| HOKA | 3,057 | 2,100 | 300, 19% | NOT a ceiling, round pack sizes |
+| PUMA | 3,678 | 452 | 1, 12% | healthy |
+| ON | 7,112 | 4,069 | 1, 5% | healthy |
+
+The signature that separates a cap from honest round numbers is that on a
+capped feed the MOST COMMON non-zero value is also the MAXIMUM, because
+everything deeper piles onto the ceiling. That rule classifies all five
+correctly; any fixed number gets four of them wrong. HOKA is the case that
+makes a naive rule fail: 300 is its commonest value but 2,100 is its maximum,
+so those are real pack quantities.
+
+The ceiling EXISTING is a warning, since it is a known limitation. What blocks
+is the ceiling MOVING, which means the capture changed under you, or more of
+the file piling onto it, which means more of the file is a guess.
+
+**THE PER-GROUP ZERO CHECK IS BY STYLE FAMILY, NOT BY BRAND, and the name hid
+a false positive.** Each run is one supplier, so grouping inside a file can
+only be by style. The key shape is brand dependent: ASICS SKUs are
+`1011C127-001-10` so stripping trailing digits gives `1011C`, a family of about
+3,700 rows, while Brooks SKUs are `110442297-...` where stripping leaves
+nothing, so every style becomes its own group of 30 to 90 rows. Brooks style
+110442297 is legitimately 98 to 100% zero, which tripped the
+almost-entirely-zero rule on 6 of 14 good Brooks runs. A single sold out style
+is not a brand collapsing. A group must now be at least 4% of the file before
+it is judged, which keeps every ASICS family that has ever caught anything and
+drops the noise, and a FILE WIDE zero check was added that needs no grouping at
+all and therefore works on any SKU shape.
+
+**Validated against a second brand, which is the only reason to trust it.**
+Walked chronologically, each accepted run becoming the next baseline: ASICS 9
+of 12 pass with the 3 blocks being 2026-10-14 (duplicates, whole-file zeroing,
+three family jumps), 2026-09-22 (2,343 rows against 7,745) and 2026-10-27 (the
+singlets at Needham). Brooks 11 of 13 pass, the blocks being the two genuinely
+partial files at 481 and 225 rows and one 2026-09-17 scrape carrying 285
+duplicated rows.
+
+**A DUPLICATE THAT AGREES IS HARMLESS, ONE THAT DISAGREES IS A WRONG NUMBER.**
+A Shopify import keeps the LAST row for a variant, so duplicates carrying the
+same figure write what they would have written anyway. Duplicates that
+disagree let row ORDER decide, and the dangerous subset is a zero landing last
+over a real figure, because that zeroes stock that exists. Treating both the
+same was too lenient at one end and too noisy at the other: measured 2026-10-29
+over chunked exports, 2, 5 and 8 zero-wins duplicates per 1,000 row chunk,
+which is 0.2 to 0.8% and sailed under a 1% share threshold while quietly
+zeroing that many real variants. ANY zero-wins duplicate now blocks, because
+one is already a wrongful zero, while agreeing duplicates are only a warning.
+
+**The guardrail found a hand-assembled file that would have zeroed real stock.**
+`puma-inventory-final.csv` in Downloads has 971 of 2,611 variants repeated and
+**506 of them disagreeing**, in the shape `1 then 0` and `13 then 0 then 0`, so
+an import of it writes zero over stock that exists. All five genuine Puma
+scraper outputs have ZERO duplicates, and the `combined-` and `unified-`
+files, which are the real import channels, are clean too. So this is not a
+Puma scraper bug, it is what a hand concatenated file looks like, and it is
+exactly the thing worth catching before a write.
+
+**"NOT A SHOPIFY INVENTORY CSV" IS ITS OWN ANSWER.** Columns are found by NAME
+because the format varies: the ASICS scraper writes 19 columns, Puma's writes
+20 (it adds Barcode at position 10), and an older Puma export is a different 10
+column format with no `On hand (new)` at all and `Main Location` in the
+Location column. Handed that last one the reader used to return a full set of
+rows whose every quantity was NaN, and the verdict read "a row has a non
+numeric quantity", which sends you hunting for a bad row in a file whose
+problem is that it is the wrong KIND of file. It says which column is missing
+now.
 
 **It fails closed.** No baseline is a BLOCK, not a pass, so the first run has
 to be looked at by a human. `--accept` refuses to record a file that failed any
@@ -658,6 +770,28 @@ a redirect to a login page stops the WHOLE run rather than failing every
 remaining page, and each link gets one retry first, because the grid draws
 several seconds after navigation and occasionally does not draw at all, and one
 slow page should not throw away the other 46.
+
+**A DEAD BROWSER TARGET USED TO MAKE THE RUNNER EXIT 0, SILENTLY, HAVING DONE
+NOTHING.** This is the worst failure shape available for an unattended job and
+it is worth understanding. The CDP client returned a promise that settled only
+when a reply arrived. If the page target went away mid run, which it does when
+a tab is closed or a renderer crashes, no reply ever came, the `await` never
+resolved, nothing else was queued, the event loop drained and **Node exited
+with code 0**. No verdict, no CSV, no error, and a caller checking the exit
+code reads success while the stock quietly goes stale. Observed on the
+2026-10-29 full run, which stopped after link 32 and exited 0.
+
+Three things stop it, and the third is the one that matters: every CDP call has
+a 60 second deadline, a socket close or error rejects everything outstanding,
+and `main()` tracks whether a verdict was actually PRINTED and refuses to exit
+0 otherwise. "No verdict" is reported as a failure, never as "no changes".
+
+**AND THE SELF LAUNCHING PATH IS THE ONE A SCHEDULE USES, so test that one.**
+Every early run reused the browser left open by `--setup`, which is the
+convenient path and not the real one. Verified separately 2026-10-29 with no
+browser running: it launches its own headless Chrome on the profile, and the
+ASICS session survives a full browser restart, so the login is on disk rather
+than in the window.
 
 **ZERO ROWS IS NOT SILENTLY ACCEPTED.** An API only singlet whose call failed
 returns nothing on purpose, rather than the page grid's capped 30, and a style
@@ -985,14 +1119,47 @@ such a method on the class, and using it here would be wrong: the link list
 pins a specific order per style while "current basket" is whatever the staff
 member last opened, and a mismatch answers 403 rather than failing loudly.
 
-**`scrapers/asics/test/methods-exist.mjs` NOW PINS THAT WHOLE CLASS OF BUG.**
-It parses each class body and asserts every `this.x()` call resolves to a
-method defined on it, across `EnhancedASICSInventoryExtractor` (47 calls, 52
-methods), `UnifiedShopifyConverter` and `UnifiedCSVManager`. Both historical
-bugs were re-introduced to confirm it fails on each, because a structural test
-that cannot fail is exactly how `location-per-link.mjs` stayed green through a
-four day outage. A behaviour test cannot catch this: the method is usually
-fine, it is the WIRING that is wrong.
+**`test/method-wiring.mjs` NOW PINS THAT WHOLE CLASS OF BUG, REPO WIDE.** It
+asserts every `this.x()` call resolves to something defined on the class or
+module object that makes it, across all 63 JS files and 58 classes and module
+objects. Scoping it to ASICS was the first attempt and was the same mistake as
+writing the guardrail for one brand: nothing about this bug is ASICS specific.
+A behaviour test cannot catch it, because the method is usually fine and it is
+the WIRING that is wrong.
+
+Three injected bugs confirm it fails: each historical bug put back, plus a
+one-character typo in `scrapers/puma/content.js` to prove the repo wide scan
+does the work rather than the two named assertions. A structural test that
+cannot fail is exactly how `location-per-link.mjs` stayed green through a four
+day outage.
+
+**It needs a small JS lexer, and three cheaper approaches each gave WRONG
+answers.** Worth knowing before simplifying it:
+
+- **Indentation.** `scrapers/puma/content.js` and
+  `scrapers/newbalance/content.js` define methods FLUSH LEFT inside a class,
+  so an indentation rule reads every one of them as absent.
+- **A column zero closing brace as the end of a class.** Same files: a flush
+  left method's own closing brace is in column zero, so the body truncates
+  mid class and 30 methods read as missing.
+- **Naive string removal, then brace matching.** It desynced on this repo:
+  `catalog-client.js` came out with three unbalanced braces, so
+  `CatalogClient`'s body ran to the end of the file. The causes were regex
+  literals containing quotes, and NESTED template literals, since a
+  substitution can hold a function body with braces of its own.
+
+Two traps inside the lexer itself, both of which produced false findings
+first: a parameter list can contain parentheses
+(`generateUniqueHandle(product, usedHandles = new Set())`), so the definition
+match must run to the last `)` on the line; and `this.x()` inside an inline
+event handler is not a call on the object, because
+`scrapers/on/content.js` builds markup carrying
+`onclick="this.closest(...)"` where `this` is the button.
+
+**The test checks its own instrument first.** After stripping, every file must
+have equal braces and parens, and it says so as its first assertion. If a
+future file breaks the lexer, the test reports that rather than quietly
+inventing unresolved calls.
 
 **THERE IS NO DOM FALLBACK FOR AN API ONLY STYLE, and that is the point.**
 Before the SKUs existed a scraped singlet row matched nothing, so a capped

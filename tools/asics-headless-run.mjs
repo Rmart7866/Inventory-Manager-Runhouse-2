@@ -37,7 +37,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { check, rowsFromCSV, POD_STYLES, POD_LOCATION } from './inventory-guardrail.mjs';
+import { check, rowsFromCSV, POD_STYLES, POD_LOCATION, LIMITS } from './inventory-guardrail.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-scrape-profile');
@@ -47,6 +47,10 @@ const PORT = 9333;
 // Firebase config is public by construction, the same values the page ships.
 const FB_PROJECT = 'run-house-inventory-system';
 const FB_KEY = 'AIzaSyA2BcP17tc5wJm2_j5T846oP6eqrbV-HO4';
+
+// set only once a PASS or BLOCK has been printed, see the exit guard at the
+// bottom of this file
+let verdictReached = false;
 
 const arg = (name, dflt) => {
   const i = process.argv.indexOf(name);
@@ -141,16 +145,51 @@ export function loadBackgroundConverter(root = ROOT) {
 
 // ------------------------------------------------------- the CDP client ----
 let nextId = 1;
+
+// A DEAD TARGET USED TO MAKE THIS EXIT 0, SILENTLY, HAVING DONE NOTHING.
+//
+// The original client returned a promise that only ever settled when a reply
+// arrived. If the page target went away mid run, which it does when the tab is
+// closed or the renderer crashes, no reply ever came, the await never
+// resolved, nothing else was queued, the event loop drained and NODE EXITED
+// WITH CODE 0. No verdict, no CSV, no error, and a caller checking the exit
+// code reads success. For a job meant to run unattended three times a day
+// that is the worst failure shape available: the stock goes stale and
+// everything says it worked. Observed on the 2026-10-29 full run, which
+// stopped after link 32 and exited 0.
+//
+// Three things stop it: every call has a deadline, a socket close or error
+// rejects everything outstanding, and main() refuses to exit 0 without having
+// printed a verdict.
+const CDP_TIMEOUT_MS = 60000;
+
 function cdp(ws) {
   const pending = new Map();
+  let dead = null;
+  const killAll = (why) => {
+    dead = why;
+    for (const [, p] of pending) p.rej(new Error(why));
+    pending.clear();
+  };
   ws.addEventListener('message', (e) => {
     const m = JSON.parse(e.data);
-    if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+    if (m.id && pending.has(m.id)) { pending.get(m.id).ok(m); pending.delete(m.id); }
   });
+  ws.addEventListener('close', () => killAll('the browser target closed mid run'));
+  ws.addEventListener('error', () => killAll('the browser connection errored mid run'));
+
   return (method, params = {}) => new Promise((res, rej) => {
+    if (dead) return rej(new Error(dead));
     const id = nextId++;
-    pending.set(id, (m) => m.error ? rej(new Error(method + ': ' + m.error.message)) : res(m.result));
-    ws.send(JSON.stringify({ id, method, params }));
+    const timer = setTimeout(() => {
+      if (pending.delete(id)) rej(new Error(method + ' got no reply in ' + (CDP_TIMEOUT_MS / 1000) + 's'));
+    }, CDP_TIMEOUT_MS);
+    pending.set(id, {
+      ok: (m) => { clearTimeout(timer); m.error ? rej(new Error(method + ': ' + m.error.message)) : res(m.result); },
+      rej: (e) => { clearTimeout(timer); rej(e); },
+    });
+    try { ws.send(JSON.stringify({ id, method, params })); }
+    catch (e) { clearTimeout(timer); pending.delete(id); rej(new Error(method + ': ' + e.message)); }
   });
 }
 
@@ -193,6 +232,7 @@ async function main() {
     const up = await findExisting(PORT + 1);
     console.log(up ? '\nconfirmed: a separate browser is running on this profile'
       : '\nWARNING: no browser appeared on port ' + (PORT + 1) + '. Quit Chrome entirely and retry.');
+    verdictReached = true;          // --setup is not a run, so it has no verdict to reach
     return 0;
   }
 
@@ -201,10 +241,28 @@ async function main() {
   const todo = limit > 0 ? links.slice(0, limit) : links;
   if (!todo.length) { console.error('The link list is empty.'); return 1; }
 
+  // A DUPLICATE LINK BECOMES DUPLICATE ROWS, and the guardrail would then
+  // block on DUPLICATE VARIANTS, which reads like the delivery-window bug
+  // rather than like a list someone pasted an entry into twice. Say it here,
+  // where the cause is obvious. Checked 2026-10-29: 47 links, 47 distinct
+  // styles, so this is prevention rather than a current problem.
+  const seenStyle = new Map();
+  for (const l of todo) {
+    const st = styleFromUrl(l.url);
+    if (!st) { console.log('WARNING: no style in this url, it will be skipped: ' + l.url); continue; }
+    if (seenStyle.has(st)) {
+      console.log('WARNING: style ' + st + ' is in the list twice ("' + seenStyle.get(st) +
+        '" and "' + (l.label || l.url.slice(-30)) + '"). Every row for it will be duplicated.');
+    } else seenStyle.set(st, l.label || l.url.slice(-30));
+  }
+
   const pod = todo.filter(l => l.location === POD_LOCATION);
   console.log('links    : ' + todo.length + (limit ? ' (limited from ' + links.length + ')' : '') +
     ', ' + pod.length + ' print on demand to ' + POD_LOCATION);
-  console.log('profile  : ' + PROFILE + ', ' + profileUrlCount() + ' urls visited');
+  const visited = profileUrlCount();
+  console.log('profile  : ' + PROFILE + ', ' +
+    (visited < 0 ? 'history unreadable' : visited + ' urls visited') +
+    (visited === 0 ? '  (NEVER LOGGED IN, run --setup first)' : ''));
 
   // the same config shape the extension builds, so locationForScrapedUrl works
   const config = {
@@ -213,10 +271,20 @@ async function main() {
     locationByUrl: Object.fromEntries(todo.filter(l => l.location).map(l => [l.url, l.location])),
   };
 
+  // A LEAKED HEADLESS CHROME HOLDS THE PROFILE LOCK, and the next run then
+  // fails with "no browser available", which reads like a launch problem. So
+  // the process this run starts is killed on ANY exit path, including a throw
+  // that escapes the loop, and never the setup window that it did not start.
   let chrome = null;
+  const killOwn = () => { if (chrome) { try { chrome.kill(); } catch (e) {} chrome = null; } };
+  process.once('exit', killOwn);
+  process.once('SIGINT', () => { killOwn(); process.exit(130); });
+  process.once('SIGTERM', () => { killOwn(); process.exit(143); });
+
   let target = await findExisting(PORT + 1);
-  if (target) console.log('chrome   : reusing the browser open on this profile');
+  if (target) console.log('chrome   : reusing the browser already open on this profile');
   else {
+    console.log('chrome   : launching headless on this profile');
     chrome = spawn(CHROME, ['--headless=new', '--remote-debugging-port=' + PORT,
       '--user-data-dir=' + PROFILE, '--no-first-run', '--no-default-browser-check',
       '--disable-gpu', '--window-size=1600,1200', 'about:blank'], { stdio: 'ignore' });
@@ -243,6 +311,11 @@ async function main() {
 
   const records = [];
   const failures = [];
+  // COUNT WHAT WAS ATTEMPTED, NOT TOTAL MINUS FAILURES. That arithmetic is
+  // only right when every link was tried, and on an abort it is badly wrong in
+  // the flattering direction: a run that died after 4 links reported "827 rows
+  // from 45 of 47 links", which reads like a nearly complete run.
+  let attempted = 0;
   let t0 = Date.now();
 
   // ONE RETRY PER LINK, BECAUSE A TRANSIENT RENDER IS NOT A REASON TO LOSE A
@@ -251,12 +324,13 @@ async function main() {
   // design, so without a retry one slow page throws away the other 46 and the
   // next scheduled run inherits the same odds. Two attempts, then it counts.
   const ATTEMPTS = 2;
-  let sessionDead = false;
+  let abortRun = false;   // an expired session or a dead browser, both fail everything left
 
-  for (let i = 0; i < todo.length && !sessionDead; i++) {
+  for (let i = 0; i < todo.length && !abortRun; i++) {
     const link = todo[i];
     config.currentIndex = i;    // the index BEING scraped, see locationForScrapedUrl
     const tag = '[' + (i + 1) + '/' + todo.length + '] ' + (link.label || link.url.slice(-24));
+    attempted++;
     let lastErr = '';
     for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
       try {
@@ -299,7 +373,8 @@ async function main() {
           console.error('SESSION EXPIRED. Stopping, so this cannot produce a partial file.');
           console.error('Re-run with --setup, log in, then run again.');
           failures.push({ url: link.url, error: 'session expired' });
-          sessionDead = true;
+          lastErr = '';            // already recorded, do not record it twice below
+          abortRun = true;
           break;
         }
 
@@ -370,6 +445,20 @@ async function main() {
         break;
       } catch (e) {
         lastErr = e.message;
+        // A DEAD CONNECTION WILL FAIL EVERY REMAINING LINK, so stop now. Seen
+        // 2026-10-29 when the browser was killed mid run: without this the
+        // run ground through all 47 links retrying each one against a socket
+        // that was never coming back, which wastes ten minutes and buries the
+        // real cause under 94 identical failures.
+        if (/target closed|connection errored|got no reply/.test(e.message)) {
+          console.error('\n' + tag + '  ' + e.message);
+          console.error('THE BROWSER IS GONE. Stopping, because every remaining link would fail the');
+          console.error('same way and produce a partial file. Nothing was written.');
+          failures.push({ url: link.url, error: e.message });
+          lastErr = '';            // already recorded, do not record it twice below
+          abortRun = true;
+          break;
+        }
         if (attempt < ATTEMPTS) {
           console.log(tag + '  attempt ' + attempt + ' failed (' + e.message.slice(0, 60) + '), retrying');
           await wait(3000);
@@ -384,17 +473,22 @@ async function main() {
   }
 
   try { ws.close(); } catch (e) {}
-  if (chrome) chrome.kill();
+  killOwn();
 
-  console.log('\ncaptured : ' + records.length + ' rows from ' +
-    (todo.length - failures.length) + ' of ' + todo.length + ' links in ' +
-    Math.round((Date.now() - t0) / 1000) + 's');
+  const succeeded = attempted - failures.length;
+  const never = todo.length - attempted;
+  console.log('\ncaptured : ' + records.length + ' rows from ' + succeeded + ' of ' +
+    todo.length + ' links in ' + Math.round((Date.now() - t0) / 1000) + 's' +
+    (never > 0 ? '   (' + never + ' never attempted, the run stopped early)' : ''));
 
   if (!records.length) { console.error('\nNothing captured. No file written.'); return 1; }
 
   // THE REAL CONVERTER BUILDS THE FILE. This is the one that decides Location.
   const csv = loadBackgroundConverter().convertToInventoryCSV(records);
-  const stamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '');
+  // SECONDS, NOT MINUTES. Two runs inside one minute wrote the same filename
+  // and the second silently replaced the first, which matters precisely when
+  // comparing a re-run against the run before it.
+  const stamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '');
   const out = path.join(os.homedir(), 'Downloads', 'asics-headless-' + stamp + '.csv');
   fs.writeFileSync(out, csv);
   console.log('csv      : ' + out);
@@ -409,27 +503,37 @@ async function main() {
   // A FAILED LINK IS A BLOCK IN ITS OWN RIGHT. The guardrail sees only the
   // file, so a run that skipped half the list looks to it like stock that
   // genuinely vanished. Only the runner knows a page failed, so it says so.
-  if (failures.length) {
-    console.log('  BLOCK  ' + failures.length + ' of ' + todo.length + ' links failed, so this file is ' +
-      'incomplete and the styles missing from it would read as stock disappearing:');
+  if (failures.length || never > 0) {
+    console.log('  BLOCK  ' + failures.length + ' link(s) failed and ' + never + ' were never attempted, ' +
+      'out of ' + todo.length + '. This file is incomplete, and the styles missing from it would read ' +
+      'downstream as stock disappearing:');
     failures.slice(0, 8).forEach(f => console.log('           ' + f.error + '  ' + f.url.slice(-42)));
     if (failures.length > 8) console.log('           and ' + (failures.length - 8) + ' more');
   }
   res.warnings.forEach(w => console.log('  WARN   ' + w));
   res.blocks.forEach(b => console.log('  BLOCK  ' + b));
 
-  const ok = res.ok && !failures.length;
+  // A LINK NEVER ATTEMPTED IS AS BAD AS ONE THAT FAILED. Both leave a hole
+  // that reads downstream as stock disappearing, and only the runner knows
+  // the hole is there, because the guardrail only ever sees the file.
+  const ok = res.ok && !failures.length && never === 0;
   console.log('\n' + (ok ? 'PASS. Safe to import ' + path.basename(out)
     : 'BLOCKED. Do not import this file.'));
+  verdictReached = true;
 
   if (has('--accept') && ok) {
-    const brandZeroShare = {};
+    // the same shape the guardrail's own CLI writes, so a baseline recorded by
+    // either one is readable by the other
+    const groupZeroShare = {};
     for (const [b, s] of Object.entries(res.summary.brands)) {
-      if (s.rows >= 20) brandZeroShare[b] = s.zeros / s.rows;
+      if (s.rows >= 20 && s.rows / res.summary.rows >= LIMITS.minGroupShare) {
+        groupZeroShare[b] = s.zeros / s.rows;
+      }
     }
     fs.writeFileSync(BASELINE, JSON.stringify({ at: new Date().toISOString(), file: path.basename(out),
       rows: res.summary.rows, units: res.summary.units, atCapShare: res.summary.atCapShare,
-      brandZeroShare, locations: res.summary.locations }, null, 2));
+      cap: res.summary.cap, zeroShare: res.summary.zeroShare, groupZeroShare,
+      locations: res.summary.locations }, null, 2));
     console.log('baseline recorded.');
   } else if (has('--accept')) {
     console.log('NOT recorded as the baseline: a blocked run must not become the new normal.');
@@ -440,5 +544,20 @@ async function main() {
 const isMain = process.argv[1] &&
   path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
 if (isMain) {
-  main().then(c => process.exit(c)).catch(e => { console.error('\nFAILED: ' + e.message); process.exit(1); });
+  // THE LAST LINE OF DEFENCE AGAINST A SILENT SUCCESS. Whatever goes wrong,
+  // and however it goes wrong, this process does not get to exit 0 unless it
+  // actually reached a verdict and said so.
+  process.on('exit', (code) => {
+    if (!verdictReached && code === 0) {
+      console.error('\nNO VERDICT REACHED, so this run decided nothing. Treat it as a failure,');
+      console.error('not as "no changes". Nothing was written.');
+      process.exitCode = 1;
+    }
+  });
+  main()
+    .then((c) => { process.exitCode = c; })
+    .catch((e) => {
+      console.error('\nFAILED: ' + e.message);
+      process.exitCode = 1;
+    });
 }
