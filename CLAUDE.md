@@ -67,9 +67,11 @@ node test/enrich-csv.mjs                      # applyToCSV round trip: a comma i
 node test/on-apparel-type.mjs                 # ON apparel: garment type, size ladder, never typed as a shoe
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
+node test/asics-headless.mjs                  # headless runner: row location, real converter, POD drift
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
 node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock to Warehouse
+node scrapers/asics/test/methods-exist.mjs    # every this.x() call resolves on its own class
 node scrapers/asics/test/quantity-cap.mjs     # the page caps at 30+, a known limitation
 node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO digits, not three
 node scrapers/asics/test/readiness-gate.mjs   # the gate must open on a garment, not just a shoe
@@ -83,6 +85,12 @@ node scrapers/on/test/csv-quoting.mjs         # ON CSV: an inch mark in a name m
 # Check a scraper CSV before writing it. Exit 0 means safe. Writes nothing.
 node tools/inventory-guardrail.mjs <csv>
 node tools/inventory-guardrail.mjs <csv> --accept   # record it as the baseline
+
+# Capture the whole ASICS link list with no human driving Chrome. Writes a CSV
+# and a verdict, never to Shopify. Needs the dedicated profile logged in once.
+node tools/asics-headless-run.mjs --setup     # log the profile in, once
+node tools/asics-headless-run.mjs             # capture, check, write a CSV
+node tools/asics-headless-run.mjs --limit 3   # the first 3 links, for a smoke test
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
@@ -593,6 +601,104 @@ that shipped. Both calibration findings are pinned there too, so a future
 tightening of a threshold fails the suite rather than quietly blocking every
 run.
 
+**THE HEADLESS RUNNER CAPTURES THE ASICS LIST WITH NO HUMAN CLICKING, AND IT
+STILL WRITES NOTHING TO SHOPIFY.** `tools/asics-headless-run.mjs` reads the
+same Firestore link list the page reads, drives a headless Chrome on a
+dedicated profile, and emits the same 19 column inventory CSV the extension
+produces, then runs it through the guardrail and prints a verdict. The import
+is unchanged: a human still presses the button, or does not, on the strength of
+that verdict. Capture is what is automated here, not the decision.
+
+    node tools/asics-headless-run.mjs --setup      log the profile in, once
+    node tools/asics-headless-run.mjs              capture, check, write a CSV
+    node tools/asics-headless-run.mjs --limit 3    smoke test on three links
+
+**IT REIMPLEMENTS NOTHING.** Both extension files are read off disk and
+evaluated, so there is one copy of every rule that decides a number:
+`content.js` for the readiness gate, `findColors`/`findSizes`, the API only
+singlet path and `locationForScrapedUrl`; `background.js` for
+`convertToInventoryCSV`, which is the converter that actually decides the
+Location column. A selector fix in the extension reaches this for free, and
+nothing fixed here can drift from what staff run by hand. `background.js` ends
+in `chrome.runtime` listeners so it gets a stub, and the CSV helpers touch no
+chrome API. `test/asics-headless.mjs` fails if the injection cut point,
+`API_ONLY_STYLES`, the readiness gate or `locationForScrapedUrl`'s signature
+moves.
+
+**THE PROFILE IS ITS OWN, AND LOGGED IN BY HAND ONCE.** Chrome locks a
+user-data-dir, so reusing the staff member's everyday profile would collide
+with whoever is using Chrome and a half copied profile is a good way to corrupt
+a login. `--setup` opens a genuinely separate browser, which needs a distinct
+`--remote-debugging-port`: macOS hands a url to a RUNNING Chrome and ignores
+`--user-data-dir`, so without it the login lands in the everyday profile and
+this one stays empty with no symptom but a later "not logged in". How long an
+ASICS session survives is still unmeasured, which is the open question about
+running this on a schedule.
+
+**Measured on the first full run, 2026-10-29.** 47 links, 6,423 rows in 872
+seconds, about 19 seconds a link. 42 links captured and 5 failed, and the
+verdict refused the file for exactly that reason. The failures are what the
+run was for:
+
+| failures | cause | fixed by |
+|---|---|---|
+| 2 | `basketNoFromUrl is not a function`, both singlets | defining it, see above |
+| 3 | the grid never drew inside 40 seconds | one retry per link |
+
+Re-run of those 3 afterwards: all 3 captured, one of them on its retry. Re-run
+of the 2 singlets: 96 rows, all Warehouse, uncapped. So the honest state is
+that a clean 47 of 47 has not yet been observed in a single pass; the parts
+have each been verified and the next scheduled run is the test of the whole.
+
+**A PARTIAL FILE IS A BLOCK, AND ONLY THE RUNNER KNOWS IT IS PARTIAL.** The
+guardrail sees the file and nothing else, so a run that skipped eight links
+looks to it like eight styles of stock genuinely vanishing. The runner
+therefore counts failures itself and blocks on any of them. Two related rules:
+a redirect to a login page stops the WHOLE run rather than failing every
+remaining page, and each link gets one retry first, because the grid draws
+several seconds after navigation and occasionally does not draw at all, and one
+slow page should not throw away the other 46.
+
+**ZERO ROWS IS NOT SILENTLY ACCEPTED.** An API only singlet whose call failed
+returns nothing on purpose, rather than the page grid's capped 30, and a style
+really can be discontinued. Either way it is retried and then recorded as a
+failure, so the verdict refuses the file rather than importing a hole.
+
+**AND THE LINK LIST COULD NOT SAY "WAREHOUSE", WHICH IS THE 2026-10-27 BUG
+STILL LIVE.** The extension takes the location as a word after the url on the
+pasted line. The Firestore list has no field for it and "Copy All Links"
+emitted the bare url, so the two singlet entries, both of which ARE in the
+list, came across with no location and the converter's fallback sent them to
+Needham. Every manual scrape was one import away from repeating the write that
+had to be repaired by hand.
+
+`B2BLinkManager.locationFor` now derives it from the STYLE and `copyActive`
+appends it, so the copied list carries `<url> Warehouse` on those two lines and
+is byte identical on every other. Derivation rather than a stored field on
+purpose: a field would sit empty on the two links that already exist and need a
+human to fill it in, which is exactly the step that failed. The list is
+duplicated in `b2b-links.js` and `tools/inventory-guardrail.mjs` because one is
+a browser global and the other an ES module, and `test/asics-headless.mjs`
+fails if they disagree, the same guard `worker/test/brand-registry.mjs` gives
+the two brand tables.
+
+`b2b-links.js` was also the ONE script tag in `index.html` carrying no `?v=`
+cache buster, so a returning browser would have kept the old copy and gone on
+emitting bare urls with nothing to show for the fix. It is `?v=2` now.
+
+**`locationForScrapedUrl` WAS OFF BY ONE, and it was harmless only by luck.**
+It read `urls[(currentIndex || 1) - 1]`, written as though `currentIndex` had
+already advanced past the page being scraped. It has not: the only caller is
+`extractCurrentPageDataBackground` and `config.currentIndex++` runs AFTER it.
+So the primary lookup returned the PREVIOUS line's url, which means a link
+listed immediately after a Warehouse line inherited Warehouse, a footwear
+style's stock written to the wrong location. The Warehouse line itself was
+saved only by the path match below it. Nothing went wrong in practice purely
+because the two singlets sit LAST in the live list, which is one reordering
+away from not being true. The regression is now pinned both ways in
+`scrapers/asics/test/location-per-link.mjs`, whose fixtures had themselves been
+written to the off-by-one convention.
+
 **THE REDO LINE ITEM'S LOCATION DECIDES WHERE ITS ORDERS ROUTE.** `re:do` is
 the returns app. It drops a line item into the cart: product handle
 `free-returns-on-shoes-only-does-not-apply-to-printed-apparel`, UNLISTED,
@@ -803,10 +909,18 @@ punctuation and reads the ASICS colour code off the END of the colour name when
 one is there, so "Black-090" resolves to ASICS 90 and "White-001" to 01. All 52
 base variants map with none left over.
 
-**THE SINGLETS NOW RIDE THE DAILY LINK LIST, and the whole of the difference is
-a two entry style list.** They are dropship out of the Warehouse, so they belong
-in the same routine as the shoes. Two things had to be true first, and both now
-are.
+**THE SINGLETS RIDE THE DAILY LINK LIST, and as of 2026-10-29 they actually
+do.** This section previously said they already did. They did not: the API path
+threw on entry on every run, see the `basketNoFromUrl` note below, and because
+these styles have no DOM fallback by design the result was zero rows for both
+singlets, silently, every single time. The SKUs were in place to receive the
+write and nothing was ever written. First successful capture 2026-10-29, by
+`tools/asics-headless-run.mjs`, measured: 96 rows, all Warehouse, TF3085 Red M
+at 302, Black M at 205, Black S at 161, and NOT ONE row at 30. Those are the
+same figures this file records as the real ones.
+
+They are dropship out of the Warehouse, so they belong in the same routine as
+the shoes. Two things had to be true first, and both now are.
 
 **One: a scraped row has to JOIN.** A Shopify inventory CSV import matches on
 the SKU, which this repo's own output proves: the scraper generates handles like
@@ -851,6 +965,34 @@ turns a harmless no-op scrape into a live write.** Before the SKUs existed, a
 capped Needham singlet row matched nothing. After, it matched everything. Any
 future backfill that creates a join key should land AFTER the code that feeds
 it is confirmed running, not before.
+
+**`basketNoFromUrl` WAS CALLED AND NEVER DEFINED, so the singlet path threw on
+entry for three days.** `extractSingletInventoryFromApi` opens with
+`this.basketNoFromUrl()`. That method belonged to the API-under-the-link-scraper
+work REVERTED on 2026-10-26, and the singlet path was added AFTER the revert, so
+the call site outlived the method. Every TF3085 and TF2934 page died with
+
+    TypeError: this.basketNoFromUrl is not a function
+
+before making a single request. It is the same shape as the
+`locationForScrapedUrl` outage: a method that is not on the class that calls
+it. And it was INVISIBLE, because the no-DOM-fallback rule below is working as
+intended, so the honest answer to a thrown API call is zero rows. A silent zero
+is what a correct safety rule looks like when the thing behind it is broken.
+
+The basket number comes from the URL PATH, not from `apiBasketNo()`. There is
+such a method on the class, and using it here would be wrong: the link list
+pins a specific order per style while "current basket" is whatever the staff
+member last opened, and a mismatch answers 403 rather than failing loudly.
+
+**`scrapers/asics/test/methods-exist.mjs` NOW PINS THAT WHOLE CLASS OF BUG.**
+It parses each class body and asserts every `this.x()` call resolves to a
+method defined on it, across `EnhancedASICSInventoryExtractor` (47 calls, 52
+methods), `UnifiedShopifyConverter` and `UnifiedCSVManager`. Both historical
+bugs were re-introduced to confirm it fails on each, because a structural test
+that cannot fail is exactly how `location-per-link.mjs` stayed green through a
+four day outage. A behaviour test cannot catch this: the method is usually
+fine, it is the WIRING that is wrong.
 
 **THERE IS NO DOM FALLBACK FOR AN API ONLY STYLE, and that is the point.**
 Before the SKUs existed a scraped singlet row matched nothing, so a capped
@@ -1402,10 +1544,10 @@ Worker cron cannot replace them.
 
 | Step | Blocker | What would actually fix it |
 |---|---|---|
-| Capturing ASICS stock | b2b.asics.com needs the staff session | An ASICS EDI or inventory feed. Already on the rep list with the Schedule A |
+| Capturing ASICS stock | PARTLY SOLVED, see `tools/asics-headless-run.mjs`. A dedicated Chrome profile logged in by hand drives the whole link list unattended. The session lifetime is unmeasured, so it still needs a human when it expires | An ASICS EDI or inventory feed. Already on the rep list with the Schedule A |
 | Capturing ON stock | Backstage session, and the re-order filter needs the catalog response | An ON feed, same conversation |
 | Capturing Brooks stock | FastTrack returns 401 without auth, and the export flag is off on the account | The `is-export-products-allowed` flag, then a feed |
-| Dropping the file and pressing Write | Nothing, this is only manual because the capture above is | Falls out for free once a feed exists |
+| Dropping the file and pressing Write | Deliberate. The capture is automated and the guardrail judges the file, but a human still imports it. Nothing technical stops it, the confidence to stop looking does not exist yet | A few weeks of headless runs whose verdicts match what a human would have decided |
 | The ON image sidecar | Same Backstage session as the stock | Same feed |
 | ON apparel descriptions | The Backstage response may not carry the copy, unverified | Confirm the fields, then capture into the sidecar like the images |
 | LA 2027 singlet availability | `tools/push-asics-availability.mjs` takes a JSON captured in the browser | Same ASICS feed |
@@ -1416,6 +1558,13 @@ It would fire only when Chrome happens to be open and logged in, and silently do
 nothing otherwise. A scheduled job that quietly skips is worse than a manual one
 someone owns, because the stock looks fresh and is not. The honest versions are
 a real feed, or a human with a routine.
+
+`asics-headless-run.mjs` is not that objection in disguise, and the difference
+is the only reason it exists. It owns its own browser rather than depending on
+one being open, it says loudly when the session has expired instead of skipping,
+and a run that failed any link refuses its own output. A scheduled job may still
+be the wrong shape for this, but if it is, it will be because the session does
+not last, which is a measurable question rather than a guess.
 
 ## Current state
 

@@ -8,6 +8,36 @@ var B2BLinkManager = {
     brands: ['asics', 'brooks'],
     cache: { asics: null, brooks: null },
 
+    // PRINT ON DEMAND BLANKS LIVE AT THE WAREHOUSE, AND THE COPIED LIST HAS TO
+    // SAY SO. The extension reads the location as a word after the URL on the
+    // pasted line, and "Copy All Links" used to emit the bare url, so the two
+    // singlet entries arrived with no location and the converter's fallback
+    // sent them to Needham. That is exactly the 2026-10-27 write that had to
+    // be repaired by hand: 45 Needham levels created on print-on-demand
+    // listings, carrying capped numbers, looking just like real dropship
+    // footwear stock.
+    //
+    // A stored field per link would have been the other option, but it would
+    // sit empty on the two links that already exist and need a human to fill
+    // it in, which is the step that failed. Deriving it from the STYLE cannot
+    // be forgotten.
+    //
+    // THIS LIST IS DUPLICATED IN tools/inventory-guardrail.mjs (POD_STYLES),
+    // deliberately: this file is a browser global and that one is an ES
+    // module, so they cannot share. test/pod-styles-agree.mjs fails if they
+    // ever disagree, the same guard worker/test/brand-registry.mjs gives the
+    // two brand tables.
+    podStyles: ['TF3085', 'TF2934'],
+    podLocation: 'Warehouse',
+
+    locationFor: function(url) {
+        var u = String(url || '').toUpperCase();
+        for (var i = 0; i < this.podStyles.length; i++) {
+            if (u.indexOf('/PRODUCTS/' + this.podStyles[i]) !== -1) return this.podLocation;
+        }
+        return '';
+    },
+
     // ========== INIT ==========
     init: async function() {
         for (var i = 0; i < this.brands.length; i++) {
@@ -136,6 +166,9 @@ var B2BLinkManager = {
                                 <div class="blm-item-main">
                                     <span class="blm-label" title="${link.url}">${link.label || link.url}</span>
                                     <span class="blm-handle">${link.handle || ''}</span>
+                                    ${(link.locationName || B2BLinkManager.locationFor(link.url))
+                                        ? `<span class="blm-handle blm-handle-warn">${link.locationName || B2BLinkManager.locationFor(link.url)}</span>`
+                                        : ''}
                                 </div>
                                 <div class="blm-item-actions">
                                     <a href="${link.url}" target="_blank" class="blm-open" title="Open link">↗</a>
@@ -193,8 +226,14 @@ var B2BLinkManager = {
     },
 
     copyActive: function(brand) {
+        var self = this;
         var links = (this.cache[brand] || []).filter(function(l) { return l.active; });
-        var text = links.map(function(l) { return l.url; }).join('\n');
+        var text = links.map(function(l) {
+            // A line with no location still reads Needham in the scraper, so
+            // every ordinary footwear link is emitted exactly as before.
+            var loc = l.locationName || self.locationFor(l.url);
+            return loc ? l.url + ' ' + loc : l.url;
+        }).join('\n');
         navigator.clipboard.writeText(text).then(function() {
             var btn = document.querySelector(`#${brand}-link-manager .copy-btn`);
             var orig = btn.textContent; btn.textContent = 'Copied!'; btn.classList.add('copied');

@@ -1000,16 +1000,28 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
     // that found data and still produced nothing, on footwear and apparel
     // alike. Nothing about the message pointed at a location feature.
     //
-    // window.location.href is not the string that was pasted in. The current
-    // index is the authority where it is available; the path match is the
-    // fallback for a resumed run, where currentIndex has already advanced.
+    // window.location.href is not the string that was pasted in, because the
+    // portal appends colorCode and deliveryDate as the page loads. So the
+    // index of the line being scraped is the authority, and the PATH match is
+    // the fallback.
+    //
+    // THE INDEX IS NOT OFF BY ONE, and it was. This read
+    // `urls[(currentIndex || 1) - 1]`, written as though currentIndex had
+    // already advanced past the page being scraped. It has not: the only
+    // caller is extractCurrentPageDataBackground and `config.currentIndex++`
+    // runs AFTER it, so `- 1` returned the PREVIOUS line's url. The effect was
+    // that the link listed immediately after a Warehouse line inherited
+    // Warehouse, which is a footwear style's stock written to the wrong
+    // location, and the Warehouse line itself was saved only by the path
+    // match below. It was harmless purely because the two singlets sit last
+    // in the list; reordering the list would have been enough to break it.
     //
     // Returns '' when the line carried no location, and the row builder then
     // falls back to Needham exactly as it always did.
     locationForScrapedUrl(config, href) {
         const map = (config && config.locationByUrl) || {};
         if (!Object.keys(map).length) return '';
-        const asked = (config.urls || [])[(config.currentIndex || 1) - 1];
+        const asked = (config.urls || [])[config.currentIndex || 0];
         if (asked && map[asked]) return map[asked];
         if (map[href]) return map[href];
         const path = String(href || '').split('?')[0];
@@ -1460,6 +1472,33 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
     // listings now carry SKUs so a scraped row DOES join to them, which means
     // a quiet fall back to the grid would overwrite a real 161 with a 30.
     // Reading nothing is recoverable; writing 30s over real stock is not.
+    // THE BASKET NUMBER IS IN THE URL, AND THIS METHOD WENT MISSING IN A
+    // REVERT, so extractSingletInventoryFromApi threw on every singlet.
+    //
+    // `basketNoFromUrl` belonged to the API-under-the-link-scraper work that
+    // was reverted on 2026-10-26. The singlet path was added AFTER that and
+    // calls it, so the call site survived while the method did not, and every
+    // TF3085 and TF2934 page died with
+    //
+    //     TypeError: this.basketNoFromUrl is not a function
+    //
+    // immediately on entry. The same shape as the locationForScrapedUrl
+    // outage above: a method that is not on the class that calls it. Because
+    // these styles have NO DOM fallback on purpose, the result was zero rows
+    // for both singlets on every run, which is why the link list has never
+    // once updated them despite the SKUs being in place to receive it.
+    //
+    // THE URL IS THE RIGHT SOURCE, not `/aac/baskets/current`. There is an
+    // apiBasketNo() on this class that asks the portal for the CURRENT basket,
+    // and using it here would be wrong: the link list pins a specific order
+    // per style, while "current" is whatever the staff member last opened. A
+    // mismatch answers 403 rather than failing loudly, so the number has to
+    // come from the line that was asked for.
+    basketNoFromUrl() {
+        const m = /\/orders\/(\d+)\//.exec(window.location.pathname);
+        return m ? m[1] : '';
+    }
+
     async extractSingletInventoryFromApi(styleId) {
         const basketNo = this.basketNoFromUrl();
         if (!basketNo) throw new Error('no basket number in the URL, so the availability API cannot be called');

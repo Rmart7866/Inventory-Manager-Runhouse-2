@@ -103,15 +103,32 @@ typeof Object.create(Converter.prototype).locationForScrapedUrl === 'undefined'
 const lookup = (config, href) => instance.locationForScrapedUrl(config, href);
 
 console.log('\nThe lookup survives the portal rewriting the address');
-const cfg = { urls, locationByUrl, currentIndex: 2 };   // just scraped urls[1]
+// CONVENTION: currentIndex is the index of the line BEING SCRAPED, because
+// config.currentIndex++ runs after extraction, not before. The fixtures below
+// used to pair currentIndex 1 with urls[0]'s href, which is the off-by-one
+// this function shipped with.
 eq('matches on the url the run was TOLD to visit',
-  lookup(cfg, 'https://b2b.asics.com/orders/100671391/products/TF3085?colorCode=23&deliveryDate=2026-10-24'), 'Warehouse');
-eq('matches on the path when the index has moved on (resumed run)',
+  lookup({ urls, locationByUrl, currentIndex: 1 },
+    'https://b2b.asics.com/orders/100671391/products/TF3085?colorCode=23&deliveryDate=2026-10-24'), 'Warehouse');
+eq('matches on the path when the index is out of range (resumed run)',
   lookup({ urls, locationByUrl, currentIndex: 99 },
     'https://b2b.asics.com/orders/100671391/products/TF2934?colorCode=01&deliveryDate=2026-10-23'), 'Warehouse');
 eq('a footwear url gets NO location, so the row falls back to Needham',
-  lookup({ urls, locationByUrl, currentIndex: 1 },
+  lookup({ urls, locationByUrl, currentIndex: 0 },
     'https://b2b.asics.com/orders/100671391/products/ZK1234?colorCode=50'), '');
+
+// THE REGRESSION THAT MATTERS. urls[3] is footwear listed straight after a
+// Warehouse line, and the off-by-one handed it urls[2]'s location, so a
+// footwear style's stock would have been written to the Warehouse. It was
+// harmless only because the two real singlets happen to sit last in the live
+// list, which is one reordering away from not being true.
+eq('footwear listed AFTER a Warehouse line does not inherit Warehouse',
+  lookup({ urls, locationByUrl, currentIndex: 3 },
+    'https://b2b.asics.com/orders/100671391/products/1011B890?colorCode=001'), '');
+// and the line before one, for the same reason in the other direction
+eq('a Warehouse line still gets Warehouse when a plain line precedes it',
+  lookup({ urls, locationByUrl, currentIndex: 2 },
+    'https://b2b.asics.com/orders/100671391/products/TF2934?colorCode=01'), 'Warehouse');
 eq('an empty map is cheap and returns nothing',
   lookup({ urls: [], locationByUrl: {}, currentIndex: 1 }, 'https://b2b.asics.com/x'), '');
 eq('a config with no map at all does not throw', lookup({}, 'https://b2b.asics.com/x'), '');
