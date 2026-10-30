@@ -1539,6 +1539,41 @@ not write a theme id into a script, and do not trust one written in prose here:
 read the role. `tools/read-theme-asset.mjs` prints any live theme asset,
 read only, and is the cheap way to confirm a hand edit is still there.
 
+**THE PDP SWATCHES AND THE MEN'S / WOMEN'S SWITCHER ARE ALREADY BUILT AND
+WIRED. What is left is COVERAGE, not theme work.** Read off the live theme
+2026-10-30, so nobody rebuilds either one. `colorway-swatches.liquid` has two
+render modes and `product-template.liquid` calls both:
+
+| render | where | the snippet's own gate |
+|---|---|---|
+| `part: 'gender'` | product-template.liquid L1412, above the title | `custom.gender_sibling` non-empty AND `custom.gender` non-blank |
+| `part: 'main'` | product-template.liquid L1588, in the variant area | `custom.style_siblings` > 1 OR `custom.model_widths` > 1 |
+
+So a product shows the tabs or the swatches exactly when its metafields say so,
+and nothing in Liquid needs touching. Measured against those gates over the
+4,402 ACTIVE shoe products:
+
+| | |
+|---|---|
+| gender tabs render | 4,029 (91.5%) |
+| `custom.gender` present | 4,348 (98.8%) |
+| `custom.gender_sibling` non-empty | 4,040 (91.8%) |
+| swatch block renders | 4,198 (95.4%) |
+| `custom.style_siblings` > 1 | 4,104 (93.2%) |
+| `custom.model_widths` > 1 | 2,829 (64.3%) |
+| carries a `cw-group:` tag, the collection CARD | 4,324 (98.2%) |
+
+Two readings that look like gaps and are not. `model_widths` at 64% is correct,
+because it is only > 1 for a model genuinely sold in more than one width, and
+the gate is an OR so those products still get their colour swatches. And
+`gender` beats `gender_sibling` by 308 products, which is the honest answer for
+a shoe carried in one gender only: there is no sibling to link to.
+
+The remaining work is therefore the metafield writers, not Liquid.
+`CatalogTags.processSwatchQueue` already fills these for footwear once a queued
+handle goes ACTIVE, which is why coverage is this high without anyone running a
+tool.
+
 The apparel key's second half is the GENDER, not a width class, and the
 vocabularies are disjoint so they can never collide:
 
