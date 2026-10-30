@@ -937,15 +937,28 @@ away from not being true. The regression is now pinned both ways in
 `scrapers/asics/test/location-per-link.mjs`, whose fixtures had themselves been
 written to the off-by-one convention.
 
-**THE REDO LINE ITEM'S LOCATION DECIDES WHERE ITS ORDERS ROUTE.** `re:do` is
+**THE REDO LINE ITEM IS PARKED AT A CLOSED STORE TO KEEP IT OUT OF THE FEED.** `re:do` is
 the returns app. It drops a line item into the cart: product handle
 `free-returns-on-shoes-only-does-not-apply-to-printed-apparel`, UNLISTED,
 vendor `re:do`, five variants all sharing the SKU `x-redo`, inventory NOT
 tracked, quantities a nominal million.
 
-Because Shopify assigns an order to a location that stocks EVERY line item,
-and this line was stocked at Walpole and nowhere else, every order carrying it
-was pulled to Walpole. Moved to Scituate on 2026-10-28.
+**IT LIVES AT SCITUATE ON PURPOSE, AND SCITUATE BEING CLOSED IS THE POINT.**
+Stocking it at a closed store is what keeps this line item OUT OF THE PRODUCT
+FEED. It is not a fulfilment decision and it is not a mistake to be tidied up.
+
+**DO NOT "FIX" IT BY MOVING IT TO AN OPEN STORE.** That is exactly what
+happened on 2026-10-30: Scituate was noted as closed, this file said the
+location decides order ROUTING, the obvious inference was that returns were
+being sent to a shut store, and the line was moved to Walpole. Moving it there
+puts the item back in the feed, which is the thing Scituate was chosen to
+prevent. It was reverted the same day, so the item is at Scituate and nowhere
+else, which is correct.
+
+The routing effect below is real but it is the SIDE effect, not the reason.
+Shopify assigns an order to a location that stocks EVERY line item, and this
+line was once stocked at Walpole and nowhere else, so every order carrying it
+was pulled to Walpole. Moved to Scituate 2026-10-28.
 
 Two things to know before touching it again. The quantity is cosmetic, since
 tracking is off, but it is set to a million to match what Redo itself wrote, so
@@ -955,6 +968,11 @@ deactivating the old, and refuses to deactivate if any variant failed to reach
 the new one, because an item stocked at zero locations cannot be fulfilled at
 all. It also refuses outright if the target location is inactive or does not
 fulfil online orders.
+
+That last refusal is now a hazard rather than a safety rail: Scituate is the
+INTENDED home and it is a closed store, so if it is ever deactivated in
+Shopify the tool will refuse to move the item back to it. Anyone changing that
+check should read the paragraph above first.
 
 **"WRITE ALL INVENTORY TO SHOPIFY" IS NEEDHAM ONLY, AND A WAREHOUSE ROW MUST
 NOT RIDE IT.** The button in `main.js` builds a payload of `{ sku, quantity }`
