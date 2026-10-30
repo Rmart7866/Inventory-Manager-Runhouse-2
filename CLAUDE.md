@@ -105,6 +105,10 @@ node tools/backfill-alt-text.mjs             # lead image alt text, DONE 2026-10
 node tools/backfill-seo-titles.mjs           # product seo titles, started, not finished
 node tools/apply-collection-seo.mjs          # collection titles + meta from seo-drafts/
 
+# Draft products carrying stock. Dry run by default, rollback + --restore.
+node tools/attach-draft-images.mjs           # supplier CDN photos onto draft shoes
+node tools/tag-recent-products.mjs --handles <file>   # cw-group/width/gender for a named list
+
 # Backfills, dry run by default, --apply to write, each writes a rollback file
 node tools/backfill-brooks-barcodes.mjs
 node tools/tag-recent-products.mjs            # cw-group/width/gender on a new drop
@@ -1910,6 +1914,61 @@ which starts admitting that vendor's garments to the apparel catalog.
   everything. Stored in `localStorage.rhAppMode`.
 - No Chrome extension is available for UI checks. Render with WebKit instead:
   `qlmanage -t -s 1000 -o <outdir> <file>.html`, then read the PNG.
+
+## Draft products that carry stock
+
+**MEASURED 2026-10-30: 1,129 draft products carry stock, and most of that is
+not real.** The headline number is the trap, so here is the breakdown:
+
+| group | products | units | |
+|---|---|---|---|
+| supplier brands | 584 | 203,149 | the real opportunity |
+| The Run House | 331 | 68,633 | own printed and team merch |
+| everything else | 214 | 710,669 | mostly Collective, NOMINAL stock |
+
+Collective's units are placeholders, not counts: one vendor shows 609,939
+units across 8 products. Quoting 982,451 units in draft would be meaningless.
+
+**THE GATE IS INVENTORY AGE, NOT IMAGES OR TAGS.** Of the 584 supplier drafts
+only 109 had inventory touched since 2026-10-01. The rest trail back to
+2023-08, so their numbers are fiction and no amount of photography makes them
+publishable. Filtered to shoes, 78 products holding 68,474 units remain, and
+that is the set worth working on.
+
+**`tools/attach-draft-images.mjs`** filled 36 of them, 196 images, all READY,
+no failures. The Puma dozen only resolved because `_imageKeyIn` was fixed the
+same morning; before that every one returned nothing and looked like Puma had
+no photography. Four ON products could not be done: ON is SUPPLIED only, so
+its urls come from the scraper sidecar and nothing is derivable from a SKU.
+
+**`productSet` IS THE ONLY WAY TO ADD MEDIA IN API 2026-01, and it is a full
+sync mutation, which is worth knowing before trusting it.** `productCreateMedia`
+is gone, `productUpdate` does not take media, and `fileCreate` cannot attach to
+a product. Verified by experiment on one real draft before any bulk run:
+passing only `{ id, files }` left title, vendor, type, status, description,
+tags, seo, category, options, all 12 variants, their prices and all 2,224 units
+untouched, and added 5 READY images at 2000px. If that ever stops being true,
+that tool is what breaks.
+
+Shopify's own fetcher gets Puma images fine, incidentally. The browser user
+agent is only needed for the HEAD check this side.
+
+**`tag-recent-products.mjs` GAINED `--handles`, because `--days` IS THE WRONG
+HANDLE FOR A REPAIR.** It was written for a fresh drop. These 78 were created
+across thirteen months, 2025-09 to 2026-10, so reaching the oldest meant
+`--days 400` and sweeping in a year of unrelated products. Add-only makes that
+survivable rather than correct. 28 were tagged: 26 cw-group, 7 width, 27
+gender, nothing removed.
+
+**NOTHING WAS PUBLISHED, deliberately.** Neither tool sends `status`, so a
+draft stays a draft. 68,474 units across 78 products is a commercial decision
+and some are probably held back on purpose.
+
+The result, 2026-10-30: 78 of 78 carry a cw-group tag and a gender tag, 19
+carry a width tag (only width-specific products should), 74 of 78 have images.
+21 colourway groups now have more than one member, so they collapse to a single
+card with a swatch row on the collection grid, five Torin 9 colourways among
+them.
 
 ## SEO backfills
 

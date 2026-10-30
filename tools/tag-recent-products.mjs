@@ -31,6 +31,7 @@
 //   node tools/tag-recent-products.mjs                 # dry run, last 3 days
 //   node tools/tag-recent-products.mjs --days 7
 //   node tools/tag-recent-products.mjs --vendor "New Balance"
+//   node tools/tag-recent-products.mjs --handles list.txt   # an explicit list
 //   node tools/tag-recent-products.mjs --apply
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
@@ -49,6 +50,15 @@ const arg = (name, dflt) => {
 };
 const DAYS = parseInt(arg('--days', '3'), 10);
 const VENDOR = arg('--vendor', null);
+// AN EXPLICIT LIST OF HANDLES, one per line, in place of the date window.
+//
+// --days is the right handle for a fresh drop, which is what this was written
+// for. It is the wrong one for a REPAIR: the 78 draft shoes that needed tags
+// on 2026-10-30 were created across thirteen months, from 2025-09 to 2026-10,
+// so reaching the oldest would have meant --days 400 and sweeping in every
+// other product created in that year. Add-only makes that survivable rather
+// than correct. A named list touches what was actually asked for.
+const HANDLES_FILE = arg('--handles', null);
 
 const WORKER = 'https://runhouse-inventory-worker.ryan-486.workers.dev';
 const CATALOG_TOKEN = 'rh-cat-9b327c9736d5d17e2794c2c3df934b36';   // read-only, public by construction
@@ -104,17 +114,34 @@ function planFor(p) {
 
 async function main() {
   const cat = await catalog();
-  const cutoff = Date.now() - DAYS * 86400000;
-  const inScope = (cat.products || []).filter((p) => {
-    if (!p.createdAt) return false;
-    const t = Date.parse(p.createdAt);
-    if (isNaN(t) || t < cutoff) return false;
-    if (VENDOR && p.vendor !== VENDOR) return false;
-    return true;
-  });
+  let inScope, scopeNote;
+
+  if (HANDLES_FILE) {
+    const wanted = new Set(fs.readFileSync(HANDLES_FILE, 'utf8').split('\n')
+      .map((l) => l.trim()).filter((l) => l && !l.startsWith('#')));
+    inScope = (cat.products || []).filter((p) => wanted.has(p.handle));
+    scopeNote = inScope.length + ' of ' + wanted.size + ' named handle(s) found in the catalog';
+    const missing = [...wanted].filter((h) => !inScope.some((p) => p.handle === h));
+    if (missing.length) {
+      // A handle the catalog has never heard of cannot be tagged from here,
+      // and saying so beats a silent short count.
+      console.log('NOT IN THE CATALOG, so not taggable: ' + missing.length);
+      missing.slice(0, 10).forEach((h) => console.log('  ' + h));
+    }
+  } else {
+    const cutoff = Date.now() - DAYS * 86400000;
+    inScope = (cat.products || []).filter((p) => {
+      if (!p.createdAt) return false;
+      const t = Date.parse(p.createdAt);
+      if (isNaN(t) || t < cutoff) return false;
+      if (VENDOR && p.vendor !== VENDOR) return false;
+      return true;
+    });
+    scopeNote = inScope.length + ' product(s) created in the last ' + DAYS + ' day(s)' + (VENDOR ? ', vendor ' + VENDOR : '');
+  }
 
   console.log(`Catalog built ${cat.generatedAt}`);
-  console.log(`${inScope.length} product(s) created in the last ${DAYS} day(s)${VENDOR ? ', vendor ' + VENDOR : ''}.`);
+  console.log(scopeNote + '.');
   if (!inScope.length) {
     console.log('\nNothing in scope. If that looks wrong, the catalog snapshot may predate the products: hit Refresh, or use --days.');
     return;
