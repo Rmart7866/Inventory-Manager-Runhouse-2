@@ -68,6 +68,7 @@ node test/on-apparel-type.mjs                 # ON apparel: garment type, size l
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
 node test/method-wiring.mjs                   # every this.x() call resolves, whole repo
+node test/scraper-feeds-tool.mjs             # the scraper's CSV still feeds the inventory manager
 node test/asics-headless.mjs                  # headless runner: row location, real converter, POD drift
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
@@ -879,6 +880,45 @@ deactivating the old, and refuses to deactivate if any variant failed to reach
 the new one, because an item stocked at zero locations cannot be fulfilled at
 all. It also refuses outright if the target location is inactive or does not
 fulfil online orders.
+
+**"WRITE ALL INVENTORY TO SHOPIFY" IS NEEDHAM ONLY, AND A WAREHOUSE ROW MUST
+NOT RIDE IT.** The button in `main.js` builds a payload of `{ sku, quantity }`
+with NO location in it, and `worker/src/inventory.js` targets
+`NEEDHAM_LOCATION_ID` and nothing else, by design. So a row asking for another
+location is written to Needham instead, silently.
+
+That was unreachable for as long as the singlets matched nothing. It became
+reachable on 2026-10-27, when they joined the ASICS link list and had SKUs
+backfilled so their rows finally joined: scrape, drop the file on the tool,
+press the button, and a few hundred singlets appear as real dropship stock at
+Needham. The same write that had to be repaired by hand that day, through a
+different door.
+
+`writeAllInventory` now HOLDS BACK any row whose Location is not Needham,
+counts them and says where they were going. Held back rather than redirected,
+deliberately: the fix is not to teach that route about other locations,
+because Needham scoping is what keeps a dropship write off a garment someone
+counted on a shelf. The CSV import carries the Location column and handles
+these correctly, and `tools/push-asics-availability.mjs` is the other way in.
+
+**THE CSV PATH AND THE DIRECT WRITE PATH DIFFER, and only one honours
+Location.**
+
+| path | Location column | safe for singlets |
+|---|---|---|
+| Download CSV, import in Shopify admin | honoured | yes |
+| "Write all inventory to Shopify" | ignored, Needham only | no, now held back |
+
+`test/scraper-feeds-tool.mjs` pins the whole chain by running BOTH REAL SIDES
+against each other: the CSV is built by `UnifiedCSVManager.convertToInventoryCSV`
+out of `scrapers/asics/background.js`, the converter that writes the file staff
+import, and read by `asics-converter.js`, the file `index.html` loads. It
+asserts the tool still scans and converts it, that Warehouse survives the trip,
+that the SKU and the uncapped 302 survive, that `allFeedSkus` covers the whole
+feed so nothing reads as removed, and that the Needham-only filter holds. It
+also runs against a real captured file when one is in Downloads: measured
+2026-10-29 on a 7,007 row run, 47 products scanned and all 7,007 rows
+converted with both locations intact.
 
 **PRINT ON DEMAND RACE MERCH IS NOT DROPSHIP, and it lives at the WAREHOUSE.**
 One blank garment is bought from ASICS and every team, charity and event gets

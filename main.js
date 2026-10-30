@@ -832,7 +832,7 @@ function writeAllInventory() {
     var done = function () { if (btn) btn.disabled = false; };
     if (typeof CatalogClient === 'undefined' || typeof CatalogClient.setInventory !== 'function') { setMsg('Live catalog is not available.', 'err'); return; }
 
-    var items = [], brands = [];
+    var items = [], brands = [], heldBack = [];
     BRAND_ORDER.forEach(function (brand) {
         var cb = document.getElementById('select-' + brand);
         if (cb && cb.checked && BrandConverter.brands[brand].inventory.length > 0) {
@@ -842,12 +842,48 @@ function writeAllInventory() {
             inv.forEach(function (row) {
                 var sku = (row.SKU || '').toString().trim();
                 if (!sku) return;
+
+                // THIS ROUTE IS NEEDHAM ONLY, SO A NON-NEEDHAM ROW MUST NOT
+                // RIDE IT. The payload below is { sku, quantity } with no
+                // location in it, and worker/src/inventory.js targets
+                // NEEDHAM_LOCATION_ID and nothing else, by design. So a row
+                // that asked for another location would be written to Needham
+                // instead, silently.
+                //
+                // That became reachable on 2026-10-27, when the print on
+                // demand singlets started riding the ASICS link list and had
+                // SKUs backfilled so their rows finally matched something. The
+                // result would be a few hundred singlets appearing as real
+                // dropship stock at Needham, which is exactly the write that
+                // had to be repaired by hand that day.
+                //
+                // Held back rather than redirected: the fix is NOT to teach
+                // this route about other locations, because Needham scoping is
+                // what keeps a dropship write off a garment someone counted on
+                // a shelf. Import the CSV instead, which carries the Location
+                // column, or use tools/push-asics-availability.mjs.
+                var loc = (row.Location || 'Needham').toString().trim();
+                if (loc && loc.toLowerCase() !== 'needham') {
+                    heldBack.push({ sku: sku, location: loc });
+                    return;
+                }
+
                 var q = parseInt(row['On hand (new)'], 10); if (!(q >= 0)) q = 0;
                 items.push({ sku: sku, quantity: q });
             });
             brands.push(brand);
         }
     });
+
+    if (heldBack.length) {
+        var byLoc = {};
+        heldBack.forEach(function (h) { byLoc[h.location] = (byLoc[h.location] || 0) + 1; });
+        var where = Object.keys(byLoc).map(function (k) { return byLoc[k] + ' for ' + esc(k); }).join(', ');
+        setMsg('<strong>' + heldBack.length + ' row(s) held back</strong> (' + where + '). This button '
+            + 'writes to Needham only, so those would have landed in the wrong place. Download the CSV '
+            + 'and import it instead: the CSV carries the Location column. The remaining '
+            + items.length + ' Needham row(s) can still be written.', 'warn');
+    }
     if (!items.length) { setMsg('No loaded brands selected. Drop a supplier file and tick the brand first.', 'err'); return; }
 
     if (!CatalogClient.hasWriteSecret()) {
