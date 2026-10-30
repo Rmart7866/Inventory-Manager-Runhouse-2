@@ -2230,6 +2230,42 @@ top, 7,116 units across 9 keys, and every one of those is nominal marketplace
 stock rather than a count. The tag is `Shopify Collective`, which token-matches
 in a `tag:` query but never equals "collective" on a per-product test.
 
+**A KIDS SHOE INHERITS THE ADULT ROW, and nothing warns you.** `toModelKey`
+strips `kids`, `boys`, `girls`, `youth` and `grade school` along with the
+gender words, so "Under Armour Boys Grade School Charged Rogue 3" and "Under
+Armour Girls Charged Rogue 3" both land on the adult Charged Rogue 3 row and
+take its 28mm stack. A grade school version is a scaled down shoe, so that
+figure is an overstatement for those products. All three live products on that
+key are children's, measured 2026-10-30. The row is recorded anyway because the
+whole registry already behaves this way and a per-age geometry table does not
+exist, but anyone adding a model that sells mainly in kids sizes should know
+the number lands on the child's product too.
+
+**VARIANT SUFFIXES BELONG IN `ALIASES`, NOT IN THE PREFIX MATCHER.** The two
+mechanisms look interchangeable and are not. `ALIASES` is an explicit, per
+model, reviewed mapping, and its own comment already states the rule it
+encodes: waterproof, GTX, BOA and MID versions share the base midsole, so they
+share its stack and drop, because the upper and the collar change and the
+geometry does not. The registry even carries a "Timp 6 Mid GTX" row holding the
+Timp 6's own numbers. The prefix matcher is a GENERIC fallback and therefore
+refuses `mid`, which is stricter than that rule on purpose: one wrong generic
+drop hits every model at once, while a wrong alias hits one. So when a variant
+should inherit, add the alias. Verified before aliasing, not assumed: RunRepeat
+and REI both put the Olympus 6 Hike Mid GTX at 33mm and zero drop, which is the
+Olympus 6 exactly.
+
+**DIADORA SPELLS ITS OWN TECHNOLOGY TWO WAYS AND ORDERS ITS OWN MODEL NAMES TWO
+WAYS.** The tech is "Blushield" and half the live titles say "Blueshield", which
+split the Mythos range across two sets of keys so that neither matched. The
+Vortice range puts its number before AND after the word depending on the
+listing, "Blushield 8 Vortice" against "Blushield Vortice 8", and both are live.
+"Hip", "Glam" and "ACBC" are upper and colourway editions on one midsole. And
+one product title misspells the brand itself as "Diodora". `toModelKey` now
+normalises blueshield to blushield and strips diodora as a brand word, and the
+rest are aliases. Diadora also DOES NOT PUBLISH a total stack for the Mythos
+range, so those rows carry a drop and a blank stack, which is correct rather
+than incomplete.
+
 ## What is still manual, and what blocks each one
 
 The stated goal is to automate every step of this. Recorded here so the next
