@@ -955,6 +955,16 @@ var ProductEnrichment = {
             // here as on the other hosts. Test more than one bogus code before
             // trusting a verdict like that.
             //
+            // AND IT WAS THE VIEW-LESS URL, re-measured 2026-10-30. The beach
+            // lives at .../global/999999/99/fnd/PNA/fmt/png only, which is the
+            // shape the 'angle' view below builds because its id is empty. The
+            // same bogus code with /sv03 on it answers 404, and so does
+            // 123456/78 view-less. One bogus code in one view happened to be
+            // real and the probe picked both.
+            //
+            // A miss can also be 400 rather than 404: 000000/00 answers 400
+            // "Failed to fetch remote resource". Treat any 4xx as absent.
+            //
             // Measured 2026-09-17: 13 of the 15 codes carried have images.
             // Footwear carries all five views, apparel usually only the first.
             views: [

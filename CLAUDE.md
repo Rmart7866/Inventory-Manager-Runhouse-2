@@ -1659,9 +1659,28 @@ is the tell, anything past about 10 percent is eating the shoe.
 
 **Test more than one bogus code before declaring a host dishonest.** Puma was
 ruled out once on the strength of a single probe, "999999/99", which returns
-200 because it is a real asset in Puma's library, a stock photo of a beach.
-Every other absent code answers 404 with an x-cld-error header. One probe cost
-a whole brand until it was rechecked.
+200 because it is a real asset in Puma's library, a stock photo of a beach at
+sunset with a palm frond. Every other absent code answers 404 with an
+x-cld-error header. One probe cost a whole brand until it was rechecked.
+
+**And it was the VIEW-LESS url, which is the detail that makes this
+reproducible.** Re-measured 2026-10-30, the asset lives at that one shape
+only, the one the "angle" view builds because its view id is empty:
+
+| url | result |
+|---|---|
+| `.../global/999999/99/fnd/PNA/fmt/png` | **200, 284,901 bytes**, the beach |
+| `.../global/999999/99/sv03/fnd/PNA/fmt/png` | 404 |
+| `.../global/123456/78/fnd/PNA/fmt/png` | 404 |
+
+So Puma is not even dishonest in that url shape. ONE bogus code, in ONE view,
+happened to be a real asset, and the probe picked both. A second code, or the
+same code in any other view, would have shown the host answering honestly.
+That is the whole of why the brand sat on the folder-only list.
+
+`000000/00` is worth knowing too: it answers 400, not 404, with "Failed to
+fetch remote resource". Treat any 4xx as absent rather than testing for 404
+exactly.
 
 **Why the remaining brands are folder only**, so nobody re-treads it. Merrell
 sits on the same Wolverine DAM as
