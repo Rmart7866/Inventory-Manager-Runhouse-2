@@ -1,0 +1,104 @@
+{
+  "_README": [
+    "DRAFT COPY FOR REVIEW. Nothing here is written to Shopify until you say so.",
+    "Edit any line freely. 'title' is the <title> tag and the blue line in a Google",
+    "result, budget about 60 characters. 'meta' is the grey snippet, about 155.",
+    "",
+    "WHY THE LOCATION LIVES IN THE META AND NOT THE TITLE: the title has 60",
+    "characters and the category keyword is what someone typed, so it goes first.",
+    "The meta has room to say Needham, Walpole and Falmouth, which is the thing",
+    "Amazon cannot say.",
+    "",
+    "Stores, read off the live site's own structured data 2026-10-30:",
+    "  Needham   943 Great Plain Ave",
+    "  Walpole   15 West Street",
+    "  Falmouth  227 Main St"
+  ],
+
+  "_homepage": {
+    "current_title": "The Run House",
+    "current_meta": "The Run House offers premium running footwear, apparel, and custom team gear from top brands like Hoka, Brooks, and Asics. Expert fitting advice.",
+    "note": "13 characters, says neither what you sell nor where you are. The meta is good but never names a town.",
+    "title": "The Run House | Running Shoe Store in Needham & Walpole MA",
+    "title_alt": "Running Shoes & Expert Fitting | The Run House, Needham MA",
+    "meta": "Specialty running store in Needham, Walpole and Falmouth, MA. Expert shoe fitting, plus HOKA, Brooks, ASICS, Saucony and New Balance footwear and apparel."
+  },
+
+  "collections": [
+    { "handle": "womens-road-running-shoes", "products": 2942,
+      "title": "Women's Running & Walking Shoes | The Run House",
+      "meta": "Shop women's running and walking shoes from HOKA, Brooks, ASICS, Saucony and New Balance. Fitted in store in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "mens-running-walking-footwear", "products": 2879,
+      "title": "Men's Running & Walking Shoes | The Run House",
+      "meta": "Shop men's running and walking shoes from HOKA, Brooks, ASICS, Saucony and New Balance. Fitted in store in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "maximum-cushion-running-shoes", "products": 2589,
+      "title": "Maximum Cushion Running Shoes | The Run House",
+      "meta": "Max cushion running shoes from HOKA, Brooks, ASICS and New Balance. Try a pair on in Needham, Walpole or Falmouth, MA, or order online." },
+
+    { "handle": "womens", "products": 2423,
+      "title": "Women's Running Shoes, Apparel & Gear | The Run House",
+      "meta": "Everything for women who run: shoes, apparel, socks and accessories, fitted by name in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "mens-1", "products": 2144,
+      "title": "Men's Running Shoes, Apparel & Gear | The Run House",
+      "meta": "Everything for men who run: shoes, apparel, socks and accessories, fitted by name in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "hoka", "products": 1402,
+      "title": "HOKA Running Shoes & Apparel | The Run House",
+      "meta": "The full HOKA range, from Clifton and Bondi to Speedgoat and the Cielo race line. Fitted in store in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "asics-footwear", "products": 1014,
+      "title": "ASICS Running Shoes | The Run House",
+      "meta": "ASICS running shoes including GEL-Nimbus, GEL-Kayano, Novablast and the Metaspeed race line. Fitted in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "new-balance", "products": 868,
+      "title": "New Balance Running Shoes & Apparel | The Run House",
+      "meta": "New Balance running shoes in standard, wide and extra wide, including the 1080, 880 and FuelCell range. Fitted in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "brooks", "products": 862,
+      "title": "Brooks Running Shoes & Apparel | The Run House",
+      "meta": "Brooks running shoes including Ghost, Glycerin, Adrenaline GTS and the Hyperion race line. Fitted in store in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "on-running", "products": 748,
+      "title": "On Running Shoes & Apparel | The Run House",
+      "meta": "On running shoes and apparel, from Cloudmonster and Cloudsurfer to the Cloudboom race line. Fitted in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "womens-apparel-1", "products": 724,
+      "title": "Women's Running Apparel | The Run House",
+      "meta": "Women's running apparel: tops, shorts, tights, bras and jackets from On, Brooks, ASICS and more. In store in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "trail-running-shoes", "products": 550,
+      "title": "Trail Running Shoes | The Run House",
+      "meta": "Trail running shoes from HOKA, Brooks, Saucony, Altra and Merrell, for everything from fire roads to technical singletrack. Fitted in Needham, MA." },
+
+    { "handle": "stability-running-walking-shoes", "products": 468,
+      "title": "Stability Running & Walking Shoes | The Run House",
+      "meta": "Stability and support shoes for overpronation, from Brooks, ASICS, Saucony and New Balance. Fitted properly in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "carbon-plate-running-shoes", "products": 282,
+      "title": "Carbon Plate Racing Shoes | The Run House",
+      "meta": "Carbon plate super shoes for race day, from ASICS Metaspeed to Saucony Endorphin Elite and the On Cloudboom. In stock in Needham, Walpole and Falmouth." },
+
+    { "handle": "womens-wide-running-and-walking-shoes", "products": 262,
+      "title": "Women's Wide Running & Walking Shoes | The Run House",
+      "meta": "Women's running shoes in wide and extra wide fits from New Balance, Brooks, HOKA and ASICS. Measured and fitted in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "mens-wide-running-and-walking-shoes", "products": 261,
+      "title": "Men's Wide Running & Walking Shoes | The Run House",
+      "meta": "Men's running shoes in wide, extra wide and 4E fits from New Balance, Brooks, HOKA and ASICS. Measured and fitted in Needham, Walpole and Falmouth." },
+
+    { "handle": "socks-1", "products": 401,
+      "title": "Running Socks | The Run House",
+      "meta": "Running socks from Feetures, Balega, Saucony and Swiftwick, in every height. In stock in Needham, Walpole and Falmouth, MA." },
+
+    { "handle": "sunglasses", "products": 744,
+      "title": "Running Sunglasses | The Run House",
+      "meta": "Running and sport sunglasses built to stay put, from Goodr, Knockaround and more. Try a pair on in Needham, Walpole or Falmouth, MA." },
+
+    { "handle": "falmouth-road-race", "products": 209,
+      "title": "Falmouth Road Race Finisher Gear | The Run House",
+      "meta": "Official Falmouth Road Race finisher shirts, jackets and gear. From The Run House, on Main Street in Falmouth and in Needham and Walpole, MA." }
+  ]
+}

@@ -70,6 +70,8 @@ node test/supplier-images.mjs                 # CDN photo keys, URL attach, fold
 node test/image-keys.mjs                      # the sku -> colorway key per brand, the Puma trap
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
 node test/method-wiring.mjs                   # every this.x() call resolves, whole repo
+node test/alt-text.mjs                        # alt text copy: codes, colours, only shoes get a noun
+node test/seo-titles.mjs                      # seo titles: 60 char budget, distinctness beats the noun
 node test/scraper-feeds-tool.mjs             # the scraper's CSV still feeds the inventory manager
 node test/asics-headless.mjs                  # headless runner: row location, real converter, POD drift
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
@@ -97,6 +99,11 @@ node tools/asics-headless-run.mjs --limit 3   # the first 3 links, for a smoke t
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
+
+# SEO backfills, dry run by default, --apply to write, rollback + --restore
+node tools/backfill-alt-text.mjs             # lead image alt text, DONE 2026-10-30
+node tools/backfill-seo-titles.mjs           # product seo titles, started, not finished
+node tools/apply-collection-seo.mjs          # collection titles + meta from seo-drafts/
 
 # Backfills, dry run by default, --apply to write, each writes a rollback file
 node tools/backfill-brooks-barcodes.mjs
@@ -1885,6 +1892,95 @@ which starts admitting that vendor's garments to the apparel catalog.
   everything. Stored in `localStorage.rhAppMode`.
 - No Chrome extension is available for UI checks. Render with WebKit instead:
   `qlmanage -t -s 1000 -o <outdir> <file>.html`, then read the PNG.
+
+## SEO backfills
+
+**MEASURED 2026-10-30, over the 5,002 ACTIVE in-stock products**, which are the
+only ones a shopper can land on and buy from:
+
+| gap | count | share |
+|---|---|---|
+| no SEO title | 4,144 | 83% |
+| no meta description | 4,146 | 83% |
+| lead image with no ALT text | 3,467 | 69% |
+| no body description | 293 | 6% |
+| no product category | 203 | 4% |
+
+**ALT TEXT IS DONE**, 3,467 lead images written 2026-10-30 with zero errors.
+`tools/backfill-alt-text.mjs`, add only, rollback file, `--restore` puts every
+old value back. It is the lowest risk write on the store: alt text is
+invisible to a shopper, cannot be duplicate-content penalised, and touches no
+URL. Gallery images were NOT done, only the lead one, which is roughly five
+times the writes again if it is ever wanted.
+
+**COLLECTION PAGES BEAT PRODUCT PAGES, and that is the whole argument for
+doing them first.** Nobody searches "Hoka Clifton 9 Ice Water", and if they do,
+hoka.com wins. People search "max cushion running shoes" and "women's wide
+running shoes", which are COLLECTION pages, where the copy is ours rather than
+a supplier's. There are about twenty that matter against 2,884 products.
+Measured: 1,015 collections, 78% with no SEO title, 82% with no meta, 31% with
+no page copy at all, including `womens` (2,423 products) and `mens-1` (2,144)
+which had neither.
+
+14 collections written 2026-10-30 from `seo-drafts/collection-seo.json` by
+`tools/apply-collection-seo.mjs`. Five were KEPT because they already had a
+decent SEO title, which is the add-only default; `--overwrite` is the way to
+replace them and it names what it is replacing first.
+
+**THE LOCATION GOES IN THE META, NOT THE TITLE.** A title has about 60
+characters and the category keyword is what somebody typed, so that leads. The
+meta has room for Needham, Walpole and Falmouth, which is the thing Amazon
+cannot say. Read off the live site's own structured data 2026-10-30: Needham
+943 Great Plain Ave, Walpole 15 West Street, Falmouth 227 Main St. Scituate is
+CLOSED as of 2026-10-30 and must not appear in copy.
+
+**THE HOMEPAGE CANNOT BE SET FROM THE API.** Checked 2026-10-30: the shop
+mutations are locale, policy, resource feedback and payouts, and none of them
+touches SEO. The homepage title and meta live in Online Store > Preferences and
+have to be pasted by hand. The current title is `The Run House`, thirteen
+characters that say neither what the store sells nor where it is. The
+replacement text sits in the drafts file under `_homepage`.
+
+**META DESCRIPTIONS ON PRODUCTS WERE DELIBERATELY SKIPPED.** Everything
+composable from the data came out as the product name plus one shared
+sentence, which is the title again with boilerplate repeated four thousand
+times. Google ignores a meta description roughly seven times in ten and writes
+its own from the page, and near-identical ones are exactly what it ignores.
+Owner's call: titles only.
+
+**PRODUCT SEO TITLES ARE BUILT AND NOT FINISHED.**
+`tools/backfill-seo-titles.mjs` plans 2,884 and was started then stopped on
+2026-10-30 after fewer than 250 had been written. Re-running `--apply` is safe
+and resumes, because it only touches products that still have no SEO title.
+
+Three rules in it came out of dry runs, and each replaced an instinct that was
+wrong:
+
+- **DISTINCTNESS BEATS THE PRODUCT NOUN.** When the colour and the words
+  "Running Shoes" will not both fit, the colour stays. A duplicate `<title>`
+  across pages makes those pages compete with each other; a missing noun is a
+  small loss. The first order had it backwards and **fifteen New Balance
+  products, different colours AND widths, all became "New Balance Mens Ac
+  Runner Running Shoes"**.
+- **TRUNCATING THE FULL TITLE BEATS STRIPPING BACK TO THE MODEL.** Thirteen
+  TELETIES hair ties all reduced to "TELETIES | The Run House" because every
+  candidate that fit had thrown the colour away.
+- **A SHELF CATEGORY IS NOT A NOUN.** Appending the product type gave
+  "AirFlow Lite Pack Storage" and "Clip Light Visibility". The 205 distinct
+  types include "Premiums Sport", "Big Kahuna" and "Campeones", so the noun
+  map is an ALLOWLIST and the default is nothing.
+
+**COLLECTIVE IS EXCLUDED FROM PRODUCT SEO, and the tag name nearly defeated
+that.** The tag is `Shopify Collective`, NOT `collective`. Shopify's `tag:`
+search token-matches, so a COUNT query finds all 1,276 of them, while a
+per-product test for a tag equal to "collective" matches NONE. Measuring with
+the second said zero Collective products were in scope when the real answer was
+all of them. The tool now filters in the query AND re-checks each product's
+tags.
+
+`tools/product-title-parts.mjs` holds the one title parser both backfills use,
+because two copies of that rule is the drift this repo keeps paying for.
+`test/alt-text.mjs` and `test/seo-titles.mjs` pin every case above.
 
 ## What is still manual, and what blocks each one
 
