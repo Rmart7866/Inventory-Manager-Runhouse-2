@@ -67,6 +67,7 @@ node test/on-model-identity.mjs               # a Volt is not an Echo: model, ve
 node test/enrich-csv.mjs                      # applyToCSV round trip: a comma in Tags cannot shift a column
 node test/on-apparel-type.mjs                 # ON apparel: garment type, size ladder, never typed as a shoe
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
+node test/image-keys.mjs                      # the sku -> colorway key per brand, the Puma trap
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
 node test/method-wiring.mjs                   # every this.x() call resolves, whole repo
 node test/scraper-feeds-tool.mjs             # the scraper's CSV still feeds the inventory manager
@@ -1628,6 +1629,36 @@ Measured coverage against colorways actually carried: Brooks 306/306 with 6
 views, Saucony 97/100 sampled with 6 views, New Balance 52/80 sampled with 6
 views, Puma 13/15 with 5 views on footwear and usually 1 on apparel, ASICS
 23/80 sampled with 3 views.
+
+**A KEY THAT DOES NOT MATCH LOOKS EXACTLY LIKE A SUPPLIER WITH NO PHOTOS.**
+Stage 4 turns `specs[].variants[0].sku` into a colorway key with
+`_imageKeyIn`, builds urls from it and HEAD checks each. A pattern that misses
+yields NO key, so no url is built, nothing is probed, and the dialog reports no
+images for the whole brand. `loadRemoteImages` swallows its errors on purpose,
+so the console says nothing either.
+
+PUMA sat in that state. The pattern was `/^\d{8}(?=\D|$|\d{3}(?:\D|$))/`,
+requiring the eight digits to be CONTIGUOUS, which is true of a bare sku
+("37690803") and a sized one ("52111301001") but NOT of what the scraper
+writes. Measured 2026-10-30 against a live Puma file, every sku is hyphenated,
+"312123-14-7", so the anchored match failed on all 2,610 of them. The photos
+were there the whole time: with the key fixed, 10 of 10 sampled colourways
+returned all five views. `test/image-keys.mjs` pins every brand's real sku
+shape offline.
+
+**Brooks is the reason the key is not simply "the style".** Its sku is
+`110454410-020-750-B`, style then COLOUR then size then width, and the key is
+six of the style plus the colour. Both `110454410` and `110454020` are real
+assets on the host and they are DIFFERENT COLOURWAYS, blue against black, so
+taking the style whole attaches a photo of the wrong shoe. Verified by eye
+2026-10-30 against the handle `adrenaline-gts-26-blackblackebony`.
+
+**PUMA'S CDN 404s A REQUEST WITH NO BROWSER USER AGENT**, which matters only
+for tooling, since the browser always sends one. Measured 2026-10-30: the same
+url answers 404 with `x-cld-error: Resource not found` to a bare `fetch` from
+node and 200 with a browser UA. A node script probing coverage without one
+measures the user agent rather than the catalogue, and reports a brand as
+having nothing.
 
 **Check the SIZE the host returns by default, per brand.** ASICS and New
 Balance are both on Scene7 and behave differently: New Balance's preset serves

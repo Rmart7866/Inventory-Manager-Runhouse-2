@@ -758,15 +758,36 @@ var ProductEnrichment = {
         // return a plausible key, and quietly attach zero photos to everything.
         newbalance: /^[MWU][A-Z0-9]{4,7}(?=[_\s]|$)/,
         // Puma style numbers are six digits of style plus two of colour, and
-        // that pair is the leading token of every Puma SKU we carry, whether
-        // the SKU is the bare eight ("37690803") or carries a size on the end
-        // ("52111301001").
+        // that pair leads every Puma SKU and filename we carry.
         //
-        // The lookahead has to accept all four shapes this key appears in: the
-        // bare SKU, the sized SKU, and either of those as a filename,
-        // "37690803_1.jpg". Anchored at the start so a size can never be read
-        // as the code.
-        puma: /^\d{8}(?=\D|$|\d{3}(?:\D|$))/,
+        // THE SEPARATOR IS THE WHOLE PROBLEM, and this matched none of the
+        // real ones. It used to be /^\d{8}(?=...)/, requiring the eight digits
+        // to be CONTIGUOUS, which is true of a bare SKU ("37690803") and a
+        // sized one ("52111301001") but NOT of what the scraper actually
+        // writes. Measured 2026-10-30 against a live Puma file, every SKU is
+        // hyphenated: "312123-14-7", style then colour then size. Six digits,
+        // a dash, and the anchored eight-digit match fails on every row.
+        //
+        // So Stage 4 extracted no key for any Puma product, probed nothing and
+        // reported no images for the whole brand. The photos were there the
+        // whole time: 312123/14, 377749/02 and 377748/04 all answer 200.
+        //
+        // Both shapes now resolve to the same eight digit key, which urlFor
+        // splits back into "312123/14":
+        //
+        //   312123-14-7     hyphenated, what the scraper writes
+        //   52111301001     contiguous plus a size
+        //   37690803        bare
+        //   37690803_1.jpg  a folder filename
+        // The lookahead keeps the old contiguous-plus-size case working: after
+        // the eight digits the string must END, turn non-numeric, or carry
+        // exactly three more digits and then do one of those. Without it
+        // "52111301001" stops matching, and with something looser a long
+        // barcode would be read as a style.
+        puma: function (s) {
+            var m = /^(\d{6})-?(\d{2})(?=$|[^0-9]|\d{3}(?:$|[^0-9]))/.exec(s);
+            return m ? m[1] + m[2] : '';
+        },
 
         brooks: function (s) {
             var m = /^(\d{6})\d{3}-(\d{3})-/.exec(s);
