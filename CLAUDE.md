@@ -2122,6 +2122,114 @@ tags.
 because two copies of that rule is the drift this repo keeps paying for.
 `test/alt-text.mjs` and `test/seo-titles.mjs` pin every case above.
 
+## Shoe specs and the soft-firm meter
+
+The `specs.*` metafields are written by `stamp-specs.mjs` out of
+`shoe-model-registry.csv`, and **both live in the Color Swatch project on the
+Desktop, not in this repo.** `tools/clear-bogus-specs.mjs` here is the repair
+for what that tool can get wrong.
+
+**THE FIRMNESS SCALE IS 1 FIRM TO 5 SOFT, and the theme is the only thing that
+says so.** Read off `snippets/shoe-spec-chart.liquid` in the live theme
+2026-10-30, which renders the pips with "Firm" on the left, "Soft" on the right
+and `aria-label="Firmness N of 5, 1 firm to 5 soft"`. Nothing in the registry or
+the stamping tool records the direction, so anyone extending the column has to
+read the theme or guess, and guessing wrong inverts the meter for every product
+on that row.
+
+**STACK HEIGHT AND A CARBON PLATE ARE NOT PROXIES FOR FIRMNESS. I used them as
+one and raised a false alarm over 33 models and 287 live products.** The column
+is built on measured foam durometer, which is the correct basis, and the two
+signals point the opposite way to the intuition:
+
+| shoe | registry | measured | reading |
+|---|---|---|---|
+| ON Cloudmonster 3, 35mm | 2 firm | Helion **49.9 AC**, among the firmest RunRepeat has tested | correct |
+| ASICS Metaspeed Edge Tokyo, carbon racer | 5 soft | FF Leap **24.5 AC**, ultra soft against a 35.4 average | correct |
+
+A tall ON shoe is firm because Helion is firm, and a plated PEBA racer is soft
+because the foam is soft. Both of those were flagged as errors by a rule that
+read "42mm or more must be soft" and "carbon plate must be firm", and both rules
+are simply wrong. **Do not infer firmness from geometry. Find a durometer
+figure, or leave the cell blank.**
+
+**RunRepeat publishes the number, in AC (shore A), and lower is softer.** The
+calibration implied by the rows that check out:
+
+| AC | firmness |
+|---|---|
+| 22.8, Superblast 3 | 4 |
+| 24.5, Metaspeed Edge Tokyo | 5 |
+| 31.1, Sonicblast 2, labelled Soft | 4 |
+| 35.4 | the RunRepeat average, so 3 |
+| 49.9, Cloudmonster 3 | 2 |
+
+**Exactly one real error came out of that audit**, and it was found by an
+internal contradiction rather than by the bad proxy: Superblast 2 and
+Superblast 3 share a 45.5mm stack and read 2 and 4. RunRepeat measures the 2 at
+35.2 AC and labels it "Balanced" against the 3 at 22.8 AC and "Soft", so the 2
+should be 3. Corrected on 10 products 2026-10-30.
+
+**A BLANK CELL IS NOT ZERO**, which is the trap `clear-bogus-specs.mjs` exists
+for: `Number("")` is 0 and `Number.isFinite(0)` is true, so an unverified stack
+once stamped as `stack_height` 0.0 and a `forefoot_stack` of stack minus drop
+came out NEGATIVE. `num()` returns null for a blank now. The invariant to check
+after any stamp is that no product carries `stack_height == 0` or
+`forefoot_stack < 0`.
+
+**A MODEL-ONLY ROW POISONS THE RESUME FLAG.** `SKIP_STAMPED=1` skips any
+product that already has `specs.model`, so a row whose only populated cell is
+the model name writes that one metafield and locks the product out of later
+runs. That is harmless for the 12 rows that are deliberately blank because they
+are NOT running shoes (pickleball, tennis, CrossFit, hiking boots, a house
+slipper), and a problem for the 10 that carry a drop and a firmness but no
+verified stack. `RESTAMP="<model name>"` is the way past it for one model.
+
+**AND `RESTAMP` HAS TO RESOLVE THE ROW BEFORE IT DECIDES TO SKIP.** The first
+version tested the forced list between the direct lookup and the alias and
+prefix lookups, so a product that reaches its row by alias or prefix still had
+no spec at the moment of the decision and was skipped anyway. That corrected
+nine Superblast 2 colourways and left "Superblast 2 Paris", which gets there by
+prefix, reading the old value. Resolution now happens first and the skip test
+second.
+
+**AN UNMATCHED KEY IS SHORTENED FROM THE RIGHT, and that is narrow on
+purpose.** `toModelKey` splits a title on " - ", " -", "- " and "(", which
+misses a hyphen with no space ("Charged Rogue 3-Cosmic Blue", "880v15-Pearl
+Grey") and misses a title that just runs the colour on ("On Mens Cloudmonster 2
+White Flame"). Widening the split regex is the WRONG fix because real model
+names carry hyphens: GEL-KAYANO, GT-2000, FAST-R, so splitting on any hyphen
+turns "gt 2000 14" into "gt". The key is left alone and an unmatched key is
+instead trimmed a token at a time until it equals a registry key.
+
+This is the ON matcher's trap, so three rules stand in the way and all three
+earned their place against the live catalogue:
+
+- **A version is part of the identity.** Never shorten past a version-like
+  token, or "mach x 2" matches "mach x", a different shoe, and every v3 lands
+  on the v2 record.
+- **A category word changes the product.** "olympus 6 hike mid gtx" is a hiking
+  boot, not the Olympus 6 running shoe. Dropping "hike" would have stamped
+  running geometry on 7 boots. The same list holds the words that name a
+  different model in one line, "elite", "lite", "pro", "max", "hyper",
+  "trainer", so a Cloudmonster 3 Hyper can never collapse onto a Cloudmonster 3.
+  Listing a token only forbids DROPPING it, never matching a prefix that ends
+  with it, so the list costs nothing and is pure protection.
+- **ASICS TR, ATC and ST swap the outsole**, which moves stack height, so they
+  are refused. GTX is allowed because a membrane sits over the same midsole.
+- **A known wrong title is excluded outright.** The two ON products recorded
+  above as carrying another shoe's name resolve confidently to the WRONG shoe,
+  which is worse than leaving them unstamped.
+
+Measured 2026-10-30: 76 products reached a row that already existed this way,
+and 4 keys were correctly refused.
+
+**COLLECTIVE IS OUT OF SCOPE for specs**, the same as for SEO. Sorting the
+unmatched keys by units puts Swift Running's Equus, Celer, Apus and Horus at the
+top, 7,116 units across 9 keys, and every one of those is nominal marketplace
+stock rather than a count. The tag is `Shopify Collective`, which token-matches
+in a `tag:` query but never equals "collective" on a per-product test.
+
 ## What is still manual, and what blocks each one
 
 The stated goal is to automate every step of this. Recorded here so the next
