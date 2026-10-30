@@ -10,6 +10,25 @@
 // ---------------------------------------------
 // ON Running product database (trim as needed)
 // ---------------------------------------------
+// ON PREFIXES A FAMILY ONTO THE PRODUCT NAME, AND IT IS NOT ALWAYS "PR".
+//
+// The feed sends "Boom | Cloudboom Volt 1", "Cloud | Cloud 6", "Flow |
+// Cloudflow 5", "Monster | Cloudmonster 2", and apparel adds more ("PR |",
+// "PAD |", "PTR |"). Only PR and PAD were ever stripped, in eight separate
+// places, so the rest rode into the TITLE and the HANDLE: live rows read
+// "ON Men's Cloud | Cloud 6" with the handle on-mens-cloud-|-cloud-6, and a
+// pipe is not legal in a Shopify handle.
+//
+// It was partly hidden because the old model matcher replaced the whole name
+// with a database entry's name whenever it found any excuse to, which washed
+// the prefix away as a side effect of a different bug. Tightening that matcher
+// without fixing this would have made the prefix MORE visible, not less, so
+// the two changes belong together.
+//
+// The separator is ON's own and no model name contains a pipe, so one leading
+// token followed by "|" is safe to remove.
+const ON_FAMILY_PREFIX = /^[A-Za-z][A-Za-z0-9]*\s*\|\s*/;
+
 const onProductDatabase = {
   // Max Cushion
   "cloudmonster 2": {
@@ -202,7 +221,10 @@ function getONProductInfo(productName, styleId) {
 
   // 2) score function
   const cleanWords = clean.split(" ").filter((w) => w && !STOPWORDS.has(w));
-  const cleanSet = new Set(cleanWords);
+  // SCORING ignores stopwords, PRESENCE does not. cleanSet is the presence
+  // test's vocabulary and therefore holds every word, or the "cloud 6" key
+  // could never be found in the name "Cloud 6".
+  const cleanSet = new Set(clean.split(" ").filter(Boolean));
 
   const scoreKey = (key) => {
     const keyWords = key.split(" ").filter((w) => w && !STOPWORDS.has(w));
@@ -215,35 +237,70 @@ function getONProductInfo(productName, styleId) {
     return inter.length * 10 + keyWords.length;
   };
 
-  // 2a) direct containment either way (strong signal)
+  // A MODEL THAT IS NOT IN THE DATABASE MUST FALL BACK TO default, NOT BORROW
+  // THE NEAREST NAME. This is the whole of the Cloudboom Volt bug.
+  //
+  // The Volt is not in onProductDatabase. It used to be scored against every
+  // key, shared the single token "cloudboom" with two of them, and the
+  // tiebreak handed it the LONGER key name, so it came out as "Cloudboom Echo
+  // 3" at $290. That is not cosmetic: callers do
+  //
+  //     const modelName = info && info !== db["default"] ? info.name : productName;
+  //
+  // so the matched record's name becomes the MODEL, and the handle, the title
+  // and the price all follow it. A Volt was created as an Echo 3.
+  //
+  // The old guard meant to prevent exactly this and the arithmetic defeated
+  // it. It read "require at least 2 meaningful overlaps (~12 points)" against
+  // a score of `overlaps * 10 + keyWords.length`, so ONE overlap plus a two
+  // word key already reached 12. Adding a count of matched words to a count of
+  // key words and comparing the sum to a magic number cannot express "two
+  // overlaps", because the two terms are different units.
+  //
+  // The rule is now stated directly: a key is only a candidate if EVERY word
+  // of it appears in the product name. Version numbers are exempt, because the
+  // store says "Cloudboom Strike 1" where ON says "Cloudboom Strike" and the
+  // feed is inconsistent about them. Stopwords are NOT exempt here even though
+  // they are ignored for scoring: "cloud" is the entire identity of the "cloud
+  // 6" key, and dropping it would make that key match anything.
+  // THE NAME MUST BE THE MODEL, NOT MERELY CONTAIN IT. Set equality, because
+  // every looser rule tested here hands one shoe another shoe's identity:
+  //
+  //   "Cloudboom Volt"       shares only "cloudboom" with two keys, and the
+  //                          longer key name won, so it became Cloudboom Echo
+  //                          3 at $290.
+  //   "Cloudmonster 3 Hyper" is a different shoe from the Cloudmonster 2 in
+  //                          this table, and "all key words appear in the
+  //                          name" happily matched it.
+  //   "Cloudsurfer Trail 2"  is a trail shoe. Matching it to "cloudsurfer"
+  //                          gives it road stack heights.
+  //   "Cloud 6 WP"           is waterproof, a different price and weight.
+  //
+  // A VERSION NUMBER IS PART OF THE IDENTITY and is not ignored: measured
+  // against the live feed on 2026-10-29, this table still holds Cloudmonster
+  // 2, Cloudrunner 2 and Cloudsurfer 2 while ON is shipping the 3s. Treating a
+  // bare number as noise maps every v3 onto a v2 record, which is wrong price,
+  // wrong weight, wrong drop, wrong stack.
+  //
+  // Returning default is the SAFE answer, not a failure: the callers do
+  // `info !== db["default"] ? info.name : productName`, so an unknown model
+  // keeps ON's own name and takes the settings price. Losing a canned
+  // description costs nothing next to shipping a shoe under another shoe's
+  // name and price.
+  const nameKey = [...cleanSet].sort().join(" ");
   let bestKey = null;
-  let bestScore = 0;
-
+  let bestScore = -1;
   for (const key in db) {
-    if (clean.includes(key) || key.includes(clean)) {
-      const s = scoreKey(key);
-      if (s > bestScore) {
-        bestScore = s;
-        bestKey = key;
-      }
-    }
+    if (key === "default") continue;
+    const keySet = new Set(key.split(" ").filter(Boolean));
+    if ([...keySet].sort().join(" ") !== nameKey) continue;
+    const s = scoreKey(key);
+    if (s > bestScore) { bestScore = s; bestKey = key; }
   }
 
-  // 2b) if still nothing, do general overlap
-  if (!bestKey && cleanWords.length) {
-    for (const key in db) {
-      const s = scoreKey(key);
-      if (s > bestScore) {
-        bestScore = s;
-        bestKey = key;
-      }
-    }
-  }
-
-  // Require at least 2 meaningful overlaps (~12 points)
-  if (bestKey && bestScore >= 12) return db[bestKey];
-
-  return db["default"];
+  // No key is fully present, so this is a model we do not know. Saying so is
+  // the correct answer: the caller then keeps ON's own product name.
+  return bestKey ? db[bestKey] : db["default"];
 }
 
 // --------------------------
@@ -448,7 +505,7 @@ class UnifiedShopifyConverter {
       const handle = this.generateHandle(baseProduct);
 
       // Determine model & pricing
-      let productName = (baseProduct.productName || "ON Running Shoe").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
+      let productName = (baseProduct.productName || "ON Running Shoe").replace(ON_FAMILY_PREFIX, "").trim();
       const productInfo = getONProductInfo(productName, baseProduct.styleId);
       const price = productInfo ? productInfo.price.toFixed(2) : shopifySettings.variantPrice;
       const comparePrice = "";
@@ -658,7 +715,7 @@ class UnifiedShopifyConverter {
     // handles in the 2026-08-05 apparel run were unusable. Apparel names have far
     // more punctuation than shoe names, which is why footwear never tripped it.
     const productName = (product.productName || "unknown")
-      .replace(/^(PR|PAD)\s*\|\s*/i, "")
+      .replace(ON_FAMILY_PREFIX, "")
       .toLowerCase()
       .replace(/"/g, "in")          // 3" Core Shorts -> 3in-core-shorts
       .replace(/[^a-z0-9]+/g, "-")
@@ -703,7 +760,7 @@ class UnifiedShopifyConverter {
   }
 
   generateProductTitle(product) {
-    let productName = (product.productName || "ON Running Shoe").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
+    let productName = (product.productName || "ON Running Shoe").replace(ON_FAMILY_PREFIX, "").trim();
     const colorName = product.colorName || "Default Color";
     const info = getONProductInfo(productName, product.styleId);
     const modelName = info && info !== onProductDatabase["default"] ? info.name : productName;
@@ -719,7 +776,7 @@ class UnifiedShopifyConverter {
   }
 
   generateProductDescription(product) {
-    let productName = (product.productName || "ON Running Shoe").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
+    let productName = (product.productName || "ON Running Shoe").replace(ON_FAMILY_PREFIX, "").trim();
     const styleId = product.styleId || "Unknown Style";
     const colorName = product.colorName || "Default Color";
     const info = getONProductInfo(productName, product.styleId);
@@ -763,7 +820,7 @@ class UnifiedShopifyConverter {
   }
 
   generateSEODescription(product) {
-    let productName = (product.productName || "ON Running Shoe").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
+    let productName = (product.productName || "ON Running Shoe").replace(ON_FAMILY_PREFIX, "").trim();
     const colorName = product.colorName || "Default Color";
     const info = getONProductInfo(productName, product.styleId);
     const modelName = info && info !== onProductDatabase["default"] ? info.name : productName;
@@ -813,7 +870,7 @@ class UnifiedShopifyConverter {
   }
 
   generateTags(product, baseTags) {
-    let productName = (product.productName || "").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
+    let productName = (product.productName || "").replace(ON_FAMILY_PREFIX, "").trim();
     const styleId = product.styleId || "";
     const colorName = product.colorName || "";
     const info = getONProductInfo(productName, product.styleId);
@@ -1300,7 +1357,7 @@ class ONRunningInventoryExtractor {
       let name = groupHeader.textContent.trim();
       name = name.replace(/\s*[▼▲↓↑].*$/, "")
                  .replace(/\s+/g, " ")
-                 .replace(/^(PR|PAD)\s*\|\s*/i, "")
+                 .replace(ON_FAMILY_PREFIX, "")
                  .trim();
       
       // Remove USD price info
@@ -1723,7 +1780,7 @@ class ONRunningInventoryExtractor {
       if (groupHeader) {
         let t = groupHeader.textContent.trim();
         // Remove arrows and other UI elements
-        t = t.replace(/\s*[▼▲↓↑].*$/, "").replace(/\s+/g, " ").replace(/^(PR|PAD)\s*\|\s*/i, "").trim();
+        t = t.replace(/\s*[▼▲↓↑].*$/, "").replace(/\s+/g, " ").replace(ON_FAMILY_PREFIX, "").trim();
         
         // CRITICAL: Remove any USD price information from the product name
         if (t.toLowerCase().includes('usd')) {

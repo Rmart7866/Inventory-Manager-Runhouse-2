@@ -63,6 +63,7 @@ node test/apparel-known-set.mjs               # apparel zeroing: Needham scoping
 node test/picker-tabs.mjs                     # ON picker: shoes and apparel split on the article code
 node test/on-supplied-images.mjs              # ON photos reach Stage 4 from the sidecar, no probing
 node test/on-title.mjs                        # ON titles: a two-tone color is never the model
+node test/on-model-identity.mjs               # a Volt is not an Echo: model, version, family prefix
 node test/enrich-csv.mjs                      # applyToCSV round trip: a comma in Tags cannot shift a column
 node test/on-apparel-type.mjs                 # ON apparel: garment type, size ladder, never typed as a shoe
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
@@ -305,6 +306,72 @@ Measured 2026-10-28 over the 282 garments: 1,660 on-model images, 253 flat `-d`,
 led with it. `tools/reorder-on-apparel-media.mjs` promoted the other 265, moving
 one image per product so the rest of the gallery order survives, and leaving the
 16 with no on-model shot untouched.
+
+**A SHOE MUST NOT BE GIVEN ANOTHER SHOE'S NAME, and the Cloudboom Volt was.**
+Reported from the shop floor 2026-10-30 and traced to two independent causes,
+which is why the HANDLE and the TITLE disagreed on the same row:
+
+    on-mens-cloudboom-volt-bla    "ON Men's Cloudboom Echo 3"
+    on-mens-cloudboom-max-all     "ON Men's Cloudboom Echo 3"
+    on-cloudboom-strike-2-aco     "ON Unisex Cloudboom Strike"
+
+Nine colourways across TWO models, all titled Cloudboom Echo 3 at $290. The
+handle is built from ON's own product name before the matcher runs, so it kept
+the truth while the title took the matcher's answer.
+
+**Cause one: `getONProductInfo` matched on PARTIAL overlap.** Neither the Volt
+nor the Max is in `onProductDatabase`, so each shared the single token
+"cloudboom" with two entries and the tiebreak handed it the LONGER key name.
+The guard that existed to stop exactly this could not express what it meant: it
+read "require at least 2 meaningful overlaps (~12 points)" against a score of
+`overlaps * 10 + keyWords.length`, so ONE overlap plus a two word key already
+reached 12. Adding a count of matched words to a count of key words and
+comparing the sum to a magic number cannot say "two overlaps", because the
+terms are different units.
+
+The rule is now stated directly: a key matches only when its word set EQUALS
+the name's. A version number is part of the identity and is not ignored,
+because this table still holds Cloudmonster 2, Cloudrunner 2 and Cloudsurfer 2
+while ON ships the 3s, and treating a bare number as noise maps every v3 onto a
+v2 record: wrong price, wrong weight, wrong drop, wrong stack. Returning
+`default` is the SAFE answer, not a failure: callers do
+`info !== db["default"] ? info.name : productName`, so an unknown model keeps
+ON's own name and the settings price. A missing canned description costs
+nothing next to shipping a shoe under another shoe's name.
+
+The bare keys "cloudmonster", "cloud" and so on are deliberate ALIASES, each
+pointing at the current version's record, and they still work.
+
+**Cause two: ON prefixes a FAMILY onto the name and only "PR |" was stripped.**
+The feed sends `Boom | Cloudboom Volt 1`, `Cloud | Cloud 6`, `Flow | Cloudflow
+5`, `Monster | Cloudmonster 2`, and apparel adds `PAD |` and `PTR |`. Only PR
+and PAD were removed, in EIGHT separate places including the handle builder, so
+the rest rode into production: live handles read
+`on-womens-runner-cloudrunner-3-fro` and titles read `ON Men's Cloud | Cloud 6`.
+A pipe is not even legal in a Shopify handle.
+
+It was partly hidden because the broken matcher replaced the whole name with a
+database entry's name whenever it found any excuse to, washing the prefix away
+as a side effect of the other bug. **Tightening the matcher alone would have
+made the prefix MORE visible, not less**, so the two fixes belong together.
+`ON_FAMILY_PREFIX` is one regex used in all eight places.
+
+**Measured against the live store, 2026-10-30.** 494 ON products whose SKU
+style is in the current feed, checked by comparing each title to the model the
+FEED's handle implies. Two genuine mismatches, the rest being the inch mark
+(`7"` against `7in`):
+
+| SKU | the feed says | the title says |
+|---|---|---|
+| `ON-3MF30310485-ALL-7` | cloudboom-**max** | Cloudboom Echo 3 |
+| `ON-3UG30025363-WHI-3` | cloudboom-**strike-2**-ls | Cloudboom Strike Light Spray |
+
+So one ACTIVE product, `on-mens-cloudboom-echo-3-all-black` at $230, is really
+a Cloudboom Max, and one lost its version. Renaming a live product changes its
+URL, so that is a decision rather than a script. The Volt itself was never
+created, so the damage stopped at the CSV.
+
+`test/on-model-identity.mjs` pins all of it.
 
 **ON'S OWN STATS COME FROM on.com, JOINED ON THE ARTICLE CODE.** The Backstage
 B2B feed carries stock and price but no copy, and the review modal starts every
