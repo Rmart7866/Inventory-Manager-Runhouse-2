@@ -131,6 +131,8 @@ node tools/push-asics-availability.mjs               # write ASICS stock to the 
 node tools/tag-apparel-groups.mjs             # cw-group: tags so colourways collapse to one card
 node tools/fix-la-singlet-listings.mjs       # category, SEO, vendor and type on the four LA listings
 node tools/enable-file-upload.mjs            # logo upload on, by handle, in the LIVE theme
+node tools/read-theme-asset.mjs <key>        # print a LIVE theme asset, read only
+node tools/read-theme-asset.mjs x --list <sub>  # list live theme asset keys matching
 node tools/backfill-singlet-skus.mjs         # SKUs so a scraped singlet row can join
 node tools/clear-singlet-needham.mjs         # repair: singlets must have NO Needham level
 
@@ -1159,6 +1161,22 @@ so that entry matches no product and that long sleeve tee has been silently
 missing its upload box. Left alone, because enabling a product nobody asked
 about is a different decision, but it wants fixing.
 
+**Re-measured 2026-10-30 on the new live theme, and the drift is still exactly
+two entries.** The lists are now 23 and 24 (the LA 2027 singlets were added to
+both and carried over), 22 handles agree, and the two that do not are both
+ACTIVE products that should take a logo and cannot:
+
+| list | handle | effect |
+|---|---|---|
+| MARKUP only | the concatenated `...-lst353ls` entry above | matches no product, so the Women's Long Sleeve Performance Tee (LST353LS) has no upload box |
+| SCRIPT only | `...run-in-adult-unisex-long-sleeve-performance-tee` | the "Run In" Unisex Long Sleeve Tee (PC380LS) runs the Cloudinary script against markup that is not rendered |
+
+The duplicate in the second list is that same "Run In" handle, listed twice.
+From the customer's side both faults look identical: a long sleeve tee with
+nowhere to put their logo. `tools/enable-file-upload.mjs` writes BOTH lists and
+is the right fix, but it is still a decision to turn an upload box on, so this
+stays reported rather than done.
+
 **Do not paste raw Liquid tags into this file.** GitHub Pages serves the
 frontend from this branch and its default build runs the markdown through
 Jekyll, which parses Liquid BEFORE markdown, so backticks do not protect it. A
@@ -1507,9 +1525,19 @@ swatch row under the price, but **only on the collection handles listed in
 `grouped_handles`**, a single comma-separated Liquid string at the top of that
 snippet. Liquid owns the list because two consumers need it, the JS grid and the
 server-rendered seed. The 16 apparel handles were added there 2026-10-20, taking
-it from 32 to 48. **That edit is in the LIVE THEME (`167063912703`), which is
-not in this repo**, so it will not come back from git: re-apply it if the theme
-is ever replaced or rolled back.
+it from 32 to 48. **That edit is in the LIVE THEME, which is not in this
+repo**, so it will not come back from git: re-apply it if the theme is ever
+replaced or rolled back.
+
+**THE LIVE THEME HAS SINCE BEEN REPLACED, AND THE EDIT SURVIVED.** Checked
+2026-10-30: the theme with role `main` is now `167853359359`, named "Copy of
+live theme", not the `167063912703` this file used to name. Because the new one
+is a COPY, `grouped_handles` came with it and has grown to 58 handles, all 16
+apparel ones present. So this was a non-event, and the reason it was a non-event
+is that every tool here resolves the live theme BY ROLE rather than by id. Do
+not write a theme id into a script, and do not trust one written in prose here:
+read the role. `tools/read-theme-asset.mjs` prints any live theme asset,
+read only, and is the cheap way to confirm a hand edit is still there.
 
 The apparel key's second half is the GENDER, not a width class, and the
 vocabularies are disjoint so they can never collide:
