@@ -1438,3 +1438,96 @@
 
 /* the hero holds its own height so the picture has room to be a picture */
 #trh-sb > .trh-hero { min-height: 460px; display: flex; flex-direction: column; justify-content: center; }
+
+/* ===================================================================
+   STRIP THE ACCENT BARS, WARM THE FIELD, CHANGE THE PICTURE
+   -------------------------------------------------------------------
+   Owner: too many AI style accent lines, not enough character, still a
+   medical portal.
+
+   Counted my own work: NINE separate accent bars had accumulated, one
+   per pass. A blue edge on the tray, on the recommended block, on every
+   input, under the tabs, down the side of the reassurance strip, down
+   the toast, under every section heading, under the step rail. Each one
+   was defensible on its own and together they are a dashboard. That is
+   the look being complained about and it is self-inflicted.
+
+   ONE accent line survives: the underline on the active step, because
+   it reports state and nothing else does that job.
+
+   And the field is the real medical tell. A pale blue-grey with white
+   cards IS a patient portal. It goes warm neutral, which reads as a
+   shop rather than a clinic, and lets the navy and the photography be
+   the only colour on the page.
+   =================================================================== */
+
+/* ---- Every decorative bar off --------------------------------------- */
+#trh-sb .qs:not(.mini) { border-top: 0 !important; }
+#trh-sb .calm, #trh-sb .calm2, #trh-sb .toast { border-left: 0 !important; }
+#trh-sb .tray { border-top: 0 !important; }
+#trh-sb .tabs { border-bottom: 0 !important; }
+#trh-sb .bh::after, #trh-sb .browseh::after, #trh-sb .card > h3::after,
+#trh-sb .det > h4::after { content: none !important; }
+#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
+#trh-sb .xtra input[type=text] { border-left: 0 !important; }
+
+/* Focus is a ring on the field itself, not another coloured bar. */
+#trh-sb label.f input:focus, #trh-sb label.f textarea:focus,
+#trh-sb label.f select:focus, #trh-sb .xtra input[type=text]:focus {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px var(--d3);
+}
+
+/* ---- A warm field, not a clinical one -------------------------------- */
+#trh-sb {
+  background: #f0eeea;      /* warm neutral, no blue in it at all */
+}
+#trh-sb .card, #trh-sb .wrap, #trh-sb .bc, #trh-sb .tile,
+#trh-sb .qs:not(.mini), #trh-sb .faq details, #trh-sb .tcbar,
+#trh-sb .scur, #trh-sb .slist, #trh-sb .det {
+  background: #fff;
+}
+#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
+#trh-sb .xtra input[type=text] { background: #f4f2ef; }
+#trh-sb .fams button, #trh-sb .mode button, #trh-sb .pos button,
+#trh-sb .sgc button, #trh-sb .slist button, #trh-sb .lgp button,
+#trh-sb .rec, #trh-sb .sw .more, #trh-sb .seeall, #trh-sb .addlogo {
+  background: #f4f2ef;
+}
+#trh-sb .fams button:hover, #trh-sb .mode button:hover,
+#trh-sb .pos button:hover, #trh-sb .rec:hover { background: #e7e3dd; }
+#trh-sb .calm, #trh-sb .calm2 { background: #f4f2ef !important; color: #3a3630 !important; }
+#trh-sb .calm b, #trh-sb .calm2 b { color: var(--d1) !important; }
+#trh-sb .pop { background: #f0eeea; color: var(--d1); }
+
+/* ---- Character comes from type, not chrome --------------------------- */
+#trh-sb h3, #trh-sb .bh b, #trh-sb .browseh b, #trh-sb .qs:not(.mini) > h4 {
+  font-size: 34px !important;
+  letter-spacing: -0.035em !important;
+  line-height: 1.02 !important;
+  color: var(--d1) !important;
+  margin-bottom: 18px !important;
+  padding-bottom: 0 !important;
+}
+#trh-sb .card > h3 { margin-bottom: 24px !important; }
+#trh-sb label.f { font-size: 15px; color: #40474f; }
+
+/* ---- A different picture --------------------------------------------
+   The mass start at the Santa Monica Classic: a whole field of runners,
+   no single team's sign in frame, which the previous photo had. */
+#trh-sb > .trh-hero {
+  background-image:
+    linear-gradient(95deg,
+      var(--d1) 0%,
+      var(--d1) 42%,
+      rgba(13,35,71,.93) 55%,
+      rgba(13,35,71,.55) 74%,
+      rgba(13,35,71,.30) 100%),
+    url('https://cdn.shopify.com/s/files/1/0631/6877/4399/files/SMC2025_RLaberge079_1.jpg?width=2000');
+  background-position: center, center 38%;
+  min-height: 480px;
+}
+
+/* The last stray bar: .ok still carried a left edge from the pass that
+   mistakenly targeted it instead of .calm. */
+#trh-sb .ok { border-left: 0 !important; background: #f4f2ef !important; }
