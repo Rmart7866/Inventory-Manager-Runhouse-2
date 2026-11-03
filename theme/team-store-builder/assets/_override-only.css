@@ -566,7 +566,8 @@
 #trh-sb .bc.trh-added .btn.add {
   background: #fff; color: var(--d3); border-color: var(--d3);
 }
-#trh-sb .bc.trh-added .btn.add::before { content: '\2713'; font-weight: 700; }
+/* no tick: the owner does not want them, and the blue frame plus the
+   word "Added" already say it */
 
 /* ===================================================================
    ROUND 3: colour as wayfinding, real weight, less copy
@@ -995,3 +996,115 @@
 /* A label and its "(optional)" belong on one line. */
 #trh-sb label.f > span, #trh-sb label.f > b { display: inline; }
 #trh-sb label.f .sbn, #trh-sb label.f small { white-space: nowrap; }
+
+/* ===================================================================
+   BUTTONS, WEIGHT, AND THE LAST REDUNDANT LABELS
+   =================================================================== */
+
+/* ---- EVERY BUTTON WAS IN THE SYSTEM FONT ---------------------------
+   Measured: every control computed to -apple-system while the rest of
+   the page was in Noto Sans Display. A button does NOT inherit
+   font-family, and when this stylesheet was rewritten from scratch the
+   controls were dropped out of the rule that sets it. That single
+   omission is most of what "buttons don't look uniform" was. */
+#trh-sb button, #trh-sb .btn, #trh-sb input, #trh-sb select,
+#trh-sb textarea, #trh-sb summary, #vmod button {
+  font-family: var(--typeBasePrimary), var(--typeBaseFallback, sans-serif);
+}
+/* The action buttons take the heading face, which is the chunkier of
+   the two and is how you get "bolder" when 600 is the heaviest weight
+   either family actually ships. */
+#trh-sb .btn, #trh-sb .tray .btn, #trh-sb .howv {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-weight: 600 !important;
+  letter-spacing: -0.005em;
+}
+
+/* ---- One button shape ----------------------------------------------
+   Three different paddings were in play, 20px, 12px and 10px, and two
+   different heights, 46px and 33px, so text sat tight to the edge on
+   the small ones. One rule now governs every control. */
+#trh-sb button, #trh-sb .btn,
+#trh-sb .fams button, #trh-sb .mode button, #trh-sb .pos button,
+#trh-sb .sgc button, #trh-sb .slist button, #trh-sb .lgp button,
+#trh-sb .rec, #trh-sb .sw .more, #trh-sb .seeall, #trh-sb .addlogo,
+#trh-sb .tabs button, #trh-sb .none, #trh-sb .addrec {
+  min-height: 48px;
+  padding: 0 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px; line-height: 1.2; font-size: 15px;
+}
+/* The ones that are genuinely a different size say so deliberately. */
+#trh-sb .share .btn.alt { min-height: 40px; padding: 0 16px; font-size: 13px !important; }
+#trh-sb .tabs button { padding: 0 18px !important; min-height: 46px; }
+#trh-sb .x { min-height: 40px; padding: 0 4px; }
+/* Swatches are round chips, not text buttons, so they keep their size. */
+#trh-sb .sw button, #trh-sb .bcol button, #trh-sb .fams button i {
+  min-height: 0; padding: 0;
+}
+
+/* ---- Redundant labels ----------------------------------------------
+   "(optional)" appeared 8 times and "Optional" 4 more, twelve sayings
+   of one idea, on a form that ALREADY marks the required fields with a
+   star. If it is not starred it is optional, so the label is noise.
+   The repeated logo hint said the same sentence on all three extra
+   slots; it is said once. */
+#trh-sb label.f .sbn:only-child,
+#trh-sb .opt-tag, #trh-sb .optional { display: none; }
+#trh-sb .pv .sbn, #trh-sb .lg2 .st2 ~ .st2, #trh-sb .addlogo + .st2 { display: none; }
+
+/* ---- Controls, settled ---------------------------------------------
+   The previous attempt at this lost on specificity and silently did
+   nothing. The original declares `font: inherit` inside COMPOUND
+   selectors such as "#trh-sb .sw button", which is (1,1,1) and beats a
+   plain "#trh-sb button" at (1,0,1); and `font:` is the shorthand, so
+   it resets family, size and weight together. Measured after that
+   attempt: 46 buttons, 8 inputs, 3 selects and 2 textareas were still
+   computing to -apple-system while the page around them was not.
+
+   Controls are the one place in this file worth forcing, because they
+   have to agree with each other across six different parent contexts. */
+#trh-sb button, #trh-sb .btn, #trh-sb input, #trh-sb select,
+#trh-sb textarea, #trh-sb summary {
+  font-family: var(--typeBasePrimary), var(--typeBaseFallback, sans-serif) !important;
+}
+#trh-sb .btn, #trh-sb .tray .btn, #trh-sb .howv, #trh-sb .fams button,
+#trh-sb .mode button, #trh-sb .tabs button {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif) !important;
+  font-weight: 600 !important;
+}
+
+/* One padding, so no label sits tight to an edge. */
+#trh-sb button, #trh-sb .btn, #trh-sb .fams button, #trh-sb .mode button,
+#trh-sb .pos button, #trh-sb .sgc button, #trh-sb .slist button,
+#trh-sb .lgp button, #trh-sb .rec, #trh-sb .sw .more, #trh-sb .seeall,
+#trh-sb .addlogo, #trh-sb .none, #trh-sb .addrec, #trh-sb .howv {
+  padding-left: 22px !important;
+  padding-right: 22px !important;
+  min-height: 48px !important;
+}
+/* Deliberate exceptions, stated rather than left to chance. */
+#trh-sb .share .btn.alt { padding: 0 16px !important; min-height: 40px !important; }
+#trh-sb .tabs button { padding: 0 18px !important; min-height: 46px !important; }
+#trh-sb .x { padding: 0 4px !important; min-height: 40px !important; }
+#trh-sb .sw button, #trh-sb .bcol button, #trh-sb .sw.named button,
+#trh-sb .fams button i {
+  padding: 0 !important; min-height: 0 !important;
+}
+/* The two mode choices are two lines of text, so they are taller on
+   purpose rather than by accident. */
+#trh-sb .mode button { min-height: 76px !important; padding: 16px 22px !important; }
+
+/* The original paints a tick over any selected chip with a ::after.
+   No ticks. */
+#trh-sb button.on::after, #trh-sb .sw button.on::after,
+#trh-sb .bcol button.on::after { content: none !important; }
+
+/* The last tick, and the reason it survived two passes: it is
+   generated by CSS, not written in the markup, so the text-node sweep
+   could not see it and an innerText check reported zero ticks while
+   one was plainly on screen. Pseudo-element content has to be audited
+   separately from text. */
+#trh-sb .mode button b::before,
+#trh-sb .mode button.on b::before,
+#trh-sb b::before { content: none !important; }

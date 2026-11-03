@@ -719,7 +719,7 @@ get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){
         if (!btn.getAttribute('data-trh-label')) {
           btn.setAttribute('data-trh-label', btn.textContent.trim());
         }
-        btn.textContent = added ? ' Added' : btn.getAttribute('data-trh-label');
+        btn.textContent = added ? 'Added' : btn.getAttribute('data-trh-label');
       }
     });
   }
@@ -742,10 +742,78 @@ get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){
     if (ev.target.closest && ev.target.closest('#trh-sb')) setTimeout(paint, 260);
   }, true);
 
+  /* ------------------------------------------------------------------
+     TEXT TIDY. Owner: no arrows, no checkmarks, and stop saying
+     "optional" twelve times.
+
+     These are INLINE TEXT, not styling, so CSS cannot reach them: an
+     arrow inside a button label is a character in a text node. The
+     builder also re-renders large parts of itself as you work, so a
+     one-off pass at load would be undone the moment you changed a
+     step, which is why this runs again on mutation.
+
+     THE STAR ALREADY MARKS WHAT IS REQUIRED. With required fields
+     starred, "(optional)" on everything else is the same fact told
+     again, eight times as "(optional)" and four more as "Optional".
+
+     The play triangle on the video link is kept. It is not an arrow or
+     a tick, it tells you the thing is a video.
+  ------------------------------------------------------------------ */
+  var STRIP = /[\u2192\u2190\u2193\u2191\u2713\u2714\u00BB]/g;
+  var OPTIONAL = /\s*\(?\boptional\b\)?\s*/i;
+  var busy = false;
+
+  function tidy() {
+    if (busy) return;
+    busy = true;
+    try {
+      var root = document.getElementById('trh-sb');
+      if (!root) return;
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      var nodes = [], n;
+      while ((n = walker.nextNode())) nodes.push(n);
+      nodes.forEach(function (node) {
+        var v = node.nodeValue;
+        if (!v) return;
+        var out = v;
+        if (STRIP.test(out)) { STRIP.lastIndex = 0; out = out.replace(STRIP, ''); }
+        // only drop "optional" when it is the whole label, never mid sentence
+        if (OPTIONAL.test(out) && out.trim().replace(/[()]/g, '').toLowerCase() === 'optional') out = '';
+        out = out.replace(/\s{2,}/g, ' ');
+        if (out !== v) node.nodeValue = out;
+      });
+      // the same hint repeated on every spare logo slot: keep the first
+      var hints = root.querySelectorAll('.st2');
+      var seenHint = {};
+      Array.prototype.forEach.call(hints, function (h) {
+        var k = (h.textContent || '').trim();
+        if (!k) return;
+        if (seenHint[k]) { h.style.display = 'none'; } else { seenHint[k] = 1; }
+      });
+    } finally {
+      busy = false;
+    }
+  }
+
+  var tidyTimer = null;
+  function scheduleTidy() {
+    clearTimeout(tidyTimer);
+    tidyTimer = setTimeout(function () { tidy(); paint(); }, 120);
+  }
+
+  function start() {
+    tidy();
+    paint();
+    var root = document.getElementById('trh-sb');
+    if (root && window.MutationObserver) {
+      new MutationObserver(scheduleTidy).observe(root, { childList: true, subtree: true });
+    }
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(paint, 450); });
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 450); });
   } else {
-    setTimeout(paint, 450);
+    setTimeout(start, 450);
   }
 })();
 </script>
