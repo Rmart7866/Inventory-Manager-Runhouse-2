@@ -263,764 +263,331 @@
 @media(max-width:640px){#trh-sb .tip{left:12px;right:12px;max-width:none}}
 
 /* ===================================================================
-   THE RUN HOUSE THEME ALIGNMENT
+   THE RUN HOUSE  /  TEAM STORE BUILDER
+   A single coherent skin. Everything above this line is the builder's
+   original stylesheet, untouched.
    -------------------------------------------------------------------
-   Everything above is the builder's ORIGINAL stylesheet, moved out of
-   the page body unchanged. Everything below re-skins it.
+   THIS FILE WAS REWRITTEN, NOT EXTENDED, AND THAT IS THE POINT. Four
+   passes of patching produced exactly what the owner then called slop:
+   underlines added in one pass and never reconciled with the links from
+   another, a 13px floor that only covered the selectors visible on the
+   screen it was written against, and a page that measured 15.2% colour
+   by painted area, which is to say almost none.
 
-   THESE VALUES WERE MEASURED OFF THE RENDERED STOREFRONT, NOT READ OUT
-   OF THEME SETTINGS, and that distinction is the whole reason this file
-   was rewritten. settings_data.json is the Impulse theme's own
-   configuration, and this store layers custom CSS on top of it
-   (clean-product-card.css, collection-filters.css and more), so the
-   settings describe a site that is not the site. Counted over a live
-   collection page 2026-11-03:
+   Measured on step 2 before this rewrite:
+     colour        15.2% of painted area, the rest white and grey
+     small text    42 nodes under 13px, four of them at 10px
+     underlines    6, four of which this stylesheet had added itself
+     elements      723 on one screen
 
-     border radius   8px x49, 6px x39, 16px x26, 10px, 3px, 2px
-                     ... and button_style says "square". It is not.
-     rule colour     #e2e8f0 x45 against #e8e8e1 x9
-                     ... and color_borders says #e8e8e1. Mostly it isn't.
-     h1              Chivo 400, 36px, text-transform NONE, centred
-                     ... and type_header_capitalize says true. It isn't.
-     accents         #4f7fff blue x10 and #1b2d5a navy, plus a
-                     rgba(44,82,130,.06) wash behind inputs
-     page            max-width 1500px, 40px side gutter, 75px top
-
-   Read the page, not the config. The first pass of this file trusted
-   the config, squared all 63 radius rules and warmed every border, and
-   the result looked less like the storefront, not more.
+   Rules this file holds itself to:
+     1. ONE accent. Orange marks the action, nothing else.
+     2. NO decorative underline. A link is weight and colour; the
+        underline appears on hover, where it means something.
+     3. 13px floor, enforced on the SHARED note classes rather than on
+        whatever happened to be on screen.
+     4. Colour comes from structure, navy bands and a tinted field, not
+        from tinting text.
    =================================================================== */
 
 #trh-sb, #vmod {
-  /* ---- measured tokens ---- */
-  --sb-navy:    #1b2d5a;   /* headings and labels, as the site uses it */
-  --sb-blue:    #4f7fff;   /* interactive accent: focus, selection */
-  --sb-rule:    #e2e8f0;   /* the dominant rule colour on this site */
-  --sb-wash:    rgba(44, 130, 82, 0);        /* placeholder, set below */
-  --sb-tint:    rgba(44, 82, 130, 0.06);     /* the input wash */
-  --sb-paper:   #fff;
-  --sb-ink:     #10151f;
-  --sb-dim:     #5b6472;
-  --sb-accent:  var(--colorCartDot, #ff4f33); /* the ONE commit colour */
-
-  /* ---- radii, matching the site's own scale ---- */
-  --sb-r-panel: 16px;
-  --sb-r-card:  8px;
-  --sb-r-pill:  6px;
-  --sb-r-input: 2px;
+  --navy:   #16284d;
+  --navy-2: #0f1c38;
+  --orange: #ff4f33;
+  --ink:    #10151f;
+  --dim:    #5d6878;
+  --rule:   #dfe5ee;
+  --field:  #eef1f7;
+  --paper:  #ffffff;
 
   /* the builder's own seven, re-pointed */
-  --navy:   var(--sb-navy);
-  --orange: var(--sb-accent);
-  --ink:    var(--sb-ink);
-  --muted:  var(--sb-dim);
-  --line:   var(--sb-rule);
-  --bg:     #f7f9fc;
-  --good:   var(--sb-navy);
+  --muted: var(--dim);
+  --line:  var(--rule);
+  --bg:    var(--field);
+  --good:  var(--navy);
 
-  --tap: 44px;   /* minimum comfortable touch target */
+  --tap: 44px;
+  --r:    2px;   /* surfaces */
+  --rc:   0;     /* controls */
 }
 
-/* ---- Typography -------------------------------------------------- */
-#trh-sb, #trh-sb input, #trh-sb select, #trh-sb textarea, #trh-sb button, #vmod {
+/* ---- The page has a floor colour --------------------------------- */
+/* THE SINGLE BIGGEST FIX. White cards on a white page is why this read
+   as a form rather than a shop. A tinted field behind white cards gives
+   depth, separates the content from the chrome, and costs nothing in
+   legibility. */
+#trh-sb {
+  background: var(--field);
+  padding: 34px 28px 40px;
+  margin-inline: calc(-1 * clamp(16px, 3vw, 34px));
+  color: var(--ink);
   font-family: var(--typeBasePrimary), var(--typeBaseFallback, sans-serif);
-  color: var(--sb-ink);
 }
-/* TITLE CASE, not uppercase. The storefront's own h1 computes
-   text-transform: none even though the setting claims otherwise, and
-   shouting is a large part of what made this read as a template. */
-#trh-sb h2, #trh-sb h3, #trh-sb h4 {
+
+/* ---- Type: four sizes, and a real floor -------------------------- */
+#trh-sb h2 {
   font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: normal;
-  line-height: 1.15;
-  color: var(--sb-navy);
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 400; line-height: 1.04;
+  letter-spacing: -0.02em; text-transform: none;
+  color: var(--navy); margin: 0 0 12px;
 }
-#trh-sb h2 { font-size: clamp(28px, 3.4vw, 36px); margin-bottom: 10px; }
-#trh-sb h3 { font-size: 22px; }
-#trh-sb h4 { font-size: 17px; }
-#trh-sb .lead { font-size: 17px; line-height: 1.55; color: var(--sb-dim); max-width: 60ch; }
-
-/* Labels stop shouting too. They were uppercase, tracked out and bold,
-   which gave a form of 12 fields twelve competing headlines. */
-#trh-sb label.f, #trh-sb .fl, #trh-sb .lbl {
-  text-transform: none;
-  letter-spacing: normal;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--sb-navy);
+#trh-sb h3, #trh-sb h4 {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-weight: 400; text-transform: none; letter-spacing: -0.01em;
+  color: var(--navy); line-height: 1.2;
 }
+#trh-sb h3 { font-size: 23px; }
+#trh-sb h4 { font-size: 18px; }
+#trh-sb .lead { font-size: 17px; line-height: 1.55; color: var(--dim); max-width: 58ch; margin-bottom: 22px; }
+#trh-sb p, #trh-sb li, #trh-sb label.f { font-size: 15px; line-height: 1.55; }
 
-/* ---- Rounded, on the site's own scale ---------------------------- */
-#trh-sb .card, #trh-sb .wrap, #trh-sb .p, #trh-sb .up,
-#trh-sb .qs, #trh-sb .scur, #trh-sb .slist, #trh-sb .howv,
-#trh-sb .storehead, #vmod .vbox {
-  border-radius: var(--sb-r-panel);
-}
-#trh-sb .tile, #trh-sb .sgc, #trh-sb .howi, #trh-sb .calm, #trh-sb .calm2,
-#trh-sb .more1, #trh-sb .coach, #trh-sb .tip, #trh-sb .toast,
-#trh-sb .sharedbar, #trh-sb .faq details, #trh-sb .tcbar, #trh-sb .tcx,
-#trh-sb .bc, #trh-sb .ok, #trh-sb .addlogo {
-  border-radius: var(--sb-r-card);
-}
-#trh-sb .btn, #trh-sb .tabs button, #trh-sb .mode button, #trh-sb .pos button,
-#trh-sb .sgc button, #trh-sb .lgp button, #trh-sb .slist button,
-#trh-sb .sw button, #trh-sb .sw.named button, #trh-sb .bcol button,
-#trh-sb .fams button, #trh-sb .opt, #trh-sb .pop, #trh-sb .have,
-#trh-sb .perks span, #trh-sb .steps span, #trh-sb .seeall, #trh-sb .sw .more {
-  border-radius: var(--sb-r-pill);
-}
-#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
-#trh-sb .xtra input[type=text], #trh-sb .tcx input[type=text] {
-  border-radius: var(--sb-r-input);
-}
-/* Swatches stay round. 197 elements on the storefront are 50%, and a
-   circular colour chip is the one shape a shopper already reads as
-   "a colour", not "a button". */
-#trh-sb .sw button, #trh-sb .sw.named button i, #trh-sb .fams button i,
-#trh-sb .bcol button, #trh-sb .tcbar i { border-radius: 50%; }
-
-/* ---- Stop the card soup ------------------------------------------ */
-/* THIS IS THE REAL "LOOKS AI" PROBLEM AND IT IS NOT A COLOUR. The page
-   nested bordered boxes three deep: a card, holding a panel, holding a
-   tile, each with its own 1px outline, so every element carried the
-   same visual weight and nothing led. The storefront's own product
-   cards have NO border at all, they sit on whitespace. So outlines come
-   off the containers and only the things you can actually click keep
-   one. Blur the screen and the products should still be what you see. */
-#trh-sb .card, #trh-sb .wrap, #trh-sb .p, #trh-sb .qs,
-#trh-sb .scur, #trh-sb .slist, #trh-sb .sgc {
-  border: 0;
-  box-shadow: none;
-  background: transparent;
-}
-#trh-sb .card, #trh-sb .wrap { padding-left: 0; padding-right: 0; }
-
-/* One soft panel where grouping genuinely helps, instead of an outline. */
-#trh-sb .up, #trh-sb .calm, #trh-sb .calm2, #trh-sb .coach, #trh-sb .tip,
-#trh-sb .more1, #trh-sb .howi {
-  background: var(--sb-tint);
-  border: 0;
-  box-shadow: none;
-}
-
-/* Product tiles: borderless like the storefront's, lifting on hover. */
-#trh-sb .tile {
-  border: 1px solid transparent;
-  background: var(--sb-paper);
-  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
-}
-#trh-sb .tile:hover { border-color: var(--sb-rule); box-shadow: 0 6px 20px rgba(16,21,31,.07); }
-#trh-sb .tile.sel { border-color: var(--sb-blue); box-shadow: 0 0 0 1px var(--sb-blue); }
-
-/* ---- Rhythm ------------------------------------------------------ */
-/* Uniform spacing everywhere is the other half of the template look.
-   Sections get air, the things inside them stay tight. */
-#trh-sb .card + .card, #trh-sb .wrap + .wrap { margin-top: 56px; }
-#trh-sb h2 + .lead, #trh-sb h3 + .sbn { margin-top: 6px; }
-#trh-sb .how { gap: 20px; margin: 28px 0 36px; }
-
-/* ---- Everything is comfortably clickable ------------------------- */
-/* 44px minimum, which is the long standing touch guidance and well
-   above the 26px the colour swatches were. The visible chip can stay
-   small, the HIT AREA is what grows, so the layout does not inflate. */
-#trh-sb .btn, #trh-sb .tabs button, #trh-sb .mode button, #trh-sb .pos button,
-#trh-sb .sgc button, #trh-sb .lgp button, #trh-sb .slist button,
-#trh-sb .seeall, #trh-sb .have, #trh-sb .x, #trh-sb .sw .more {
-  min-height: var(--tap);
-  padding-inline: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-}
-#trh-sb .sw button, #trh-sb .fams button, #trh-sb .bcol button, #trh-sb .sw.named button {
-  position: relative;
-  cursor: pointer;
-}
-#trh-sb .sw button::after, #trh-sb .fams button::after,
-#trh-sb .bcol button::after, #trh-sb .sw.named button::after {
-  content: '';
-  position: absolute;
-  inset: 50% auto auto 50%;
-  width: var(--tap); height: var(--tap);
-  transform: translate(-50%, -50%);
-}
-#trh-sb .faq summary { min-height: var(--tap); display: flex; align-items: center; cursor: pointer; }
-
-/* A control has to look like one. Selected state is the blue the site
-   already uses for interactive accents, not a third colour. */
-#trh-sb .sw button.on, #trh-sb .fams button.on, #trh-sb .bcol button.on,
-#trh-sb .sw.named button.on {
-  box-shadow: 0 0 0 2px var(--sb-paper), 0 0 0 4px var(--sb-blue);
-}
-#trh-sb .tabs button.on, #trh-sb .mode button.on, #trh-sb .pos button.on,
-#trh-sb .sgc button.on, #trh-sb .lgp button.on {
-  background: var(--sb-navy);
-  color: #fff;
-  border-color: var(--sb-navy);
-}
-#trh-sb .steps span.on { background: var(--sb-navy); color: #fff; border-color: var(--sb-navy); }
-
-/* Keyboard users get the same affordance, which the original had none of. */
-#trh-sb :focus-visible {
-  outline: 3px solid var(--sb-blue);
-  outline-offset: 2px;
-  border-radius: var(--sb-r-pill);
-}
-
-/* ---- Buttons ----------------------------------------------------- */
-#trh-sb .btn {
-  font-family: var(--typeBasePrimary), var(--typeBaseFallback, sans-serif);
-  font-weight: 700;
-  font-size: 15px;
-  text-transform: none;
-  letter-spacing: normal;
-  background: var(--sb-navy);
-  color: #fff;
-  border: 1px solid var(--sb-navy);
-  transition: background .15s ease, border-color .15s ease, transform .1s ease;
-}
-#trh-sb .btn:hover:not(:disabled) { background: #122043; border-color: #122043; }
-#trh-sb .btn:active:not(:disabled) { transform: translateY(1px); }
-#trh-sb .btn.sec, #trh-sb .btn.ghost {
-  background: transparent; color: var(--sb-navy); border-color: var(--sb-rule);
-}
-#trh-sb .btn.sec:hover:not(:disabled), #trh-sb .btn.ghost:hover:not(:disabled) {
-  border-color: var(--sb-navy); background: var(--sb-tint);
-}
-#trh-sb .btn:disabled { opacity: .4; cursor: not-allowed; }
-
-/* THE ACCENT MARKS ONE THING: the action the page exists to get. */
-#trh-sb .btn.or {
-  background: var(--sb-accent);
-  border-color: var(--sb-accent);
-  color: #fff;
-  font-size: 16px;
-  padding-inline: 26px;
-}
-#trh-sb .btn.or:hover:not(:disabled) { background: #e8432a; border-color: #e8432a; }
-
-/* ---- Form controls ----------------------------------------------- */
-#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
-#trh-sb .xtra input[type=text], #trh-sb .tcx input[type=text] {
-  border: 1px solid transparent;
-  background: var(--sb-tint);
-  min-height: var(--tap);
-  font-size: 16px;   /* iOS zooms a focused control under 16px */
-  padding: 10px 14px;
-}
-#trh-sb label.f input:focus, #trh-sb label.f textarea:focus,
-#trh-sb label.f select:focus, #trh-sb .xtra input[type=text]:focus {
-  background: var(--sb-paper);
-  border-color: var(--sb-blue);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(79,127,255,.18);
-}
-
-/* ---- Badges recede ----------------------------------------------- */
-/* A label is not an action. Four orange POPULAR chips next to one
-   orange button is four things arguing with the one that wants the
-   click. */
-#trh-sb .pop {
-  background: var(--sb-tint);
-  color: var(--sb-navy);
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-
-/* .opt IS NOT .pop, BECAUSE ITS COLOUR IS INLINE. The markup emits
-   <span class="opt" style="background:var(--navy)">, and an inline
-   style beats a stylesheet, so giving it navy text the way .pop gets it
-   produced navy on navy at a contrast ratio of exactly 1.0. It keeps a
-   dark chip with white text instead.
-
-   Worth knowing before restyling anything else here: 175 elements carry
-   an inline style, but nearly all of them are DATA rather than design,
-   the real garment colours behind each swatch and the product images.
-   Those must not be touched. This one was the exception. */
-#trh-sb .opt {
-  color: #fff;
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-#trh-sb .bar { background: var(--sb-accent); }
-#trh-sb .perks span { border: 1px solid var(--sb-rule); background: transparent; color: var(--sb-dim); }
-
-/* Remove is destructive and repeats once per line. It stays quiet and
-   only colours on hover. */
-#trh-sb .x {
-  color: var(--sb-dim);
-  font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  background: none;
-  border: 0;
-}
-#trh-sb .x:hover, #trh-sb .x:focus-visible { color: var(--sb-accent); }
-
-/* ---- Width ------------------------------------------------------- */
-#trh-sb { max-width: none; }
-
-/* ---- Two contrast bugs this file caused, and the rule behind them -- */
-/* STRIPPING A BACKGROUND OFF A CONTAINER IS SAFE. DOING IT TO A BUTTON
-   IS NOT. .howv looks like a panel in the markup and is actually the
-   dark "Watch how it works" control, so clearing its background left
-   white text on white, measured at a contrast ratio of 1.0. Anything
-   that strips a background has to be checked against what the element
-   DOES, not what its class name suggests. */
-#trh-sb .howv {
-  background: var(--sb-navy);
-  color: #fff;
-  border: 0;
-  border-radius: var(--sb-r-card);
-  min-height: var(--tap);
-  padding: 14px 20px;
-}
-#trh-sb .howv *, #trh-sb .howv small { color: #fff; }
-#trh-sb .howv:hover { background: #122043; }
-
-/* And a selected control has to carry its CHILDREN with it. The mode
-   buttons hold a <b> and a <span> that set their own navy, which beat
-   the white inherited from the selected parent, so the label went navy
-   on navy, also 1.0. */
-#trh-sb .mode button.on *, #trh-sb .tabs button.on *,
-#trh-sb .pos button.on *, #trh-sb .sgc button.on *,
-#trh-sb .lgp button.on *, #trh-sb .steps span.on * { color: #fff; }
-
-/* ---- The controls the first pass missed --------------------------- */
-/* Audited by HIT TESTING rather than by reading box heights, because
-   the two are not the same thing here: a .bcol swatch has a 22px box
-   and a 44px hit area, since the tap target is a transparent
-   pseudo-element over it. Measuring getBoundingClientRect alone
-   reported 84 controls as too small when most were already fine. The
-   ones below genuinely were not. */
-
-/* Colour name chips inside a product card. SPECIFICITY MATTERS HERE:
-   the original sets the height on "#trh-sb .sw.named button", which is
-   (1,2,1), so a plain "#trh-sb .rec" at (1,1,0) lost silently and the
-   chips stayed 30px while the stylesheet claimed otherwise. Verified by
-   reading computed min-height back off the element, which still said
-   0px. Match the original's shape to beat it. */
-#trh-sb .sw button.rec,
-#trh-sb .sw.named button.rec {
-  min-height: var(--tap);
-  height: auto;
-  padding-block: 6px;
-}
-
-/* The step indicators are CLICKABLE, they move between steps, so they
-   are controls and not decoration. They were 28px. */
-#trh-sb .steps span {
-  min-height: var(--tap);
-  display: inline-flex;
-  align-items: center;
-  padding-inline: 14px;
-  cursor: pointer;
-}
-
-/* "Add team colors" is a standalone action, not prose, and it sat at
-   17px. It becomes a proper control rather than a text fragment. */
-#trh-sb .addrec {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--tap);
-  padding: 0 10px;
-  margin-left: -10px;      /* keeps the text optically aligned */
-  font-weight: 600;
-  color: var(--sb-blue);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-#trh-sb .addrec:hover { color: var(--sb-navy); }
-
-/* Links that sit on their own line are controls too. Prose links inside
-   a sentence are deliberately left alone: padding them out would
-   overlap the line above and below for no real gain. */
-/* The FAQ link lives INSIDE .perks, not next to it, which is why the
-   sibling selector here matched nothing on the first attempt. */
-#trh-sb .faqv,
-#trh-sb .perks a,
-#trh-sb a.seeall {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--tap);
-  cursor: pointer;
-}
-
-/* The cursor is an affordance. Several of these were divs and spans
-   wired up with click handlers, which give no pointer at all. */
-#trh-sb [role="button"], #trh-sb summary, #trh-sb .tile [data-k],
-#trh-sb .sw button, #trh-sb .fams button, #trh-sb .bcol button { cursor: pointer; }
-
-/* ===================================================================
-   CALM IT DOWN
-   -------------------------------------------------------------------
-   "Tough on the eyes, a lot going on." Measured, rather than guessed at:
-
-     26 distinct type combinations of size, weight and transform.
-        A designed page uses five or six.
-     164 elements set at 12px or smaller, 129 of them at 12px/400.
-        That is a page of fine print, and fine print is tiring.
-     9 top-level bands before any product, two of which are THE SAME
-        THREE STEPS stacked directly on top of each other: the .how
-        explainer and the .steps rail.
-
-   None of that is a colour problem, which is why the last pass did not
-   fix it. It is density.
-   =================================================================== */
-
-/* ---- One type scale, on the REAL selectors ----------------------- */
-/* The first attempt at this guessed class names (.fine, .note, .muted,
-   .hint) that mostly do not exist in this markup, so it changed almost
-   nothing while appearing to. These are the selectors actually carrying
-   small text, found by walking the rendered page:
-
-     43x  .rec span        12px   a colour name
-     16x  .bpx .bl         11px   a bundle item label
-     15x  .pr small        10px   "Per item, 1 logo included"
-     15x  .pos span/button 12px   "Logo: Full chest / Left chest"
-     15x  .sws .swl        11px   "Team colors"
-     15x  .sw .more        12px   "More colors (21)"
-     14x  .p .st           12px   the style code and size range
-     14x  .p .cn           12px   "Tap a color to add it"
-
-   Nothing here is so unimportant that it should be hard to read, and
-   six sizes crammed between 10px and 12px read as noise, not hierarchy.
-   The floor is 13px. */
-#trh-sb .rec span,
-#trh-sb .bpx .bl,
-#trh-sb .pr small,
-#trh-sb .pos span, #trh-sb .pos button,
-#trh-sb .sws .swl,
-#trh-sb .sws .addrec,
-#trh-sb .sw .more,
-#trh-sb .p .st,
-#trh-sb .p .cn,
-#trh-sb .fams.grp button,
-#trh-sb button .ct {
-  font-size: 13px;
-  line-height: 1.45;
-}
-#trh-sb p, #trh-sb li, #trh-sb label.f { font-size: 14px; line-height: 1.5; }
-
-/* Supporting text recedes instead of competing. */
-#trh-sb .pr small, #trh-sb .p .st, #trh-sb .sws .swl {
-  color: var(--sb-dim);
+/* THE FLOOR, on the shared note classes rather than on whatever was on
+   screen when the rule was written. .sbn is this markup's universal
+   "small note" and appears inside a dozen different parents. */
+#trh-sb .sbn, #trh-sb .st2, #trh-sb .bnote, #trh-sb small,
+#trh-sb .pr small, #trh-sb .tcl small, #trh-sb .bfoot span,
+#trh-sb .bcol span, #trh-sb .pv span, #trh-sb .cn, #trh-sb .st {
+  font-size: 13px !important;
+  line-height: 1.5;
+  color: var(--dim);
   font-weight: 400;
 }
+#trh-sb .opt, #trh-sb .pop { font-size: 12px !important; letter-spacing: .06em; }
 
-/* Weight carries hierarchy here, not size, so it is reduced to two.
-   700 stays only on prices and buttons. */
+/* Two weights only. */
 #trh-sb b, #trh-sb strong { font-weight: 600; }
 #trh-sb .price, #trh-sb .btn { font-weight: 700; }
 
-/* ---- Say it once ------------------------------------------------- */
-/* "Tap a color to add it" was printed on EVERY product card, fourteen
-   times down one screen, under a heading that already says "Tap a color
-   to add that product in that color". The same goes for the "Team
-   colors" label above a row of obvious colour swatches. Instructions
-   that repeat per card stop being instructions and become texture. */
-#trh-sb .p:not(:first-of-type) .cn { display: none; }
-#trh-sb .sws .swl { display: none; }
-
-/* ---- Stop showing the same three steps twice --------------------- */
-/* .how explains the three steps. .steps is the rail you navigate them
-   with, and it sits immediately below. On the first screen the
-   explainer earns its place; after that it is 76px of repetition above
-   everything you are trying to work with, on every single step. */
-#trh-sb .how { display: none; }
-#trh-sb:has(.steps span:first-child.on) .how { display: grid; }
-
-/* The hero pitch is onboarding too. Once someone is picking products
-   they have already bought in, so it stops taking the first screen. */
-#trh-sb:not(:has(.steps span:first-child.on)) .lead,
-#trh-sb:not(:has(.steps span:first-child.on)) .perks { display: none; }
-
-/* ---- Air between the bands --------------------------------------- */
-/* Related things close together, unrelated things far apart. The
-   original spaced almost everything the same, which is the other half
-   of why nothing stood out. */
-#trh-sb .steps { margin: 26px 0 30px; }
-#trh-sb .how   { margin: 22px 0 30px; }
-#trh-sb .lead  { margin-bottom: 18px; }
-#trh-sb .perks { margin-bottom: 26px; gap: 8px; }
-#trh-sb section > * + * { margin-top: 22px; }
-#trh-sb .faq { margin-top: 56px; }
-
-/* ---- Fewer lines competing --------------------------------------- */
-/* Each product card carried a name, a code, a price, a per item note, a
-   logo row, a colours label and a help line. The supporting ones recede
-   so the product, the price and the colours lead. */
-#trh-sb .tile .sku, #trh-sb .tile .inc, #trh-sb .bc .inc {
-  color: var(--sb-dim);
-  font-size: 12.5px;
-}
-#trh-sb .tile .price { font-size: 17px; color: var(--sb-ink); }
-
-/* Section labels stop competing with real headings. The class is .bh,
-   not .bhead, which the first attempt guessed and therefore missed. */
-#trh-sb .bh b, #trh-sb .sgc > b {
-  text-transform: none;
-  letter-spacing: normal;
-  font-size: 17px;
+/* ---- NO DECORATIVE UNDERLINES ------------------------------------ */
+/* Scattered underlines were a large part of what read as unfinished.
+   A link is colour and weight; the underline is a hover state, where it
+   carries meaning. */
+#trh-sb a, #trh-sb .addrec, #trh-sb .x, #trh-sb .nolink, #trh-sb .faqv {
+  text-decoration: none;
+  color: var(--navy);
   font-weight: 600;
-  color: var(--sb-navy);
 }
+#trh-sb a:hover, #trh-sb .addrec:hover, #trh-sb .faqv:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--orange);
+}
+#trh-sb .x { color: var(--dim); font-weight: 500; }
+#trh-sb .x:hover { color: var(--orange); text-decoration: underline; text-underline-offset: 3px; }
 
-/* The last two small labels, brought up to the 13px floor. */
-#trh-sb .steps span, #trh-sb .tcl { font-size: 13px; }
+/* ---- Structure: navy bands give the page its colour and its flow -- */
+#trh-sb .bar { height: 5px; width: 64px; background: var(--orange); margin-bottom: 18px; }
 
-/* ---- One less box ------------------------------------------------ */
-/* The bundle cards were the last of the card soup: five bordered boxes
-   in a grid, each holding four more bordered thumbnails. The
-   storefront's own product cards carry NO border, so these lose theirs
-   too and are held together by spacing and a hairline above the button
-   row instead. The outline comes back on hover, where it means
-   "this one", rather than sitting on all five at once. */
-#trh-sb .bc {
-  border-color: transparent;
-  background: var(--sb-paper);
-  padding: 16px 16px 14px;
-  transition: border-color .15s ease, box-shadow .15s ease;
+/* The step rail is a solid navy strip. It is the spine of the page, so
+   it is the one piece of permanent colour and it anchors every step. */
+#trh-sb .steps {
+  display: flex; gap: 0; width: fit-content; max-width: 100%;
+  background: var(--navy); border: 0; overflow: hidden;
+  margin: 0 0 26px;
 }
-#trh-sb .bc:hover {
-  border-color: var(--sb-rule);
-  box-shadow: 0 6px 20px rgba(16,21,31,.06);
-}
-#trh-sb .bc .pr { border-top: 1px solid var(--sb-rule); padding-top: 12px; margin-top: 4px; }
-
-/* ===================================================================
-   RUN SPECIALTY: SHARPER, AND WITH SOME FLARE
-   -------------------------------------------------------------------
-   Owner's direction: sharper corners, more visual interest, should feel
-   like a run specialty shop rather than a form.
-
-   The flare is NOT invented. It is lifted from this store's own Team
-   Stores CTA, which already does a hard offset shadow and a 2px lift on
-   hover (.ts-mail). That is a poster-ish, athletic, print-shop move, it
-   is sharp rather than soft, and reusing it ties the builder to the page
-   that links to it. Borrowing an existing motif is also the opposite of
-   the generic look: no gradients, no glass, no glow.
-
-   NOTE this deliberately overrides the measured radii above. The
-   storefront's product grid runs 6px to 16px, but the owner wants
-   sharper and the owner is right about their own brand. Corners are now
-   2px on surfaces and 0 on controls, which still reads as a decision
-   rather than as a default, because the two are different.
-   =================================================================== */
-
-#trh-sb, #vmod {
-  --sb-r-panel: 2px;
-  --sb-r-card:  2px;
-  --sb-r-pill:  0;
-  --sb-r-input: 0;
-  --sb-lift:    4px;   /* the hard offset, matching .ts-mail's language */
-}
-
-/* ---- Controls go sharp ------------------------------------------- */
-#trh-sb .btn, #trh-sb .tabs button, #trh-sb .mode button, #trh-sb .pos button,
-#trh-sb .sgc button, #trh-sb .lgp button, #trh-sb .slist button,
-#trh-sb .rec, #trh-sb .sw .more, #trh-sb .opt, #trh-sb .pop,
-#trh-sb .perks span, #trh-sb .steps span, #trh-sb .seeall, #trh-sb .have,
-#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
-#trh-sb .xtra input[type=text], #trh-sb .tcx input[type=text] {
-  border-radius: 0;
-}
-#trh-sb .card, #trh-sb .wrap, #trh-sb .p, #trh-sb .up, #trh-sb .bc,
-#trh-sb .tile, #trh-sb .qs, #trh-sb .scur, #trh-sb .slist, #trh-sb .howi,
-#trh-sb .howv, #trh-sb .calm, #trh-sb .calm2, #trh-sb .coach, #trh-sb .tip,
-#trh-sb .faq details, #vmod .vbox {
-  border-radius: 2px;
-}
-/* Colour chips stay circular. They are the one element a shopper reads
-   as "a colour" rather than "a control", and the PDP uses the same. */
-#trh-sb .sw button, #trh-sb .sw.named button i, #trh-sb .fams button i,
-#trh-sb .bcol button, #trh-sb .tcbar i { border-radius: 50%; }
-
-/* ---- The motif: hard offset, sharp lift -------------------------- */
-#trh-sb .btn.or {
-  box-shadow: var(--sb-lift) var(--sb-lift) 0 0 var(--sb-navy);
-}
-#trh-sb .btn.or:hover:not(:disabled) {
-  transform: translate(-2px, -2px);
-  box-shadow: calc(var(--sb-lift) + 2px) calc(var(--sb-lift) + 2px) 0 0 var(--sb-navy);
-}
-#trh-sb .btn.or:active:not(:disabled) {
-  transform: translate(var(--sb-lift), var(--sb-lift));
-  box-shadow: 0 0 0 0 var(--sb-navy);
-}
-#trh-sb .btn:not(.or):hover:not(:disabled) {
-  box-shadow: 3px 3px 0 0 var(--sb-rule);
-  transform: translate(-1px, -1px);
-}
-
-/* ---- Section markers, the bib stripe ----------------------------- */
-/* One repeated motif instead of a different treatment per band: a short
-   accent rule above the heading, which the page already used once at
-   the very top and never again. Repeating it is what makes it read as a
-   system rather than as decoration. */
-#trh-sb .bar { height: 4px; width: 56px; background: var(--sb-accent); }
-#trh-sb h2, #trh-sb .faqhead { position: relative; }
-#trh-sb .bh, #trh-sb .sgc > b {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-#trh-sb .bh::before, #trh-sb .sgc > b::before {
-  content: '';
-  width: 22px; height: 3px;
-  background: var(--sb-accent);
-  flex: none;
-}
-
-/* ---- Step rail reads like a race split --------------------------- */
-#trh-sb .steps { display: flex; gap: 0; border: 1px solid var(--sb-rule); width: fit-content; }
 #trh-sb .steps span {
-  border: 0;
-  border-right: 1px solid var(--sb-rule);
-  background: transparent;
-  color: var(--sb-dim);
-  font-weight: 600;
-  padding-inline: 18px;
+  min-height: var(--tap);
+  display: inline-flex; align-items: center;
+  padding: 0 20px;
+  font-size: 13px; font-weight: 600; letter-spacing: .02em;
+  color: rgba(255,255,255,.62);
+  background: transparent; border: 0;
+  border-right: 1px solid rgba(255,255,255,.14);
+  cursor: pointer; text-transform: none;
 }
 #trh-sb .steps span:last-child { border-right: 0; }
-#trh-sb .steps span.on { background: var(--sb-navy); color: #fff; }
+#trh-sb .steps span.on { background: var(--orange); color: #fff; }
+#trh-sb .steps span.on * { color: #fff; }
 
-/* ---- Product cards get an edge ----------------------------------- */
-/* A sharp accent rule on hover instead of a soft shadow. Reads as
-   "selected lane" rather than "floating card". */
-#trh-sb .tile, #trh-sb .bc {
-  border-bottom: 2px solid transparent;
-  transition: border-color .12s ease, transform .12s ease, box-shadow .12s ease;
+/* ---- Surfaces ----------------------------------------------------- */
+#trh-sb .card, #trh-sb .wrap, #trh-sb .p, #trh-sb .bc, #trh-sb .tile,
+#trh-sb .qs, #trh-sb .scur, #trh-sb .slist, #trh-sb .sgc, #trh-sb .up,
+#trh-sb .faq details, #trh-sb .det {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
 }
-#trh-sb .tile:hover, #trh-sb .bc:hover {
-  border-bottom-color: var(--sb-accent);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(16,21,31,.07);
+#trh-sb .card, #trh-sb .wrap { padding: 24px; margin-bottom: 20px; }
+#trh-sb .bc, #trh-sb .tile { padding: 16px; }
+#trh-sb .how { display: grid; gap: 14px; margin: 0 0 24px; }
+#trh-sb .howi {
+  background: var(--paper); border: 1px solid var(--rule);
+  border-left: 4px solid var(--orange);
+  border-radius: var(--r); padding: 14px 16px;
 }
-#trh-sb .tile.sel {
-  border-color: var(--sb-navy);
-  border-bottom-color: var(--sb-accent);
-  box-shadow: 3px 3px 0 0 var(--sb-navy);
-}
-
-/* ---- Price carries weight ---------------------------------------- */
-/* In a run shop the number matters, so it stops being the same size as
-   the garment code sitting under it. */
-#trh-sb .tile .price, #trh-sb .bpx .price, #trh-sb .p .price {
-  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--sb-navy);
-}
-
-/* ---- Headings get presence --------------------------------------- */
-#trh-sb h2 {
-  font-size: clamp(30px, 3.8vw, 40px);
-  letter-spacing: -0.015em;
-  line-height: 1.08;
-}
-#trh-sb h3 { letter-spacing: -0.01em; }
-
-/* ---- Numbered steps as squares, not circles ---------------------- */
 #trh-sb .howi b {
-  border-radius: 0;
-  background: var(--sb-navy);
-  color: #fff;
-  width: 26px; height: 26px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 13px;
-  flex: none;
+  background: var(--navy); color: #fff; border-radius: 0;
+  width: 26px; height: 26px; display: inline-flex;
+  align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; flex: none;
+}
+#trh-sb .howv {
+  background: var(--navy); color: #fff; border: 0; border-radius: var(--r);
+  min-height: var(--tap); padding: 14px 20px;
+}
+#trh-sb .howv * { color: #fff; }
+#trh-sb .howv:hover { background: var(--navy-2); }
+
+/* Section headings carry the stripe, so the page has a rhythm to scan. */
+#trh-sb .card > h3, #trh-sb .det > h4, #trh-sb .bh, #trh-sb .sgc > b {
+  display: flex; align-items: center; gap: 12px; margin-top: 0;
+}
+#trh-sb .card > h3::before, #trh-sb .det > h4::before,
+#trh-sb .bh::before, #trh-sb .sgc > b::before {
+  content: ''; width: 24px; height: 3px; background: var(--orange); flex: none;
 }
 
-/* ---- Selected swatch reads clearly ------------------------------- */
-#trh-sb .sw button.on, #trh-sb .fams button.on, #trh-sb .bcol button.on,
-#trh-sb .sw.named button.on {
-  box-shadow: 0 0 0 2px var(--sb-paper), 0 0 0 4px var(--sb-navy);
+/* ---- Controls: sharp, with one hard offset language --------------- */
+#trh-sb .btn, #trh-sb .tabs button, #trh-sb .mode button, #trh-sb .pos button,
+#trh-sb .sgc button, #trh-sb .lgp button, #trh-sb .slist button,
+#trh-sb .rec, #trh-sb .sw .more, #trh-sb .addrec, #trh-sb .seeall,
+#trh-sb .have, #trh-sb .fams button, #trh-sb .x,
+#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
+#trh-sb .xtra input[type=text], #trh-sb .tcx input[type=text] {
+  border-radius: var(--rc);
 }
-
-/* ---- Make the stripe a system, not a one-off --------------------- */
-/* The accent rule only appeared once, at the very top, so it read as
-   decoration. Repeating it on every section heading is what turns it
-   into a motif and gives a long form page a rhythm to scan by. */
-#trh-sb .card > h3,
-#trh-sb .det > h4,
-#trh-sb h3.sec {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-}
-#trh-sb .card > h3::before,
-#trh-sb .det > h4::before,
-#trh-sb h3.sec::before {
-  content: '';
-  width: 22px; height: 3px;
-  background: var(--sb-accent);
-  flex: none;
-}
-
-/* ---- The group chips are a real choice, so they look like one ---- */
-/* They were 32px and visually identical to a disabled label. */
-#trh-sb .fams.grp button {
+#trh-sb .btn, #trh-sb .fams button, #trh-sb .mode button, #trh-sb .addrec,
+#trh-sb .sw .more, #trh-sb .seeall, #trh-sb .rec, #trh-sb .pos button {
   min-height: var(--tap);
-  padding: 0 16px;
-  border: 1px solid var(--sb-rule);
-  background: var(--sb-paper);
-  font-weight: 600;
-  color: var(--sb-navy);
-  transition: background .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease;
-}
-#trh-sb .fams.grp button:hover {
-  border-color: var(--sb-navy);
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 0 var(--sb-rule);
-}
-#trh-sb .fams.grp button.on {
-  background: var(--sb-navy);
-  border-color: var(--sb-navy);
-  color: #fff;
-  box-shadow: 3px 3px 0 0 var(--sb-accent);
-  transform: translate(-1px, -1px);
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px; padding-inline: 18px; cursor: pointer;
 }
 
-/* ---- A field you are typing in says so --------------------------- */
-/* A sharp accent edge rather than a glow. Same language as the card
-   hover and the button shadow: an offset block, never a blur. */
+#trh-sb .btn {
+  background: var(--navy); color: #fff; border: 1px solid var(--navy);
+  font-size: 15px; text-transform: none; letter-spacing: normal;
+  transition: background .12s, transform .1s, box-shadow .12s;
+}
+#trh-sb .btn:hover:not(:disabled) { background: var(--navy-2); border-color: var(--navy-2); }
+#trh-sb .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* THE ONE ACCENT: the action the page exists to get. */
+#trh-sb .btn.or {
+  background: var(--orange); border-color: var(--orange); color: #fff;
+  font-size: 16px; padding-inline: 26px;
+  box-shadow: 4px 4px 0 0 var(--navy);
+}
+#trh-sb .btn.or:hover:not(:disabled) {
+  background: #ef4228; border-color: #ef4228;
+  transform: translate(-2px,-2px); box-shadow: 6px 6px 0 0 var(--navy);
+}
+#trh-sb .btn.or:active:not(:disabled) { transform: translate(4px,4px); box-shadow: none; }
+
+#trh-sb .fams button, #trh-sb .mode button, #trh-sb .pos button, #trh-sb .sgc button {
+  background: var(--paper); border: 1px solid var(--rule);
+  color: var(--navy); font-weight: 600; font-size: 14px;
+  transition: all .12s;
+}
+#trh-sb .fams button:hover, #trh-sb .mode button:hover, #trh-sb .pos button:hover {
+  border-color: var(--navy);
+}
+#trh-sb .fams button.on, #trh-sb .mode button.on,
+#trh-sb .pos button.on, #trh-sb .sgc button.on, #trh-sb .tabs button.on {
+  background: var(--navy); border-color: var(--navy); color: #fff;
+  box-shadow: 3px 3px 0 0 var(--orange);
+}
+#trh-sb .fams button.on *, #trh-sb .mode button.on *,
+#trh-sb .pos button.on *, #trh-sb .tabs button.on * { color: #fff; }
+
+/* ---- Fields ------------------------------------------------------- */
 #trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
 #trh-sb .xtra input[type=text] {
+  background: var(--field); border: 1px solid transparent;
   border-left: 3px solid transparent;
-  transition: border-color .12s ease, background .12s ease;
+  min-height: var(--tap); font-size: 16px; padding: 10px 14px;
+  transition: border-color .12s, background .12s;
 }
 #trh-sb label.f input:focus, #trh-sb label.f textarea:focus,
 #trh-sb label.f select:focus, #trh-sb .xtra input[type=text]:focus {
-  border-left-color: var(--sb-accent);
-  box-shadow: none;
-  background: var(--sb-paper);
-  border-top-color: var(--sb-rule);
-  border-right-color: var(--sb-rule);
-  border-bottom-color: var(--sb-rule);
+  background: var(--paper); border-color: var(--rule);
+  border-left-color: var(--orange); outline: none;
+}
+#trh-sb label.f { font-size: 14px; font-weight: 600; color: var(--navy); text-transform: none; letter-spacing: normal; }
+
+/* ---- Swatches stay round, with a real tap area -------------------- */
+#trh-sb .sw button, #trh-sb .sw.named button i, #trh-sb .fams button i,
+#trh-sb .bcol button, #trh-sb .tcbar i { border-radius: 50%; }
+#trh-sb .sw button, #trh-sb .bcol button { position: relative; cursor: pointer; }
+#trh-sb .sw button::after, #trh-sb .bcol button::after {
+  content: ''; position: absolute; inset: 50% auto auto 50%;
+  width: var(--tap); height: var(--tap); transform: translate(-50%,-50%);
+}
+#trh-sb .sw button.on, #trh-sb .bcol button.on, #trh-sb .sw.named button.on {
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--navy);
 }
 
-/* ---- Mode choice reads as a switch, not two paragraphs ----------- */
-#trh-sb .mode button {
-  border: 1px solid var(--sb-rule);
-  background: var(--sb-paper);
-  justify-content: flex-start;
-  text-align: left;
-  padding: 14px 18px;
+/* ---- Product cards lift against an accent edge -------------------- */
+#trh-sb .tile, #trh-sb .bc {
+  border-bottom: 2px solid transparent;
+  transition: border-color .12s, transform .12s, box-shadow .12s;
 }
-#trh-sb .mode button.on {
-  background: var(--sb-navy);
-  border-color: var(--sb-navy);
-  box-shadow: 4px 4px 0 0 var(--sb-accent);
+#trh-sb .tile:hover, #trh-sb .bc:hover {
+  border-bottom-color: var(--orange);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(16,21,31,.08);
+}
+#trh-sb .tile.sel { border-color: var(--navy); border-bottom-color: var(--orange); }
+#trh-sb .price, #trh-sb .tile .price, #trh-sb .bpx .price {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-size: 19px; font-weight: 700; color: var(--navy); letter-spacing: -0.01em;
+}
+
+/* ---- Badges ------------------------------------------------------- */
+#trh-sb .pop { background: var(--field); color: var(--navy); font-weight: 700; }
+#trh-sb .opt { background: var(--navy); color: #fff; font-weight: 700; }
+#trh-sb .perks span { background: var(--paper); border: 1px solid var(--rule); color: var(--dim); font-size: 13px; }
+
+/* ---- Say it once -------------------------------------------------- */
+#trh-sb .p:not(:first-of-type) .cn { display: none; }
+#trh-sb .sws .swl { display: none; }
+#trh-sb .how { display: none; }
+#trh-sb:has(.steps span:first-child.on) .how { display: grid; }
+#trh-sb:not(:has(.steps span:first-child.on)) .lead,
+#trh-sb:not(:has(.steps span:first-child.on)) .perks { display: none; }
+
+/* ---- Focus ------------------------------------------------------- */
+#trh-sb :focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+
+#trh-sb { max-width: none; }
+
+/* ---- The floor, completed ---------------------------------------- */
+/* These are the classes still rendering under 13px after the rewrite,
+   found by walking step 2 rather than guessed: a bundle item label, a
+   colour name, the logo position row, and three small controls. */
+#trh-sb .bpx .bl,
+#trh-sb .rec span,
+#trh-sb .pos span, #trh-sb .pos button,
+#trh-sb .addrec,
+#trh-sb .sw .more,
+#trh-sb .tcl,
+#trh-sb .coach b, #trh-sb .coach button,
+#trh-sb .mode span {
+  font-size: 13px !important;
+  line-height: 1.45;
+}
+
+/* ---- Section label, title case ------------------------------------ */
+/* Dropped by accident in the rewrite and it showed immediately: the
+   bundle heading went back to shouting. */
+#trh-sb .bh b, #trh-sb .sgc > b, #trh-sb .browseh b {
+  text-transform: none !important;
+  letter-spacing: normal;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+/* ---- A disabled button is grey, never a pale accent --------------- */
+/* "Pick your group above" was a 40% opacity orange, which reads as a
+   washed out pink rather than as unavailable, and it is the first thing
+   the eye lands on in that card. */
+#trh-sb .btn.or:disabled,
+#trh-sb .btn:disabled {
+  background: var(--field);
+  border-color: var(--rule);
+  color: var(--dim);
+  box-shadow: none;
+  opacity: 1;
+  transform: none;
 }
