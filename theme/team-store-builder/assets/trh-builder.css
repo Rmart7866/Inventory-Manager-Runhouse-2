@@ -830,3 +830,131 @@
   background: #fff; color: var(--d3); border-color: var(--d3);
 }
 #trh-sb .bc.trh-added .btn.add::before { content: '\2713'; font-weight: 700; }
+
+/* ===================================================================
+   ROUND 3: colour as wayfinding, real weight, less copy
+   =================================================================== */
+
+/* ---- 700 WAS FAUX BOLD. 600 IS THE REAL MAXIMUM. ------------------
+   Checked what the theme actually loads: Chivo at 400, 500 and 600,
+   Noto Sans Display at 400 and 600. Nothing heavier exists, so every
+   font-weight:700 in this file was being SYNTHESISED by the browser,
+   which smears a typeface rather than strengthening it. A width probe
+   confirms it: 644, 647, 652, 657px at 400/500/600/700, a smooth
+   synthetic ramp instead of a real jump.
+
+   So weight tops out at 600 and the emphasis comes from SIZE, COLOUR
+   and SPACE instead, which is where it should come from anyway. */
+#trh-sb h2, #trh-sb h3, #trh-sb h4,
+#trh-sb .price, #trh-sb .btn, #trh-sb b, #trh-sb strong,
+#trh-sb .bh b, #trh-sb .browseh b, #trh-sb .storehead b,
+#trh-sb label.f, #trh-sb .tile b, #trh-sb .bc > b,
+#trh-sb .steps span, #trh-sb .opt, #trh-sb .pop,
+#trh-sb .sum th, #trh-sb .sumh, #trh-sb .fams button, #trh-sb .mode button {
+  font-weight: 600 !important;
+}
+#trh-sb > h2 { font-size: clamp(44px, 7.5vw, 82px); letter-spacing: -0.035em; }
+#trh-sb h3 { font-size: 28px; letter-spacing: -0.025em; }
+#trh-sb .price, #trh-sb .tile .price, #trh-sb .bpx .price { font-size: 22px; }
+
+/* ---- Colour tells you where to look -------------------------------
+   The page was white on white, so every section weighed the same and
+   nothing pulled. Now there is a field and there are objects on it:
+   a pale blue page, white cards sitting on it, and DEEP BLUE on the
+   one thing you are meant to do next. Three levels, no more. */
+#trh-sb { background: #eef3fb; }
+#trh-sb .card, #trh-sb .wrap {
+  background: var(--paper);
+  border: 1px solid #e2e9f4;
+  padding: 30px;
+  margin-bottom: 24px;
+}
+#trh-sb .bc, #trh-sb .tile { border-color: #e2e9f4; }
+#trh-sb .faq details { background: var(--paper); border-color: #e2e9f4; }
+
+/* The action at the end of a step is a deep blue bar, so the eye lands
+   on it without hunting. */
+#trh-sb .card p:has(> .btn),
+#trh-sb .card p:has(> .btn.or) {
+  background: var(--d1);
+  margin: 30px -30px -30px;
+  padding: 22px 30px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+#trh-sb .card p:has(> .btn) .sbn,
+#trh-sb .card p:has(> .btn) small { color: rgba(255,255,255,.66) !important; }
+#trh-sb .card p:has(> .btn) .btn {
+  background: #fff; color: var(--d1); border-color: #fff;
+}
+#trh-sb .card p:has(> .btn) .btn:hover:not(:disabled) { background: #dce6f7; border-color: #dce6f7; }
+#trh-sb .card p:has(> .btn) .btn.or {
+  background: var(--d4); border-color: var(--d4); color: var(--d1);
+}
+#trh-sb .card p:has(> .btn) .btn.or:hover:not(:disabled) { background: #7ea6ec; border-color: #7ea6ec; }
+
+/* The running tray is the other anchor, so it reads as one. */
+#trh-sb .tray {
+  background: var(--d1) !important;
+  border-top: 3px solid var(--d4);
+  box-shadow: 0 -8px 24px rgba(10,24,50,.18);
+}
+#trh-sb .tray, #trh-sb .tray * { color: #fff !important; }
+#trh-sb .tray .btn {
+  background: var(--d4) !important; border-color: var(--d4) !important;
+  color: var(--d1) !important;
+}
+#trh-sb .tray .btn.alt {
+  background: transparent !important; border-color: rgba(255,255,255,.45) !important;
+  color: #fff !important;
+}
+
+/* The colours strip is a live status line, so it gets the field colour
+   rather than another white box. */
+#trh-sb .tcbar {
+  background: #dfe8f7; border: 0; border-radius: 2px;
+  padding: 14px 18px; margin: 0 0 24px;
+}
+
+/* ---- Less copy ----------------------------------------------------
+   "Per item, 1 logo included" printed under EVERY card, four across a
+   row. It is a pricing footnote, true of all of them, so it is said
+   once per row and lives in the FAQ in full. */
+#trh-sb .bc:not(:first-of-type) .bfoot span,
+#trh-sb .bc:not(:first-of-type) .pr small,
+#trh-sb .tile:not(:first-of-type) .pr small { display: none; }
+
+/* The line under a section heading repeats what the heading says. */
+#trh-sb .bh .sbn, #trh-sb .browseh .sbn { display: none; }
+
+/* ---- Two faults the field colour introduced ----------------------- */
+
+/* THE HIGHLIGHT BECAME THE SAME COLOUR AS THE PAGE. The recommended
+   path was marked with a pale blue field back when the page was white.
+   The page is now pale blue too, measured at rgb(238,243,251) against
+   the block's rgb(238,242,249), so the ranking was invisible. On a
+   tinted field the way to say "start here" is a white card with a
+   deep edge, not another tint. */
+#trh-sb .qs:not(.mini) {
+  background: var(--paper);
+  border: 1px solid #e2e9f4;
+  border-top: 4px solid var(--d3);
+  padding: 26px 28px 24px;
+}
+
+/* A DISABLED BUTTON WAS RENDERING FULLY BLUE, so it looked clickable
+   and did nothing. The .btn.or colour was declared after the :disabled
+   rule and won on order, which is exactly the kind of thing a later
+   "just one more rule" pass causes. Disabled is settled here, last,
+   and explicitly. */
+#trh-sb .btn:disabled,
+#trh-sb .btn.or:disabled,
+#trh-sb .qs .btn.or:disabled,
+#trh-sb .card p:has(> .btn) .btn:disabled,
+#trh-sb .card p:has(> .btn) .btn.or:disabled {
+  background: #e4e9f2 !important;
+  border-color: #d5dde9 !important;
+  color: #8a94a6 !important;
+  box-shadow: none !important;
+  cursor: not-allowed;
+  opacity: 1;
+}
