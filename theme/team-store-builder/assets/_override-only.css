@@ -533,3 +533,231 @@
   box-shadow: 0 6px 20px rgba(16,21,31,.06);
 }
 #trh-sb .bc .pr { border-top: 1px solid var(--sb-rule); padding-top: 12px; margin-top: 4px; }
+
+/* ===================================================================
+   RUN SPECIALTY: SHARPER, AND WITH SOME FLARE
+   -------------------------------------------------------------------
+   Owner's direction: sharper corners, more visual interest, should feel
+   like a run specialty shop rather than a form.
+
+   The flare is NOT invented. It is lifted from this store's own Team
+   Stores CTA, which already does a hard offset shadow and a 2px lift on
+   hover (.ts-mail). That is a poster-ish, athletic, print-shop move, it
+   is sharp rather than soft, and reusing it ties the builder to the page
+   that links to it. Borrowing an existing motif is also the opposite of
+   the generic look: no gradients, no glass, no glow.
+
+   NOTE this deliberately overrides the measured radii above. The
+   storefront's product grid runs 6px to 16px, but the owner wants
+   sharper and the owner is right about their own brand. Corners are now
+   2px on surfaces and 0 on controls, which still reads as a decision
+   rather than as a default, because the two are different.
+   =================================================================== */
+
+#trh-sb, #vmod {
+  --sb-r-panel: 2px;
+  --sb-r-card:  2px;
+  --sb-r-pill:  0;
+  --sb-r-input: 0;
+  --sb-lift:    4px;   /* the hard offset, matching .ts-mail's language */
+}
+
+/* ---- Controls go sharp ------------------------------------------- */
+#trh-sb .btn, #trh-sb .tabs button, #trh-sb .mode button, #trh-sb .pos button,
+#trh-sb .sgc button, #trh-sb .lgp button, #trh-sb .slist button,
+#trh-sb .rec, #trh-sb .sw .more, #trh-sb .opt, #trh-sb .pop,
+#trh-sb .perks span, #trh-sb .steps span, #trh-sb .seeall, #trh-sb .have,
+#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
+#trh-sb .xtra input[type=text], #trh-sb .tcx input[type=text] {
+  border-radius: 0;
+}
+#trh-sb .card, #trh-sb .wrap, #trh-sb .p, #trh-sb .up, #trh-sb .bc,
+#trh-sb .tile, #trh-sb .qs, #trh-sb .scur, #trh-sb .slist, #trh-sb .howi,
+#trh-sb .howv, #trh-sb .calm, #trh-sb .calm2, #trh-sb .coach, #trh-sb .tip,
+#trh-sb .faq details, #vmod .vbox {
+  border-radius: 2px;
+}
+/* Colour chips stay circular. They are the one element a shopper reads
+   as "a colour" rather than "a control", and the PDP uses the same. */
+#trh-sb .sw button, #trh-sb .sw.named button i, #trh-sb .fams button i,
+#trh-sb .bcol button, #trh-sb .tcbar i { border-radius: 50%; }
+
+/* ---- The motif: hard offset, sharp lift -------------------------- */
+#trh-sb .btn.or {
+  box-shadow: var(--sb-lift) var(--sb-lift) 0 0 var(--sb-navy);
+}
+#trh-sb .btn.or:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: calc(var(--sb-lift) + 2px) calc(var(--sb-lift) + 2px) 0 0 var(--sb-navy);
+}
+#trh-sb .btn.or:active:not(:disabled) {
+  transform: translate(var(--sb-lift), var(--sb-lift));
+  box-shadow: 0 0 0 0 var(--sb-navy);
+}
+#trh-sb .btn:not(.or):hover:not(:disabled) {
+  box-shadow: 3px 3px 0 0 var(--sb-rule);
+  transform: translate(-1px, -1px);
+}
+
+/* ---- Section markers, the bib stripe ----------------------------- */
+/* One repeated motif instead of a different treatment per band: a short
+   accent rule above the heading, which the page already used once at
+   the very top and never again. Repeating it is what makes it read as a
+   system rather than as decoration. */
+#trh-sb .bar { height: 4px; width: 56px; background: var(--sb-accent); }
+#trh-sb h2, #trh-sb .faqhead { position: relative; }
+#trh-sb .bh, #trh-sb .sgc > b {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#trh-sb .bh::before, #trh-sb .sgc > b::before {
+  content: '';
+  width: 22px; height: 3px;
+  background: var(--sb-accent);
+  flex: none;
+}
+
+/* ---- Step rail reads like a race split --------------------------- */
+#trh-sb .steps { display: flex; gap: 0; border: 1px solid var(--sb-rule); width: fit-content; }
+#trh-sb .steps span {
+  border: 0;
+  border-right: 1px solid var(--sb-rule);
+  background: transparent;
+  color: var(--sb-dim);
+  font-weight: 600;
+  padding-inline: 18px;
+}
+#trh-sb .steps span:last-child { border-right: 0; }
+#trh-sb .steps span.on { background: var(--sb-navy); color: #fff; }
+
+/* ---- Product cards get an edge ----------------------------------- */
+/* A sharp accent rule on hover instead of a soft shadow. Reads as
+   "selected lane" rather than "floating card". */
+#trh-sb .tile, #trh-sb .bc {
+  border-bottom: 2px solid transparent;
+  transition: border-color .12s ease, transform .12s ease, box-shadow .12s ease;
+}
+#trh-sb .tile:hover, #trh-sb .bc:hover {
+  border-bottom-color: var(--sb-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(16,21,31,.07);
+}
+#trh-sb .tile.sel {
+  border-color: var(--sb-navy);
+  border-bottom-color: var(--sb-accent);
+  box-shadow: 3px 3px 0 0 var(--sb-navy);
+}
+
+/* ---- Price carries weight ---------------------------------------- */
+/* In a run shop the number matters, so it stops being the same size as
+   the garment code sitting under it. */
+#trh-sb .tile .price, #trh-sb .bpx .price, #trh-sb .p .price {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--sb-navy);
+}
+
+/* ---- Headings get presence --------------------------------------- */
+#trh-sb h2 {
+  font-size: clamp(30px, 3.8vw, 40px);
+  letter-spacing: -0.015em;
+  line-height: 1.08;
+}
+#trh-sb h3 { letter-spacing: -0.01em; }
+
+/* ---- Numbered steps as squares, not circles ---------------------- */
+#trh-sb .howi b {
+  border-radius: 0;
+  background: var(--sb-navy);
+  color: #fff;
+  width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px;
+  flex: none;
+}
+
+/* ---- Selected swatch reads clearly ------------------------------- */
+#trh-sb .sw button.on, #trh-sb .fams button.on, #trh-sb .bcol button.on,
+#trh-sb .sw.named button.on {
+  box-shadow: 0 0 0 2px var(--sb-paper), 0 0 0 4px var(--sb-navy);
+}
+
+/* ---- Make the stripe a system, not a one-off --------------------- */
+/* The accent rule only appeared once, at the very top, so it read as
+   decoration. Repeating it on every section heading is what turns it
+   into a motif and gives a long form page a rhythm to scan by. */
+#trh-sb .card > h3,
+#trh-sb .det > h4,
+#trh-sb h3.sec {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+#trh-sb .card > h3::before,
+#trh-sb .det > h4::before,
+#trh-sb h3.sec::before {
+  content: '';
+  width: 22px; height: 3px;
+  background: var(--sb-accent);
+  flex: none;
+}
+
+/* ---- The group chips are a real choice, so they look like one ---- */
+/* They were 32px and visually identical to a disabled label. */
+#trh-sb .fams.grp button {
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 1px solid var(--sb-rule);
+  background: var(--sb-paper);
+  font-weight: 600;
+  color: var(--sb-navy);
+  transition: background .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+#trh-sb .fams.grp button:hover {
+  border-color: var(--sb-navy);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 0 var(--sb-rule);
+}
+#trh-sb .fams.grp button.on {
+  background: var(--sb-navy);
+  border-color: var(--sb-navy);
+  color: #fff;
+  box-shadow: 3px 3px 0 0 var(--sb-accent);
+  transform: translate(-1px, -1px);
+}
+
+/* ---- A field you are typing in says so --------------------------- */
+/* A sharp accent edge rather than a glow. Same language as the card
+   hover and the button shadow: an offset block, never a blur. */
+#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
+#trh-sb .xtra input[type=text] {
+  border-left: 3px solid transparent;
+  transition: border-color .12s ease, background .12s ease;
+}
+#trh-sb label.f input:focus, #trh-sb label.f textarea:focus,
+#trh-sb label.f select:focus, #trh-sb .xtra input[type=text]:focus {
+  border-left-color: var(--sb-accent);
+  box-shadow: none;
+  background: var(--sb-paper);
+  border-top-color: var(--sb-rule);
+  border-right-color: var(--sb-rule);
+  border-bottom-color: var(--sb-rule);
+}
+
+/* ---- Mode choice reads as a switch, not two paragraphs ----------- */
+#trh-sb .mode button {
+  border: 1px solid var(--sb-rule);
+  background: var(--sb-paper);
+  justify-content: flex-start;
+  text-align: left;
+  padding: 14px 18px;
+}
+#trh-sb .mode button.on {
+  background: var(--sb-navy);
+  border-color: var(--sb-navy);
+  box-shadow: 4px 4px 0 0 var(--sb-accent);
+}

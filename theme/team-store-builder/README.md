@@ -185,6 +185,49 @@ a grid, each holding four more bordered thumbnails. They lose the
 outline, which returns on hover where it means "this one" rather than
 sitting on all five at once.
 
+## Run specialty: sharper, with a motif
+
+Owner's direction, and it overrides the measurements above where the two
+disagree: sharper corners, more visual interest, should feel like a run
+specialty shop rather than a form.
+
+**Corners are 2px on surfaces and 0 on controls.** The storefront's
+product grid runs 6px to 16px, so this is a deliberate departure, not an
+oversight. Two values rather than one, because uniform radius is itself
+the template tell; a surface and a control should not be the same shape.
+
+**THE FLARE IS BORROWED, NOT INVENTED.** The Team Stores CTA on this
+same site already does a hard offset shadow with a 2px lift on hover
+(`.ts-mail`). That is poster-ish, athletic and sharp rather than soft,
+it is already in the brand, and reusing it ties the builder to the page
+that links to it. So every emphatic state here is an OFFSET BLOCK, never
+a blur or a glow:
+
+| element | treatment |
+|---|---|
+| commit button `.btn.or` | 4px navy offset, grows to 6px on hover, presses into the shadow on click |
+| selected group chip | navy fill with a 3px ACCENT offset |
+| selected mode button | navy fill with a 4px accent offset |
+| product card hover | 2px accent rule along the bottom edge, 2px lift |
+| focused input | a 3px accent edge down the left, no glow |
+
+Using one language for all of them is what makes it read as a system.
+A different effect per element is how a page ends up looking generated.
+
+**The bib stripe.** A 22px accent rule sits before every section
+heading. It existed once, at the very top, where it read as decoration;
+repeated across `h3` and `h4` it becomes the thing you scan a long form
+by. The step rail is one bordered strip divided into three segments with
+the active one filled navy, rather than three floating pills, so it
+reads as a race split.
+
+**Prices are set in Chivo at 19px**, because in a run shop the number
+matters and it had been the same size as the garment code beneath it.
+
+Colour chips stay circular throughout. They are the one element a
+shopper reads as "a colour" rather than "a control", and the PDP swatches
+are circular too.
+
 ## What has NOT been verified
 
 **Mobile.** The breakpoints exist in the builder's own stylesheet, 640px,
