@@ -588,3 +588,122 @@
 #trh-sb .opt { background: var(--d2); color: #fff; }
 
 #trh-sb :focus-visible { outline: 3px solid var(--d3); outline-offset: 2px; }
+
+/* ===================================================================
+   STEP 2: THREE PATHS, RANKED
+   -------------------------------------------------------------------
+   Step 2 offers the same job three ways, stacked: a recommended store,
+   ready made bundles, and the full catalogue. All three had the same
+   weight, so the screen read as a wall rather than as a choice. They
+   are not reordered or hidden, since every one of them is somebody's
+   preferred route. They are RANKED, so the eye is told where to start.
+   =================================================================== */
+
+/* First path: the one most people should take. A pale blue field marks
+   it without another badge or another rule.
+
+   THE CLASS IS .qs, NOT .sgc. An earlier version of this block styled
+   .sgc, which does not exist anywhere in this markup, so the rules were
+   valid CSS that matched nothing and the "ranking" never happened.
+   .qs.mini is a DIFFERENT element, the one line reassurance strip, so
+   the selector excludes it. Both were found by walking the rendered
+   page from the button outwards, not by guessing at a name. */
+#trh-sb .qs:not(.mini) {
+  background: var(--wash);
+  border: 1px solid #cfdcf0;
+  border-radius: 2px;
+  padding: 26px;
+}
+#trh-sb .qs:not(.mini) > h4 {
+  font-size: 23px !important;
+  margin: 0 0 6px;
+}
+#trh-sb .qs:not(.mini) .btn.or {
+  background: var(--d3); border-color: var(--d3);
+}
+
+/* Second and third paths sit on plain paper, with a heading a step
+   down from the first. */
+#trh-sb .bh b, #trh-sb .browseh b { font-size: 19px !important; }
+
+/* The hidden reassurance strip was leaving its container's margin
+   behind, an 80px gap under the step rail with nothing in it. */
+#trh-sb .qs.mini { display: none; margin: 0 !important; }
+
+/* The OR chips are the hinge between the three, so they get room
+   rather than decoration. */
+#trh-sb .bh, #trh-sb .browseh {
+  margin-top: 46px; margin-bottom: 14px;
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+}
+#trh-sb .opt {
+  background: var(--d2); color: #fff;
+  padding: 3px 9px; border-radius: 0; align-self: center;
+}
+
+/* The colours bar is a status line, not a section. */
+#trh-sb .tcbar {
+  background: transparent; border: 0; border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule); border-radius: 0;
+  padding: 14px 0; margin: 26px 0 0;
+}
+
+/* Let the garment do the talking: the picture gets the space, the
+   label stays a label. This is the one thing SquadLocker's builder
+   does that this did not. */
+#trh-sb .bc img, #trh-sb .tile img { width: 100%; height: auto; }
+#trh-sb .bpx { gap: 14px; }
+
+/* ===================================================================
+   STEP 3: THE PREVIEW IS THE POINT
+   =================================================================== */
+
+/* The three utilities above the preview were the same size as the
+   buttons that do the work. They are tools, so they recede. */
+#trh-sb .share { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+#trh-sb .share .btn.alt {
+  min-height: 38px; padding-inline: 14px;
+  font-size: 13px !important; font-weight: 600;
+  background: transparent; color: var(--dim);
+  border: 1px solid var(--rule);
+}
+#trh-sb .share .btn.alt:hover { color: var(--d2); border-color: var(--d2); background: transparent; }
+
+/* The team's own name on a deep blue plate is the moment this page is
+   selling, so it is given the weight of one. */
+#trh-sb .storehead {
+  background: var(--d1); border: 0; border-radius: 0;
+  padding: 22px 26px;
+}
+#trh-sb .storehead b {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-size: 26px !important; font-weight: 700; color: #fff;
+  letter-spacing: -0.01em; line-height: 1.1;
+}
+#trh-sb .storehead * { color: rgba(255,255,255,.66); }
+#trh-sb .storehead b { color: #fff !important; }
+
+/* The summary table reads as a receipt: quiet rules, the price aligned
+   and set in the heading face, the destructive action last and dim. */
+#trh-sb .sumh, #trh-sb .sum th {
+  font-size: 12px !important; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--dim); font-weight: 700;
+}
+#trh-sb .sum td, #trh-sb .sumr { border-color: var(--rule); }
+#trh-sb .sum .price, #trh-sb .sumr .price {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-size: 17px; font-weight: 700; color: var(--d2);
+}
+#trh-sb .x { color: var(--dim) !important; font-weight: 500; }
+#trh-sb .x:hover { color: var(--d3) !important; }
+
+/* ---- The dead zone under the step rail ---------------------------- */
+/* 80px of nothing, measured: the rail's 26px bottom margin, the
+   section's 28px top padding and the card's 28px top padding stacked
+   up with no content between them, because the strip that used to sit
+   there is hidden. Hiding an element does not remove the space its
+   containers were holding for it. */
+#trh-sb > section { padding-top: 0 !important; }
+#trh-sb > section > .wrap:first-child,
+#trh-sb > section > .card:first-child { padding-top: 0; }
+#trh-sb .steps { margin-bottom: 18px; }
