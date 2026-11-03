@@ -1892,3 +1892,114 @@
   font-size: 15px !important;
 }
 #trh-sb .calm b, #trh-sb .calm2 b, #trh-sb .ok b { color: var(--d1) !important; }
+
+/* ===================================================================
+   MORE CHARACTER: MORE DARK, MORE PHOTOGRAPH, MORE SCALE
+   -------------------------------------------------------------------
+   One photograph on a page is a stock hero. A run shop's site is full
+   of them, and the page still had exactly one, with everything after
+   the hero living on a single flat field.
+
+   So: three dark zones instead of one, a photograph on the moment that
+   sells, and the garments larger again. Still no rules, no texture, no
+   badges, no ticks.
+   =================================================================== */
+
+/* ---- The questions block becomes the closing dark zone -------------- */
+/* It was a pale panel of grey boxes at the foot of the page, which is
+   where "sterile" was most obvious: the last thing you saw was a form
+   receipt. It now closes the page the way the hero opens it. */
+#trh-sb .faq {
+  background: var(--d1);
+  margin-inline: calc(-1 * clamp(20px, 4vw, 48px));
+  padding: 64px clamp(20px, 4vw, 48px) 72px;
+  margin-top: 72px;
+  margin-bottom: 0;
+}
+#trh-sb .faq .faqhead, #trh-sb .faq h3, #trh-sb .faq h2 {
+  color: #fff !important;
+  font-size: clamp(34px, 4.4vw, 46px) !important;
+  letter-spacing: -0.04em !important;
+  line-height: .98 !important;
+}
+#trh-sb .faq > .sbn, #trh-sb .faq > p { color: rgba(255,255,255,.62) !important; }
+#trh-sb .faq details {
+  background: rgba(255,255,255,.06) !important;
+  border: 0 !important;
+  margin-bottom: 8px;
+}
+#trh-sb .faq summary, #trh-sb .faq details > * { color: #fff !important; }
+#trh-sb .faq details[open] { background: rgba(255,255,255,.11) !important; }
+#trh-sb .faq a { color: var(--d4) !important; }
+
+/* ---- The store plate carries the photograph -------------------------
+   Step 3 is where the organiser sees their own team's name on a store
+   banner. That is the moment this page is selling, so it gets the
+   picture rather than a flat rectangle. It is also what a real Run
+   House team store banner looks like. */
+#trh-sb .storehead {
+  background-color: var(--d1) !important;
+  background-image:
+    linear-gradient(90deg, rgba(13,35,71,.96) 0%, rgba(13,35,71,.86) 44%, rgba(13,35,71,.52) 100%),
+    url('https://cdn.shopify.com/s/files/1/0631/6877/4399/files/SMC2025_RLaberge079_1.jpg?width=1600') !important;
+  background-size: auto, cover !important;
+  background-position: center, center 42% !important;
+  padding: 40px 34px !important;
+}
+#trh-sb .storehead b { font-size: clamp(30px, 4vw, 44px) !important; letter-spacing: -0.03em !important; }
+
+/* ---- The hero dominates --------------------------------------------- */
+#trh-sb > .trh-hero { min-height: 560px; }
+#trh-sb .trh-hero h2 {
+  font-size: clamp(50px, 9vw, 104px) !important;
+  line-height: .92 !important;
+  letter-spacing: -0.045em !important;
+  max-width: 13ch;
+}
+#trh-sb .trh-hero .lead { font-size: 20px !important; max-width: 42ch; }
+
+/* ---- Garments larger again, everywhere ------------------------------- */
+#trh-sb .tile .im, #trh-sb .tile img { width: 100%; height: auto; }
+#trh-sb .grid { gap: 26px !important; }
+#trh-sb .tile { padding: 22px 22px 24px; }
+#trh-sb .gal .tile { padding: 20px 18px 22px; }
+
+/* ---- The tray closes with weight ------------------------------------- */
+#trh-sb .tray { padding: 16px clamp(20px,4vw,48px) !important; }
+#trh-sb .tray .in { font-size: 16px; }
+
+/* The questions subhead was sitting directly under a 46px heading set
+   at 0.98 line-height, so the two collided. */
+#trh-sb .faq .faqhead, #trh-sb .faq > h3, #trh-sb .faq > h2 {
+  margin: 0 0 14px !important;
+}
+#trh-sb .faq > .sbn, #trh-sb .faq > p {
+  font-size: 16px !important;
+  line-height: 1.55 !important;
+  margin: 0 0 30px !important;
+  max-width: 58ch;
+}
+#trh-sb .faq .bgrid, #trh-sb .faq .fgrid { gap: 10px !important; }
+
+/* ---- Garment shapes are not the same shape --------------------------
+   Setting the images to height:auto let each tile size itself to its
+   garment, so a tee, a long sleeve and a polo gave three different
+   image heights and everything below them shifted. Measured across one
+   row: 198, 155, 168, 168, 176, 176px.
+
+   The image box is fixed and the garment is contained inside it, which
+   is what a product grid does: the pictures vary, the grid does not. */
+#trh-sb .gal .tile .im,
+#trh-sb .grid .tile .im,
+#trh-sb .tile .im {
+  height: 190px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+}
+#trh-sb .tile .im img {
+  max-height: 100%; max-width: 100%;
+  width: auto !important; height: auto !important;
+  object-fit: contain;
+}
+/* the bundle strips keep their own smaller, already even boxes */
+#trh-sb .bund .bpx .im { height: 120px; margin-bottom: 8px; }
