@@ -52,76 +52,102 @@ the check keeps working afterwards, so it is not a temporary hack.
 The `else` branch is byte-identical to the original section, so every
 other page on the site renders exactly as before.
 
-## The restyle is a palette remap, not a rewrite
+## The restyle: read the page, not the config
 
-The builder defines its own seven colour variables, and every rule in its
-28KB stylesheet already reads them, so re-pointing those seven is most of
-the work:
+**The first version of this restyle was wrong, and the reason is worth
+keeping.** It took its values from `config/settings_data.json`, squared
+all 63 radius rules because `button_style` says `square`, uppercased
+every heading because `type_header_capitalize` says `true`, and warmed
+the borders to the `#e8e8e1` of `color_borders`. The result looked LESS
+like the storefront, not more.
 
-| was | now | why |
+`settings_data.json` is the Impulse theme's own configuration. This store
+layers custom CSS over it (`clean-product-card.css`,
+`collection-filters.css` and others), so the settings describe a site
+that is not the site. Counted off a live collection page 2026-11-03:
+
+| | the config says | the page actually renders |
 |---|---|---|
-| `--navy #062D62` | `--colorTextBody` | the site sets type in #000. Navy is in the LOGO, not the type |
-| `--orange #FF5724` | `--colorCartDot` | near enough to the theme accent to look like a near miss. Now it IS the accent |
-| `--ink #1a1a1a` | `--colorTextBody` | off black against the theme's true black |
-| `--muted #5b6472` | `#6b6b66` | a COOL grey fights a warm #e8e8e1 border |
-| `--line #dde2e8` | `--colorBorder` | cool blue grey against the theme's warm rule |
-| `--bg #faf9f6` | `#faf9f7` | already warm and already right |
-| `--good #7A8CA5` | `--colorTextBody` | the storefront has no third colour |
+| radius | `square` | 8px x49, 6px x39, 16px x26, 10px, 3px, 2px |
+| rule colour | `#e8e8e1` | `#e2e8f0` x45, against `#e8e8e1` x9 |
+| h1 | capitalize true | `text-transform: none`, Chivo 400, centred |
+| accent | one orange | `#4f7fff` blue x10, `#1b2d5a` navy, orange |
+| input | plain | a `rgba(44,82,130,.06)` navy wash |
 
-The rest is structural: 63 radius rules running 4px to 999px pills are
-squared, because `button_style` is `square` and **the store's own PDP
-colour swatches are `border-radius: 0`** in
-`snippets/colorway-swatches.liquid`; the forced system font stack is
-replaced by the theme's Chivo and Noto Sans Display; buttons become
-black, square and uppercase like every other button on the site.
+So the tokens here are MEASURED. If the storefront is redesigned, measure
+it again rather than reading the settings file.
 
-Nothing is hardcoded. The values read the custom properties that
-`snippets/css-variables.liquid` sets from theme settings, so a colour or
-font changed in the theme editor moves the builder with the rest of the
-site rather than leaving it behind.
+**And uniformity is itself the thing that reads as machine made.** The
+tells are well documented: a wall of identical cards, the same padding
+and the same radius on everything, even spacing, no focal point. Squaring
+every corner did not fix that, it made it worse, because it removed the
+last variation the page had. The current file gives panels, cards, pills
+and inputs four DIFFERENT radii, on the scale the site itself uses.
 
-## The link in from Team Stores
+The structural fix matters more than the colours:
 
-`/pages/team-stores` is template `team-store`, whose body is EMPTY, so it
-is entirely `sections/team-stores-search.liquid`. Its "Create your team
-store" block used to offer a mailto address and nothing else, so the only
-way to start a store was to write to somebody and wait.
+- **The card soup is gone.** The page nested bordered boxes three deep,
+  a card holding a panel holding a tile, each with its own 1px outline,
+  so everything carried equal weight and nothing led. The storefront's
+  own product cards have NO border, they sit on whitespace. Outlines
+  came off the containers; only things you can click keep one.
+- **Headings stopped shouting.** Title case, in the navy the site uses
+  for headings, because a form with twelve uppercase tracked-out labels
+  has twelve competing headlines.
+- **One accent.** `.btn.or` keeps the orange because it marks the action
+  the page exists to get. The POPULAR badges and the per-line Remove
+  links that were wearing the same orange do not.
 
-The builder is now the primary action there and the address is the
-fallback, as a `.ts-build` button with the same shape and the same hard
-offset hover as the existing `.ts-mail`, because the page had already
-taught the eye what that button looks like. The email is demoted to an
-outline so the two cannot compete.
+## Everything is comfortably clickable
 
-**The link resolves through the `pages` object, never a typed path.** An
-unpublished or renamed page yields blank and the button is simply not
-rendered, rather than becoming a dead link. `builder_link` in the section
-settings overrides it if the builder ever moves, and `builder_label` and
-`builder_note` are editable too.
+44px minimum, audited by HIT TESTING rather than by reading box heights,
+because the two differ here: a bundle swatch has a 22px box and a 44px
+tap area, since the target is a transparent pseudo-element over it.
+Measuring boxes alone reported 84 controls as too small when most were
+already fine.
 
-**That page keeps its own palette and that is deliberate.** It is navy
-and cyan from its own `section.settings`, not the storefront's black,
-white and orange. The builder was restyled to the STORE, this section was
-matched to ITSELF, so there is a visual handoff between the two. Worth
-knowing before anyone calls one of them a bug.
+What genuinely was too small and now is not: the colour name chips at
+30px, "Add team colors" at 17px, the step indicators at 28px (they are
+clickable, they move between steps), and the FAQ link. Prose links
+inside a sentence are deliberately left alone, since padding them out
+would overlap the lines above and below for no real gain.
 
-## One accent, one meaning
+Also added: `:focus-visible` rings, which the original had none of, and
+`cursor: pointer` on the several controls that were divs and spans with
+click handlers and therefore gave no pointer at all.
 
-The restyle's one real judgement call, recorded because it is the thing
-most likely to be argued with.
+## Three bugs this restyle caused, and how they were caught
 
-`.btn.or` KEEPS the accent. It marks the three commit actions, the
-storefront's black button is already in use for everything secondary
-here, so colour is the only hierarchy left and the conversion action
-should own it.
+All three were found by reading computed styles back off the rendered
+page, not by reviewing the CSS.
 
-What changed is everything else that was wearing the same orange. A grid
-of tees put four `POPULAR` badges on screen next to the one orange button
-that wanted the click, and the review step put a `Remove` link on every
-line, six of them against one Send. Measured on a six item store: 23
-elements on that screen were drawing in the accent, now 17. Badges are
-black, Remove is a grey underline that only colours on hover, which is
-where a destructive control belongs.
+1. **`.howv` went white on white.** The "stop the card soup" rule
+   stripped backgrounds from things that looked like containers, and
+   `.howv` is named like a panel but IS the dark "Watch how it works"
+   button. Contrast ratio 1.0. Anything that strips a background has to
+   be checked against what the element DOES, not what its class suggests.
+2. **Selected controls went navy on navy.** The mode buttons hold a `b`
+   and a `span` that set their own colour, which beat the white
+   inherited from the selected parent. Also 1.0.
+3. **The `Or` chip went navy on navy**, and this one could not be fixed
+   the same way: the markup emits
+   `span class="opt" style="background:var(--navy)"`, and an inline style
+   beats a stylesheet. 175 elements here carry an inline style, but
+   nearly all are DATA rather than design, the real garment colours
+   behind each swatch and the product images. Those must never be
+   touched. `.opt` was the exception.
+
+A contrast sweep over every leaf node now reports **0 failures under
+3:1**, having composited the alpha properly: an `rgba(44,82,130,.06)`
+tint over white is effectively white, and a checker that treats it as
+opaque navy reports a page full of failures that are not real.
+
+## What has NOT been verified
+
+**Mobile.** The breakpoints exist in the builder's own stylesheet, 640px,
+700px and 820px, and there is no horizontal overflow at desktop width,
+but the browser window would not resize during this work so no narrow
+viewport was ever rendered. Check it on a real phone before publishing.
 
 ## Its other dependencies, which are NOT in the theme
 
