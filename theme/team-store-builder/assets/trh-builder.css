@@ -1528,3 +1528,176 @@
   background-image:
     repeating-linear-gradient(100deg, transparent 0 58px, rgba(255,255,255,.15) 58px 61px);
 }
+
+/* ===================================================================
+   LANES OUT, PHOTOGRAPH IN
+   -------------------------------------------------------------------
+   Owner: "the AI slop lines are back", and the headline was not
+   readable over them. Both true, and the second is the one that
+   settles it: a decorative texture that makes 96px type harder to read
+   has no business being there. The lanes are gone and they are not
+   coming back in another form.
+
+   What replaces them is the thing that actually says run specialty:
+   a photograph of a real team, at a real race, in their own gear,
+   which is precisely what this builder produces. It is the store's own
+   image, already on the CDN, and it is the pattern SquadLocker's hero
+   uses too: a picture doing the work that texture cannot.
+   =================================================================== */
+
+/* ---- Every lane gone ------------------------------------------------
+   Scoped to the surfaces that get NO image at all. An earlier version
+   of this rule listed the hero elements too and carried !important,
+   which then beat the photograph declared below it: !important wins on
+   order regardless of position, so the hero rendered flat navy and the
+   picture never appeared. */
+#trh-sb .storehead, #trh-sb .tray { background-image: none !important; }
+
+/* ---- A different blue ----------------------------------------------- */
+/* Deeper and a little warmer than the cyan-leaning navy, with a
+   brighter accent so the interactive blue reads as energy rather than
+   as a link colour. */
+#trh-sb, #vmod {
+  --d1: #0d2347;
+  --d2: #17386e;
+  --d3: #3a78d8;
+  --d4: #8fb6f6;
+}
+
+/* ---- The hero carries a photograph ---------------------------------- */
+/* The picture sits on the right and the type sits on solid colour, so
+   legibility is not a matter of luck: the gradient is opaque under the
+   headline and only clears once the text has ended. */
+#trh-sb > h2 {
+  background-color: var(--d1);
+  background-image:
+    linear-gradient(90deg,
+      var(--d1) 0%,
+      var(--d1) 46%,
+      rgba(13,35,71,.92) 58%,
+      rgba(13,35,71,.55) 72%,
+      rgba(13,35,71,.35) 100%),
+    url('https://cdn.shopify.com/s/files/1/0631/6877/4399/files/March2025-7339.jpg?width=1800');
+  background-size: auto, cover;
+  background-position: center, center 32%;
+  background-repeat: no-repeat, no-repeat;
+  padding-top: 76px;
+  padding-bottom: 26px;
+}
+#trh-sb > .lead, #trh-sb > .how {
+  background-color: var(--d1);
+  background-image:
+    linear-gradient(90deg,
+      var(--d1) 0%,
+      var(--d1) 46%,
+      rgba(13,35,71,.92) 58%,
+      rgba(13,35,71,.55) 72%,
+      rgba(13,35,71,.35) 100%),
+    url('https://cdn.shopify.com/s/files/1/0631/6877/4399/files/March2025-7339.jpg?width=1800');
+  background-size: auto, cover;
+  background-repeat: no-repeat, no-repeat;
+}
+/* The photo is one image spanning three stacked elements, so each one
+   has to show its own slice of it rather than restart the picture. */
+#trh-sb > h2    { background-position: center, center top; }
+#trh-sb > .lead { background-position: center, center 46%; }
+#trh-sb > .how  { background-position: center, center bottom; }
+
+/* The lead and the video button keep to the solid half. */
+#trh-sb > .lead { padding-right: clamp(24px, 52%, 860px); }
+#trh-sb > h2    { padding-right: clamp(24px, 46%, 780px); }
+
+/* The store plate keeps the new flat navy, no texture. */
+#trh-sb .storehead { background: var(--d1); }
+#trh-sb .tray { background: var(--d1) !important; }
+
+/* ===================================================================
+   ONE HERO SURFACE
+   -------------------------------------------------------------------
+   The photograph was painted onto three stacked siblings, the
+   heading, the lead and the explainer, each showing its own slice. The
+   slices did not join: visible seams across the picture where one
+   element ended and the next began. A background cannot span siblings.
+
+   So the markup now wraps those three in a single .trh-hero, which is
+   the only structural change made to the builder's own HTML in this
+   work, and the photo is painted once on that.
+   =================================================================== */
+
+#trh-sb > .trh-hero {
+  position: relative;
+  background-color: var(--d1);
+  background-image:
+    linear-gradient(95deg,
+      var(--d1) 0%,
+      var(--d1) 44%,
+      rgba(13,35,71,.94) 56%,
+      rgba(13,35,71,.62) 72%,
+      rgba(13,35,71,.42) 100%),
+    url('https://cdn.shopify.com/s/files/1/0631/6877/4399/files/March2025-7339.jpg?width=2000');
+  background-size: auto, cover;
+  background-position: center, center 30%;
+  background-repeat: no-repeat;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 34px), 0 100%);
+  padding: 72px clamp(20px,4vw,48px) 70px;
+  margin: 0 0 0 0;
+}
+
+/* the children stop carrying their own surfaces */
+#trh-sb > .trh-hero > h2,
+#trh-sb > .trh-hero > .lead,
+#trh-sb > .trh-hero > .how {
+  background: none !important;
+  clip-path: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0; margin-right: 0;
+}
+#trh-sb > .trh-hero > h2 { padding-top: 0 !important; padding-bottom: 14px !important; max-width: 15ch; }
+#trh-sb > .trh-hero > .lead { padding-bottom: 24px !important; max-width: 46ch; }
+#trh-sb > .trh-hero > .how { padding-bottom: 0 !important; }
+#trh-sb > .trh-hero > .bar { display: none; }
+
+/* the step rail and everything after it sit on the field as before */
+#trh-sb > .steps { margin-top: 30px; }
+
+/* ---- The wrapper broke every direct-child rule ---------------------
+   Everything that styled the hero was written as "#trh-sb > h2",
+   "#trh-sb > .lead" and so on. Putting those three inside .trh-hero
+   made them grandchildren, so all of it stopped matching at once and
+   the headline fell back to the theme's own h2: dark navy on a dark
+   photograph, uppercase, and a third of the size. A wrapper is cheap
+   to add and silently invalidates every child combinator aimed at what
+   it wraps. Restated here against the new structure. */
+#trh-sb .trh-hero h2 {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif) !important;
+  font-size: clamp(44px, 7.6vw, 86px) !important;
+  font-weight: 600 !important;
+  line-height: .96 !important;
+  letter-spacing: -0.035em !important;
+  text-transform: none !important;
+  color: #fff !important;
+  margin: 0 0 16px !important;
+  max-width: 15ch;
+}
+#trh-sb .trh-hero .lead {
+  font-size: 19px !important;
+  line-height: 1.5 !important;
+  color: rgba(255,255,255,.82) !important;
+  max-width: 44ch;
+  margin: 0 0 26px !important;
+}
+#trh-sb .trh-hero .how { margin: 0 !important; }
+#trh-sb .trh-hero .howv {
+  background: transparent !important;
+  border: 2px solid rgba(255,255,255,.55) !important;
+  color: #fff !important;
+}
+#trh-sb .trh-hero .howv * { color: #fff !important; }
+#trh-sb .trh-hero .howv:hover {
+  background: #fff !important; border-color: #fff !important;
+}
+#trh-sb .trh-hero .howv:hover * { color: var(--d1) !important; }
+
+/* the hero holds its own height so the picture has room to be a picture */
+#trh-sb > .trh-hero { min-height: 460px; display: flex; flex-direction: column; justify-content: center; }
