@@ -958,3 +958,85 @@
   cursor: not-allowed;
   opacity: 1;
 }
+
+/* ===================================================================
+   CONTRAST
+   -------------------------------------------------------------------
+   Measured before changing anything, because "more contrast" could
+   have meant the text and it did not:
+
+     body text on a card     14.54 : 1   already strong
+     secondary text          5.81 : 1    fine
+     step rail, inactive     5.22 : 1    fine
+     FIELD vs CARD           1.11 : 1    <- the problem
+     BORDER vs CARD          1.22 : 1    <- the problem
+
+   So the type was never the issue. The page was a wash of near whites
+   with cards that did not lift off it and edges that were not really
+   there. Contrast here is STRUCTURAL: deepen the field, make an edge
+   an edge, and let white carry the content.
+   =================================================================== */
+
+#trh-sb {
+  /* about 1.35:1 against white, from 1.11. Enough that a card reads as
+     an object on a surface rather than as a slightly different white. */
+  background: #ccd8ea;
+}
+
+#trh-sb .card, #trh-sb .wrap, #trh-sb .qs:not(.mini),
+#trh-sb .bc, #trh-sb .tile, #trh-sb .faq details,
+#trh-sb .scur, #trh-sb .slist, #trh-sb .det {
+  background: var(--paper);
+  border-color: #b9c8de;   /* about 1.9:1, a visible edge */
+}
+
+/* The primary path keeps its deep edge, now against a field that makes
+   the white card itself do most of the work. */
+#trh-sb .qs:not(.mini) { border-top: 5px solid var(--d3); }
+
+/* Section headings sit directly on the field, so they need to hold
+   their own against it. */
+#trh-sb .bh b, #trh-sb .browseh b, #trh-sb h3, #trh-sb h4 { color: var(--d1); }
+
+/* The status strip was a pale tint on a pale field. On a deeper field
+   it becomes white like everything else that carries content. */
+#trh-sb .tcbar {
+  background: var(--paper);
+  border: 1px solid #b9c8de;
+  padding: 14px 18px;
+}
+
+/* Small supporting text gets darker. At 13 and 14px a 5.8:1 grey is
+   legible but weak, and weak small text is most of what reads as
+   washed out. */
+#trh-sb .sbn, #trh-sb .st2, #trh-sb .bnote, #trh-sb small,
+#trh-sb .pr small, #trh-sb .st, #trh-sb .bpx .bl,
+#trh-sb .rec span, #trh-sb .bcol span, #trh-sb .pos span, #trh-sb .tcl {
+  color: #46536a;    /* about 8.6:1 on white, from 5.8 */
+}
+
+/* Form fields: a filled input on a white card needs its own edge now
+   that the card is not floating on near white. */
+#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
+#trh-sb .xtra input[type=text] {
+  background: #f1f4fa;
+  border: 1px solid #c3d0e3;
+  border-left: 3px solid #c3d0e3;
+}
+#trh-sb label.f input:focus, #trh-sb label.f textarea:focus,
+#trh-sb label.f select:focus, #trh-sb .xtra input[type=text]:focus {
+  background: #fff; border-color: var(--d3); border-left-color: var(--d3);
+}
+
+/* Unselected chips need an edge that reads against white. */
+#trh-sb .fams button, #trh-sb .mode button, #trh-sb .pos button,
+#trh-sb .sgc button, #trh-sb .slist button, #trh-sb .lgp button {
+  border-color: #b9c8de;
+}
+
+/* The FAQ sits on the field, so its rows are white with real edges. */
+#trh-sb .faq details { border-width: 1px; }
+
+/* Swatch rings read against a white card. */
+#trh-sb .sw button, #trh-sb .bcol button, #trh-sb .sw.named button i,
+#trh-sb .fams button i, #trh-sb .tcbar i { border: 1px solid #9fb2cd; }
