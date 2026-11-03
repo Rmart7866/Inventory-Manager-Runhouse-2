@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const KEY = process.argv[2];
-if (!KEY) { console.error('usage: node tools/read-theme-asset.mjs <assets/key.liquid> [--list <substr>]'); process.exit(2); }
+if (!KEY) { console.error('usage: node tools/read-theme-asset.mjs <assets/key.liquid> [--list <substr>] [--theme <id|name>]'); process.exit(2); }
 const LIST = process.argv.includes('--list') ? process.argv[process.argv.indexOf('--list') + 1] || '' : null;
 
 function env() {
@@ -35,9 +35,28 @@ async function rest(p, attempt = 0) {
   return r.json();
 }
 
-const live = (await rest('themes.json')).themes.find((t) => t.role === 'main');
-if (!live) { console.error('No theme has role main.'); process.exit(1); }
-console.error('live theme: ' + live.id + '  ' + JSON.stringify(live.name));
+// By default this reads the LIVE theme, resolved by ROLE rather than by id for
+// the reason recorded in CLAUDE.md. --theme <id|name> targets another one, which
+// is what you want when working on an unpublished theme: an id is accepted
+// because an unpublished theme has no role to resolve by, and a name is matched
+// case insensitively so you do not have to look the id up first.
+const themes = (await rest('themes.json')).themes;
+const wantIdx = process.argv.indexOf('--theme');
+let live;
+if (wantIdx !== -1) {
+  const want = String(process.argv[wantIdx + 1] || '').trim();
+  live = themes.find((t) => String(t.id) === want)
+      || themes.find((t) => (t.name || '').toLowerCase() === want.toLowerCase());
+  if (!live) {
+    console.error('No theme matches ' + JSON.stringify(want) + '. Available:');
+    for (const t of themes) console.error('  ' + t.id + '  ' + t.role.padEnd(11) + ' ' + JSON.stringify(t.name));
+    process.exit(1);
+  }
+} else {
+  live = themes.find((t) => t.role === 'main');
+  if (!live) { console.error('No theme has role main.'); process.exit(1); }
+}
+console.error('theme: ' + live.id + '  ' + live.role + '  ' + JSON.stringify(live.name));
 
 if (LIST !== null) {
   const all = (await rest(`themes/${live.id}/assets.json`)).assets

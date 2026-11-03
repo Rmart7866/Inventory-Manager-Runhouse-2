@@ -1,0 +1,57 @@
+{%- comment -%}
+  THE BUILD YOUR TEAM STORE PAGE IS RENDERED FROM THE THEME, NOT FROM
+  ITS PAGE BODY, AND IT IS KEYED ON THE HANDLE ON PURPOSE.
+
+  The conventional way to give one page its own markup is a template
+  suffix, templates/page.build-your-store.json, selected on the page
+  record in admin. That is deliberately NOT used here, because the
+  template suffix is a property of the PAGE, which is global: setting it
+  would make every theme look for that template, including the live one,
+  which does not have it. The page would break on live the moment the
+  suffix was set, before this theme was ever published.
+
+  A handle check inside main-page keeps the whole change inside the
+  theme. Nothing about the page record changes, live keeps rendering the
+  page body exactly as before, and this theme renders the builder from
+  snippets/team-store-builder.liquid instead. Preview shows the new one,
+  live shows the old one, and publishing is what swaps them.
+
+  It also survives publishing, so it is not a temporary hack: once this
+  theme is live, page.content is simply no longer the source.
+{%- endcomment -%}
+
+{%- if page.handle == 'build-your-store' -%}
+
+  {{ 'trh-builder.css' | asset_url | stylesheet_tag }}
+
+  {%- comment -%}
+    Full bleed rather than page-width--narrow, and outside .rte. The
+    narrow column is right for prose and wrong for a product grid, and
+    .rte restyles headings, lists and tables underneath the builder's
+    own rules.
+  {%- endcomment -%}
+  <div class="page-width">
+    {%- render 'team-store-builder' -%}
+  </div>
+
+{%- else -%}
+
+  <div class="page-width page-width--narrow page-content">
+    {%- render 'breadcrumbs' -%}
+    <header class="section-header">
+      <h1 class="section-header__title">{{ page.title }}</h1>
+    </header>
+
+    <div class="rte rte--nomargin">
+      {{ page.content }}
+    </div>
+  </div>
+
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "t:sections.main-page.name",
+  "tag": "section"
+}
+{% endschema %}

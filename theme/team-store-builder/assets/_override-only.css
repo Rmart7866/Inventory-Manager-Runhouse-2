@@ -1,0 +1,196 @@
+
+/* ===================================================================
+   THE RUN HOUSE THEME ALIGNMENT
+   -------------------------------------------------------------------
+   Everything above this line is the builder's ORIGINAL stylesheet,
+   moved out of the page body unchanged. Everything below re-skins it
+   to the storefront's own design language. The split is deliberate:
+   the original stays readable and this block stays reviewable, so a
+   restyle can be undone by deleting one section rather than by
+   unpicking edits spread through 28KB.
+
+   The values are NOT hardcoded. They read the same CSS custom
+   properties snippets/css-variables.liquid sets from theme settings,
+   so changing a colour or a font in the theme editor moves the
+   builder with the rest of the site instead of leaving it behind.
+
+   Read off the theme 2026-11-03:
+     button_style             square      -> --buttonRadius: 0
+     type_header_font_family  chivo       -> --typeHeaderPrimary
+     type_header_capitalize   true        -> headings are UPPERCASE
+     type_base_font_family    noto_sans_display
+     color_button             #111111     -> --colorBtnPrimary
+     color_borders            #e8e8e1     -> --colorBorder
+     color_cart_dot           #ff4f33     -> --colorCartDot, the one accent
+   =================================================================== */
+
+/* ---- The palette ------------------------------------------------- */
+/* THE BUILDER DEFINES ITS OWN SEVEN COLOUR VARIABLES, so re-pointing
+   those is the whole restyle. Every rule in the original stylesheet
+   already reads them, which is why this is a remap rather than a few
+   hundred per selector overrides.
+
+   What they were, and why each one moves:
+
+     --navy  #062D62  headings, labels, step badges, the video button.
+                      The storefront sets color_body_text to #000000 and
+                      every other heading and nav link on the site is
+                      black. Navy lives in the LOGO, not in the type, so
+                      the builder was the only page setting copy in it.
+     --orange #FF5724 near enough to the theme accent to look like a
+                      near miss rather than a match. Now it IS the theme
+                      accent, so changing color_cart_dot moves both.
+     --ink   #1a1a1a  off black for body copy, against the theme's #000.
+     --muted #5b6472  a COOL grey, which fights a warm #e8e8e1 border.
+     --line  #dde2e8  a cool blue grey rule against the theme's #e8e8e1.
+     --bg    #faf9f6  already warm and already right, kept.
+     --good  #7A8CA5  a washed out blue for positive states. The
+                      storefront has no third colour, so positive states
+                      are plain black and the accent carries emphasis.
+
+   Changing a colour in the theme editor now moves the builder with the
+   rest of the site instead of leaving it behind. */
+#trh-sb, #vmod {
+  --navy:   var(--colorTextBody, #000);
+  --orange: var(--colorCartDot, #ff4f33);
+  --ink:    var(--colorTextBody, #000);
+  --muted:  #6b6b66;
+  --line:   var(--colorBorder, #e8e8e1);
+  --bg:     #faf9f7;
+  --good:   var(--colorTextBody, #000);
+
+  --sb-ink:     var(--colorTextBody, #000);
+  --sb-paper:   var(--colorBody, #fff);
+  --sb-line:    var(--colorBorder, #e8e8e1);
+  --sb-btn:     var(--colorBtnPrimary, #111);
+  --sb-btn-ink: var(--colorBtnPrimaryText, #fff);
+  --sb-accent:  var(--colorCartDot, #ff4f33);
+  --sb-radius:  var(--buttonRadius, 0);
+  --sb-wash:    #faf9f7;
+}
+
+/* ---- Typography -------------------------------------------------- */
+/* The builder forced a system font stack, so it was the only thing on
+   the site not set in the store's two typefaces. */
+#trh-sb, #trh-sb input, #trh-sb select, #trh-sb textarea, #trh-sb button, #vmod {
+  font-family: var(--typeBasePrimary), var(--typeBaseFallback, sans-serif);
+  letter-spacing: var(--typeBaseSpacing, 0);
+  color: var(--sb-ink);
+}
+#trh-sb h2, #trh-sb h3, #trh-sb h4, #trh-sb .storehead b, #trh-sb .faqhead {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-weight: var(--typeHeaderWeight, 400);
+  line-height: var(--typeHeaderLineHeight, 1);
+  letter-spacing: var(--typeHeaderSpacing, 0);
+  text-transform: uppercase;
+}
+#trh-sb h2 { font-size: clamp(28px, 4vw, var(--typeHeaderSize, 36px)); }
+#trh-sb .lead { font-size: 17px; line-height: var(--typeBaseLineHeight, 1.4); max-width: 62ch; }
+
+/* ---- Square everything ------------------------------------------- */
+/* The store is square cornered, including its own PDP colour swatches,
+   which are border-radius 0 in snippets/colorway-swatches.liquid. The
+   builder had 63 radius rules running 4px to 999px pills plus circular
+   swatches, and that mismatch is most of why it felt like a different
+   site. Swatches are squared too, to match the ones a shopper has
+   already seen on a product page. */
+#trh-sb .card, #trh-sb .wrap, #trh-sb .p, #trh-sb .tier, #trh-sb .ok,
+#trh-sb .up, #trh-sb .up .pv, #trh-sb .up .pv .sbn, #trh-sb .tile,
+#trh-sb .storehead, #trh-sb .xn, #trh-sb .bc, #trh-sb .toast,
+#trh-sb .sharedbar, #trh-sb .faq details, #trh-sb .tcbar, #trh-sb .tcbar i,
+#trh-sb .tcx, #trh-sb .tcx input[type=text], #trh-sb .tcx input[type=color],
+#trh-sb .addlogo, #trh-sb .calm, #trh-sb .calm2, #trh-sb .more1,
+#trh-sb .qs, #trh-sb .qs .qsp img, #trh-sb .mode button, #trh-sb .slist,
+#trh-sb .slist button, #trh-sb .scur, #trh-sb .scur .sth img,
+#trh-sb .sgc, #trh-sb .sgc button, #trh-sb .howi, #trh-sb .howi b,
+#trh-sb .howv, #trh-sb .coach, #trh-sb .tip, #trh-sb .tc.bad,
+#trh-sb .steps span, #trh-sb .perks span, #trh-sb .pos button,
+#trh-sb .tabs button, #trh-sb .tabs button .ct, #trh-sb .fams button,
+#trh-sb .fams button i, #trh-sb .sw button, #trh-sb .sw .more,
+#trh-sb .sw.named button, #trh-sb .sw.named button i, #trh-sb .bcol button,
+#trh-sb .lgp button, #trh-sb .lgp button.th, #trh-sb .have, #trh-sb .pop,
+#trh-sb .seeall, #trh-sb .opt, #trh-sb .xtra input[type=text],
+#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
+#vmod .vbox, #vmod .vx {
+  border-radius: 0;
+}
+#trh-sb .btn { border-radius: var(--sb-radius); }
+
+/* ---- Buttons ----------------------------------------------------- */
+/* Black on white, uppercase, square, which is what every other button
+   on the storefront does. */
+#trh-sb .btn {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: var(--typeHeaderWeight, 400);
+  background: var(--sb-btn);
+  color: var(--sb-btn-ink);
+  border: 1px solid var(--sb-btn);
+  transition: background .15s ease, color .15s ease;
+}
+#trh-sb .btn:hover:not(:disabled) { background: #000; border-color: #000; }
+#trh-sb .btn.sec, #trh-sb .btn.ghost {
+  background: transparent;
+  color: var(--sb-ink);
+  border: 1px solid var(--sb-ink);
+}
+#trh-sb .btn.sec:hover:not(:disabled), #trh-sb .btn.ghost:hover:not(:disabled) {
+  background: var(--sb-ink); color: var(--sb-paper);
+}
+#trh-sb .btn:disabled { opacity: .35; }
+
+/* ---- Panels, cards, tiles ---------------------------------------- */
+#trh-sb .card, #trh-sb .wrap, #trh-sb .p, #trh-sb .tile, #trh-sb .up,
+#trh-sb .storehead, #trh-sb .faq details, #trh-sb .qs, #trh-sb .scur,
+#trh-sb .slist, #trh-sb .sgc, #trh-sb .howi, #trh-sb .howv, #trh-sb .calm,
+#trh-sb .calm2, #trh-sb .more1, #trh-sb .coach, #trh-sb .tip {
+  border-color: var(--sb-line);
+  box-shadow: none;
+}
+#trh-sb .card, #trh-sb .wrap, #trh-sb .p, #trh-sb .up, #trh-sb .calm,
+#trh-sb .calm2, #trh-sb .coach, #trh-sb .tip, #trh-sb .howi {
+  background: var(--sb-wash);
+}
+#trh-sb .tile { background: var(--sb-paper); }
+#trh-sb .tile.sel { border-color: var(--sb-ink); box-shadow: inset 0 0 0 1px var(--sb-ink); }
+
+/* ---- Selected states use the accent, and only the accent ---------- */
+/* The original reached for a different green, red or blue per state.
+   One accent plus black is the storefront's whole palette. */
+#trh-sb .sw button.on, #trh-sb .fams button.on, #trh-sb .bcol button.on,
+#trh-sb .lgp button.on, #trh-sb .tabs button.on, #trh-sb .mode button.on,
+#trh-sb .pos button.on, #trh-sb .sgc button.on {
+  border-color: var(--sb-ink);
+  box-shadow: inset 0 0 0 2px var(--sb-ink);
+}
+#trh-sb .steps span.on { background: var(--sb-ink); color: var(--sb-paper); border-color: var(--sb-ink); }
+#trh-sb .bar { background: var(--sb-accent); }
+#trh-sb .perks span { border: 1px solid var(--sb-line); background: transparent; }
+
+/* ---- Form controls ----------------------------------------------- */
+#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
+#trh-sb .xtra input[type=text], #trh-sb .tcx input[type=text] {
+  border: 1px solid var(--sb-line);
+  background: var(--sb-paper);
+  font-size: 16px; /* iOS zooms a focused control under 16px */
+}
+#trh-sb label.f input:focus, #trh-sb label.f textarea:focus,
+#trh-sb label.f select:focus, #trh-sb .xtra input[type=text]:focus {
+  outline: 2px solid var(--sb-ink);
+  outline-offset: -2px;
+  border-color: var(--sb-ink);
+}
+#trh-sb .bad, #trh-sb .tc.bad { border-color: var(--sb-accent); color: var(--sb-accent); }
+
+/* ---- Swatches ---------------------------------------------------- */
+#trh-sb .sw button, #trh-sb .sw.named button i, #trh-sb .fams button i,
+#trh-sb .bcol button, #trh-sb .tcbar i {
+  border: 1px solid var(--sb-line);
+}
+
+/* ---- Width ------------------------------------------------------- */
+/* main-page.liquid renders a page inside .page-width--narrow, which is
+   right for prose and wrong for a product grid, so the builder gets the
+   full page width instead. */
+#trh-sb { max-width: none; }
