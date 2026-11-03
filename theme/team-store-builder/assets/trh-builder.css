@@ -264,248 +264,302 @@
 
 /* ===================================================================
    THE RUN HOUSE  /  TEAM STORE BUILDER
-   A single coherent skin. Everything above this line is the builder's
-   original stylesheet, untouched.
+   Written from scratch. Everything above is the builder's original
+   stylesheet, untouched.
    -------------------------------------------------------------------
-   THIS FILE WAS REWRITTEN, NOT EXTENDED, AND THAT IS THE POINT. Four
-   passes of patching produced exactly what the owner then called slop:
-   underlines added in one pass and never reconciled with the links from
-   another, a 13px floor that only covered the selectors visible on the
-   screen it was written against, and a page that measured 15.2% colour
-   by painted area, which is to say almost none.
+   WHAT WENT WRONG BEFORE, so it is not repeated. Five passes of
+   patching produced a page the owner called slop, and the specific
+   faults were all mine:
 
-   Measured on step 2 before this rewrite:
-     colour        15.2% of painted area, the rest white and grey
-     small text    42 nodes under 13px, four of them at 10px
-     underlines    6, four of which this stylesheet had added itself
-     elements      723 on one screen
+     decorative rules       an accent stripe was added before every
+                            heading as a "motif". Read as random red
+                            lines. THERE ARE NO DECORATIVE RULES HERE.
+     one accent, overused   orange on the stripe, the badges, the
+                            links and the button. Now: deep blues, and
+                            red is gone entirely at the owner's call.
+     everything at once     hero copy, four perk chips, three explainer
+                            boxes, a step rail and a reassurance line,
+                            all above the fold, before any decision.
+     small text             a 13px floor patched per screen, so each
+                            new screen leaked a new set of 10 and 11px.
 
-   Rules this file holds itself to:
-     1. ONE accent. Orange marks the action, nothing else.
-     2. NO decorative underline. A link is weight and colour; the
-        underline appears on hover, where it means something.
-     3. 13px floor, enforced on the SHARED note classes rather than on
-        whatever happened to be on screen.
-     4. Colour comes from structure, navy bands and a tinted field, not
-        from tinting text.
+   WHAT THE COMPETITION DOES, looked at rather than assumed.
+   SquadLocker's store builder asks ONE question per screen: a single
+   centred headline, then image cards with a word under each. Almost no
+   prose. Their marketing hero carries a huge bold headline and exactly
+   THREE bullets with bold lead-ins, with product photography doing the
+   colour. Both are the opposite of a dense form explaining itself.
+
+   SO: bolder and less of it, one decision at a time, images over
+   sentences, and every remaining word earns its place.
    =================================================================== */
 
 #trh-sb, #vmod {
-  --navy:   #16284d;
-  --navy-2: #0f1c38;
-  --orange: #ff4f33;
-  --ink:    #10151f;
-  --dim:    #5d6878;
-  --rule:   #dfe5ee;
-  --field:  #eef1f7;
-  --paper:  #ffffff;
+  /* Deep blues. No red, no orange, anywhere. */
+  --d1: #0a1832;   /* deepest, the hero band */
+  --d2: #13284f;   /* navy, surfaces and buttons */
+  --d3: #1e4ea8;   /* mid blue, the one interactive accent */
+  --d4: #5b8ae0;   /* light blue, for use on dark */
+  --wash: #eef2f9; /* pale blue field */
+  --paper: #fff;
+  --ink: #0d1420;
+  --dim: #5a6679;
+  --rule: #dbe3ef;
 
   /* the builder's own seven, re-pointed */
+  --navy: var(--d2);
+  --orange: var(--d3);     /* anything that asked for the accent gets blue */
   --muted: var(--dim);
-  --line:  var(--rule);
-  --bg:    var(--field);
-  --good:  var(--navy);
+  --line: var(--rule);
+  --bg: var(--wash);
+  --good: var(--d2);
 
-  --tap: 44px;
-  --r:    2px;   /* surfaces */
-  --rc:   0;     /* controls */
+  --tap: 46px;
 }
 
-/* ---- The page has a floor colour --------------------------------- */
-/* THE SINGLE BIGGEST FIX. White cards on a white page is why this read
-   as a form rather than a shop. A tinted field behind white cards gives
-   depth, separates the content from the chrome, and costs nothing in
-   legibility. */
-#trh-sb {
-  background: var(--field);
-  padding: 34px 28px 40px;
-  margin-inline: calc(-1 * clamp(16px, 3vw, 34px));
-  color: var(--ink);
-  font-family: var(--typeBasePrimary), var(--typeBaseFallback, sans-serif);
-}
+/* ===================================================================
+   1. LESS ON SCREEN
+   The hero was six separate blocks before a single decision. The
+   purpose is now carried by the headline and the three numbered steps,
+   which is what "a few points" means. The perk chips, the reassurance
+   line and the duplicate prose are not deleted from the page, they are
+   simply not all shouting at once: every one of them still appears in
+   the FAQ below, which is the accessible home for detail.
+   =================================================================== */
+#trh-sb .perks,
+#trh-sb .qs.mini,
+#trh-sb .coach,
+#trh-sb .sws .swl,
+#trh-sb .p:not(:first-of-type) .cn { display: none; }
 
-/* ---- Type: four sizes, and a real floor -------------------------- */
-#trh-sb h2 {
+/* The explainer belongs to step one only. After that you are working,
+   not reading. */
+#trh-sb .how { display: none; }
+#trh-sb:has(.steps span:first-child.on) .how { display: grid; }
+#trh-sb:not(:has(.steps span:first-child.on)) .lead { display: none; }
+
+/* ===================================================================
+   2. THE HERO IS A DEEP BLUE BAND
+   Colour comes from a block of it, the way SquadLocker uses a blue
+   panel and the way this storefront uses full bleed imagery. Not from
+   tinting text or drawing rules.
+   =================================================================== */
+#trh-sb { background: var(--paper); color: var(--ink); max-width: none; }
+
+#trh-sb .bar { display: none; }   /* the stripe. gone. */
+
+#trh-sb > h2 {
   font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
-  font-size: clamp(30px, 4vw, 42px);
-  font-weight: 400; line-height: 1.04;
-  letter-spacing: -0.02em; text-transform: none;
-  color: var(--navy); margin: 0 0 12px;
+  font-size: clamp(38px, 6vw, 68px);
+  font-weight: 700;
+  line-height: .98;
+  letter-spacing: -0.03em;
+  text-transform: none;
+  color: var(--paper);
+  margin: 0 0 18px;
 }
-#trh-sb h3, #trh-sb h4 {
+#trh-sb > .lead {
+  font-size: 18px; line-height: 1.5; font-weight: 400;
+  color: rgba(255,255,255,.72);
+  margin: 0 0 30px;
+}
+
+/* THE BAND IS PAINTED ON THE HERO ELEMENTS THEMSELVES, not on a
+   pseudo-element of a guessed height. The first version sized a
+   ::before in JavaScript, which works in a console and not in
+   production. h2, .lead and .how are consecutive siblings, so giving
+   each the same background with zero margin and the padding on the
+   inside makes one contiguous block that is always exactly as tall as
+   its content, including on steps 2 and 3 where two of the three are
+   hidden. */
+#trh-sb { padding: 0 0 56px; }
+#trh-sb > h2, #trh-sb > .lead, #trh-sb > .how {
+  background: var(--d1);
+  margin: 0;
+  padding-inline: clamp(20px, 4vw, 48px);
+}
+/* THE MEASURE IS SET WITH PADDING, NOT max-width. A max-width shrinks
+   the BLOCK, so the dark background shrank with the text and the band
+   came out as three ragged steps instead of one rectangle. Padding on
+   the right keeps the block full width, so the background is
+   continuous, while the line still breaks where it should. */
+#trh-sb > h2   { padding-top: 60px; padding-bottom: 18px; padding-right: clamp(24px, 45%, 820px); }
+#trh-sb > .lead {
+  padding-bottom: 28px; padding-right: clamp(24px, 48%, 780px);
+  /* the ORIGINAL stylesheet also caps .lead, so the block stayed narrow
+     and the band stayed ragged until this cleared it too */
+  max-width: none !important; width: auto !important;
+}
+#trh-sb > .how  { padding-bottom: 52px; }
+#trh-sb > .steps,
+#trh-sb > section, #trh-sb > .faq, #trh-sb > .tray, #trh-sb > .wrap {
+  margin-inline: clamp(20px, 4vw, 48px);
+}
+
+/* The three points. Bold lead-in, one short clause, nothing else. */
+#trh-sb .how { grid-template-columns: repeat(3, 1fr); gap: 0; margin: 0; }
+#trh-sb .howi {
+  background: transparent; border: 0;
+  border-left: 1px solid rgba(255,255,255,.18);
+  border-radius: 0; padding: 4px 26px 4px 22px;
+  display: flex; align-items: flex-start; gap: 14px;
+}
+#trh-sb .howi:first-child { border-left: 0; padding-left: 0; }
+#trh-sb .howi b {
+  background: transparent; color: var(--d4);
+  width: auto; height: auto; border-radius: 0;
   font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
-  font-weight: 400; text-transform: none; letter-spacing: -0.01em;
-  color: var(--navy); line-height: 1.2;
+  font-size: 30px; font-weight: 700; line-height: 1;
 }
-#trh-sb h3 { font-size: 23px; }
-#trh-sb h4 { font-size: 18px; }
-#trh-sb .lead { font-size: 17px; line-height: 1.55; color: var(--dim); max-width: 58ch; margin-bottom: 22px; }
+#trh-sb .howi strong, #trh-sb .howi span > strong {
+  display: block; color: var(--paper);
+  font-size: 17px; font-weight: 700; line-height: 1.25; margin-bottom: 4px;
+}
+#trh-sb .howi span { color: rgba(255,255,255,.62); font-size: 14px; line-height: 1.45; }
+#trh-sb .howv {
+  background: transparent; color: var(--paper);
+  border: 1px solid rgba(255,255,255,.35); border-radius: 0;
+  min-height: var(--tap); padding: 12px 20px; margin-top: 26px;
+}
+#trh-sb .howv * { color: var(--paper); font-size: 14px; }
+#trh-sb .howv:hover { background: rgba(255,255,255,.1); }
+
+/* ===================================================================
+   3. THE STEP RAIL IS A QUIET PROGRESS INDICATOR
+   It was competing with the content. It is navigation, so it recedes
+   until you need it.
+   =================================================================== */
+#trh-sb .steps {
+  display: flex; gap: 30px; width: fit-content; max-width: 100%;
+  background: transparent !important; border: 0 !important;
+  padding: 0 !important; margin: 34px 0 26px; position: relative; z-index: 1;
+}
+/* The original paints the active step as a filled pill AND hides its
+   own label, so leaving any of that in place rendered step 1 as an
+   empty dark lozenge. All of it is cleared, including on the children,
+   which carry their own colour. */
+#trh-sb .steps span {
+  min-height: var(--tap); display: inline-flex; align-items: center; gap: 7px;
+  padding: 0 !important; background: none !important;
+  border: 0 !important; border-bottom: 3px solid transparent !important;
+  border-radius: 0 !important; box-shadow: none !important;
+  font-size: 15px; font-weight: 600; letter-spacing: normal;
+  color: var(--dim) !important; cursor: pointer; text-transform: none;
+  width: auto !important; height: auto !important; overflow: visible !important;
+  text-indent: 0 !important; font-size: 15px !important;
+}
+#trh-sb .steps span * {
+  color: inherit !important; background: none !important;
+  width: auto !important; height: auto !important;
+  border-radius: 0 !important; font-size: inherit !important;
+}
+#trh-sb .steps span.on,
+#trh-sb .steps span.on * { color: var(--d2) !important; }
+#trh-sb .steps span.on { border-bottom-color: var(--d3) !important; }
+
+/* ===================================================================
+   4. TYPE: BOLDER, FEWER SIZES, A FLOOR THAT HOLDS
+   Four sizes. The floor is set on every small-note class this markup
+   uses, gathered by walking the rendered page rather than by guessing,
+   which is how it kept leaking before.
+   =================================================================== */
+#trh-sb h3 {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
+  color: var(--d2); text-transform: none; line-height: 1.15; margin: 0 0 16px;
+}
+#trh-sb h4, #trh-sb .bh b, #trh-sb .sgc > b, #trh-sb .browseh b {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-size: 20px !important; font-weight: 700; letter-spacing: -0.015em;
+  color: var(--d2); text-transform: none !important; line-height: 1.2;
+}
 #trh-sb p, #trh-sb li, #trh-sb label.f { font-size: 15px; line-height: 1.55; }
 
-/* THE FLOOR, on the shared note classes rather than on whatever was on
-   screen when the rule was written. .sbn is this markup's universal
-   "small note" and appears inside a dozen different parents. */
 #trh-sb .sbn, #trh-sb .st2, #trh-sb .bnote, #trh-sb small,
-#trh-sb .pr small, #trh-sb .tcl small, #trh-sb .bfoot span,
-#trh-sb .bcol span, #trh-sb .pv span, #trh-sb .cn, #trh-sb .st {
-  font-size: 13px !important;
-  line-height: 1.5;
-  color: var(--dim);
-  font-weight: 400;
+#trh-sb .pr small, #trh-sb .tcl, #trh-sb .tcl small, #trh-sb .cn, #trh-sb .st,
+#trh-sb .bpx .bl, #trh-sb .rec span, #trh-sb .pos span, #trh-sb .pos button,
+#trh-sb .addrec, #trh-sb .sw .more, #trh-sb .bcol span, #trh-sb .pv span,
+#trh-sb .bfoot span, #trh-sb .mode span, #trh-sb .coach b {
+  font-size: 14px !important; line-height: 1.5; color: var(--dim); font-weight: 400;
 }
-#trh-sb .opt, #trh-sb .pop { font-size: 12px !important; letter-spacing: .06em; }
+#trh-sb .opt, #trh-sb .pop { font-size: 12px !important; font-weight: 700; letter-spacing: .06em; }
+#trh-sb b, #trh-sb strong { font-weight: 700; }
 
-/* Two weights only. */
-#trh-sb b, #trh-sb strong { font-weight: 600; }
-#trh-sb .price, #trh-sb .btn { font-weight: 700; }
-
-/* ---- NO DECORATIVE UNDERLINES ------------------------------------ */
-/* Scattered underlines were a large part of what read as unfinished.
-   A link is colour and weight; the underline is a hover state, where it
-   carries meaning. */
+/* ===================================================================
+   5. NO DECORATIVE UNDERLINES, NO DECORATIVE RULES
+   =================================================================== */
 #trh-sb a, #trh-sb .addrec, #trh-sb .x, #trh-sb .nolink, #trh-sb .faqv {
-  text-decoration: none;
-  color: var(--navy);
-  font-weight: 600;
+  text-decoration: none; color: var(--d3); font-weight: 600;
 }
-#trh-sb a:hover, #trh-sb .addrec:hover, #trh-sb .faqv:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  color: var(--orange);
+#trh-sb a:hover, #trh-sb .addrec:hover, #trh-sb .faqv:hover, #trh-sb .x:hover {
+  text-decoration: underline; text-underline-offset: 3px;
 }
 #trh-sb .x { color: var(--dim); font-weight: 500; }
-#trh-sb .x:hover { color: var(--orange); text-decoration: underline; text-underline-offset: 3px; }
 
-/* ---- Structure: navy bands give the page its colour and its flow -- */
-#trh-sb .bar { height: 5px; width: 64px; background: var(--orange); margin-bottom: 18px; }
-
-/* The step rail is a solid navy strip. It is the spine of the page, so
-   it is the one piece of permanent colour and it anchors every step. */
-#trh-sb .steps {
-  display: flex; gap: 0; width: fit-content; max-width: 100%;
-  background: var(--navy); border: 0; overflow: hidden;
-  margin: 0 0 26px;
-}
-#trh-sb .steps span {
-  min-height: var(--tap);
-  display: inline-flex; align-items: center;
-  padding: 0 20px;
-  font-size: 13px; font-weight: 600; letter-spacing: .02em;
-  color: rgba(255,255,255,.62);
-  background: transparent; border: 0;
-  border-right: 1px solid rgba(255,255,255,.14);
-  cursor: pointer; text-transform: none;
-}
-#trh-sb .steps span:last-child { border-right: 0; }
-#trh-sb .steps span.on { background: var(--orange); color: #fff; }
-#trh-sb .steps span.on * { color: #fff; }
-
-/* ---- Surfaces ----------------------------------------------------- */
+/* ===================================================================
+   6. SURFACES AND CONTROLS
+   Sharp. Two radii, not one: a surface is not a control.
+   =================================================================== */
 #trh-sb .card, #trh-sb .wrap, #trh-sb .p, #trh-sb .bc, #trh-sb .tile,
 #trh-sb .qs, #trh-sb .scur, #trh-sb .slist, #trh-sb .sgc, #trh-sb .up,
 #trh-sb .faq details, #trh-sb .det {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 2px;
 }
-#trh-sb .card, #trh-sb .wrap { padding: 24px; margin-bottom: 20px; }
-#trh-sb .bc, #trh-sb .tile { padding: 16px; }
-#trh-sb .how { display: grid; gap: 14px; margin: 0 0 24px; }
-#trh-sb .howi {
-  background: var(--paper); border: 1px solid var(--rule);
-  border-left: 4px solid var(--orange);
-  border-radius: var(--r); padding: 14px 16px;
-}
-#trh-sb .howi b {
-  background: var(--navy); color: #fff; border-radius: 0;
-  width: 26px; height: 26px; display: inline-flex;
-  align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700; flex: none;
-}
-#trh-sb .howv {
-  background: var(--navy); color: #fff; border: 0; border-radius: var(--r);
-  min-height: var(--tap); padding: 14px 20px;
-}
-#trh-sb .howv * { color: #fff; }
-#trh-sb .howv:hover { background: var(--navy-2); }
+#trh-sb .card, #trh-sb .wrap { padding: 28px; margin-bottom: 22px; border: 0; }
+#trh-sb .bc, #trh-sb .tile { padding: 18px; }
 
-/* Section headings carry the stripe, so the page has a rhythm to scan. */
-#trh-sb .card > h3, #trh-sb .det > h4, #trh-sb .bh, #trh-sb .sgc > b {
-  display: flex; align-items: center; gap: 12px; margin-top: 0;
-}
-#trh-sb .card > h3::before, #trh-sb .det > h4::before,
-#trh-sb .bh::before, #trh-sb .sgc > b::before {
-  content: ''; width: 24px; height: 3px; background: var(--orange); flex: none;
-}
-
-/* ---- Controls: sharp, with one hard offset language --------------- */
-#trh-sb .btn, #trh-sb .tabs button, #trh-sb .mode button, #trh-sb .pos button,
-#trh-sb .sgc button, #trh-sb .lgp button, #trh-sb .slist button,
-#trh-sb .rec, #trh-sb .sw .more, #trh-sb .addrec, #trh-sb .seeall,
-#trh-sb .have, #trh-sb .fams button, #trh-sb .x,
+#trh-sb .btn, #trh-sb .fams button, #trh-sb .mode button, #trh-sb .pos button,
+#trh-sb .sgc button, #trh-sb .tabs button, #trh-sb .addrec, #trh-sb .sw .more,
+#trh-sb .seeall, #trh-sb .rec, #trh-sb .slist button, #trh-sb .lgp button,
 #trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
-#trh-sb .xtra input[type=text], #trh-sb .tcx input[type=text] {
-  border-radius: var(--rc);
-}
-#trh-sb .btn, #trh-sb .fams button, #trh-sb .mode button, #trh-sb .addrec,
-#trh-sb .sw .more, #trh-sb .seeall, #trh-sb .rec, #trh-sb .pos button {
-  min-height: var(--tap);
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 8px; padding-inline: 18px; cursor: pointer;
+#trh-sb .xtra input[type=text] { border-radius: 0; }
+
+#trh-sb .btn, #trh-sb .fams button, #trh-sb .mode button, #trh-sb .pos button,
+#trh-sb .addrec, #trh-sb .sw .more, #trh-sb .seeall, #trh-sb .rec {
+  min-height: var(--tap); display: inline-flex; align-items: center;
+  justify-content: center; gap: 8px; padding-inline: 20px; cursor: pointer;
 }
 
 #trh-sb .btn {
-  background: var(--navy); color: #fff; border: 1px solid var(--navy);
-  font-size: 15px; text-transform: none; letter-spacing: normal;
-  transition: background .12s, transform .1s, box-shadow .12s;
+  background: var(--d2); color: #fff; border: 1px solid var(--d2);
+  font-size: 15px; font-weight: 700; text-transform: none; letter-spacing: normal;
+  transition: background .12s;
 }
-#trh-sb .btn:hover:not(:disabled) { background: var(--navy-2); border-color: var(--navy-2); }
-#trh-sb .btn:disabled { opacity: .4; cursor: not-allowed; }
+#trh-sb .btn:hover:not(:disabled) { background: var(--d1); border-color: var(--d1); }
+#trh-sb .btn:disabled { background: var(--wash); border-color: var(--rule); color: var(--dim); opacity: 1; cursor: not-allowed; }
 
-/* THE ONE ACCENT: the action the page exists to get. */
+/* The one action the page exists to get. Blue, not red. */
 #trh-sb .btn.or {
-  background: var(--orange); border-color: var(--orange); color: #fff;
-  font-size: 16px; padding-inline: 26px;
-  box-shadow: 4px 4px 0 0 var(--navy);
+  background: var(--d3); border-color: var(--d3); color: #fff;
+  font-size: 16px; padding-inline: 28px;
 }
-#trh-sb .btn.or:hover:not(:disabled) {
-  background: #ef4228; border-color: #ef4228;
-  transform: translate(-2px,-2px); box-shadow: 6px 6px 0 0 var(--navy);
-}
-#trh-sb .btn.or:active:not(:disabled) { transform: translate(4px,4px); box-shadow: none; }
+#trh-sb .btn.or:hover:not(:disabled) { background: #1a4290; border-color: #1a4290; }
 
 #trh-sb .fams button, #trh-sb .mode button, #trh-sb .pos button, #trh-sb .sgc button {
   background: var(--paper); border: 1px solid var(--rule);
-  color: var(--navy); font-weight: 600; font-size: 14px;
-  transition: all .12s;
+  color: var(--d2); font-weight: 600; font-size: 14px; transition: all .12s;
 }
-#trh-sb .fams button:hover, #trh-sb .mode button:hover, #trh-sb .pos button:hover {
-  border-color: var(--navy);
+#trh-sb .fams button:hover, #trh-sb .mode button:hover, #trh-sb .pos button:hover { border-color: var(--d3); }
+#trh-sb .fams button.on, #trh-sb .mode button.on, #trh-sb .pos button.on,
+#trh-sb .sgc button.on, #trh-sb .tabs button.on {
+  background: var(--d2); border-color: var(--d2); color: #fff;
 }
-#trh-sb .fams button.on, #trh-sb .mode button.on,
-#trh-sb .pos button.on, #trh-sb .sgc button.on, #trh-sb .tabs button.on {
-  background: var(--navy); border-color: var(--navy); color: #fff;
-  box-shadow: 3px 3px 0 0 var(--orange);
-}
-#trh-sb .fams button.on *, #trh-sb .mode button.on *,
-#trh-sb .pos button.on *, #trh-sb .tabs button.on * { color: #fff; }
+#trh-sb .fams button.on *, #trh-sb .mode button.on *, #trh-sb .pos button.on * { color: #fff; }
 
-/* ---- Fields ------------------------------------------------------- */
+/* ---- Fields ---- */
+#trh-sb label.f { font-size: 14px; font-weight: 700; color: var(--d2); text-transform: none; letter-spacing: normal; }
 #trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
 #trh-sb .xtra input[type=text] {
-  background: var(--field); border: 1px solid transparent;
-  border-left: 3px solid transparent;
-  min-height: var(--tap); font-size: 16px; padding: 10px 14px;
+  background: var(--wash); border: 1px solid transparent;
+  min-height: var(--tap); font-size: 16px; padding: 11px 14px;
   transition: border-color .12s, background .12s;
 }
 #trh-sb label.f input:focus, #trh-sb label.f textarea:focus,
 #trh-sb label.f select:focus, #trh-sb .xtra input[type=text]:focus {
-  background: var(--paper); border-color: var(--rule);
-  border-left-color: var(--orange); outline: none;
+  background: var(--paper); border-color: var(--d3); outline: none;
 }
-#trh-sb label.f { font-size: 14px; font-weight: 600; color: var(--navy); text-transform: none; letter-spacing: normal; }
 
-/* ---- Swatches stay round, with a real tap area -------------------- */
+/* ---- Swatches ---- */
 #trh-sb .sw button, #trh-sb .sw.named button i, #trh-sb .fams button i,
 #trh-sb .bcol button, #trh-sb .tcbar i { border-radius: 50%; }
 #trh-sb .sw button, #trh-sb .bcol button { position: relative; cursor: pointer; }
@@ -514,80 +568,23 @@
   width: var(--tap); height: var(--tap); transform: translate(-50%,-50%);
 }
 #trh-sb .sw button.on, #trh-sb .bcol button.on, #trh-sb .sw.named button.on {
-  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--navy);
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--d3);
 }
 
-/* ---- Product cards lift against an accent edge -------------------- */
-#trh-sb .tile, #trh-sb .bc {
-  border-bottom: 2px solid transparent;
-  transition: border-color .12s, transform .12s, box-shadow .12s;
-}
+/* ---- Product cards: the image leads, the text labels ---- */
+#trh-sb .tile, #trh-sb .bc { transition: border-color .12s, box-shadow .12s, transform .12s; }
 #trh-sb .tile:hover, #trh-sb .bc:hover {
-  border-bottom-color: var(--orange);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 22px rgba(16,21,31,.08);
+  border-color: var(--d3); transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(10,24,50,.09);
 }
-#trh-sb .tile.sel { border-color: var(--navy); border-bottom-color: var(--orange); }
+#trh-sb .tile.sel { border-color: var(--d2); box-shadow: inset 0 0 0 1px var(--d2); }
 #trh-sb .price, #trh-sb .tile .price, #trh-sb .bpx .price {
   font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
-  font-size: 19px; font-weight: 700; color: var(--navy); letter-spacing: -0.01em;
+  font-size: 19px; font-weight: 700; color: var(--d2); letter-spacing: -0.01em;
 }
 
-/* ---- Badges ------------------------------------------------------- */
-#trh-sb .pop { background: var(--field); color: var(--navy); font-weight: 700; }
-#trh-sb .opt { background: var(--navy); color: #fff; font-weight: 700; }
-#trh-sb .perks span { background: var(--paper); border: 1px solid var(--rule); color: var(--dim); font-size: 13px; }
+/* ---- Badges ---- */
+#trh-sb .pop { background: var(--wash); color: var(--d2); }
+#trh-sb .opt { background: var(--d2); color: #fff; }
 
-/* ---- Say it once -------------------------------------------------- */
-#trh-sb .p:not(:first-of-type) .cn { display: none; }
-#trh-sb .sws .swl { display: none; }
-#trh-sb .how { display: none; }
-#trh-sb:has(.steps span:first-child.on) .how { display: grid; }
-#trh-sb:not(:has(.steps span:first-child.on)) .lead,
-#trh-sb:not(:has(.steps span:first-child.on)) .perks { display: none; }
-
-/* ---- Focus ------------------------------------------------------- */
-#trh-sb :focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
-
-#trh-sb { max-width: none; }
-
-/* ---- The floor, completed ---------------------------------------- */
-/* These are the classes still rendering under 13px after the rewrite,
-   found by walking step 2 rather than guessed: a bundle item label, a
-   colour name, the logo position row, and three small controls. */
-#trh-sb .bpx .bl,
-#trh-sb .rec span,
-#trh-sb .pos span, #trh-sb .pos button,
-#trh-sb .addrec,
-#trh-sb .sw .more,
-#trh-sb .tcl,
-#trh-sb .coach b, #trh-sb .coach button,
-#trh-sb .mode span {
-  font-size: 13px !important;
-  line-height: 1.45;
-}
-
-/* ---- Section label, title case ------------------------------------ */
-/* Dropped by accident in the rewrite and it showed immediately: the
-   bundle heading went back to shouting. */
-#trh-sb .bh b, #trh-sb .sgc > b, #trh-sb .browseh b {
-  text-transform: none !important;
-  letter-spacing: normal;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--navy);
-}
-
-/* ---- A disabled button is grey, never a pale accent --------------- */
-/* "Pick your group above" was a 40% opacity orange, which reads as a
-   washed out pink rather than as unavailable, and it is the first thing
-   the eye lands on in that card. */
-#trh-sb .btn.or:disabled,
-#trh-sb .btn:disabled {
-  background: var(--field);
-  border-color: var(--rule);
-  color: var(--dim);
-  box-shadow: none;
-  opacity: 1;
-  transform: none;
-}
+#trh-sb :focus-visible { outline: 3px solid var(--d3); outline-offset: 2px; }
