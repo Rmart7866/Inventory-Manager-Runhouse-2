@@ -1,0 +1,1022 @@
+{% comment %}
+  Team Stores
+  sections/team-stores.liquid
+
+  DIRECTORY DATA SOURCE
+  Generated from the "Team Store" toggle (custom.team_store) on each collection.
+  The team-stores Cloudflare Worker compiles the list into the page metafield
+  custom.team_stores. There is no handle list in this file.
+
+  To add or remove a store: open the collection in Shopify admin and flip the
+  Team Store toggle under Metafields.
+
+  This section reads page.metafields, so it must sit on the page whose handle
+  the Worker writes to (default: team-stores).
+
+  LOAD-IN DISABLED
+{% endcomment %}
+
+{%- assign ts_data = page.metafields.custom.team_stores.value -%}
+{%- assign ts_stores = ts_data.stores -%}
+{%- assign ts_count = ts_stores | size -%}
+{%- assign sid = section.id -%}
+
+{%- assign gallery_count = 0 -%}
+{%- assign feature_count = 0 -%}
+{%- for block in section.blocks -%}
+  {%- if block.type == 'gallery_image' -%}{%- assign gallery_count = gallery_count | plus: 1 -%}{%- endif -%}
+  {%- if block.type == 'team_store' -%}{%- assign feature_count = feature_count | plus: 1 -%}{%- endif -%}
+{%- endfor -%}
+
+<style>
+
+  #ts-{{ sid }} {
+    --ts-header-offset: {{ section.settings.header_offset }}px;
+
+    --ts-ink:    {{ section.settings.text_color }};
+    --ts-deep:   {{ section.settings.dark_color }};
+    --ts-accent: {{ section.settings.accent_color }};
+    --ts-glow:   {{ section.settings.highlight_color }};
+    --ts-accent-wash: {{ section.settings.accent_color | color_modify: 'alpha', 0.09 }};
+
+    --ts-mid:   #55637a;
+    --ts-low:   #97a2b3;
+    --ts-rule:  #d5dae2;
+    --ts-wash:  #f2f4f7;
+    --ts-paper: #ffffff;
+
+    font-family: 'Chivo', system-ui, sans-serif;
+    background: {{ section.settings.section_bg }};
+    color: var(--ts-ink);
+    isolation: isolate;
+    position: relative;
+    z-index: 1;
+  }
+
+  #ts-{{ sid }} *,
+  #ts-{{ sid }} *::before,
+  #ts-{{ sid }} *::after { box-sizing: border-box; }
+
+  #ts-{{ sid }} h1,
+  #ts-{{ sid }} h2,
+  #ts-{{ sid }} h3,
+  #ts-{{ sid }} p {
+    margin: 0;
+    padding: 0;
+    font-family: 'Chivo', system-ui, sans-serif !important;
+  }
+
+  #ts-{{ sid }} .ts-wrap {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  /* Kicker on light. */
+  #ts-{{ sid }} .ts-kicker {
+    display: inline-block;
+    padding: 6px 11px;
+    background: var(--ts-deep);
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ts-glow) !important;
+    margin-bottom: 18px !important;
+  }
+
+  /* Kicker on dark flips: volt slab, dark type. */
+  #ts-{{ sid }} .ts-dark .ts-kicker {
+    background: var(--ts-glow);
+    color: var(--ts-deep) !important;
+  }
+
+  #ts-{{ sid }} .ts-h2 {
+    font-size: clamp(28px, 3.4vw, 40px) !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.028em;
+    line-height: 1.05 !important;
+    color: var(--ts-ink) !important;
+    margin-bottom: 36px !important;
+  }
+
+  /* -------------------------------------------------------------- hero */
+
+  #ts-{{ sid }} .ts-hero {
+    position: relative;
+    width: 100%;
+    height: 560px;
+    overflow: hidden;
+    background: var(--ts-deep);
+    border-bottom: 3px solid var(--ts-deep);
+  }
+
+  #ts-{{ sid }} .ts-hero img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    filter: saturate(1.15) contrast(1.08) brightness(0.86);
+  }
+
+  /* A hard slab, not a soft gradient. */
+  #ts-{{ sid }} .ts-hero-plate {
+    position: absolute;
+    left: 40px;
+    bottom: 40px;
+    max-width: 780px;
+    padding: 36px 40px;
+    background: var(--ts-deep);
+  }
+
+  #ts-{{ sid }} .ts-hero-plate h1 {
+    font-size: clamp(32px, 4.4vw, 54px) !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.032em;
+    line-height: 1 !important;
+    color: #fff !important;
+    margin-bottom: 14px !important;
+  }
+
+  #ts-{{ sid }} .ts-hero-plate p {
+    font-size: 17px !important;
+    line-height: 1.5 !important;
+    color: rgba(255,255,255,0.72) !important;
+  }
+
+  /* -------------------------------------------------- CTA (now on top) */
+
+  #ts-{{ sid }} .ts-cta {
+    background: var(--ts-deep);
+    border-bottom: 3px solid var(--ts-deep);
+    padding: 72px 0 78px;
+  }
+
+  #ts-{{ sid }} .ts-cta-inner {
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    gap: 56px;
+    align-items: center;
+  }
+
+  #ts-{{ sid }} .ts-cta h2 {
+    font-size: clamp(30px, 3.8vw, 46px) !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.032em;
+    line-height: 1.02 !important;
+    color: #fff !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* The bright bit. */
+  #ts-{{ sid }} .ts-cta h2 em {
+    font-style: normal;
+    color: var(--ts-glow);
+  }
+
+  #ts-{{ sid }} .ts-cta p {
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    color: rgba(255,255,255,0.7) !important;
+    max-width: 62ch;
+  }
+
+  #ts-{{ sid }} .ts-mail {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 26px;
+    background: var(--ts-glow);
+    border: 2px solid var(--ts-glow);
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    color: var(--ts-deep) !important;
+    text-decoration: none !important;
+    word-break: break-word;
+    transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+  }
+
+  /* The builder button. Deliberately the same shape and the same hard
+     offset hover as .ts-mail, because it takes over as the primary
+     action and the page has already taught the eye what that button
+     looks like. */
+  #ts-{{ sid }} .ts-build {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 26px;
+    background: var(--ts-glow);
+    color: var(--ts-deep) !important;
+    border: 2px solid var(--ts-glow);
+    font-size: 16px;
+    font-weight: 900;
+    text-decoration: none !important;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+  }
+  #ts-{{ sid }} .ts-build::after { content: '\2192'; font-weight: 900; transition: transform 0.12s ease; }
+  #ts-{{ sid }} .ts-build:hover {
+    background: transparent;
+    color: var(--ts-glow) !important;
+    box-shadow: 6px 6px 0 0 var(--ts-accent);
+    transform: translate(-2px, -2px);
+    text-decoration: none !important;
+  }
+  #ts-{{ sid }} .ts-build:hover::after { transform: translateX(4px); }
+
+  #ts-{{ sid }} .ts-cta-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+
+  #ts-{{ sid }} .ts-build-note {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    color: rgba(255,255,255,0.62) !important;
+    margin: 0 !important;
+    max-width: 34ch;
+  }
+
+  /* Demoted to an outline so the two actions cannot compete. */
+  #ts-{{ sid }} .ts-mail--alt {
+    background: transparent;
+    border-color: rgba(255,255,255,0.35);
+    color: #fff !important;
+    font-weight: 700;
+    padding: 14px 20px;
+    font-size: 14px;
+  }
+  #ts-{{ sid }} .ts-mail--alt:hover {
+    background: transparent;
+    border-color: var(--ts-glow);
+    color: var(--ts-glow) !important;
+    box-shadow: none;
+    transform: none;
+  }
+
+  #ts-{{ sid }} .ts-mail::after {
+    content: '\2192';
+    font-weight: 900;
+    transition: transform 0.12s ease;
+  }
+
+  #ts-{{ sid }} .ts-mail:hover {
+    background: transparent;
+    color: var(--ts-glow) !important;
+    box-shadow: 6px 6px 0 0 var(--ts-accent);
+    transform: translate(-2px, -2px);
+    text-decoration: none !important;
+  }
+
+  #ts-{{ sid }} .ts-mail:hover::after { transform: translateX(4px); }
+
+  /* ----------------------------------------------------------- gallery */
+
+  #ts-{{ sid }} .ts-gallery {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    padding: 80px 0;
+  }
+
+  #ts-{{ sid }} .ts-gallery-item {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border: 2px solid var(--ts-deep);
+    transition: box-shadow 0.12s ease, transform 0.12s ease;
+  }
+
+  #ts-{{ sid }} .ts-gallery-item:hover {
+    box-shadow: 8px 8px 0 0 var(--ts-glow);
+    transform: translate(-3px, -3px);
+  }
+
+  #ts-{{ sid }} .ts-gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    filter: saturate(1.2) contrast(1.06);
+  }
+
+  #ts-{{ sid }} .ts-gallery-cap {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    padding: 10px 14px;
+    background: var(--ts-deep);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ts-glow);
+  }
+
+  /* ---------------------------------------------------------- featured */
+
+  #ts-{{ sid }} .ts-features { padding: 0 0 72px; }
+
+  #ts-{{ sid }} .ts-feature {
+    position: relative;
+    height: 460px;
+    margin-bottom: 24px;
+    overflow: hidden;
+    border: 2px solid var(--ts-deep);
+    background: var(--ts-deep);
+  }
+
+  #ts-{{ sid }} .ts-feature:last-child { margin-bottom: 0; }
+
+  #ts-{{ sid }} .ts-feature img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    filter: saturate(1.15) contrast(1.06) brightness(0.9);
+  }
+
+  #ts-{{ sid }} .ts-feature-plate {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    max-width: 640px;
+    padding: 30px 36px;
+    background: var(--ts-deep);
+  }
+
+  #ts-{{ sid }} .ts-feature-plate h3 {
+    font-size: 28px !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.025em;
+    color: #fff !important;
+    margin-bottom: 10px !important;
+  }
+
+  #ts-{{ sid }} .ts-feature-plate p {
+    font-size: 15px !important;
+    line-height: 1.55 !important;
+    color: rgba(255,255,255,0.72) !important;
+  }
+
+  /* --------------------------------------------------------- directory */
+
+  #ts-{{ sid }} .ts-dir-band {
+    border-top: 3px solid var(--ts-deep);
+    padding: 72px 0 88px;
+  }
+
+  #ts-{{ sid }} .ts-search {
+    position: sticky;
+    top: var(--ts-header-offset);
+    z-index: 20;
+    padding: 12px 0;
+    background: {{ section.settings.section_bg }};
+  }
+
+  #ts-{{ sid }} .ts-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  #ts-{{ sid }} .ts-field > svg {
+    position: absolute;
+    left: 20px;
+    width: 20px;
+    height: 20px;
+    color: var(--ts-low);
+    pointer-events: none;
+    transition: color 0.12s ease;
+  }
+
+  #ts-{{ sid }} .ts-field:focus-within > svg { color: var(--ts-accent); }
+
+  #ts-{{ sid }} .ts-input {
+    width: 100% !important;
+    height: 62px;
+    padding: 0 60px 0 54px !important;
+    font-family: 'Chivo', system-ui, sans-serif !important;
+    font-size: 17px !important;
+    font-weight: 500 !important;
+    color: var(--ts-ink) !important;
+    background: var(--ts-paper) !important;
+    border: 2px solid var(--ts-deep) !important;
+    border-radius: 0 !important;
+    outline: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  #ts-{{ sid }} .ts-input::placeholder { color: var(--ts-low) !important; font-weight: 400 !important; }
+
+  #ts-{{ sid }} .ts-input:focus {
+    border-color: var(--ts-accent) !important;
+    box-shadow: 5px 5px 0 0 var(--ts-glow) !important;
+  }
+
+  #ts-{{ sid }} .ts-clear {
+    position: absolute;
+    right: 12px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--ts-deep);
+    background: var(--ts-wash);
+    border: 0;
+    border-radius: 0;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+
+  #ts-{{ sid }} .ts-clear:hover { background: var(--ts-deep); color: var(--ts-glow); }
+  #ts-{{ sid }} .ts-clear.is-on { display: flex; }
+
+  #ts-{{ sid }} .ts-tally {
+    padding: 18px 0 22px;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ts-mid) !important;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #ts-{{ sid }} .ts-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  /* No image data: a huge ghosted initial IS the field, name set on top. */
+  #ts-{{ sid }} .ts-card {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    min-height: 132px;
+    padding: 18px 20px;
+    overflow: hidden;
+    background: var(--ts-paper);
+    border: 2px solid var(--ts-deep);
+    text-decoration: none !important;
+    color: var(--ts-ink) !important;
+    transition: box-shadow 0.12s ease, transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+  }
+
+  #ts-{{ sid }} .ts-card.is-hidden { display: none; }
+
+  #ts-{{ sid }} .ts-initial {
+    position: absolute;
+    top: -22px;
+    right: -8px;
+    font-size: 108px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.06em;
+    color: var(--ts-accent);
+    opacity: 0.16;
+    pointer-events: none;
+    user-select: none;
+    transition: color 0.12s ease, opacity 0.12s ease, transform 0.12s ease;
+  }
+
+  #ts-{{ sid }} .ts-card-name {
+    position: relative;
+    z-index: 1;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+  }
+
+  /* Hover: the card goes dark, the initial lights up volt. */
+  #ts-{{ sid }} .ts-card:hover,
+  #ts-{{ sid }} .ts-card:focus-visible {
+    background: var(--ts-deep);
+    color: #fff !important;
+    box-shadow: 8px 8px 0 0 var(--ts-glow);
+    transform: translate(-3px, -3px);
+    text-decoration: none !important;
+    outline: none;
+  }
+
+  #ts-{{ sid }} .ts-card:hover .ts-initial,
+  #ts-{{ sid }} .ts-card:focus-visible .ts-initial {
+    color: var(--ts-glow);
+    opacity: 0.9;
+    transform: translate(-4px, 4px);
+  }
+
+  /* ------------------------------------------------------------- empty */
+
+  #ts-{{ sid }} .ts-empty {
+    display: none;
+    padding: 80px 24px;
+    text-align: center;
+    border: 2px solid var(--ts-deep);
+    background: var(--ts-wash);
+  }
+
+  #ts-{{ sid }} .ts-empty.is-on { display: block; }
+
+  #ts-{{ sid }} .ts-empty-head {
+    font-size: 22px !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px !important;
+  }
+
+  #ts-{{ sid }} .ts-empty-sub {
+    font-size: 15px !important;
+    color: var(--ts-mid) !important;
+  }
+
+  #ts-{{ sid }} .ts-pending {
+    padding: 80px 24px;
+    text-align: center;
+    color: var(--ts-mid) !important;
+    border: 2px dashed var(--ts-rule);
+  }
+
+  /* -------------------------------------------------------- responsive */
+
+  @media (max-width: 1100px) {
+    #ts-{{ sid }} .ts-cta-inner { grid-template-columns: 1fr; gap: 32px; }
+    #ts-{{ sid }} .ts-grid { grid-template-columns: repeat(3, 1fr); }
+    #ts-{{ sid }} .ts-gallery { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 768px) {
+    #ts-{{ sid }} .ts-wrap { padding: 0 18px; }
+
+    #ts-{{ sid }} .ts-hero { height: 400px; }
+    #ts-{{ sid }} .ts-hero-plate {
+      left: 0;
+      right: 0;
+      bottom: 0;
+      max-width: none;
+      padding: 24px 20px;
+    }
+
+    #ts-{{ sid }} .ts-cta { padding: 48px 0 54px; }
+    #ts-{{ sid }} .ts-mail { font-size: 15px; padding: 16px 20px; }
+
+    #ts-{{ sid }} .ts-gallery { grid-template-columns: 1fr; padding: 48px 0; }
+    #ts-{{ sid }} .ts-feature { height: 340px; }
+    #ts-{{ sid }} .ts-feature-plate { max-width: none; right: 0; padding: 22px 20px; }
+    #ts-{{ sid }} .ts-feature-plate h3 { font-size: 22px !important; }
+
+    #ts-{{ sid }} .ts-dir-band { padding: 48px 0 60px; }
+    #ts-{{ sid }} .ts-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    #ts-{{ sid }} .ts-card { min-height: 110px; padding: 14px 16px; }
+    #ts-{{ sid }} .ts-card-name { font-size: 13px; }
+    #ts-{{ sid }} .ts-initial { font-size: 84px; top: -16px; }
+    #ts-{{ sid }} .ts-input { height: 56px; font-size: 16px !important; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #ts-{{ sid }} *,
+    #ts-{{ sid }} *::before,
+    #ts-{{ sid }} *::after { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div id="ts-{{ sid }}" class="ts" data-ts-root>
+
+  <!-- Hero -->
+  {%- if section.settings.hero_image != blank -%}
+    <div class="ts-hero">
+      <img src="{{ section.settings.hero_image | image_url: width: 2400 }}"
+           alt="{{ section.settings.section_heading | escape }}"
+           width="{{ section.settings.hero_image.width }}"
+           height="{{ section.settings.hero_image.height }}">
+      <div class="ts-hero-plate">
+        <h1>{{ section.settings.section_heading }}</h1>
+        {%- if section.settings.description != blank -%}
+          <p>{{ section.settings.description }}</p>
+        {%- endif -%}
+      </div>
+    </div>
+  {%- endif -%}
+
+  <!-- Create your team store -->
+  <div class="ts-cta ts-dark">
+    <div class="ts-wrap">
+      <div class="ts-cta-inner">
+        <div>
+          <p class="ts-kicker">Get Started</p>
+          <h2>Create your <em>team store</em></h2>
+          {%- if section.settings.contact_blurb != blank -%}
+            <p>{{ section.settings.contact_blurb }}</p>
+          {%- endif -%}
+        </div>
+        {%- comment -%}
+          THE BUILDER IS THE PRIMARY ACTION HERE, the email is the fallback.
+          This block used to offer a mailto and nothing else, so the only
+          way to start a store was to write to somebody and wait. The
+          builder lets an organiser pick products and colours themselves
+          and get a preview back, so it leads, and the address stays for
+          the ones who would rather just ask.
+
+          The link resolves through the pages object rather than a typed
+          path, so an unpublished or renamed page yields blank and the
+          button is simply not rendered rather than becoming a dead link.
+          builder_link overrides it if the builder ever moves.
+        {%- endcomment -%}
+        {%- assign builder_url = section.settings.builder_link -%}
+        {%- if builder_url == blank -%}
+          {%- assign builder_url = pages['build-your-store'].url -%}
+        {%- endif -%}
+
+        <div class="ts-cta-actions">
+          {%- if builder_url != blank -%}
+            <a href="{{ builder_url }}" class="ts-build">{{ section.settings.builder_label | default: 'Build your store' }}</a>
+            {%- if section.settings.builder_note != blank -%}
+              <p class="ts-build-note">{{ section.settings.builder_note }}</p>
+            {%- endif -%}
+          {%- endif -%}
+
+          {%- if section.settings.contact_email != blank -%}
+            <a href="mailto:{{ section.settings.contact_email }}" class="ts-mail ts-mail--alt">{{ section.settings.contact_email }}</a>
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ts-wrap">
+
+    <!-- Gallery -->
+    {%- if gallery_count > 0 -%}
+      <div class="ts-gallery">
+        {%- for block in section.blocks -%}
+          {%- if block.type == 'gallery_image' and block.settings.image != blank -%}
+            <div class="ts-gallery-item" {{ block.shopify_attributes }}>
+              <img src="{{ block.settings.image | image_url: width: 900 }}"
+                   alt="{{ block.settings.caption | escape }}"
+                   loading="lazy"
+                   width="{{ block.settings.image.width }}"
+                   height="{{ block.settings.image.height }}">
+              {%- if block.settings.caption != blank -%}
+                <span class="ts-gallery-cap">{{ block.settings.caption }}</span>
+              {%- endif -%}
+            </div>
+          {%- endif -%}
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+
+    <!-- Featured stores -->
+    {%- if feature_count > 0 -%}
+      <div class="ts-features">
+        {%- for block in section.blocks -%}
+          {%- if block.type == 'team_store' -%}
+            <div class="ts-feature" {{ block.shopify_attributes }}>
+              {%- if block.settings.store_image != blank -%}
+                <img src="{{ block.settings.store_image | image_url: width: 1800 }}"
+                     alt="{{ block.settings.store_title | escape }}"
+                     loading="lazy">
+              {%- endif -%}
+              <div class="ts-feature-plate">
+                <h3>{{ block.settings.store_title }}</h3>
+                {%- if block.settings.store_description != blank -%}
+                  <p>{{ block.settings.store_description }}</p>
+                {%- endif -%}
+              </div>
+            </div>
+          {%- endif -%}
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+
+  </div>
+
+  <!-- Directory -->
+  {%- if section.settings.show_directory -%}
+    <div class="ts-dir-band">
+      <div class="ts-wrap">
+        <p class="ts-kicker">Directory</p>
+        {%- if section.settings.directory_heading != blank -%}
+          <h2 class="ts-h2">{{ section.settings.directory_heading }}</h2>
+        {%- endif -%}
+
+        {%- if ts_count > 0 -%}
+
+          <div class="ts-search">
+            <div class="ts-field">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="8.5" cy="8.5" r="5.5"/>
+                <path d="M12.7 12.7 17 17" stroke-linecap="round"/>
+              </svg>
+              <input type="text"
+                     id="ts-input-{{ sid }}"
+                     class="ts-input"
+                     data-ts-input
+                     placeholder="Search {{ ts_count }} team stores"
+                     autocomplete="off"
+                     spellcheck="false"
+                     aria-label="Search team stores">
+              <button type="button" class="ts-clear" data-ts-clear aria-label="Clear search">&times;</button>
+            </div>
+          </div>
+
+          <p class="ts-tally" data-ts-tally aria-live="polite">Showing all {{ ts_count }} team stores</p>
+
+          <div class="ts-grid" data-ts-grid>
+            {%- for store in ts_stores -%}
+              <a href="/collections/{{ store.h }}"
+                 class="ts-card"
+                 data-search="{{ store.t | downcase | append: ' ' | append: store.h | replace: '-', ' ' | escape }}">
+                <span class="ts-initial" aria-hidden="true">{{ store.t | slice: 0 | upcase }}</span>
+                <span class="ts-card-name">{{ store.t }}</span>
+              </a>
+            {%- endfor -%}
+          </div>
+
+          <div class="ts-empty" data-ts-empty>
+            <p class="ts-empty-head">No teams match <span data-ts-term></span></p>
+            <p class="ts-empty-sub">Try the school name, the town, or the sport.</p>
+          </div>
+
+        {%- else -%}
+
+          <div class="ts-pending">
+            <p>The team store list is being rebuilt. Check back in a few minutes.</p>
+          </div>
+
+        {%- endif -%}
+      </div>
+    </div>
+  {%- endif -%}
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function boot(root) {
+    if (root.dataset.tsReady === '1') return;
+    root.dataset.tsReady = '1';
+
+    var input = root.querySelector('[data-ts-input]');
+    var clear = root.querySelector('[data-ts-clear]');
+    var tally = root.querySelector('[data-ts-tally]');
+    var grid  = root.querySelector('[data-ts-grid]');
+    var empty = root.querySelector('[data-ts-empty]');
+    var term  = root.querySelector('[data-ts-term]');
+
+    if (!input || !grid) return;
+
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('.ts-card'));
+    var total = cards.length;
+
+    // Cache the match strings once. A keystroke never reads the DOM.
+    var haystack = cards.map(function (el) { return el.getAttribute('data-search') || ''; });
+
+    function filter() {
+      var q = input.value.toLowerCase().trim();
+      var shown = 0;
+
+      clear.classList.toggle('is-on', q.length > 0);
+
+      for (var i = 0; i < total; i++) {
+        var hit = q === '' || haystack[i].indexOf(q) !== -1;
+        cards[i].classList.toggle('is-hidden', !hit);
+        if (hit) shown++;
+      }
+
+      if (shown === 0 && q !== '') {
+        grid.style.display = 'none';
+        empty.classList.add('is-on');
+        if (term) term.textContent = '"' + input.value.trim() + '"';
+        tally.textContent = 'No matches';
+      } else {
+        grid.style.display = '';
+        empty.classList.remove('is-on');
+        tally.textContent = q === ''
+          ? 'Showing all ' + total + ' team stores'
+          : shown + ' of ' + total + ' team stores';
+      }
+    }
+
+    function reset() {
+      input.value = '';
+      filter();
+      input.focus();
+    }
+
+    input.addEventListener('input', filter);
+    clear.addEventListener('click', reset);
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { reset(); return; }
+      if (e.key === 'Enter') {
+        var first = grid.querySelector('.ts-card:not(.is-hidden)');
+        if (first) { e.preventDefault(); window.location.href = first.href; }
+      }
+    });
+
+    // "/" jumps to search from anywhere on the page.
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      var t = e.target.tagName;
+      if (t === 'INPUT' || t === 'TEXTAREA' || e.target.isContentEditable) return;
+      e.preventDefault();
+      input.focus();
+      input.select();
+    });
+  }
+
+  function init() { document.querySelectorAll('[data-ts-root]').forEach(boot); }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  document.addEventListener('shopify:section:load', function (e) {
+    var root = e.target.querySelector('[data-ts-root]');
+    if (root) boot(root);
+  });
+})();
+</script>
+
+{% schema %}
+{
+  "name": "Team Stores",
+  "tag": "section",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "The directory is generated from the Team Store toggle on each collection. To add or remove a store, open the collection and flip that toggle. This section must sit on the page the Worker writes to."
+    },
+    {
+      "type": "text",
+      "id": "section_heading",
+      "label": "Hero Heading",
+      "default": "Team Stores"
+    },
+    {
+      "type": "textarea",
+      "id": "description",
+      "label": "Hero Description",
+      "default": "Permanent online stores for your school, club, or organization. Open 24/7, so members order branded gear whenever they need it."
+    },
+    {
+      "type": "image_picker",
+      "id": "hero_image",
+      "label": "Hero Image"
+    },
+    {
+      "type": "header",
+      "content": "Store Directory"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_directory",
+      "label": "Show Store Directory",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "directory_heading",
+      "label": "Directory Heading",
+      "default": "Find your team"
+    },
+    {
+      "type": "range",
+      "id": "header_offset",
+      "label": "Sticky header height",
+      "info": "Raise this if your theme header is sticky, so the search bar does not tuck underneath it.",
+      "min": 0,
+      "max": 140,
+      "step": 4,
+      "unit": "px",
+      "default": 0
+    },
+    {
+      "type": "header",
+      "content": "Contact"
+    },
+    {
+      "type": "text",
+      "id": "builder_label",
+      "label": "Builder button label",
+      "default": "Build your store"
+    },
+    {
+      "type": "text",
+      "id": "builder_note",
+      "label": "Builder button note",
+      "default": "Pick your products and colors, and see a free preview before anything goes live."
+    },
+    {
+      "type": "url",
+      "id": "builder_link",
+      "label": "Builder link",
+      "info": "Leave blank and the Build Your Team Store page is linked automatically."
+    },
+    {
+      "type": "textarea",
+      "id": "contact_blurb",
+      "label": "Contact Blurb",
+      "default": "Chat with us today to set up a custom team store for your organization. We offer customization options like names and numbers, and a wide range of products including apparel, hats, water bottles, and more. Typically 2-week shipping for all orders."
+    },
+    {
+      "type": "text",
+      "id": "contact_email",
+      "label": "Contact Email",
+      "default": "teamstores@therunhouse.com"
+    },
+    {
+      "type": "header",
+      "content": "Colors"
+    },
+    {
+      "type": "color",
+      "id": "section_bg",
+      "label": "Section Background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text",
+      "default": "#0a1a2f"
+    },
+    {
+      "type": "color",
+      "id": "dark_color",
+      "label": "Dark",
+      "info": "Used for dark bands, plates, and all borders.",
+      "default": "#05101d"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent",
+      "default": "#2b7fff"
+    },
+    {
+      "type": "color",
+      "id": "highlight_color",
+      "label": "Highlight",
+      "info": "The bright one. Deep cyan by default. Used sparingly on dark.",
+      "default": "#06b6d4"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "gallery_image",
+      "name": "Gallery Image",
+      "settings": [
+        {
+          "type": "image_picker",
+          "id": "image",
+          "label": "Image"
+        },
+        {
+          "type": "text",
+          "id": "caption",
+          "label": "Caption (Optional)"
+        }
+      ]
+    },
+    {
+      "type": "team_store",
+      "name": "Featured Team Store",
+      "settings": [
+        {
+          "type": "image_picker",
+          "id": "store_image",
+          "label": "Team Store Image"
+        },
+        {
+          "type": "text",
+          "id": "store_title",
+          "label": "Team Name"
+        },
+        {
+          "type": "textarea",
+          "id": "store_description",
+          "label": "Team Description"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Team Stores",
+      "category": "Custom Sections"
+    }
+  ]
+}
+{% endschema %}
+
+
+

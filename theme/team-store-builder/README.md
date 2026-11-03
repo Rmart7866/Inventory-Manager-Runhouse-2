@@ -27,6 +27,7 @@ admin's Rich Text mode away from being destroyed.
 | `snippets/team-store-builder.liquid` | the markup and the app, verbatim, wrapped in `raw` |
 | `assets/trh-builder.css` | the builder's original stylesheet, then the restyle |
 | `sections/main-page.liquid` | renders the builder when the handle matches |
+| `sections/team-stores-search.liquid` | the Team Stores page, with the builder link added to its CTA |
 
 `assets/_override-only.css` is the restyle on its own. It is NOT uploaded
 and nothing reads it. It is the tail of `trh-builder.css`, split out so
@@ -78,6 +79,49 @@ Nothing is hardcoded. The values read the custom properties that
 `snippets/css-variables.liquid` sets from theme settings, so a colour or
 font changed in the theme editor moves the builder with the rest of the
 site rather than leaving it behind.
+
+## The link in from Team Stores
+
+`/pages/team-stores` is template `team-store`, whose body is EMPTY, so it
+is entirely `sections/team-stores-search.liquid`. Its "Create your team
+store" block used to offer a mailto address and nothing else, so the only
+way to start a store was to write to somebody and wait.
+
+The builder is now the primary action there and the address is the
+fallback, as a `.ts-build` button with the same shape and the same hard
+offset hover as the existing `.ts-mail`, because the page had already
+taught the eye what that button looks like. The email is demoted to an
+outline so the two cannot compete.
+
+**The link resolves through the `pages` object, never a typed path.** An
+unpublished or renamed page yields blank and the button is simply not
+rendered, rather than becoming a dead link. `builder_link` in the section
+settings overrides it if the builder ever moves, and `builder_label` and
+`builder_note` are editable too.
+
+**That page keeps its own palette and that is deliberate.** It is navy
+and cyan from its own `section.settings`, not the storefront's black,
+white and orange. The builder was restyled to the STORE, this section was
+matched to ITSELF, so there is a visual handoff between the two. Worth
+knowing before anyone calls one of them a bug.
+
+## One accent, one meaning
+
+The restyle's one real judgement call, recorded because it is the thing
+most likely to be argued with.
+
+`.btn.or` KEEPS the accent. It marks the three commit actions, the
+storefront's black button is already in use for everything secondary
+here, so colour is the only hierarchy left and the conversion action
+should own it.
+
+What changed is everything else that was wearing the same orange. A grid
+of tees put four `POPULAR` badges on screen next to the one orange button
+that wanted the click, and the review step put a `Remove` link on every
+line, six of them against one Send. Measured on a six item store: 23
+elements on that screen were drawing in the accent, now 17. Badges are
+black, Remove is a grey underline that only colours on hover, which is
+where a destructive control belongs.
 
 ## Its other dependencies, which are NOT in the theme
 

@@ -457,3 +457,41 @@
    right for prose and wrong for a product grid, so the builder gets the
    full page width instead. */
 #trh-sb { max-width: none; }
+
+/* ---- One orange per screen ---------------------------------------- */
+/* THE ACCENT ONLY WORKS IF IT MARKS ONE THING. The builder used the
+   same orange for the commit button (.btn.or), the "Fastest" flag and
+   a POPULAR badge on every product card, so a grid of tees put four
+   orange badges on screen next to the one orange button that actually
+   wants the click.
+
+   .btn.or KEEPS the accent, deliberately: it is the single action the
+   page exists to get, and the storefront's black button is already in
+   use here for everything secondary, so colour is the only hierarchy
+   left. .opt keeps it too, because it sits inside the same card as that
+   button and the two read as one unit.
+
+   The per card POPULAR badge goes quiet. It is a label, not an action,
+   and it repeats. */
+#trh-sb .pop {
+  background: var(--colorTextBody, #000);
+  color: var(--colorBody, #fff);
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+
+/* A REMOVE LINK IS NOT THE ACTION THE PAGE WANTS. On the review step the
+   summary carries one per line, so six accent coloured Remove buttons
+   outnumbered the single accent coloured Send button and pulled the eye
+   to the destructive option. Measured on a six item store: 23 elements
+   on screen were drawing in the accent. Remove is now quiet and only
+   colours on hover, which is where a destructive control belongs. */
+#trh-sb .x {
+  color: #6b6b66;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+#trh-sb .x:hover, #trh-sb .x:focus-visible {
+  color: var(--colorCartDot, #ff4f33);
+}
