@@ -1371,3 +1371,160 @@
 #trh-sb .mode button b::before,
 #trh-sb .mode button.on b::before,
 #trh-sb b::before { content: none !important; }
+
+/* ===================================================================
+   TRACK, NOT CLINIC
+   -------------------------------------------------------------------
+   Owner: "the blue and white is giving doctors office vibes."
+
+   That reading is correct and it is a known trap: a cool blue, a lot
+   of white and even spacing is exactly the palette of a medical
+   portal. What was missing is TEXTURE and ENERGY. The fix is not more
+   colour, which would undo the deep blue direction, it is to make the
+   surfaces feel like a track and the type behave like it is shouting
+   across one.
+
+   Red stays out, as asked. The energy comes from lane geometry, a
+   darker and warmer navy rather than a clinical cyan-leaning one, and
+   type that is genuinely large.
+   =================================================================== */
+
+#trh-sb, #vmod {
+  /* Warmer and deeper. The old #0a1832 and #13284f lean cyan, which is
+     the single most clinical thing on the page. */
+  --d1: #0b1b36;
+  --d2: #16305c;
+  --d3: #2f62c4;
+  --d4: #7aa5f0;
+  --lane: rgba(255,255,255,.10);
+}
+
+/* ---- Lane lines ----------------------------------------------------
+   The hero is a track surface: six lanes running across it, at the
+   angle the cut edge already establishes. Low contrast on purpose, it
+   should read as texture at a glance and only resolve into lanes when
+   you look. */
+#trh-sb > h2, #trh-sb > .lead, #trh-sb > .how {
+  background-color: var(--d1);
+  background-image:
+    repeating-linear-gradient(
+      100deg,
+      transparent 0 86px,
+      var(--lane) 86px 88px
+    );
+}
+
+/* The store plate on step 3 is the same surface, so it gets the same
+   lanes. It is the piece that carries the team's name, which is the
+   most "race" moment in the whole flow. */
+#trh-sb .storehead {
+  background-color: var(--d1);
+  background-image:
+    repeating-linear-gradient(100deg, transparent 0 64px, var(--lane) 64px 66px);
+}
+
+/* The running tray is the finish line. */
+#trh-sb .tray {
+  background-color: var(--d1) !important;
+  background-image:
+    repeating-linear-gradient(100deg, transparent 0 54px, rgba(255,255,255,.07) 54px 56px);
+  border-top: 4px solid var(--d4);
+}
+
+/* ---- The step rail reads as lanes ---------------------------------
+   A numbered lane, with the number doing the work rather than sitting
+   small in front of a label. */
+#trh-sb .steps { gap: 34px; }
+#trh-sb .steps span {
+  font-size: 16px !important;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  gap: 10px;
+  border-bottom-width: 4px !important;
+  padding-bottom: 4px;
+}
+#trh-sb .steps span.on { border-bottom-color: var(--d3) !important; }
+
+/* ---- Bigger, bolder -----------------------------------------------
+   Chivo tops out at 600, so scale and tracking carry the weight. */
+#trh-sb > h2 {
+  font-size: clamp(48px, 8.5vw, 96px) !important;
+  letter-spacing: -0.04em;
+  line-height: .94;
+}
+#trh-sb > .lead { font-size: 20px; max-width: none; }
+#trh-sb h3 { font-size: 32px !important; letter-spacing: -0.03em; }
+#trh-sb h4, #trh-sb .bh b, #trh-sb .browseh b, #trh-sb .sgc > b {
+  font-size: 24px !important; letter-spacing: -0.02em;
+}
+#trh-sb .storehead b { font-size: 34px !important; letter-spacing: -0.02em; }
+#trh-sb .price, #trh-sb .tile .price, #trh-sb .bpx .price, #trh-sb .gal .tile .pr2 {
+  font-size: 24px !important;
+}
+#trh-sb label.f { font-size: 16px; }
+#trh-sb p, #trh-sb li { font-size: 16px; }
+
+/* ---- The badges become bib tags ------------------------------------
+   Uppercase, tracked, square. A race number, not a sticker. */
+#trh-sb .opt, #trh-sb .pop {
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  font-size: 12px !important;
+  padding: 5px 10px;
+  border-radius: 0;
+}
+#trh-sb .opt { background: var(--d3); color: #fff; }
+
+/* ---- Section headings get a lane marker ---------------------------
+   A short heavy rule under the heading rather than a thin line before
+   it. It reads as a lane edge and it is a block, not a hairline. */
+#trh-sb .bh, #trh-sb .browseh, #trh-sb .card > h3 {
+  padding-bottom: 14px;
+  position: relative;
+}
+#trh-sb .bh::after, #trh-sb .browseh::after, #trh-sb .card > h3::after {
+  content: '';
+  position: absolute; left: 0; bottom: 0;
+  width: 64px; height: 5px;
+  background: var(--d3);
+}
+/* and the old before-stripe comes off, so there is one marker not two */
+#trh-sb .card > h3::before, #trh-sb .det > h4::before,
+#trh-sb .bh::before, #trh-sb .sgc > b::before { content: none !important; }
+
+/* ---- The green strips ----------------------------------------------
+   The reassurance bar is .calm and the success toast is .toast. An
+   earlier pass styled ".ok", which is not what either of them is, so
+   the only green surfaces on a blue page survived two rounds of being
+   "fixed". Checked against the rendered element this time.
+
+   The GREEN SWATCHES ARE NOT TOUCHED: Kelly Green, Forest Green and
+   Lime are real garment colours and are data, not decoration. */
+#trh-sb .calm, #trh-sb .calm2 {
+  background: #e8eefb !important;
+  border: 0 !important;
+  border-left: 5px solid var(--d3) !important;
+  color: #2b3850 !important;
+  padding: 16px 20px !important;
+  border-radius: 0 !important;
+}
+#trh-sb .calm b, #trh-sb .calm2 b { color: var(--d1) !important; }
+#trh-sb .toast {
+  background: var(--d1) !important;
+  border: 0 !important;
+  border-left: 5px solid var(--d4) !important;
+  color: #fff !important;
+}
+#trh-sb .toast * { color: #fff !important; }
+
+/* ---- Lanes, a touch stronger ---------------------------------------
+   At 10% they read as a smudge rather than as lanes. */
+#trh-sb, #vmod { --lane: rgba(255,255,255,.16); }
+#trh-sb > h2, #trh-sb > .lead, #trh-sb > .how {
+  background-image:
+    repeating-linear-gradient(100deg, transparent 0 78px, var(--lane) 78px 81px);
+}
+#trh-sb .storehead {
+  background-image:
+    repeating-linear-gradient(100deg, transparent 0 58px, rgba(255,255,255,.15) 58px 61px);
+}
