@@ -142,6 +142,49 @@ A contrast sweep over every leaf node now reports **0 failures under
 tint over white is effectively white, and a checker that treats it as
 opaque navy reports a page full of failures that are not real.
 
+## Density, which was the real complaint
+
+"Tough on the eyes, a lot going on." That is not a colour problem, which
+is why the colour work did not fix it. Measured:
+
+| | before | after |
+|---|---|---|
+| distinct type combinations | 26 | tighter, 13px carries 246 of 405 nodes |
+| text nodes under 13px | 243 | 76 |
+| top-level bands before any product | 9 | 6 on steps 2 and 3 |
+
+Three things did most of it.
+
+**The page showed the same three steps twice.** `.how` explains them and
+`.steps` is the rail you navigate them with, sitting directly below. On
+the first screen the explainer earns its place. After that it was 76px
+of repetition above everything you were trying to work with, on every
+step. It is now conditional on step one being active, via `:has()`, and
+so are the hero pitch and the perks row, since someone picking products
+has already bought in.
+
+**Instructions repeated per card.** "Tap a color to add it" printed on
+EVERY product card, fourteen times down one screen, under a heading that
+already says it. "Team colors" labelled every swatch row. Instructions
+that repeat per card stop being instructions and become texture.
+
+**A floor of 13px.** Six sizes crammed between 10px and 12px read as
+noise rather than hierarchy. Nothing on this page is so unimportant that
+it should be hard to read.
+
+**A warning about the first attempt at this**, since the same mistake is
+easy to repeat: it targeted class names that sound right and do not
+exist here, `.fine`, `.note`, `.muted`, `.hint`, `.sub`, `.bhead`. The
+CSS was valid, deployed cleanly and changed almost nothing, while
+appearing to work. The selectors in this file were found by walking the
+RENDERED page and counting what actually carries small text. Check a
+selector matches something before trusting a rule built on it.
+
+The bundle cards were the last of the card soup: five bordered boxes in
+a grid, each holding four more bordered thumbnails. They lose the
+outline, which returns on hover where it means "this one" rather than
+sitting on all five at once.
+
 ## What has NOT been verified
 
 **Mobile.** The breakpoints exist in the builder's own stylesheet, 640px,
