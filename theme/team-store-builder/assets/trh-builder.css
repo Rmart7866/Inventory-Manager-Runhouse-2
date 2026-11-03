@@ -1040,3 +1040,189 @@
 /* Swatch rings read against a white card. */
 #trh-sb .sw button, #trh-sb .bcol button, #trh-sb .sw.named button i,
 #trh-sb .fams button i, #trh-sb .tcbar i { border: 1px solid #9fb2cd; }
+
+/* ===================================================================
+   CLEAN: NO HAIRLINES, REAL SPACE
+   -------------------------------------------------------------------
+   Owner: "I don't like these thin lines and not spaced out items."
+
+   Both come from the same habit. A 1px border is the cheapest way to
+   say "this is a thing", and once every container has one the page
+   becomes a diagram of boxes. The storefront itself does not do this:
+   its product cards carry NO border, they sit on whitespace and the
+   photograph does the work.
+
+   So separation now comes from THREE things and never from a hairline:
+   a white surface against the #ccd8ea field, which already measures
+   1.44:1, generous padding inside, and real space between. Lines are
+   reserved for the two places a line means something: the underline on
+   the active step, and the solid 5px edge that marks the recommended
+   path, which is a block of colour rather than a rule.
+   =================================================================== */
+
+/* ---- Every hairline off -------------------------------------------- */
+#trh-sb .card, #trh-sb .wrap, #trh-sb .bc, #trh-sb .tile,
+#trh-sb .faq details, #trh-sb .tcbar, #trh-sb .scur, #trh-sb .slist,
+#trh-sb .det, #trh-sb .up, #trh-sb .sgc, #trh-sb .howi,
+#trh-sb .calm, #trh-sb .calm2, #trh-sb .more1, #trh-sb .coach, #trh-sb .tip {
+  border: 0 !important;
+  box-shadow: none;
+}
+#trh-sb .qs:not(.mini) {
+  border: 0 !important;
+  border-top: 5px solid var(--d3) !important;   /* a block, not a rule */
+}
+
+/* ---- Space ---------------------------------------------------------- */
+#trh-sb { padding-bottom: 72px; }
+#trh-sb .card, #trh-sb .wrap {
+  padding: 38px;
+  margin-bottom: 28px;
+}
+#trh-sb .qs:not(.mini) { padding: 32px 38px 34px; margin-bottom: 28px; }
+#trh-sb .bc, #trh-sb .tile { padding: 24px; }
+
+/* Grids breathe. These were tight enough that the cards read as one
+   striped block rather than as separate things to choose between. */
+#trh-sb .bgrid, #trh-sb .grid, #trh-sb .bwrap { gap: 24px !important; }
+#trh-sb .bpx { gap: 20px; }
+#trh-sb .sw, #trh-sb .sws { gap: 10px; }
+
+/* Sections get a clear interval, so the eye knows where one idea ends. */
+#trh-sb .bh, #trh-sb .browseh { margin-top: 56px; margin-bottom: 20px; }
+#trh-sb .tcbar { margin: 0 0 28px; padding: 18px 22px; }
+#trh-sb .steps { margin-bottom: 26px; }
+#trh-sb .faq { margin-top: 64px; }
+#trh-sb .faq details { margin-bottom: 10px; padding: 4px 20px; }
+#trh-sb .faq summary { padding: 14px 0; }
+
+/* Inside a card, the heading needs air under it and the fields need
+   air between them. This was the "not spaced out" complaint as much as
+   the gaps between cards were. */
+#trh-sb .card > h3, #trh-sb .det > h4 { margin-bottom: 22px; }
+#trh-sb label.f { display: block; margin-bottom: 20px; }
+#trh-sb label.f > span:first-child,
+#trh-sb label.f > b:first-child { display: block; margin-bottom: 8px; }
+
+/* ---- Controls lose their outlines too ------------------------------- */
+/* A filled shape reads as a control without needing a line around it. */
+#trh-sb label.f input, #trh-sb label.f textarea, #trh-sb label.f select,
+#trh-sb .xtra input[type=text], #trh-sb .tcx input[type=text] {
+  border: 0 !important;
+  border-left: 4px solid transparent !important;
+  background: #eaeff7;
+  padding: 14px 16px;
+  min-height: 50px;
+}
+#trh-sb label.f input:focus, #trh-sb label.f textarea:focus,
+#trh-sb label.f select:focus, #trh-sb .xtra input[type=text]:focus {
+  background: #fff;
+  border-left-color: var(--d3) !important;
+  box-shadow: 0 2px 10px rgba(16,40,79,.10);
+}
+
+#trh-sb .fams button, #trh-sb .mode button, #trh-sb .pos button,
+#trh-sb .sgc button, #trh-sb .slist button, #trh-sb .lgp button,
+#trh-sb .rec, #trh-sb .sw .more, #trh-sb .seeall {
+  border: 0 !important;
+  background: #eaeff7;
+  color: var(--d1);
+  padding-inline: 20px;
+}
+#trh-sb .fams button:hover, #trh-sb .mode button:hover,
+#trh-sb .pos button:hover, #trh-sb .rec:hover, #trh-sb .sw .more:hover {
+  background: #dbe4f2;
+}
+#trh-sb .fams button.on, #trh-sb .mode button.on, #trh-sb .pos button.on,
+#trh-sb .sgc button.on, #trh-sb .tabs button.on {
+  background: var(--d1) !important; color: #fff !important;
+}
+
+/* The tabs strip keeps its underline, because that line carries
+   meaning: it says which category you are looking at. */
+#trh-sb .tabs { border-bottom: 2px solid #b9c8de; gap: 4px; margin-bottom: 24px; }
+#trh-sb .tabs button {
+  background: transparent !important; color: var(--dim) !important;
+  border-bottom: 3px solid transparent !important; margin-bottom: -2px;
+  padding: 12px 18px !important;
+}
+#trh-sb .tabs button.on {
+  background: transparent !important; color: var(--d1) !important;
+  border-bottom-color: var(--d3) !important;
+}
+
+/* A product card answers the pointer by lifting, not by drawing an
+   outline around itself. */
+#trh-sb .tile, #trh-sb .bc { border-bottom: 0 !important; }
+#trh-sb .tile:hover, #trh-sb .bc:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(10,24,50,.16) !important;
+}
+#trh-sb .bc.trh-added {
+  box-shadow: inset 0 0 0 3px var(--d3) !important;
+  background: #f4f8ff;
+}
+
+/* The summary table: rows separated by space and alignment, with one
+   soft rule rather than a full grid of them. */
+#trh-sb .sum td, #trh-sb .sumr, #trh-sb .sum tr {
+  border-left: 0 !important; border-right: 0 !important; border-top: 0 !important;
+  border-bottom: 1px solid #e4eaf4 !important;
+}
+#trh-sb .sum td { padding: 18px 0 !important; }
+
+/* ---- The one green thing on a blue page ---------------------------- */
+/* The reassurance strip was still wearing the original palette's green,
+   which is the only non-blue surface left and reads as a stray. It is
+   worth keeping, it is the line that tells somebody nothing is final
+   before they commit, so it is brought into the palette rather than
+   dropped. */
+#trh-sb .ok {
+  background: #e3ecfa !important;
+  border: 0 !important;
+  border-left: 4px solid var(--d3) !important;
+  color: var(--d1) !important;
+  padding: 16px 20px !important;
+  margin: 0 0 28px !important;
+  border-radius: 2px;
+}
+#trh-sb .ok b, #trh-sb .ok strong { color: var(--d1) !important; }
+#trh-sb .ok * { color: #3b4760 !important; }
+#trh-sb .ok b { color: var(--d1) !important; }
+
+/* The two mode choices need to read as two choices on a white card. */
+#trh-sb .mode { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 26px; }
+#trh-sb .mode button {
+  background: #eaeff7 !important; padding: 18px 20px !important;
+  align-items: flex-start; flex-direction: column; gap: 4px; text-align: left;
+}
+#trh-sb .mode button.on { background: var(--d1) !important; }
+
+/* ---- White on white ------------------------------------------------
+   Taking the borders off exposed a nesting problem that the hairlines
+   had been papering over: the bundle cards are white and they sit
+   inside .wrap, which is also white, so with no outline there was
+   nothing separating them at all.
+
+   The answer is not to put the line back. It is to stop nesting a card
+   inside a card. .wrap becomes the transparent GROUPING element it
+   actually is, and everything inside it, the recommended block, the
+   colours strip, each bundle, becomes a white card sitting directly on
+   the field. .card keeps its surface, because that one really is a
+   single panel holding a form. */
+#trh-sb .wrap {
+  background: transparent !important;
+  padding: 0 !important;
+  margin-bottom: 0 !important;
+}
+#trh-sb .bc, #trh-sb .tile {
+  background: var(--paper);
+  border-radius: 2px;
+}
+/* The grid of product tiles is the same situation. */
+#trh-sb .grid, #trh-sb .bgrid { background: transparent !important; }
+
+/* Headings now sit on the field rather than on a white panel, so they
+   get a little more room to breathe around them. */
+#trh-sb .bh, #trh-sb .browseh { padding-inline: 2px; }
+#trh-sb .tcbar { background: var(--paper); }
