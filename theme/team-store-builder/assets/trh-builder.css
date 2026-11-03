@@ -383,9 +383,9 @@
    came out as three ragged steps instead of one rectangle. Padding on
    the right keeps the block full width, so the background is
    continuous, while the line still breaks where it should. */
-#trh-sb > h2   { padding-top: 60px; padding-bottom: 18px; padding-right: clamp(24px, 45%, 820px); }
+#trh-sb > h2   { padding-top: 60px; padding-bottom: 18px; padding-right: clamp(24px, 22%, 420px); }
 #trh-sb > .lead {
-  padding-bottom: 28px; padding-right: clamp(24px, 48%, 780px);
+  padding-bottom: 28px; padding-right: clamp(24px, 42%, 700px);
   /* the ORIGINAL stylesheet also caps .lead, so the block stayed narrow
      and the band stayed ragged until this cleared it too */
   max-width: none !important; width: auto !important;
@@ -707,3 +707,126 @@
 #trh-sb > section > .wrap:first-child,
 #trh-sb > section > .card:first-child { padding-top: 0; }
 #trh-sb .steps { margin-bottom: 18px; }
+
+/* ===================================================================
+   ROUND 2: owner notes
+     - the 1 2 3 block goes
+     - less tiny text
+     - more style
+   =================================================================== */
+
+/* ---- The 1 2 3 block ---------------------------------------------
+   Two numbered sequences ran one above the other: this block, and the
+   step rail directly beneath it, both counting to three. That is what
+   made it feel like filler. The rail already numbers the process and
+   the lead sentence already says what happens, so the block goes. Its
+   wording is not lost, it is the first three answers in the FAQ. */
+/* Hide the three numbered items, NOT their container: the "Watch how
+   it works" button is a child of .how, so display:none on .how took
+   the video link away with the numbers, which nobody asked for. */
+/* Hide the three numbered items, NOT their container: the "Watch how
+   it works" button is a child of .how, so display:none on .how took
+   the video link away with the numbers. The container still belongs
+   to step one only, which is where the video offer makes sense. */
+#trh-sb .howi { display: none !important; }
+#trh-sb .how { display: none; background: var(--d1); }
+#trh-sb:has(.steps span:first-child.on) .how { display: block; }
+
+/* EXACTLY ONE ELEMENT ENDS THE BAND AND CARRIES THE CUT. Both the
+   heading and .how had the clip-path, which on step 2 produced two
+   diagonals with a slice of white between them. Step one ends on .how,
+   every other step ends on the heading. */
+#trh-sb:has(.steps span:first-child.on) > h2 { clip-path: none; padding-bottom: 18px; }
+
+/* ---- The hero gets a cut edge -------------------------------------
+   One real shape instead of more boxes. An angled bottom is a
+   deliberate decision rather than a default, it reads as motion, and
+   it is the one move SquadLocker's own hero makes. The angle sits on
+   whichever element ends the band: the lead on step one, the heading
+   once the lead is hidden. */
+#trh-sb > .how {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 34px), 0 100%);
+  padding: 0 clamp(20px,4vw,48px) 66px;
+  margin: 0;
+}
+#trh-sb:not(:has(.steps span:first-child.on)) > h2 {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 34px), 0 100%);
+  padding-bottom: 64px;
+}
+#trh-sb > h2 { font-size: clamp(42px, 7vw, 76px); }
+#trh-sb > .lead { font-size: 19px; }
+
+/* The video link is the hero's only control, so it looks like one. */
+#trh-sb .howv {
+  display: inline-flex; margin-top: 4px;
+  border-color: rgba(255,255,255,.5);
+}
+#trh-sb .howv:hover { background: rgba(255,255,255,.12); border-color: #fff; }
+
+/* ---- Less tiny text ----------------------------------------------
+   The floor moves from 14px to 15px for anything that is a sentence,
+   and the 14px tier is kept only for true labels: a colour name, a
+   garment code, a count. Nothing is below 13px anywhere. */
+#trh-sb .sbn, #trh-sb .st2, #trh-sb .bnote,
+#trh-sb .qs .sbn, #trh-sb .bh .sbn, #trh-sb .browseh .sbn,
+#trh-sb .cn, #trh-sb p, #trh-sb li {
+  font-size: 15px !important; line-height: 1.55;
+}
+#trh-sb .pr small, #trh-sb .bfoot span, #trh-sb .st,
+#trh-sb .bpx .bl, #trh-sb .rec span, #trh-sb .bcol span,
+#trh-sb .pos span, #trh-sb .pos button, #trh-sb .tcl {
+  font-size: 14px !important;
+}
+#trh-sb .opt, #trh-sb .pop, #trh-sb .sum th, #trh-sb .sumh {
+  font-size: 13px !important;
+}
+#trh-sb label.f { font-size: 15px; }
+
+/* ---- More style ---------------------------------------------------
+   Weight and scale, not ornament. The price is the number that
+   matters in a shop, the garment name leads its card, and a card
+   answers the pointer properly instead of only changing a border. */
+#trh-sb .price, #trh-sb .tile .price, #trh-sb .bpx .price {
+  font-size: 21px; letter-spacing: -0.02em;
+}
+#trh-sb .tile .nm, #trh-sb .tile b, #trh-sb .bc > b, #trh-sb .bc > .bt {
+  font-size: 17px; font-weight: 700; color: var(--d2); letter-spacing: -0.01em;
+}
+#trh-sb .tile, #trh-sb .bc { transition: box-shadow .14s ease, transform .14s ease, border-color .14s ease; }
+#trh-sb .tile:hover, #trh-sb .bc:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px rgba(10,24,50,.12);
+  border-color: var(--d3);
+}
+
+/* Category tabs read as a real control strip. */
+#trh-sb .tabs { gap: 0; border-bottom: 2px solid var(--rule); }
+#trh-sb .tabs button {
+  border: 0 !important; background: transparent !important;
+  border-bottom: 2px solid transparent !important;
+  margin-bottom: -2px; border-radius: 0 !important;
+  color: var(--dim) !important; font-weight: 600; font-size: 15px !important;
+  padding-inline: 16px;
+}
+#trh-sb .tabs button:hover { color: var(--d2) !important; }
+#trh-sb .tabs button.on {
+  color: var(--d2) !important;
+  border-bottom-color: var(--d3) !important;
+  background: transparent !important;
+}
+#trh-sb .tabs button .ct {
+  background: var(--d3); color: #fff; border-radius: 0;
+  padding: 1px 6px; font-size: 12px !important; margin-left: 7px;
+}
+
+/* ---- A bundle you have added says so ------------------------------
+   Driven by the script at the end of the snippet. */
+#trh-sb .bc.trh-added {
+  border-color: var(--d3);
+  box-shadow: inset 0 0 0 1px var(--d3);
+  background: #f7faff;
+}
+#trh-sb .bc.trh-added .btn.add {
+  background: #fff; color: var(--d3); border-color: var(--d3);
+}
+#trh-sb .bc.trh-added .btn.add::before { content: '\2713'; font-weight: 700; }

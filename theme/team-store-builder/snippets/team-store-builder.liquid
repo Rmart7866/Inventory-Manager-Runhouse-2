@@ -1,30 +1,18 @@
 {%- comment -%}
   THE TEAM STORE BUILDER.
 
-  This is the markup and the JavaScript of the Build Your Team Store
-  page, lifted verbatim out of the Shopify PAGE BODY and into the theme.
-  Its stylesheet is assets/trh-builder.css.
+  The markup and the app of the Build Your Team Store page, lifted out
+  of the Shopify PAGE BODY and into the theme. Stylesheet:
+  assets/trh-builder.css.
 
-  WHY IT MOVED. The builder was 112KB living in one page's body_html
-  field. A page body is GLOBAL, it belongs to the shop and not to any
-  theme, the same way a menu does, so there was no way to change the
-  builder without changing the live site at the same instant, and no way
-  to preview a change at all. It also sat one accidental Rich Text save
-  away from being destroyed, with no copy anywhere.
+  A page body is GLOBAL, it belongs to the shop and not to a theme, so
+  there was no way to change the builder without changing the live site
+  in the same instant, and no way to preview a change at all.
 
-  As a theme file it is per theme, so it can be previewed on a draft
-  theme, published when it is right, and rolled back by republishing.
-
-  EVERYTHING BELOW IS WRAPPED IN raw. The builder's JavaScript contains
-  no Liquid today, verified 2026-11-03: zero occurrences of the two
-  opening delimiters. The closing sequences DO appear, 10 of one and 76
-  of the other, but they are CSS and JS braces and Liquid only reacts to
-  the openers. raw is here so that a future edit introducing one cannot
-  silently turn part of the app into a Liquid tag.
-
-  So nothing in here can read a theme setting. If the catalog URL or the
-  upload variant should become editable, lift those two constants out
-  above the raw block and pass them in on a data attribute.
+  EVERYTHING BELOW IS WRAPPED IN raw, so no Liquid of any kind survives
+  inside it. Put explanation in JS comments, not Liquid comments: a
+  Liquid comment placed inside raw is not parsed, it is PRINTED, and it
+  showed up as a paragraph of commentary on the live page.
 {%- endcomment -%}
 
 {%- raw -%}
@@ -661,5 +649,104 @@ get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){
  function q(){if(!raf)raf=requestAnimationFrame(setTop)}
  window.addEventListener('scroll',q,{passive:true});window.addEventListener('resize',q);setTimeout(setTop,300);setTop()})();
 
+</script>
+
+<script>
+/* ====================================================================
+   ADDED BY THE RUN HOUSE THEME WORK. Not part of the original builder.
+   Everything above this script is the app exactly as it came out of
+   the page body. Delete this block and the builder behaves as before.
+
+   WHY: adding a ready made bundle gave NO feedback. Verified against
+   the DOM before and after a click: no class changed, no label
+   changed, no aria-pressed appeared. You could press "Add bundle"
+   three times and the page looked identical each time.
+
+   HOW, and why not simply "mark it on click": a click marker goes
+   stale the moment somebody removes one of those items further down
+   the page, and it does not survive a reload. The builder persists its
+   own selection to localStorage under trh-sb-v2, so this LEARNS what a
+   bundle contains by diffing that selection across the click, then a
+   bundle shows as added only while everything it contributed is still
+   selected. Remove one item and the bundle un-marks itself.
+
+   THE UNIT IS style|colour, NOT style. The first version diffed the
+   style keys alone and found nothing, because a bundle usually adds
+   COLOURS to products that are already selected: 11 products before
+   and 11 after, while colours went 15 to 17. sel is shaped
+   { STYLE: { c: [colour, ...] } }, so it is flattened to style|colour
+   pairs before diffing.
+
+   It touches nothing the builder owns: its own storage key, its own
+   class, listeners in the capture phase that never preventDefault.
+   ==================================================================== */
+(function () {
+  var SEL_KEY = 'trh-sb-v2';
+  var MAP_KEY = 'trh-sb-bundle-map';
+
+  function pairs() {
+    try {
+      var sel = (JSON.parse(localStorage.getItem(SEL_KEY) || '{}') || {}).sel || {};
+      var out = [];
+      Object.keys(sel).forEach(function (style) {
+        var cols = (sel[style] && sel[style].c) || [];
+        if (!cols.length) out.push(style + '|');
+        cols.forEach(function (c) { out.push(style + '|' + c); });
+      });
+      return out;
+    } catch (e) { return []; }
+  }
+  function loadMap() {
+    try { return JSON.parse(localStorage.getItem(MAP_KEY) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+  function saveMap(m) {
+    try { localStorage.setItem(MAP_KEY, JSON.stringify(m)); } catch (e) {}
+  }
+
+  function paint() {
+    var map = loadMap();
+    var now = pairs();
+    document.querySelectorAll('#trh-sb .bc').forEach(function (card) {
+      var i = card.getAttribute('data-i');
+      var owned = i !== null && map[i];
+      var added = !!(owned && owned.length) && owned.every(function (p) {
+        return now.indexOf(p) !== -1;
+      });
+      card.classList.toggle('trh-added', added);
+      var btn = card.querySelector('.btn.add');
+      if (btn) {
+        if (!btn.getAttribute('data-trh-label')) {
+          btn.setAttribute('data-trh-label', btn.textContent.trim());
+        }
+        btn.textContent = added ? ' Added' : btn.getAttribute('data-trh-label');
+      }
+    });
+  }
+
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest && ev.target.closest('#trh-sb .bc .btn.add');
+    if (btn) {
+      var card = btn.closest('.bc');
+      var i = card && card.getAttribute('data-i');
+      if (i === null) return;
+      var before = pairs();
+      setTimeout(function () {
+        var after = pairs();
+        var gained = after.filter(function (p) { return before.indexOf(p) === -1; });
+        if (gained.length) { var m = loadMap(); m[i] = gained; saveMap(m); }
+        paint();
+      }, 220);
+      return;
+    }
+    if (ev.target.closest && ev.target.closest('#trh-sb')) setTimeout(paint, 260);
+  }, true);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(paint, 450); });
+  } else {
+    setTimeout(paint, 450);
+  }
+})();
 </script>
 {%- endraw -%}
