@@ -169,6 +169,7 @@
   <div id="sharedbar" class="sharedbar" hidden>Store preview shared by <b></b>. <button type="button" class="btn" id="own">Build your own store →</button>
 </div>
   <h3>Your store preview</h3>
+  <div class="calm placenote"><b>We'll get every logo placement right.</b> These previews are a starting point. Before your store goes live, our team sets the size, position and angle of your logo on each product, then emails you a proof PDF to approve. Nothing goes live until you say yes.</div>
   <div id="rev"></div>
   <div class="det">
 <h4>Store details <span class="sbn">(optional)</span>
@@ -727,7 +728,8 @@ function ydraw(){var el=$('ys');if(!el)return;var em=eff('m'),es=eff('s');if(YCO
   var note=!e?'Pick your main color below and it shows up here.':!anyLogo?'Add your logo to see it here.':!lg?'Your file is in. PDF and AI logos appear in the preview we email you.':'';
   el.innerHTML='<div class="ys-stage'+(e?'':' none')+'"><span class="mk ys-mk"><img class="g" src="'+esc(c[2])+'" alt="'+esc(p.n+' in '+c[0])+'">'+ov+'</span></div>'+
     '<div class="ys-tabs" role="group" aria-label="Garment">'+vs.map(function(x){return'<button type="button" data-v="'+esc(x.l)+'" aria-pressed="'+(x===cur)+'">'+esc(x.l)+'</button>'}).join('')+'</div>'+
-    '<div class="ys-meta"><p class="ys-cap"><b>'+esc(p.n)+'</b><span>'+esc(c[0])+'</span></p>'+sw+'</div>'+(note?'<p class="ys-note">'+note+'</p>':'');
+    '<div class="ys-meta"><p class="ys-cap"><b>'+esc(p.n)+'</b><span>'+esc(c[0])+'</span></p>'+sw+'</div>'+(note?'<p class="ys-note">'+note+'</p>':'')+
+    '<p class="ys-note">We fine-tune the size, position and angle of your logo on every product, and send you a proof to approve.</p>';
   el.querySelectorAll('.ys-tabs button').forEach(function(bt){bt.onclick=function(){YCUR=bt.dataset.v;ydraw()}});
   swOn()}
 var save0=save;save=function(){save0();try{ydraw()}catch(x){}};

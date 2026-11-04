@@ -115,6 +115,17 @@ check('the stored original cannot be edited', j.rec.req.team === 'Walpole Track 
 check('a placement box survives the round trip', JSON.stringify(j.rec.work.items[0].boxes.Navy) === '[0.3,0.2,0.4,0.3]');
 check('and the edit is logged', j.rec.log.some((l) => /status new to progress/.test(l.what)));
 
+r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { work: { ...j.rec.work, release: '2026-12-05' } } } });
+j = await r.json();
+check('a release date saves', r.status === 200 && j.rec.work.release === '2026-12-05');
+r = await call('/team-requests', { headers: STAFF });
+check('and reaches the list summary the calendar reads', (await r.json()).requests.find((x) => x.id === id).r === '2026-12-05');
+r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { work: { ...j.rec.work, release: 'next friday' } } } });
+check('a release date that is not a date is refused', r.status === 400);
+const tilted = { ...j.rec.work, items: [{ ...j.rec.work.items[0], boxes: { '*': [0.3, 0.2, 0.2, 0.2, -12.5] } }] };
+r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { work: tilted } } });
+check('a tilted box keeps its angle', (await r.json()).rec.work.items[0].boxes['*'][4] === -12.5);
+
 r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, base: rec.updated, patch: { notes: 'stale' } } });
 check('an edit from a stale copy is refused, not merged', r.status === 409);
 r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { status: 'bogus' } } });

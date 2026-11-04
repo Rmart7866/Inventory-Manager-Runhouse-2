@@ -92,9 +92,35 @@ label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4
 .item { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 16px; padding: 14px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 10px; }
 .item .name { font-weight: 700; }
 .item .sub { color: var(--muted-2); font-size: 12.5px; }
-.item .grid { display: grid; grid-template-columns: 1fr 110px 150px; gap: 10px 14px; margin-top: 10px; align-items: end; }
+.item .grid { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 10px 14px; margin-top: 10px; align-items: end; }
 .item .grid .wide { grid-column: 1 / -1; }
-.item .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.item .bar { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+.item .where { color: var(--muted); }
+.item .where b { color: var(--text); font-weight: 600; }
+.btn.quiet { background: none; border-color: transparent; }
+.btn.quiet:hover:not(:disabled) { border-color: var(--bad); }
+.rel { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.rel label { color: var(--muted); font-weight: 600; }
+.rel input[type=date] { background: var(--bg); border: 1px solid var(--line-2); padding: 5px 8px; color-scheme: dark; }
+.sub { color: var(--muted-2); font-size: 12.5px; }
+
+/* release calendar */
+.calhead { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.calhead h2 { margin: 0 8px; font-size: 19px; min-width: 170px; }
+.calhead .sp { flex: 1; }
+.key { display: inline-block; width: 18px; height: 10px; vertical-align: middle; border: 1.5px solid var(--accent); }
+.key.dash { border-style: dashed; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.cal .dow { padding: 6px 8px; color: var(--muted-2); font-size: 12px; font-weight: 600; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.cal .day { min-height: 96px; padding: 6px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cal .day.out { background: rgba(255,255,255,.02); }
+.cal .day.out .dn { color: var(--muted-2); opacity: .5; }
+.cal .day.today .dn { color: #06121f; background: var(--accent); padding: 0 5px; }
+.cal .dn { font-size: 12px; color: var(--muted); align-self: flex-start; font-weight: 600; }
+.ev { display: block; width: 100%; text-align: left; font-size: 12px; font-weight: 600; padding: 3px 6px; background: var(--surface-2); border: 1.5px solid currentColor; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips .ev { width: auto; }
+.ev.asked { border-style: dashed; }
+.ev.new { color: var(--accent); } .ev.progress { color: var(--warn); } .ev.waiting { color: #c3a6ff; } .ev.done { color: var(--ok); }
 .item .bad { color: var(--bad); font-size: 12.5px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); padding: 3px 8px; background: none; cursor: pointer; font-size: 12.5px; }
@@ -163,6 +189,7 @@ pre.orig { white-space: pre-wrap; background: var(--surface); border: 1px solid 
 <header class="top">
   <h1>Team store requests</h1>
   <span class="sp"></span>
+  <button class="btn" id="cal-open" type="button">Calendar</button>
   <button class="btn" id="imp-open" type="button">Import an email</button>
   <button class="btn" id="refresh" type="button">Refresh</button>
   <a class="btn" href="index.html" style="text-decoration:none;display:inline-flex;align-items:center">Inventory tool</a>
@@ -203,6 +230,6 @@ pre.orig { white-space: pre-wrap; background: var(--surface); border: 1px solid 
 
 <script src="catalog-client.js?v=23"></script>
 <script src="team-request-utils.js?v=1"></script>
-<script src="team-requests.js?v=1"></script>
+<script src="team-requests.js?v=2"></script>
 </body>
 </html>

@@ -110,6 +110,10 @@ export function metaOf(rec) {
     b: !!r.build_for_me,
     e: String((r.contact && r.contact.email) || '').slice(0, 80),
     x: rec.build && rec.build.at ? 1 : 0,
+    // The release date staff set, for the calendar. Falls back to the
+    // customer's own opening date (d) on the page, not here, so it is clear
+    // which of the two a day on the calendar came from.
+    r: String(w.release || '').slice(0, 10),
   };
 }
 
@@ -251,6 +255,12 @@ export function applyPatch(rec, patch) {
     const cur = rec.work || {};
     if (typeof w.team === 'string') cur.team = w.team.slice(0, 120);
     if (typeof w.tag === 'string') cur.tag = w.tag.slice(0, 120);
+    // A calendar date or nothing. Anything else is refused rather than
+    // stored, because the calendar sorts on it.
+    if (typeof w.release === 'string') {
+      if (w.release && !/^\d{4}-\d{2}-\d{2}$/.test(w.release)) throw new Error('Release date must be YYYY-MM-DD');
+      cur.release = w.release;
+    }
     if (w.logos && typeof w.logos === 'object') cur.logos = w.logos;
     if (Array.isArray(w.items)) {
       cur.items = w.items.map((it) => ({

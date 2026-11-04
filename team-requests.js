@@ -56,6 +56,7 @@ var TR = {
         TR.$('imp-open').addEventListener('click', function () { TR.$('imp').classList.remove('hidden'); TR.$('imp-text').focus(); });
         TR.$('imp-cancel').addEventListener('click', function () { TR.$('imp').classList.add('hidden'); });
         TR.$('imp-go').addEventListener('click', TR.doImport);
+        TR.$('cal-open').addEventListener('click', TR.showCalendar);
         window.addEventListener('beforeunload', function (e) { if (TR.st.dirty) { e.preventDefault(); e.returnValue = ''; } });
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') { TR.$('imp').classList.add('hidden'); TR.closePlacement(); }
@@ -122,7 +123,8 @@ var TR = {
         var cur = TR.st.rec && TR.st.rec.id;
         TR.$('list').innerHTML = rows.length ? rows.map(function (r) {
             var bits = [r.n + (r.n === 1 ? ' product' : ' products'), TR.ago(r.c)];
-            if (r.d) bits.push('opens ' + TR.esc(r.d));
+            if (r.r) bits.push('releases ' + TR.esc(TR.fmtDate(r.r)));
+            else if (r.d) bits.push('asked for ' + TR.esc(TR.fmtDate(r.d)));
             return '<button type="button" class="row' + (r.id === cur ? ' on' : '') + '" data-id="' + r.id + '">' +
                 '<div class="t"><span>' + TR.esc(r.t || '(no name)') + '</span><span class="pill ' + r.s + '">' + TR.STATUS[r.s] + '</span></div>' +
                 '<div class="m">' + bits.join(' · ') + (r.m === 'update' ? ' · <b>add to store</b>' : '') + (r.b ? ' · <b>build it for me</b>' : '') + (r.x ? ' · built' : '') + '</div></button>';
@@ -146,7 +148,7 @@ var TR = {
         TR.api('/team-requests/one?id=' + encodeURIComponent(id)).then(function (rec) {
             if (rec.__status !== 200) { TR.$('detail').innerHTML = '<p class="msg bad">' + TR.esc(rec.error || 'Could not load') + '</p>'; return; }
             delete rec.__status;
-            TR.st.rec = rec; TR.st.dirty = false; TR.st.plan = null; TR.st.tab = TR.st.tab || 'products';
+            TR.st.rec = rec; TR.st.dirty = false; TR.st.plan = null; TR.st.tab = TR.st.tab || 'products'; TR.st.view = 'detail';
             history.replaceState(null, '', '#' + id);
             TR.renderList();
             TR.renderDetail();
@@ -180,41 +182,55 @@ var TR = {
     renderDetail: function () {
         var r = TR.st.rec; if (!r) return;
         var q = r.req || {}, w = r.work || {}, c = q.contact || {};
+        // Only what changes how staff handle the request is a flag. The rest
+        // is one quiet line of facts.
         var flags = [];
         if (q.mode === 'update') flags.push('<span class="flag hot">Add to existing store: ' + TR.esc(q.store && q.store.name) + '</span>');
         if (q.build_for_me) flags.push('<span class="flag hot">Build it for me</span>');
-        if (q.group) flags.push('<span class="flag">' + TR.esc(q.group) + '</span>');
-        if (q.fundraising_pct) flags.push('<span class="flag">Fundraising ' + TR.esc(q.fundraising_pct) + '%</span>');
-        if (q.team_colors && q.team_colors.main) flags.push('<span class="flag">Colors: ' + TR.esc(q.team_colors.main + (q.team_colors.second ? ' + ' + q.team_colors.second : '')) + '</span>');
-        if (r.source === 'import') flags.push('<span class="flag">Imported from email</span>');
-        if (r.build && r.build.at) flags.push('<span class="flag hot">Built ' + TR.ago(r.build.at) + '</span>');
+        if (r.build && r.build.at) flags.push('<span class="flag">Drafts built ' + TR.ago(r.build.at) + '</span>');
+        var facts = [];
+        if (q.group) facts.push(TR.esc(q.group));
+        if (q.team_colors && q.team_colors.main) facts.push(TR.esc(q.team_colors.main + (q.team_colors.second ? ' + ' + q.team_colors.second : '')));
+        if (q.fundraising_pct) facts.push('fundraising ' + TR.esc(q.fundraising_pct) + '%');
+        if (r.source === 'import') facts.push('imported from email');
 
         TR.$('detail').innerHTML =
             '<div class="dhead"><div>' +
                 '<div class="team"><input type="text" id="d-team" value="' + TR.esc(w.team) + '" aria-label="Team name"></div>' +
-                '<div class="who">' + TR.esc(c.name || '') + ' · <a href="mailto:' + TR.esc(c.email) + '">' + TR.esc(c.email) + '</a>' + (c.phone ? ' · ' + TR.esc(c.phone) : '') +
-                ' · sent ' + new Date(r.created).toLocaleString() + (q.date ? ' · store opens <b>' + TR.esc(q.date) + '</b>' : '') + '</div>' +
-                '<div class="flags">' + flags.join('') + '</div>' +
+                '<div class="who">' + TR.esc(c.name || '') + ' · <a href="mailto:' + TR.esc(c.email) + '">' + TR.esc(c.email) + '</a>' + (c.phone ? ' · ' + TR.esc(c.phone) : '') + ' · sent ' + TR.ago(r.created) + '</div>' +
+                '<div class="rel"><label for="d-rel">Release</label><input type="date" id="d-rel" value="' + TR.esc(w.release || '') + '">' +
+                    (q.date ? '<span class="sub">customer asked for ' + TR.esc(TR.fmtDate(q.date)) + (w.release ? '' : ', used until you set one') + '</span>' : '<span class="sub">no date from the customer</span>') + '</div>' +
+                (facts.length ? '<div class="sub" style="margin-top:6px">' + facts.join(' · ') + '</div>' : '') +
+                (flags.length ? '<div class="flags">' + flags.join('') + '</div>' : '') +
             '</div><div class="acts">' +
                 '<select id="d-status" aria-label="Status">' + Object.keys(TR.STATUS).map(function (k) { return '<option value="' + k + '"' + (k === r.status ? ' selected' : '') + '>' + TR.STATUS[k] + '</option>'; }).join('') + '</select>' +
-                '<span class="dirty-note" id="dirty">' + (TR.st.dirty ? 'Unsaved changes' : '') + '</span>' +
+                '<button class="btn" type="button" id="d-pdf">Proof PDF</button>' +
                 '<button class="btn pri" type="button" id="save"' + (TR.st.dirty ? '' : ' disabled') + '>Save</button>' +
-                '<button class="btn danger" type="button" id="del">Delete</button>' +
+                '<span class="dirty-note" id="dirty">' + (TR.st.dirty ? 'Unsaved changes' : '') + '</span>' +
             '</div></div>' +
             '<div id="flash" class="msg hidden"></div>' +
             (q.notes ? '<div class="msg warn"><b>Customer note:</b> ' + TR.esc(q.notes) + '</div>' : '') +
-            '<div class="tabs" role="tablist">' + [['products', 'Products (' + (w.items || []).length + ')'], ['logos', 'Logos'], ['build', 'Build in Shopify'], ['orig', 'Original and history']].map(function (t) {
+            '<div class="tabs" role="tablist">' + [['products', 'Products (' + (w.items || []).length + ')'], ['logos', 'Logos'], ['build', 'Build'], ['orig', 'History']].map(function (t) {
                 return '<button type="button" role="tab" data-t="' + t[0] + '" class="' + (TR.st.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>';
             }).join('') + '</div><div id="pane"></div>';
 
         TR.$('d-team').addEventListener('input', function () { w.team = this.value; TR.touch(); });
+        TR.$('d-rel').addEventListener('change', function () { w.release = this.value; TR.touch(); });
         TR.$('d-status').addEventListener('change', function () { TR.save({ status: this.value }); });
         TR.$('save').addEventListener('click', function () { TR.save(); });
-        TR.armDelete(TR.$('del'));
+        TR.$('d-pdf').addEventListener('click', function () { TR.proofPdf(this); });
         TR.$('detail').querySelectorAll('.tabs button').forEach(function (b) {
             b.onclick = function () { TR.st.tab = b.dataset.t; TR.renderDetail(); };
         });
         ({ products: TR.paneProducts, logos: TR.paneLogos, build: TR.paneBuild, orig: TR.paneOrig })[TR.st.tab]();
+    },
+
+    // "2026-12-01" to "Tue, Dec 1, 2026", read as a calendar day, never as
+    // UTC midnight, which would show the day before in Massachusetts.
+    fmtDate: function (iso) {
+        var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!m) return String(iso || '');
+        return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
     },
 
     // Two clicks, not a browser dialog: the first arms it for four seconds.
@@ -223,7 +239,7 @@ var TR = {
         b.onclick = function () {
             if (!b.classList.contains('arm')) {
                 b.classList.add('arm'); b.textContent = 'Click again to delete for good';
-                t = setTimeout(function () { b.classList.remove('arm'); b.textContent = 'Delete'; }, 4000);
+                t = setTimeout(function () { b.classList.remove('arm'); b.textContent = 'Delete this request'; }, 4000);
                 return;
             }
             clearTimeout(t);
@@ -313,7 +329,6 @@ var TR = {
         if (unknown.length) problems.push('Not a colour this product comes in: ' + unknown.map(TR.esc).join(', ') + '. Remove it and pick the right one from + colour.');
         if (!it.sizes.length) problems.push('The catalog does not say which sizes this comes in. Type them in.');
         var slots = Object.keys(TR.st.rec.work.logos || {});
-        var moved = it.boxes && Object.keys(it.boxes).length;
         return '<div class="item" data-i="' + i + '">' +
             '<div id="thumb-' + i + '">' + TR.mkHtml(p, first, TR.U.boxFor(it, p, first), null) + '</div>' +
             '<div><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' +
@@ -324,16 +339,27 @@ var TR = {
                 }).join('') + '<button type="button" class="chip" data-more="1">+ colour</button></div><div class="allcols hidden" id="allcols-' + i + '"></div></div>' +
                 '<div><label class="f" for="sz-' + i + '">Sizes</label><input type="text" id="sz-' + i + '" value="' + TR.esc(it.sizes.join(', ')) + '" style="width:100%"></div>' +
                 '<div><label class="f" for="pr-' + i + '">Price</label><input type="number" min="0" step="0.01" id="pr-' + i + '" value="' + (it.price || '') + '" style="width:100%"></div>' +
-                '<div><label class="f" for="lg-' + i + '">Logo</label><select id="lg-' + i + '" style="width:100%">' + (slots.length ? slots : ['main']).map(function (k) {
-                    var L = TR.st.rec.work.logos[k];
-                    return '<option value="' + k + '"' + (k === (it.logo || 'main') ? ' selected' : '') + '>' + TR.esc((L && L.label) || k) + '</option>';
-                }).join('') + '</select></div>' +
             '</div>' +
             (problems.length ? '<p class="bad">' + problems.join(' ') + '</p>' : '') +
-            '<div class="bar"><button class="btn" type="button" data-place="' + i + '">Move logo' + (moved ? ' (moved)' : '') + '</button>' +
-            '<input type="text" id="pl-' + i + '" value="' + TR.esc(it.placement || '') + '" placeholder="Placement, e.g. Left chest" aria-label="Placement wording used in the colour option" style="width:190px" list="pl-words">' +
-            '<span style="flex:1"></span><button class="btn danger" type="button" data-rm="' + i + '">Remove</button></div>' +
+            // One line for the logo: where it sits, and the one button that
+            // changes it. The logo picker appears only when there is a choice.
+            '<div class="bar"><span class="where">Logo: <b>' + TR.esc(it.placement || 'default placement') + '</b>' + TR.tiltNote(it) + '</span>' +
+            '<button class="btn" type="button" data-place="' + i + '">Move logo</button>' +
+            (slots.length > 1 ? '<select id="lg-' + i + '" aria-label="Which logo">' + slots.map(function (k) {
+                var L = TR.st.rec.work.logos[k];
+                return '<option value="' + k + '"' + (k === (it.logo || 'main') ? ' selected' : '') + '>' + TR.esc((L && L.label) || k) + '</option>';
+            }).join('') + '</select>' : '') +
+            '<span style="flex:1"></span><button class="btn danger quiet" type="button" data-rm="' + i + '">Remove</button></div>' +
             '</div></div>';
+    },
+
+    // ", moved" or ", tilted 8 degrees", so the card says what was changed
+    // without opening the editor.
+    tiltNote: function (it) {
+        var b = it.boxes || {}, keys = Object.keys(b);
+        if (!keys.length) return '';
+        var t = keys.map(function (k) { return b[k][4] || 0; }).filter(function (a) { return a; });
+        return t.length ? ', moved and tilted ' + Math.abs(t[0]) + '\u00b0' : ', moved';
     },
 
     wireItem: function (it, i) {
@@ -368,11 +394,8 @@ var TR = {
             it.sizes = this.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean); TR.touch(); TR.paneProducts();
         });
         TR.$('pr-' + i).addEventListener('input', function () { it.price = Number(this.value) || 0; TR.touch(); });
-        // The words in the colour option ("Navy w/ Left Chest Logo"). Moving
-        // the box does not rewrite them, because only a person knows whether
-        // a box near the heart is "left chest" or just a smaller full chest.
-        TR.$('pl-' + i).addEventListener('input', function () { it.placement = this.value; TR.touch(); });
-        TR.$('lg-' + i).addEventListener('change', function () { it.logo = this.value; TR.touch(); TR.paneProducts(); });
+        var lg = TR.$('lg-' + i);
+        if (lg) lg.addEventListener('change', function () { it.logo = this.value; TR.touch(); TR.paneProducts(); });
         card.querySelector('[data-place]').onclick = function () { TR.openPlacement(i); };
     },
 
@@ -411,18 +434,22 @@ var TR = {
     openPlacement: function (i) {
         var it = TR.st.rec.work.items[i], p = TR.st.P[it.style];
         var colors = it.colors.length ? it.colors : [p.c[0][0]];
-        var pe = { i: i, color: colors[0], box: (TR.U.boxFor(it, p, colors[0]) || [0.3, 0.25, 0.4, 0.3]).slice(0, 4), scope: it.boxes && it.boxes[colors[0]] ? 'one' : 'all' };
+        var pe = { i: i, color: colors[0], box: TR.box5(TR.U.boxFor(it, p, colors[0]) || [0.3, 0.25, 0.4, 0.3]), scope: it.boxes && it.boxes[colors[0]] ? 'one' : 'all' };
         TR.st.pe = pe;
         var el = TR.$('pe');
         el.classList.remove('hidden');
         TR.logoSlotSrc(it.logo || 'main').then(function (src) {
             pe.src = src;
             el.innerHTML = '<div class="box"><div class="stage" id="pe-stage"></div><div class="side">' +
-                '<h3 id="pe-h">Move the logo</h3><p>' + TR.esc(p.n) + '. Drag the box to move it, drag the blue corner to resize. The logo keeps its shape inside the box.</p>' +
+                '<h3 id="pe-h">Move the logo</h3><p>' + TR.esc(p.n) + '. Drag the box to move it, drag the blue corner to resize, and tilt it with the slider. The logo keeps its shape inside the box.</p>' +
                 '<label class="f">Preview colour</label><div class="chips" id="pe-cols">' + colors.map(function (n) {
                     var c = p.c[TR.colorIdx(p, n)];
                     return '<button type="button" class="chip' + (n === pe.color ? ' on' : '') + '" data-c="' + TR.esc(n) + '"><i style="background:' + (c ? c[5] : '#888') + '"></i>' + TR.esc(n) + '</button>';
                 }).join('') + '</div>' +
+                '<label class="f" style="margin-top:12px" for="pe-tilt">Tilt <span id="pe-tilt-v"></span></label>' +
+                '<input type="range" id="pe-tilt" min="-45" max="45" step="1" value="' + pe.box[4] + '" style="width:100%">' +
+                '<label class="f" style="margin-top:12px" for="pe-words">Placement, as the colour option says it</label>' +
+                '<input type="text" id="pe-words" list="pl-words" value="' + TR.esc(it.placement || '') + '" placeholder="e.g. Left chest" style="width:100%">' +
                 '<label class="f" style="margin-top:12px">Apply to</label><select id="pe-scope" style="width:100%"><option value="all"' + (pe.scope === 'all' ? ' selected' : '') + '>Every colour of this product</option><option value="one"' + (pe.scope === 'one' ? ' selected' : '') + '>This colour only</option></select>' +
                 '<div class="readout" id="pe-read"></div>' +
                 '<div class="row2"><button class="btn" type="button" id="pe-reset">Catalog default</button></div>' +
@@ -433,22 +460,34 @@ var TR = {
             TR.$('pe-cols').querySelectorAll('button').forEach(function (b) {
                 b.onclick = function () {
                     pe.color = b.dataset.c;
-                    pe.box = (TR.U.boxFor(it, p, pe.color) || pe.box).slice(0, 4);
+                    pe.box = TR.box5(TR.U.boxFor(it, p, pe.color) || pe.box);
+                    TR.$('pe-tilt').value = pe.box[4];
                     TR.$('pe-cols').querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
                     TR.drawPlacement();
                 };
             });
             TR.$('pe-scope').onchange = function () { pe.scope = this.value; };
-            TR.$('pe-reset').onclick = function () { pe.box = (TR.U.defaultBox(p, it.placement) || pe.box).slice(0, 4); TR.drawPlacement(); };
+            TR.$('pe-reset').onclick = function () { pe.box = TR.box5(TR.U.defaultBox(p, it.placement) || pe.box); TR.$('pe-tilt').value = pe.box[4]; TR.drawPlacement(); };
+            // Tilt turns the box about its centre, the same rotation the
+            // preview (CSS) and the mockup (canvas) both apply.
+            TR.$('pe-tilt').oninput = function () { pe.box[4] = Number(this.value) || 0; TR.drawPlacement(); };
             TR.$('pe-cancel').onclick = TR.closePlacement;
             TR.$('pe-save').onclick = function () {
                 it.boxes = it.boxes || {};
-                var b = pe.box.map(function (v) { return Math.round(v * 10000) / 10000; });
+                var b = pe.box.slice(0, 4).map(function (v) { return Math.round(v * 10000) / 10000; });
+                if (pe.box[4]) b.push(pe.box[4]);
+                // The words in the colour option ("Navy w/ Left Chest Logo").
+                // Moving the box does not rewrite them: only a person knows
+                // whether a box near the heart is "left chest" or a small full chest.
+                it.placement = TR.$('pe-words').value.trim();
                 if (pe.scope === 'all') { it.boxes = { '*': b }; } else { it.boxes[pe.color] = b; }
                 TR.closePlacement(); TR.touch(); TR.paneProducts();
             };
         });
     },
+
+    // Every box carries a tilt in degrees as its fifth number, 0 if level.
+    box5: function (b) { var o = (b || []).slice(0, 5); o[4] = Number(o[4]) || 0; return o; },
 
     closePlacement: function () { var el = TR.$('pe'); if (el) { el.classList.add('hidden'); el.innerHTML = ''; } TR.st.pe = null; },
 
@@ -488,8 +527,13 @@ var TR = {
         [lb, handle].forEach(function (x) { x.addEventListener('pointermove', move); x.addEventListener('pointerup', up); x.addEventListener('pointercancel', up); });
         // Arrow keys nudge by half a percent, for the last bit of alignment.
         lb.tabIndex = 0;
-        lb.setAttribute('aria-label', 'Logo position. Arrow keys move it, shift and arrow keys resize it.');
+        lb.setAttribute('aria-label', 'Logo position. Arrow keys move it, shift and arrow keys resize it, [ and ] tilt it.');
         lb.addEventListener('keydown', function (e) {
+            if (e.key === '[' || e.key === ']') {
+                e.preventDefault();
+                pe.box[4] = Math.max(-45, Math.min(45, (pe.box[4] || 0) + (e.key === ']' ? 1 : -1)));
+                TR.$('pe-tilt').value = pe.box[4]; TR.drawPlacement(); TR.$('pe-lb').focus(); return;
+            }
             var k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!k) return;
             e.preventDefault();
             var b = pe.box.slice(), s = 0.005;
@@ -501,7 +545,8 @@ var TR = {
 
     readout: function () {
         var b = TR.st.pe && TR.st.pe.box, el = TR.$('pe-read'); if (!b || !el) return;
-        el.textContent = 'left ' + (b[0] * 100).toFixed(1) + '%  top ' + (b[1] * 100).toFixed(1) + '%  width ' + (b[2] * 100).toFixed(1) + '%  height ' + (b[3] * 100).toFixed(1) + '%';
+        el.textContent = 'left ' + (b[0] * 100).toFixed(1) + '%  top ' + (b[1] * 100).toFixed(1) + '%  width ' + (b[2] * 100).toFixed(1) + '%  height ' + (b[3] * 100).toFixed(1) + '%  tilt ' + (b[4] || 0) + '\u00b0';
+        var tv = TR.$('pe-tilt-v'); if (tv) tv.textContent = (b[4] || 0) + '\u00b0';
     },
 
     // ---------- logos ----------
@@ -570,8 +615,12 @@ var TR = {
         TR.$('pane').innerHTML =
             '<label class="f" for="d-notes">Staff notes</label><textarea id="d-notes" style="width:100%;min-height:90px">' + TR.esc(r.notes || '') + '</textarea>' +
             '<h3 style="margin:18px 0 6px;font-size:15px">History</h3><ul class="log">' + (r.log || []).slice().reverse().map(function (l) { return '<li>' + new Date(l.at).toLocaleString() + ': ' + TR.esc(l.what) + '</li>'; }).join('') + '</ul>' +
-            '<h3 style="margin:18px 0 6px;font-size:15px">What the customer sent</h3><pre class="orig">' + TR.esc(r.text || JSON.stringify(r.req, null, 2)) + '</pre>';
+            '<h3 style="margin:18px 0 6px;font-size:15px">What the customer sent</h3><pre class="orig">' + TR.esc(r.text || JSON.stringify(r.req, null, 2)) + '</pre>' +
+            // Out of the header on purpose: a permanent delete should not sit
+            // one click from Save. Archive (the status) is the everyday way out.
+            '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line)"><button class="btn danger" type="button" id="del">Delete this request</button> <span class="sub">Permanent. To just clear it from the inbox, set the status to Archived.</span></div>';
         TR.$('d-notes').addEventListener('input', function () { r.notes = this.value; TR.touch(); });
+        TR.armDelete(TR.$('del'));
     },
 
     // ---------- build ----------
@@ -655,9 +704,17 @@ var TR = {
         });
     },
 
+    // One drawing, two uses: the PNG uploaded to Shopify and the JPEG in the
+    // proof PDF, so the customer approves exactly what gets built.
     mockup: function (it, colorName) {
+        return TR.mockupCanvas(it, colorName, 1200).then(function (cv) {
+            return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/png'); });
+        });
+    },
+
+    mockupCanvas: function (it, colorName, S) {
         var p = TR.st.P[it.style], c = p.c[TR.colorIdx(p, colorName)];
-        var S = 1200, PAD = 60;
+        var PAD = Math.round(S / 20);
         return TR.loadImg(c[2]).then(function (g) {
             var cv = document.createElement('canvas'); cv.width = S; cv.height = S;
             var x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
@@ -676,7 +733,7 @@ var TR = {
                     x.drawImage(lg, gx + f.x * gw, gy + f.y * gh, f.w * gw, f.h * gh);
                     x.restore();
                 }
-                return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/png'); });
+                return cv;
             });
         });
     },
@@ -737,6 +794,189 @@ var TR = {
             status.className = 'msg bad';
             TR.$('b-plan').disabled = false;
         });
+    },
+
+    // ---------- release calendar ----------
+    // A request lands on its release date if staff set one, otherwise on the
+    // date the customer asked for, drawn dashed so the two are never confused.
+    // Archived requests are left off: the calendar is what is coming up.
+    showCalendar: function () {
+        if (TR.st.dirty && !window.confirm('You have unsaved changes on this request. Leave them?')) return;
+        TR.st.dirty = false; TR.st.rec = null; TR.st.view = 'cal';
+        history.replaceState(null, '', location.pathname);
+        if (!TR.st.month) { var n = new Date(); TR.st.month = new Date(n.getFullYear(), n.getMonth(), 1); }
+        TR.renderList(); TR.renderCalendar();
+    },
+
+    dayOf: function (r) {
+        var iso = r.r || (/^\d{4}-\d{2}-\d{2}$/.test(r.d || '') ? r.d : '');
+        return iso ? { iso: iso, asked: !r.r } : null;
+    },
+
+    renderCalendar: function () {
+        var m = TR.st.month, y = m.getFullYear(), mo = m.getMonth();
+        var first = new Date(y, mo, 1), start = new Date(y, mo, 1 - first.getDay());
+        var live = TR.st.list.filter(function (r) { return r.s !== 'archived'; });
+        var byDay = {}, undated = [];
+        live.forEach(function (r) { var d = TR.dayOf(r); if (d) (byDay[d.iso] = byDay[d.iso] || []).push({ r: r, asked: d.asked }); else undated.push(r); });
+        var iso = function (d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+        var today = iso(new Date());
+        var cells = '';
+        for (var k = 0; k < 42; k++) {
+            var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + k), key = iso(d);
+            if (k === 35 && d.getMonth() !== mo) break;
+            cells += '<div class="day' + (d.getMonth() !== mo ? ' out' : '') + (key === today ? ' today' : '') + '"><span class="dn">' + d.getDate() + '</span>' +
+                (byDay[key] || []).map(function (x) {
+                    return '<button type="button" class="ev ' + x.r.s + (x.asked ? ' asked' : '') + '" data-id="' + x.r.id + '" title="' + TR.esc(x.r.t) + ', ' + TR.STATUS[x.r.s] + (x.asked ? ', the customer\'s requested date, no release date set yet' : '') + '">' + TR.esc(x.r.t || '(no name)') + '</button>';
+                }).join('') + '</div>';
+        }
+        TR.$('detail').innerHTML =
+            '<div class="calhead"><button class="btn" type="button" id="cal-prev" aria-label="Previous month">‹</button>' +
+            '<h2>' + m.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) + '</h2>' +
+            '<button class="btn" type="button" id="cal-next" aria-label="Next month">›</button><button class="btn" type="button" id="cal-today">Today</button>' +
+            '<span class="sp"></span><span class="sub"><span class="key solid"></span> release date &nbsp; <span class="key dash"></span> customer\'s requested date</span></div>' +
+            '<div class="cal"><div class="dow">Sun</div><div class="dow">Mon</div><div class="dow">Tue</div><div class="dow">Wed</div><div class="dow">Thu</div><div class="dow">Fri</div><div class="dow">Sat</div>' + cells + '</div>' +
+            (undated.length ? '<h3 style="margin:20px 0 8px;font-size:15px">No date yet (' + undated.length + ')</h3><div class="chips">' + undated.map(function (r) {
+                return '<button type="button" class="ev ' + r.s + '" data-id="' + r.id + '">' + TR.esc(r.t || '(no name)') + '</button>';
+            }).join('') + '</div>' : '');
+        TR.$('cal-prev').onclick = function () { TR.st.month = new Date(y, mo - 1, 1); TR.renderCalendar(); };
+        TR.$('cal-next').onclick = function () { TR.st.month = new Date(y, mo + 1, 1); TR.renderCalendar(); };
+        TR.$('cal-today').onclick = function () { var n = new Date(); TR.st.month = new Date(n.getFullYear(), n.getMonth(), 1); TR.renderCalendar(); };
+        TR.$('detail').querySelectorAll('.ev').forEach(function (b) { b.onclick = function () { TR.open(b.dataset.id); }; });
+    },
+
+    // ---------- proof PDF ----------
+    // What the customer approves: every product in every colour, drawn with
+    // the same mockup code the build uses, so the proof and the store match.
+    // jsPDF is loaded only when someone asks for a PDF.
+    JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+
+    loadJsPdf: function () {
+        if (window.jspdf) return Promise.resolve(window.jspdf.jsPDF);
+        return new Promise(function (res, rej) {
+            var sc = document.createElement('script'); sc.src = TR.JSPDF; sc.async = true;
+            sc.onload = function () { res(window.jspdf.jsPDF); }; sc.onerror = function () { rej(new Error('Could not load the PDF library')); };
+            document.head.appendChild(sc);
+        });
+    },
+
+    // Drawn onto white, so a transparent logo cannot come out black in a JPEG.
+    imgData: function (src, max) {
+        return TR.loadImg(src).then(function (im) {
+            var sc = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+            var cv = document.createElement('canvas'); cv.width = Math.round(im.naturalWidth * sc); cv.height = Math.round(im.naturalHeight * sc);
+            var x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, cv.width, cv.height); x.drawImage(im, 0, 0, cv.width, cv.height);
+            return { url: cv.toDataURL('image/jpeg', 0.9), w: cv.width, h: cv.height };
+        });
+    },
+
+    proofPdf: function (btn) {
+        var r = TR.st.rec, w = r.work, q = r.req || {};
+        if (TR.st.dirty) { TR.flash('Save your changes first, so the proof shows them.', 'warn'); return; }
+        var items = w.items.filter(function (it) { return TR.st.P[it.style] && it.colors.some(function (n) { return TR.hasColor(TR.st.P[it.style], n); }); });
+        if (!items.length) { TR.flash('There is nothing to put in a proof yet: add products with colours first.', 'warn'); return; }
+        var label = btn.textContent; btn.disabled = true; btn.textContent = 'Making PDF...';
+        var done = function () { btn.disabled = false; btn.textContent = label; };
+        var jobs = [];
+        items.forEach(function (it) { it.colors.forEach(function (n) { if (TR.hasColor(TR.st.P[it.style], n)) jobs.push({ it: it, color: n }); }); });
+        var shots = {}, chain = Promise.resolve();
+        jobs.forEach(function (j) {
+            chain = chain.then(function () { return TR.mockupCanvas(j.it, j.color, 900); })
+                .then(function (cv) { shots[j.it.style + '|' + j.color] = cv.toDataURL('image/jpeg', 0.86); });
+        });
+        var logo = null;
+        var slot = (items[0].logo || 'main');
+        chain = chain.then(function () {
+            return TR.isImageLogo(slot) ? TR.logoSlotSrc(slot).then(function (src) { return src ? TR.imgData(src, 600) : null; }).catch(function () { return null; }) : null;
+        }).then(function (l) { logo = l; });
+        Promise.all([TR.loadJsPdf(), chain]).then(function (got) {
+            var jsPDF = got[0];
+            var doc = new jsPDF({ unit: 'pt', format: 'letter' });
+            var W = 612, H = 792, M = 48, team = String(w.team || 'Team');
+            var ink = [13, 20, 32], dim = [90, 102, 121], navy = [19, 40, 79];
+            var text = function (t, x, y, o) { doc.text(String(t), x, y, o || {}); };
+            var release = w.release || q.date || '';
+
+            // cover
+            doc.setFillColor(navy[0], navy[1], navy[2]); doc.rect(0, 0, W, 140, 'F');
+            doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(11); text('THE RUN HOUSE  /  TEAM STORE PROOF', M, 46);
+            var title = team + ' Team Store', tmax = W - 2 * M - (logo ? 130 : 0), fs = 28;
+            doc.setFontSize(fs);
+            while (fs > 16 && doc.getTextWidth(title) > tmax) { fs -= 1; doc.setFontSize(fs); }
+            var tl = doc.splitTextToSize(title, tmax).slice(0, 2);
+            tl.forEach(function (l, k) { text(l, M, (tl.length > 1 ? 84 : 96) + k * (fs + 4)); });
+            if (logo) {
+                var lw = 110, lh = 110 * logo.h / logo.w; if (lh > 110) { lh = 110; lw = 110 * logo.w / logo.h; }
+                doc.setFillColor(255, 255, 255); doc.rect(W - M - 120, 15, 120, 120, 'F');
+                doc.addImage(logo.url, 'JPEG', W - M - 60 - lw / 2, 75 - lh / 2, lw, lh);
+            }
+            doc.setTextColor(ink[0], ink[1], ink[2]); doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+            var y = 176;
+            var row = function (k, v) { doc.setTextColor(dim[0], dim[1], dim[2]); text(k, M, y); doc.setTextColor(ink[0], ink[1], ink[2]); text(v, M + 110, y); y += 18; };
+            row('Prepared for', ((q.contact && q.contact.name) || '') + ((q.contact && q.contact.email) ? '  (' + q.contact.email + ')' : ''));
+            row('Store opens', release ? TR.fmtDate(release) : 'To be confirmed');
+            row('Products', items.length + (items.length === 1 ? ' product' : ' products') + ', ' + jobs.length + (jobs.length === 1 ? ' colour' : ' colours'));
+            row('Date of proof', new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }));
+            y += 10;
+            doc.splitTextToSize('Here is your store as we will build it. Please check every product, colour, size range and logo position, then reply to approve it or tell us what to change. Nothing goes live until you approve.', W - 2 * M).forEach(function (l) { text(l, M, y); y += 15; });
+            y += 14;
+            // summary table
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(dim[0], dim[1], dim[2]);
+            text('PRODUCT', M, y); text('COLOURS', M + 250, y); text('PRICE', W - M, y, { align: 'right' }); y += 8;
+            doc.setDrawColor(219, 227, 239); doc.line(M, y, W - M, y); y += 16;
+            doc.setFont('helvetica', 'normal'); doc.setTextColor(ink[0], ink[1], ink[2]);
+            items.forEach(function (it) {
+                var p = TR.st.P[it.style];
+                var nameL = doc.splitTextToSize(p.n + ' (' + p.s + ')', 235), colL = doc.splitTextToSize(it.colors.join(', '), 190);
+                var hh = Math.max(nameL.length, colL.length) * 13;
+                if (y + hh > H - 70) { doc.addPage(); y = M + 10; }
+                nameL.forEach(function (l, k) { text(l, M, y + k * 13); });
+                colL.forEach(function (l, k) { text(l, M + 250, y + k * 13); });
+                text(it.price ? '$' + Number(it.price).toFixed(2) : '', W - M, y, { align: 'right' });
+                y += hh + 8;
+            });
+
+            // Products flow down the page, three mockups across. A product
+            // starts a new page only when its heading and first row of
+            // mockups would not fit, so a short store is a short PDF.
+            doc.addPage(); y = M + 6;
+            var GAP = 14, size = (W - 2 * M - 2 * GAP) / 3, ROW = size + 26, BOTTOM = H - 56;
+            items.forEach(function (it) {
+                var p = TR.st.P[it.style], cols = it.colors.filter(function (n) { return TR.hasColor(p, n); });
+                var head = function (cont) {
+                    doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(ink[0], ink[1], ink[2]);
+                    text(doc.splitTextToSize(p.n + (cont ? ' (continued)' : ''), W - 2 * M)[0], M, y); y += 17;
+                    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(dim[0], dim[1], dim[2]);
+                    var bits = [p.s];
+                    if (it.price) bits.push('$' + Number(it.price).toFixed(2));
+                    if ((it.sizes || []).length) bits.push('Sizes ' + it.sizes.join(', '));
+                    bits.push('Logo: ' + (it.placement || 'as shown'));
+                    doc.splitTextToSize(bits.join('   /   '), W - 2 * M).forEach(function (l) { text(l, M, y); y += 13; });
+                    y += 6;
+                };
+                if (y + 40 + ROW > BOTTOM) { doc.addPage(); y = M + 6; }
+                head(false);
+                cols.forEach(function (n, k) {
+                    if (k % 3 === 0 && k > 0) y += ROW;
+                    if (k % 3 === 0 && y + ROW > BOTTOM) { doc.addPage(); y = M + 6; head(true); }
+                    var x = M + (k % 3) * (size + GAP);
+                    doc.setDrawColor(219, 227, 239); doc.rect(x, y, size, size);
+                    doc.addImage(shots[it.style + '|' + n], 'JPEG', x + 1, y + 1, size - 2, size - 2);
+                    doc.setFontSize(9.5); doc.setTextColor(ink[0], ink[1], ink[2]); text(doc.splitTextToSize(n, size)[0], x, y + size + 13);
+                });
+                y += ROW + 16;
+            });
+
+            // footer on every page
+            var pages = doc.getNumberOfPages();
+            for (var pg = 1; pg <= pages; pg++) {
+                doc.setPage(pg); doc.setFontSize(8.5); doc.setTextColor(dim[0], dim[1], dim[2]);
+                text('Mockups show logo size and position on catalog photos. Garment colours can look different on screen.', M, H - 28);
+                text('The Run House  /  teamstores@therunhouse.com  /  Page ' + pg + ' of ' + pages, W - M, H - 16, { align: 'right' });
+            }
+            doc.save(team.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() + '-store-proof.pdf');
+            done();
+        }).catch(function (e) { done(); TR.flash('Could not make the PDF: ' + e.message, 'bad'); });
     },
 
     // ---------- import ----------
