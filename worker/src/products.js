@@ -159,7 +159,7 @@ const APPAREL_CATEGORIES = {
   'gloves': 'aa-2-13',
   'headwear': 'aa-2-17-1',
 };
-const apparelCategoryFor = (t) => {
+export const apparelCategoryFor = (t) => {
   const key = String(t || '').trim().toLowerCase();
   const leaf = APPAREL_CATEGORIES[key];
   return leaf ? 'gid://shopify/TaxonomyCategory/' + leaf : null;

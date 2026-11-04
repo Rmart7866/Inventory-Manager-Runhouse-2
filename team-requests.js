@@ -1,0 +1,753 @@
+// team-requests.js, The Run House. The staff side of Build Your Team Store.
+//
+// Lists the requests customers file on the storefront (stored by the Worker,
+// see worker/src/teamreq.js), and lets staff fix them before anything is
+// made: change products and colours, set sizes and prices, replace a bad
+// logo, drag the logo to where it should sit, then build the whole store as
+// Shopify DRAFTS in one go.
+//
+// Three rules this page keeps:
+//   - The customer's original is never edited. Staff edit a working copy,
+//     and the Original tab always shows what was actually asked for.
+//   - Saving is optimistic but never blind. Every save carries the version it
+//     was loaded from, and the Worker refuses a save over someone else's.
+//   - Build is dry run first. The plan is shown, then confirmed, then made,
+//     and everything is created as a draft.
+//
+// House style: no em dashes. Use commas, periods, or the word "to".
+
+var TR = {
+    st: { list: [], rec: null, dirty: false, filter: 'open', q: '', tab: 'products', D: null, P: {}, CAT: {}, logoSrc: {}, plan: null, busy: false },
+    U: TeamReqUtils,
+    STATUS: { new: 'New', progress: 'In progress', waiting: 'Waiting on customer', done: 'Done', archived: 'Archived' },
+    ADMIN: 'https://admin.shopify.com/store/therunhouse',
+
+    $: function (id) { return document.getElementById(id); },
+    esc: function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); },
+
+    // ---------- Worker calls ----------
+    api: function (path, opts) {
+        opts = opts || {};
+        var h = { 'Authorization': 'Bearer ' + CatalogClient.CATALOG_TOKEN, 'X-Write-Secret': CatalogClient.writeSecret() };
+        var body = opts.form || (opts.body != null ? JSON.stringify(opts.body) : undefined);
+        if (opts.body != null) h['Content-Type'] = 'application/json';
+        return fetch(CatalogClient._writeBase() + path, { method: opts.method || (body ? 'POST' : 'GET'), headers: h, body: body })
+            .then(function (res) {
+                return res.json().catch(function () { return { error: 'HTTP ' + res.status }; })
+                    .then(function (j) { j.__status = res.status; return j; });
+            });
+    },
+
+    // ---------- start ----------
+    init: function () {
+        TR.$('gate-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            CatalogClient.setWriteSecret(TR.$('gate-in').value);
+            TR.start();
+        });
+        TR.$('filters').addEventListener('click', function (e) {
+            var b = e.target.closest('button'); if (!b) return;
+            TR.st.filter = b.dataset.f;
+            TR.$('filters').querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+            TR.renderList();
+        });
+        TR.$('q').addEventListener('input', function () { TR.st.q = this.value.toLowerCase(); TR.renderList(); });
+        TR.$('refresh').addEventListener('click', function () { TR.loadList(); });
+        TR.$('imp-open').addEventListener('click', function () { TR.$('imp').classList.remove('hidden'); TR.$('imp-text').focus(); });
+        TR.$('imp-cancel').addEventListener('click', function () { TR.$('imp').classList.add('hidden'); });
+        TR.$('imp-go').addEventListener('click', TR.doImport);
+        window.addEventListener('beforeunload', function (e) { if (TR.st.dirty) { e.preventDefault(); e.returnValue = ''; } });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { TR.$('imp').classList.add('hidden'); TR.closePlacement(); }
+        });
+        TR.start();
+    },
+
+    start: function () {
+        if (!CatalogClient.hasWriteSecret()) { TR.showGate(''); return; }
+        TR.api('/team-requests').then(function (j) {
+            if (j.__status === 403 || j.__status === 401) {
+                CatalogClient.setWriteSecret('');
+                TR.showGate(j.reason || j.error || 'That secret was not accepted.');
+                return;
+            }
+            if (j.__status !== 200) { TR.showGate('The Worker answered ' + j.__status + ': ' + (j.error || '')); return; }
+            TR.$('gate').classList.add('hidden');
+            TR.$('app').classList.remove('hidden');
+            TR.st.list = j.requests || [];
+            TR.renderList();
+            TR.loadCatalog();
+            var h = location.hash.replace('#', '');
+            if (h) TR.open(h);
+        }).catch(function (e) { TR.showGate('Could not reach the Worker: ' + e.message); });
+    },
+
+    showGate: function (err) {
+        TR.$('app').classList.add('hidden');
+        TR.$('gate').classList.remove('hidden');
+        TR.$('gate-err').textContent = err || '';
+        TR.$('gate-in').focus();
+    },
+
+    loadCatalog: function () {
+        if (TR.st.D) return Promise.resolve(TR.st.D);
+        return fetch(TR.U.CATALOG_URL).then(function (r) { return r.json(); }).then(function (D) {
+            D.cats.forEach(function (c) {
+                c.p.forEach(function (p) {
+                    p.img = TR.U.expand(p.img);
+                    p.c.forEach(function (k) { k[1] = TR.U.expand(k[1]); k[2] = TR.U.expand(k[2]); if (k.length > 6) k[6] = TR.U.expand(k[6]); });
+                    TR.st.P[p.s] = p; TR.st.CAT[p.s] = c.name;
+                });
+            });
+            TR.st.D = D;
+            if (TR.st.rec) TR.renderDetail();
+            return D;
+        });
+    },
+
+    loadList: function () {
+        return TR.api('/team-requests').then(function (j) { TR.st.list = j.requests || []; TR.renderList(); });
+    },
+
+    // ---------- list ----------
+    renderList: function () {
+        var f = TR.st.filter, q = TR.st.q;
+        var rows = TR.st.list.filter(function (r) {
+            if (f === 'open' && ['new', 'progress', 'waiting'].indexOf(r.s) < 0) return false;
+            if (f === 'done' && r.s !== 'done') return false;
+            if (f === 'archived' && r.s !== 'archived') return false;
+            if (q && (String(r.t) + ' ' + String(r.e)).toLowerCase().indexOf(q) < 0) return false;
+            return true;
+        });
+        var cur = TR.st.rec && TR.st.rec.id;
+        TR.$('list').innerHTML = rows.length ? rows.map(function (r) {
+            var bits = [r.n + (r.n === 1 ? ' product' : ' products'), TR.ago(r.c)];
+            if (r.d) bits.push('opens ' + TR.esc(r.d));
+            return '<button type="button" class="row' + (r.id === cur ? ' on' : '') + '" data-id="' + r.id + '">' +
+                '<div class="t"><span>' + TR.esc(r.t || '(no name)') + '</span><span class="pill ' + r.s + '">' + TR.STATUS[r.s] + '</span></div>' +
+                '<div class="m">' + bits.join(' · ') + (r.m === 'update' ? ' · <b>add to store</b>' : '') + (r.b ? ' · <b>build it for me</b>' : '') + (r.x ? ' · built' : '') + '</div></button>';
+        }).join('') : '<p class="empty">' + (TR.st.list.length ? 'Nothing matches.' : 'No requests yet. They appear here when a customer presses Send on the builder.') + '</p>';
+        TR.$('list').querySelectorAll('.row').forEach(function (b) { b.onclick = function () { TR.open(b.dataset.id); }; });
+    },
+
+    ago: function (iso) {
+        var d = new Date(iso), s = (Date.now() - d) / 1000;
+        if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' min ago';
+        if (s < 86400) return Math.round(s / 3600) + ' h ago';
+        if (s < 86400 * 14) return Math.round(s / 86400) + ' days ago';
+        return d.toLocaleDateString();
+    },
+
+    // ---------- one request ----------
+    open: function (id) {
+        if (TR.st.dirty && TR.st.rec && TR.st.rec.id !== id) {
+            if (!window.confirm('You have unsaved changes on this request. Leave them?')) return;
+        }
+        TR.api('/team-requests/one?id=' + encodeURIComponent(id)).then(function (rec) {
+            if (rec.__status !== 200) { TR.$('detail').innerHTML = '<p class="msg bad">' + TR.esc(rec.error || 'Could not load') + '</p>'; return; }
+            delete rec.__status;
+            TR.st.rec = rec; TR.st.dirty = false; TR.st.plan = null; TR.st.tab = TR.st.tab || 'products';
+            history.replaceState(null, '', '#' + id);
+            TR.renderList();
+            TR.renderDetail();
+        });
+    },
+
+    touch: function () {
+        TR.st.dirty = true; TR.st.plan = null;
+        var s = TR.$('save'); if (s) s.disabled = false;
+        var n = TR.$('dirty'); if (n) n.textContent = 'Unsaved changes';
+    },
+
+    save: function (extra) {
+        var r = TR.st.rec;
+        var patch = Object.assign({ work: r.work, notes: r.notes }, extra || {});
+        return TR.api('/team-requests/update', { body: { id: r.id, base: r.updated, patch: patch } }).then(function (j) {
+            if (j.__status === 409) { TR.flash('Someone else saved this request since you opened it. Reload it to see their change, then redo yours.', 'bad'); return false; }
+            if (j.__status !== 200) { TR.flash(j.error || j.reason || ('Save failed, HTTP ' + j.__status), 'bad'); return false; }
+            TR.st.rec = j.rec; TR.st.dirty = false;
+            TR.loadList();
+            TR.renderDetail();
+            return true;
+        });
+    },
+
+    flash: function (text, kind) {
+        var m = TR.$('flash'); if (!m) return;
+        m.className = 'msg ' + (kind || 'ok'); m.textContent = text; m.classList.remove('hidden');
+    },
+
+    renderDetail: function () {
+        var r = TR.st.rec; if (!r) return;
+        var q = r.req || {}, w = r.work || {}, c = q.contact || {};
+        var flags = [];
+        if (q.mode === 'update') flags.push('<span class="flag hot">Add to existing store: ' + TR.esc(q.store && q.store.name) + '</span>');
+        if (q.build_for_me) flags.push('<span class="flag hot">Build it for me</span>');
+        if (q.group) flags.push('<span class="flag">' + TR.esc(q.group) + '</span>');
+        if (q.fundraising_pct) flags.push('<span class="flag">Fundraising ' + TR.esc(q.fundraising_pct) + '%</span>');
+        if (q.team_colors && q.team_colors.main) flags.push('<span class="flag">Colors: ' + TR.esc(q.team_colors.main + (q.team_colors.second ? ' + ' + q.team_colors.second : '')) + '</span>');
+        if (r.source === 'import') flags.push('<span class="flag">Imported from email</span>');
+        if (r.build && r.build.at) flags.push('<span class="flag hot">Built ' + TR.ago(r.build.at) + '</span>');
+
+        TR.$('detail').innerHTML =
+            '<div class="dhead"><div>' +
+                '<div class="team"><input type="text" id="d-team" value="' + TR.esc(w.team) + '" aria-label="Team name"></div>' +
+                '<div class="who">' + TR.esc(c.name || '') + ' · <a href="mailto:' + TR.esc(c.email) + '">' + TR.esc(c.email) + '</a>' + (c.phone ? ' · ' + TR.esc(c.phone) : '') +
+                ' · sent ' + new Date(r.created).toLocaleString() + (q.date ? ' · store opens <b>' + TR.esc(q.date) + '</b>' : '') + '</div>' +
+                '<div class="flags">' + flags.join('') + '</div>' +
+            '</div><div class="acts">' +
+                '<select id="d-status" aria-label="Status">' + Object.keys(TR.STATUS).map(function (k) { return '<option value="' + k + '"' + (k === r.status ? ' selected' : '') + '>' + TR.STATUS[k] + '</option>'; }).join('') + '</select>' +
+                '<span class="dirty-note" id="dirty">' + (TR.st.dirty ? 'Unsaved changes' : '') + '</span>' +
+                '<button class="btn pri" type="button" id="save"' + (TR.st.dirty ? '' : ' disabled') + '>Save</button>' +
+                '<button class="btn danger" type="button" id="del">Delete</button>' +
+            '</div></div>' +
+            '<div id="flash" class="msg hidden"></div>' +
+            (q.notes ? '<div class="msg warn"><b>Customer note:</b> ' + TR.esc(q.notes) + '</div>' : '') +
+            '<div class="tabs" role="tablist">' + [['products', 'Products (' + (w.items || []).length + ')'], ['logos', 'Logos'], ['build', 'Build in Shopify'], ['orig', 'Original and history']].map(function (t) {
+                return '<button type="button" role="tab" data-t="' + t[0] + '" class="' + (TR.st.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>';
+            }).join('') + '</div><div id="pane"></div>';
+
+        TR.$('d-team').addEventListener('input', function () { w.team = this.value; TR.touch(); });
+        TR.$('d-status').addEventListener('change', function () { TR.save({ status: this.value }); });
+        TR.$('save').addEventListener('click', function () { TR.save(); });
+        TR.armDelete(TR.$('del'));
+        TR.$('detail').querySelectorAll('.tabs button').forEach(function (b) {
+            b.onclick = function () { TR.st.tab = b.dataset.t; TR.renderDetail(); };
+        });
+        ({ products: TR.paneProducts, logos: TR.paneLogos, build: TR.paneBuild, orig: TR.paneOrig })[TR.st.tab]();
+    },
+
+    // Two clicks, not a browser dialog: the first arms it for four seconds.
+    armDelete: function (b) {
+        var t = null;
+        b.onclick = function () {
+            if (!b.classList.contains('arm')) {
+                b.classList.add('arm'); b.textContent = 'Click again to delete for good';
+                t = setTimeout(function () { b.classList.remove('arm'); b.textContent = 'Delete'; }, 4000);
+                return;
+            }
+            clearTimeout(t);
+            var r = TR.st.rec;
+            TR.api('/team-requests/delete', { body: { id: r.id } }).then(function (j) {
+                if (j.__status !== 200) { TR.flash(j.error || ('Delete failed, HTTP ' + j.__status), 'bad'); return; }
+                TR.st.rec = null; TR.st.dirty = false;
+                history.replaceState(null, '', location.pathname);
+                TR.$('detail').innerHTML = '<p class="msg ok">Deleted.</p>';
+                TR.loadList();
+            });
+        };
+    },
+
+    // ---------- garment + logo, as the builder draws it ----------
+    logoSlotSrc: function (slot) {
+        var L = TR.st.rec && TR.st.rec.work.logos && TR.st.rec.work.logos[slot];
+        if (!L) return Promise.resolve(null);
+        if (L.url) return Promise.resolve(L.url);
+        if (!L.key) return Promise.resolve(null);
+        if (TR.st.logoSrc[L.key]) return Promise.resolve(TR.st.logoSrc[L.key]);
+        // Staff uploads live behind the write secret, so they are fetched with
+        // it and shown from a blob url.
+        return fetch(CatalogClient._writeBase() + '/team-requests/logo-file?key=' + encodeURIComponent(L.key), {
+            headers: { 'Authorization': 'Bearer ' + CatalogClient.CATALOG_TOKEN, 'X-Write-Secret': CatalogClient.writeSecret() }
+        }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.blob(); })
+            .then(function (b) { var u = URL.createObjectURL(b); TR.st.logoSrc[L.key] = u; return u; })
+            .catch(function () { return null; });
+    },
+
+    isImageLogo: function (slot) {
+        var L = TR.st.rec.work.logos[slot]; if (!L) return false;
+        var n = String(L.name || L.url || L.key || '') + ' ' + String(L.type || '');
+        return !/\.(pdf|ai|eps)\b|application\/(pdf|postscript|illustrator)/i.test(n);
+    },
+
+    mkHtml: function (p, colorName, box, logoSrc, id) {
+        var ci = TR.colorIdx(p, colorName), c = p.c[ci] || p.c[0];
+        var lb = '';
+        if (box) {
+            var st = 'left:' + (box[0] * 100) + '%;top:' + (box[1] * 100) + '%;width:' + (box[2] * 100) + '%;height:' + (box[3] * 100) + '%' + (box[4] ? ';transform:rotate(' + box[4] + 'deg)' : '');
+            lb = '<div class="lb"' + (id ? ' id="' + id + '"' : '') + ' style="' + st + '">' + (logoSrc ? '<img alt="" src="' + TR.esc(logoSrc) + '">' : '<span>LOGO</span>') + (id ? '<div class="h" id="' + id + '-h"></div>' : '') + '</div>';
+        }
+        return '<span class="mk"><img class="g" crossorigin="anonymous" alt="' + TR.esc(p.n + ' in ' + (c ? c[0] : '')) + '" src="' + TR.esc(c ? c[2] : p.img) + '">' + lb + '</span>';
+    },
+
+    // colorIdx falls back to the first colour, which is right for a preview
+    // and WRONG for a build: a colour the product does not carry would be
+    // created as its first colour under the requested name, a black hoodie
+    // called Kelly Green. So a build checks membership with these first.
+    hasColor: function (p, name) { return p.c.some(function (c) { return c[0] === name; }); },
+    unknownColors: function (it, p) { return it.colors.filter(function (n) { return !TR.hasColor(p, n); }); },
+
+    colorIdx: function (p, name) {
+        for (var i = 0; i < p.c.length; i++) if (p.c[i][0] === name) return i;
+        return 0;
+    },
+
+    // ---------- products ----------
+    paneProducts: function () {
+        var w = TR.st.rec.work, pane = TR.$('pane');
+        if (!TR.st.D) { pane.innerHTML = '<p class="empty">Loading the product catalog...</p>'; return; }
+        pane.innerHTML = (w.items || []).map(function (it, i) { return TR.itemHtml(it, i); }).join('') +
+            '<datalist id="pl-words"><option value="Full chest"><option value="Left chest"><option value="Front"><option value="Full back"><option value="Sleeve"></datalist>' +
+            '<div class="adder"><label class="f" for="add-q">Add a product</label><input type="search" id="add-q" placeholder="Search by name or style code, e.g. hoodie or DT6100" autocomplete="off"><div class="res hidden" id="add-res"></div></div>';
+        (w.items || []).forEach(function (it, i) { TR.wireItem(it, i); });
+        TR.wireAdder();
+        // Keep the colour list open across the redraw a toggle causes.
+        if (TR.st.openCols != null) {
+            var oc = document.querySelector('.item[data-i="' + TR.st.openCols + '"] [data-more]');
+            TR.st.openCols = null;
+            if (oc) oc.click();
+        }
+    },
+
+    itemHtml: function (it, i) {
+        var p = TR.st.P[it.style];
+        if (!p) {
+            return '<div class="item"><div></div><div><div class="name">' + TR.esc(it.style) + '</div><p class="bad">This style is no longer in the builder catalog, so it cannot be previewed or built. Remove it or swap it for a current style.</p><div class="bar"><button class="btn danger" type="button" data-rm="' + i + '">Remove</button></div></div></div>';
+        }
+        var cat = TR.st.CAT[it.style];
+        if (it.sizes == null) it.sizes = TR.U.sizesFor(p, cat);
+        var first = it.colors[0] || (p.c[0] && p.c[0][0]);
+        var problems = [];
+        if (!it.colors.length) problems.push('Pick at least one colour.');
+        var unknown = TR.unknownColors(it, p);
+        if (unknown.length) problems.push('Not a colour this product comes in: ' + unknown.map(TR.esc).join(', ') + '. Remove it and pick the right one from + colour.');
+        if (!it.sizes.length) problems.push('The catalog does not say which sizes this comes in. Type them in.');
+        var slots = Object.keys(TR.st.rec.work.logos || {});
+        var moved = it.boxes && Object.keys(it.boxes).length;
+        return '<div class="item" data-i="' + i + '">' +
+            '<div id="thumb-' + i + '">' + TR.mkHtml(p, first, TR.U.boxFor(it, p, first), null) + '</div>' +
+            '<div><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' +
+            '<div class="grid">' +
+                '<div class="wide"><label class="f">Colours</label><div class="chips">' + it.colors.map(function (n) {
+                    var known = TR.hasColor(p, n), c = known ? p.c[TR.colorIdx(p, n)] : null;
+                    return '<button type="button" class="chip on' + (known ? '' : ' unk') + '" data-col="' + TR.esc(n) + '" title="' + (known ? 'Click to remove' : 'Not a colour of this product. Click to remove') + '"><i style="background:' + (c ? c[5] : 'transparent') + '"></i>' + TR.esc(n) + ' ×</button>';
+                }).join('') + '<button type="button" class="chip" data-more="1">+ colour</button></div><div class="allcols hidden" id="allcols-' + i + '"></div></div>' +
+                '<div><label class="f" for="sz-' + i + '">Sizes</label><input type="text" id="sz-' + i + '" value="' + TR.esc(it.sizes.join(', ')) + '" style="width:100%"></div>' +
+                '<div><label class="f" for="pr-' + i + '">Price</label><input type="number" min="0" step="0.01" id="pr-' + i + '" value="' + (it.price || '') + '" style="width:100%"></div>' +
+                '<div><label class="f" for="lg-' + i + '">Logo</label><select id="lg-' + i + '" style="width:100%">' + (slots.length ? slots : ['main']).map(function (k) {
+                    var L = TR.st.rec.work.logos[k];
+                    return '<option value="' + k + '"' + (k === (it.logo || 'main') ? ' selected' : '') + '>' + TR.esc((L && L.label) || k) + '</option>';
+                }).join('') + '</select></div>' +
+            '</div>' +
+            (problems.length ? '<p class="bad">' + problems.join(' ') + '</p>' : '') +
+            '<div class="bar"><button class="btn" type="button" data-place="' + i + '">Move logo' + (moved ? ' (moved)' : '') + '</button>' +
+            '<input type="text" id="pl-' + i + '" value="' + TR.esc(it.placement || '') + '" placeholder="Placement, e.g. Left chest" aria-label="Placement wording used in the colour option" style="width:190px" list="pl-words">' +
+            '<span style="flex:1"></span><button class="btn danger" type="button" data-rm="' + i + '">Remove</button></div>' +
+            '</div></div>';
+    },
+
+    wireItem: function (it, i) {
+        var card = document.querySelector('.item[data-i="' + i + '"]') || document.querySelector('[data-rm="' + i + '"]').closest('.item');
+        var rm = card.querySelector('[data-rm]');
+        if (rm) rm.onclick = function () { TR.st.rec.work.items.splice(i, 1); TR.touch(); TR.paneProducts(); };
+        var p = TR.st.P[it.style]; if (!p) return;
+        TR.logoSlotSrc(it.logo || 'main').then(function (src) {
+            var first = it.colors[0] || p.c[0][0];
+            var th = TR.$('thumb-' + i); if (th && src) th.innerHTML = TR.mkHtml(p, first, TR.U.boxFor(it, p, first), src);
+        });
+        card.querySelectorAll('.chip.on').forEach(function (b) {
+            b.onclick = function () { it.colors = it.colors.filter(function (n) { return n !== b.dataset.col; }); delete it.boxes[b.dataset.col]; TR.touch(); TR.paneProducts(); };
+        });
+        card.querySelector('[data-more]').onclick = function () {
+            var box = TR.$('allcols-' + i);
+            if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+            box.innerHTML = '<div class="chips">' + p.c.filter(function (c) { return !c[4]; }).map(function (c) {
+                var on = it.colors.indexOf(c[0]) >= 0;
+                return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-add="' + TR.esc(c[0]) + '"><i style="background:' + c[5] + '"></i>' + TR.esc(c[0]) + '</button>';
+            }).join('') + '</div>';
+            box.classList.remove('hidden');
+            box.querySelectorAll('[data-add]').forEach(function (b) {
+                b.onclick = function () {
+                    var n = b.dataset.add, k = it.colors.indexOf(n);
+                    if (k >= 0) it.colors.splice(k, 1); else it.colors.push(n);
+                    TR.st.openCols = i; TR.touch(); TR.paneProducts();
+                };
+            });
+        };
+        TR.$('sz-' + i).addEventListener('change', function () {
+            it.sizes = this.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean); TR.touch(); TR.paneProducts();
+        });
+        TR.$('pr-' + i).addEventListener('input', function () { it.price = Number(this.value) || 0; TR.touch(); });
+        // The words in the colour option ("Navy w/ Left Chest Logo"). Moving
+        // the box does not rewrite them, because only a person knows whether
+        // a box near the heart is "left chest" or just a smaller full chest.
+        TR.$('pl-' + i).addEventListener('input', function () { it.placement = this.value; TR.touch(); });
+        TR.$('lg-' + i).addEventListener('change', function () { it.logo = this.value; TR.touch(); TR.paneProducts(); });
+        card.querySelector('[data-place]').onclick = function () { TR.openPlacement(i); };
+    },
+
+    wireAdder: function () {
+        var q = TR.$('add-q'), res = TR.$('add-res');
+        q.addEventListener('input', function () {
+            var s = this.value.trim().toLowerCase();
+            if (s.length < 2) { res.classList.add('hidden'); return; }
+            var hits = [];
+            Object.keys(TR.st.P).forEach(function (k) {
+                var p = TR.st.P[k];
+                if ((p.n + ' ' + p.s + ' ' + TR.st.CAT[k]).toLowerCase().indexOf(s) >= 0) hits.push(p);
+            });
+            hits.sort(function (a, b) { return (b.u || 0) - (a.u || 0); });
+            res.innerHTML = hits.slice(0, 14).map(function (p) {
+                return '<button type="button" data-s="' + TR.esc(p.s) + '"><img alt="" src="' + TR.esc(p.img) + '"><span><b>' + TR.esc(p.n) + '</b><br><span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(TR.st.CAT[p.s]) + ' · $' + p.m + '</span></span></button>';
+            }).join('') || '<p class="empty">No match.</p>';
+            res.classList.remove('hidden');
+            res.querySelectorAll('button').forEach(function (b) {
+                b.onclick = function () {
+                    var p = TR.st.P[b.dataset.s];
+                    TR.st.rec.work.items.push({ style: p.s, colors: [], placement: p.ch ? 'Full chest' : 'Front', second_logo: '', price: p.m || 0, sizes: null, boxes: {}, logo: 'main' });
+                    TR.st.openCols = TR.st.rec.work.items.length - 1;
+                    TR.touch(); TR.paneProducts();
+                    var cards = document.querySelectorAll('.item'); var last = cards[cards.length - 1];
+                    if (last) last.scrollIntoView({ block: 'center' });
+                };
+            });
+        });
+    },
+
+    // ---------- placement editor ----------
+    // Drag the box to move the logo, drag the corner to size it. The box is
+    // stored in fractions of the photo, the same units as the catalog's own
+    // print boxes, so it means the same thing on the mockup and in the builder.
+    openPlacement: function (i) {
+        var it = TR.st.rec.work.items[i], p = TR.st.P[it.style];
+        var colors = it.colors.length ? it.colors : [p.c[0][0]];
+        var pe = { i: i, color: colors[0], box: (TR.U.boxFor(it, p, colors[0]) || [0.3, 0.25, 0.4, 0.3]).slice(0, 4), scope: it.boxes && it.boxes[colors[0]] ? 'one' : 'all' };
+        TR.st.pe = pe;
+        var el = TR.$('pe');
+        el.classList.remove('hidden');
+        TR.logoSlotSrc(it.logo || 'main').then(function (src) {
+            pe.src = src;
+            el.innerHTML = '<div class="box"><div class="stage" id="pe-stage"></div><div class="side">' +
+                '<h3 id="pe-h">Move the logo</h3><p>' + TR.esc(p.n) + '. Drag the box to move it, drag the blue corner to resize. The logo keeps its shape inside the box.</p>' +
+                '<label class="f">Preview colour</label><div class="chips" id="pe-cols">' + colors.map(function (n) {
+                    var c = p.c[TR.colorIdx(p, n)];
+                    return '<button type="button" class="chip' + (n === pe.color ? ' on' : '') + '" data-c="' + TR.esc(n) + '"><i style="background:' + (c ? c[5] : '#888') + '"></i>' + TR.esc(n) + '</button>';
+                }).join('') + '</div>' +
+                '<label class="f" style="margin-top:12px">Apply to</label><select id="pe-scope" style="width:100%"><option value="all"' + (pe.scope === 'all' ? ' selected' : '') + '>Every colour of this product</option><option value="one"' + (pe.scope === 'one' ? ' selected' : '') + '>This colour only</option></select>' +
+                '<div class="readout" id="pe-read"></div>' +
+                '<div class="row2"><button class="btn" type="button" id="pe-reset">Catalog default</button></div>' +
+                '<div class="row2"><button class="btn" type="button" id="pe-cancel">Cancel</button><button class="btn pri" type="button" id="pe-save">Use this placement</button></div>' +
+                (src ? '' : '<p class="msg warn">This logo cannot be drawn here (a PDF or AI file, or missing), so the box is shown empty. Replace it on the Logos tab with a PNG to see it.</p>') +
+                '</div></div>';
+            TR.drawPlacement();
+            TR.$('pe-cols').querySelectorAll('button').forEach(function (b) {
+                b.onclick = function () {
+                    pe.color = b.dataset.c;
+                    pe.box = (TR.U.boxFor(it, p, pe.color) || pe.box).slice(0, 4);
+                    TR.$('pe-cols').querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+                    TR.drawPlacement();
+                };
+            });
+            TR.$('pe-scope').onchange = function () { pe.scope = this.value; };
+            TR.$('pe-reset').onclick = function () { pe.box = (TR.U.defaultBox(p, it.placement) || pe.box).slice(0, 4); TR.drawPlacement(); };
+            TR.$('pe-cancel').onclick = TR.closePlacement;
+            TR.$('pe-save').onclick = function () {
+                it.boxes = it.boxes || {};
+                var b = pe.box.map(function (v) { return Math.round(v * 10000) / 10000; });
+                if (pe.scope === 'all') { it.boxes = { '*': b }; } else { it.boxes[pe.color] = b; }
+                TR.closePlacement(); TR.touch(); TR.paneProducts();
+            };
+        });
+    },
+
+    closePlacement: function () { var el = TR.$('pe'); if (el) { el.classList.add('hidden'); el.innerHTML = ''; } TR.st.pe = null; },
+
+    drawPlacement: function () {
+        var pe = TR.st.pe; if (!pe) return;
+        var it = TR.st.rec.work.items[pe.i], p = TR.st.P[it.style];
+        var stage = TR.$('pe-stage');
+        stage.innerHTML = TR.mkHtml(p, pe.color, pe.box, pe.src, 'pe-lb');
+        TR.readout();
+        var lb = TR.$('pe-lb'), handle = TR.$('pe-lb-h'), mk = stage.querySelector('.mk');
+        var start = null;
+        var down = function (mode) {
+            return function (e) {
+                e.preventDefault(); e.stopPropagation();
+                var r = mk.getBoundingClientRect();
+                start = { mode: mode, x: e.clientX, y: e.clientY, box: pe.box.slice(), W: r.width, H: r.height };
+                (e.target.setPointerCapture ? e.target : lb).setPointerCapture(e.pointerId);
+            };
+        };
+        var move = function (e) {
+            if (!start) return;
+            var dx = (e.clientX - start.x) / start.W, dy = (e.clientY - start.y) / start.H, b = start.box.slice();
+            if (start.mode === 'move') {
+                b[0] = Math.min(Math.max(0, b[0] + dx), 1 - b[2]);
+                b[1] = Math.min(Math.max(0, b[1] + dy), 1 - b[3]);
+            } else {
+                b[2] = Math.min(Math.max(0.03, b[2] + dx), 1 - b[0]);
+                b[3] = Math.min(Math.max(0.03, b[3] + dy), 1 - b[1]);
+            }
+            pe.box = b;
+            lb.style.left = b[0] * 100 + '%'; lb.style.top = b[1] * 100 + '%'; lb.style.width = b[2] * 100 + '%'; lb.style.height = b[3] * 100 + '%';
+            TR.readout();
+        };
+        var up = function () { start = null; };
+        lb.addEventListener('pointerdown', down('move'));
+        handle.addEventListener('pointerdown', down('size'));
+        [lb, handle].forEach(function (x) { x.addEventListener('pointermove', move); x.addEventListener('pointerup', up); x.addEventListener('pointercancel', up); });
+        // Arrow keys nudge by half a percent, for the last bit of alignment.
+        lb.tabIndex = 0;
+        lb.setAttribute('aria-label', 'Logo position. Arrow keys move it, shift and arrow keys resize it.');
+        lb.addEventListener('keydown', function (e) {
+            var k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!k) return;
+            e.preventDefault();
+            var b = pe.box.slice(), s = 0.005;
+            if (e.shiftKey) { b[2] = Math.max(0.03, b[2] + k[0] * s); b[3] = Math.max(0.03, b[3] + k[1] * s); }
+            else { b[0] = Math.max(0, Math.min(1 - b[2], b[0] + k[0] * s)); b[1] = Math.max(0, Math.min(1 - b[3], b[1] + k[1] * s)); }
+            pe.box = b; TR.drawPlacement(); TR.$('pe-lb').focus();
+        });
+    },
+
+    readout: function () {
+        var b = TR.st.pe && TR.st.pe.box, el = TR.$('pe-read'); if (!b || !el) return;
+        el.textContent = 'left ' + (b[0] * 100).toFixed(1) + '%  top ' + (b[1] * 100).toFixed(1) + '%  width ' + (b[2] * 100).toFixed(1) + '%  height ' + (b[3] * 100).toFixed(1) + '%';
+    },
+
+    // ---------- logos ----------
+    paneLogos: function () {
+        var w = TR.st.rec.work, slots = Object.keys(w.logos || {});
+        var pane = TR.$('pane');
+        pane.innerHTML = (slots.length ? '<div class="logos">' + slots.map(function (k) {
+            var L = w.logos[k];
+            return '<div class="logo" data-k="' + k + '"><div class="checker" id="lg-pv-' + k + '"><span>Loading</span></div>' +
+                '<b>' + TR.esc(L.label || k) + '</b><div class="sub">' + TR.esc(L.name || (L.url ? L.url.split('/').pop().split('?')[0] : '')) + ' · ' + (L.from === 'staff' ? 'replaced by staff' : 'from the customer') + '</div>' +
+                '<div id="lg-warn-' + k + '"></div>' +
+                '<div class="bar" style="display:flex;gap:8px;margin-top:8px"><label class="btn" style="display:inline-flex;align-items:center">Replace<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="' + k + '" class="hidden"></label>' +
+                (L.url ? '<a class="btn" style="text-decoration:none;display:inline-flex;align-items:center" target="_blank" rel="noopener" href="' + TR.esc(L.url) + '">Open file</a>' : '') + '</div></div>';
+        }).join('') + '</div>' : '<p class="empty">The customer did not upload a logo.' + (TR.st.rec.req.logos ? ' They said: ' + TR.esc(TR.st.rec.req.logos) : '') + '</p>') +
+            '<div class="bar" style="margin-top:14px;display:flex;gap:8px;align-items:center"><label class="btn" style="display:inline-flex;align-items:center">Add another logo<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="__new" class="hidden"></label><span class="sub">A replaced logo keeps the original in the history, and every preview and mockup switches to the new file.</span></div>';
+        slots.forEach(function (k) { TR.checkLogo(k); });
+        pane.querySelectorAll('input[data-up]').forEach(function (inp) {
+            inp.onchange = function () {
+                var f = inp.files[0]; if (!f) return;
+                var slot = inp.dataset.up;
+                if (slot === '__new') { var n = 2; while (w.logos['logo' + n]) n++; slot = 'logo' + n; }
+                if (TR.st.dirty) { TR.flash('Save your other changes first, then replace the logo.', 'warn'); return; }
+                var fd = new FormData(); fd.append('id', TR.st.rec.id); fd.append('slot', slot); fd.append('file', f);
+                TR.flash('Uploading ' + f.name + '...', 'warn');
+                TR.api('/team-requests/logo', { method: 'POST', form: fd }).then(function (j) {
+                    if (j.__status !== 200) { TR.flash(j.error || ('Upload failed, HTTP ' + j.__status), 'bad'); return; }
+                    TR.st.rec = j.rec; TR.renderDetail(); TR.flash('Logo replaced. The original is still listed in the history.', 'ok');
+                });
+            };
+        });
+    },
+
+    // Checks a print shop would ask about, shown as hints, never as blockers.
+    checkLogo: function (k) {
+        var pv = TR.$('lg-pv-' + k), warn = TR.$('lg-warn-' + k), out = [];
+        if (!TR.isImageLogo(k)) {
+            pv.innerHTML = '<span>' + TR.esc(String(TR.st.rec.work.logos[k].name || 'File').split('.').pop().toUpperCase()) + ' file</span>';
+            warn.innerHTML = '<p class="warn">Cannot be previewed here. Open it to check it, and convert it to a PNG for the mockups.</p>';
+            return;
+        }
+        TR.logoSlotSrc(k).then(function (src) {
+            if (!src) { pv.innerHTML = '<span>Missing</span>'; return; }
+            var im = new Image(); im.crossOrigin = 'anonymous';
+            im.onload = function () {
+                pv.innerHTML = ''; pv.appendChild(im);
+                var long = Math.max(im.naturalWidth, im.naturalHeight);
+                if (long && long < 1000) out.push('Low resolution, ' + im.naturalWidth + ' x ' + im.naturalHeight + ' px. Print wants about 2000 px across, or a vector file.');
+                try {
+                    var c = document.createElement('canvas'), W = Math.min(200, im.naturalWidth), H = Math.min(200, im.naturalHeight);
+                    c.width = W; c.height = H; var g = c.getContext('2d'); g.drawImage(im, 0, 0, W, H);
+                    var px = [[1, 1], [W - 2, 1], [1, H - 2], [W - 2, H - 2]].map(function (q) { return g.getImageData(q[0], q[1], 1, 1).data; });
+                    if (px.every(function (d) { return d[3] > 240 && d[0] > 235 && d[1] > 235 && d[2] > 235; })) out.push('White background, not transparent. It will print as a white box on a dark garment.');
+                } catch (e) { /* tainted canvas, skip the check */ }
+                var hats = TR.st.rec.work.items.some(function (it) { return /Headwear|Bags/.test(TR.st.CAT[it.style] || '') && (it.logo || 'main') === k; });
+                if (hats) out.push('Used on a hat or bag, which is usually embroidered: the decorator will need a vector or a digitized file.');
+                warn.innerHTML = out.map(function (t) { return '<p class="warn">' + TR.esc(t) + '</p>'; }).join('');
+            };
+            im.onerror = function () { pv.innerHTML = '<span>Could not load</span>'; };
+            im.src = src;
+        });
+    },
+
+    // ---------- original and history ----------
+    paneOrig: function () {
+        var r = TR.st.rec;
+        TR.$('pane').innerHTML =
+            '<label class="f" for="d-notes">Staff notes</label><textarea id="d-notes" style="width:100%;min-height:90px">' + TR.esc(r.notes || '') + '</textarea>' +
+            '<h3 style="margin:18px 0 6px;font-size:15px">History</h3><ul class="log">' + (r.log || []).slice().reverse().map(function (l) { return '<li>' + new Date(l.at).toLocaleString() + ': ' + TR.esc(l.what) + '</li>'; }).join('') + '</ul>' +
+            '<h3 style="margin:18px 0 6px;font-size:15px">What the customer sent</h3><pre class="orig">' + TR.esc(r.text || JSON.stringify(r.req, null, 2)) + '</pre>';
+        TR.$('d-notes').addEventListener('input', function () { r.notes = this.value; TR.touch(); });
+    },
+
+    // ---------- build ----------
+    specFor: function (it) {
+        var p = TR.st.P[it.style]; if (!p) return null;
+        var L = TR.st.rec.work.logos[it.logo || 'main'];
+        return {
+            style: p.s, name: p.n, category: TR.st.CAT[p.s], sizes: it.sizes || TR.U.sizesFor(p, TR.st.CAT[p.s]), price: it.price,
+            colors: it.colors.map(function (n) { return { name: n, label: TR.U.colorLabel(n, it.placement, L && L.label) }; }),
+        };
+    },
+
+    paneBuild: function () {
+        var r = TR.st.rec, w = r.work, pane = TR.$('pane');
+        if (!TR.st.D) { pane.innerHTML = '<p class="empty">Loading the product catalog...</p>'; return; }
+        var problems = [];
+        w.items.forEach(function (it) {
+            var p = TR.st.P[it.style];
+            if (!p) problems.push(it.style + ' is not in the catalog.');
+            else {
+                if (!it.colors.length) problems.push(p.n + ' has no colours.');
+                if (TR.unknownColors(it, p).length) problems.push(p.n + ' lists a colour it does not come in: ' + TR.unknownColors(it, p).join(', ') + '.');
+                if (!(it.sizes || TR.U.sizesFor(p, TR.st.CAT[p.s])).length) problems.push(p.n + ' has no sizes.');
+                if (!(it.price > 0)) problems.push(p.n + ' has no price.');
+            }
+        });
+        if (!w.items.length) problems.push('There are no products on this request.');
+        if (!String(w.team || '').trim()) problems.push('The request needs a team name.');
+        var undrawable = Object.keys(w.logos || {}).filter(function (k) { return !TR.isImageLogo(k); });
+        var prev = r.build && r.build.at ? '<div class="msg ok">Built ' + TR.ago(r.build.at) + ': ' + (r.build.products || []).length + ' draft products' +
+            (r.build.collection && r.build.collection.handle ? ', collection <a target="_blank" rel="noopener" href="' + TR.ADMIN + '/collections/' + TR.gidNum(r.build.collection.id) + '">' + TR.esc(r.build.collection.handle) + '</a>' : '') + '. Building again only adds products whose handles are still free.</div>' : '';
+        pane.innerHTML = prev +
+            '<div class="kv"><label class="f" for="b-tag">Collection tag</label><div><input type="text" id="b-tag" value="' + TR.esc(w.tag || '') + '" style="width:100%"><div class="sub">Every product gets this tag, and the new smart collection is TAG equals this. Match what you would type by hand.</div></div></div>' +
+            (problems.length ? '<div class="msg bad"><b>Fix these first:</b><br>' + problems.map(TR.esc).join('<br>') + '</div>' : '') +
+            (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(w.logos[k].label || k); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
+            '<p class="sub">Builds every product below as a <b>draft</b> with a mockup per colour (the garment photo with the logo where you placed it), plus an <b>unpublished</b> collection. Nothing appears on the site until someone publishes it in Shopify. Mockups use the 420 px catalog photos, so swap in proper ones before going live.</p>' +
+            '<div style="display:flex;gap:8px;margin:12px 0"><button class="btn" type="button" id="b-plan"' + (problems.length ? ' disabled' : '') + '>Check the plan</button><button class="btn pri" type="button" id="b-go" disabled>Create drafts</button></div>' +
+            '<div id="b-out"></div>';
+        TR.$('b-tag').addEventListener('input', function () { w.tag = this.value; TR.touch(); });
+        TR.$('b-plan').onclick = TR.dryRun;
+        TR.$('b-go').onclick = TR.build;
+        if (TR.st.plan) TR.showPlan(TR.st.plan);
+    },
+
+    gidNum: function (gid) { return String(gid || '').split('/').pop(); },
+
+    dryRun: function () {
+        var go = function () {
+            var specs = TR.st.rec.work.items.map(TR.specFor).filter(Boolean);
+            TR.$('b-out').innerHTML = '<p class="sub">Checking which handles are free...</p>';
+            TR.api('/team-requests/build', { body: { id: TR.st.rec.id, dryRun: true, products: specs } }).then(function (j) {
+                if (j.__status !== 200) { TR.$('b-out').innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; return; }
+                TR.st.plan = j.plan; TR.showPlan(j.plan);
+            });
+        };
+        if (TR.st.dirty) TR.save().then(function (ok) { if (ok) { TR.st.tab = 'build'; TR.renderDetail(); go(); } }); else go();
+    },
+
+    showPlan: function (plan) {
+        var fresh = plan.products.filter(function (p) { return !p.exists; });
+        var variants = fresh.reduce(function (a, p) { return a + p.variants; }, 0);
+        TR.$('b-out').innerHTML =
+            '<table class="plan"><thead><tr><th>Product</th><th>Sizes</th><th>Colours</th><th>Price</th><th>Variants</th><th></th></tr></thead><tbody>' +
+            plan.products.map(function (p) {
+                return '<tr><td><b>' + TR.esc(p.title) + '</b><br><span class="sub">' + TR.esc(p.handle) + (p.productType ? ' · ' + TR.esc(p.productType) : ' · no category') + '</span></td><td>' + TR.esc(p.sizes.join(', ')) + '</td><td>' + p.colors.map(TR.esc).join('<br>') + '</td><td>$' + TR.esc(p.price || '') + '</td><td>' + p.variants + '</td><td>' +
+                    (p.exists ? '<span style="color:var(--warn)">Already exists, will be skipped</span>' : 'New draft') + '</td></tr>';
+            }).join('') + '</tbody></table>' +
+            '<p>Collection <b>' + TR.esc(plan.collection.title) + '</b> (' + TR.esc(plan.collection.handle) + '), rule TAG = <b>' + TR.esc(plan.collection.tag) + '</b>: ' + (plan.collection.exists ? '<span style="color:var(--warn)">already exists, left alone</span>' : 'will be created, unpublished') + '.</p>' +
+            '<p><b>' + fresh.length + '</b> new draft products, <b>' + variants + '</b> variants.</p>';
+        TR.$('b-go').disabled = !fresh.length;
+        TR.$('b-go').textContent = fresh.length ? 'Create ' + fresh.length + ' draft' + (fresh.length === 1 ? '' : 's') : 'Nothing new to create';
+    },
+
+    // Mockup: the garment photo on white with the logo where staff put it,
+    // drawn exactly as the builder and this page draw it (fitLogo).
+    loadImg: function (src) {
+        return new Promise(function (res, rej) {
+            var i = new Image(); if (!/^blob:|^data:/.test(src)) i.crossOrigin = 'anonymous';
+            i.onload = function () { res(i); }; i.onerror = function () { rej(new Error('Could not load ' + src)); };
+            i.src = src;
+        });
+    },
+
+    mockup: function (it, colorName) {
+        var p = TR.st.P[it.style], c = p.c[TR.colorIdx(p, colorName)];
+        var S = 1200, PAD = 60;
+        return TR.loadImg(c[2]).then(function (g) {
+            var cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+            var x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
+            x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+            var sc = Math.min((S - 2 * PAD) / g.naturalWidth, (S - 2 * PAD) / g.naturalHeight);
+            var gw = g.naturalWidth * sc, gh = g.naturalHeight * sc, gx = (S - gw) / 2, gy = (S - gh) / 2;
+            x.drawImage(g, gx, gy, gw, gh);
+            var box = TR.U.boxFor(it, p, colorName);
+            var slot = it.logo || 'main';
+            var draw = box && TR.isImageLogo(slot) ? TR.logoSlotSrc(slot).then(function (src) { return src ? TR.loadImg(src) : null; }).catch(function () { return null; }) : Promise.resolve(null);
+            return draw.then(function (lg) {
+                if (lg) {
+                    var f = TR.U.fitLogo(box, lg.naturalWidth, lg.naturalHeight, g.naturalWidth, g.naturalHeight);
+                    x.save();
+                    if (box[4]) { var cx = gx + (box[0] + box[2] / 2) * gw, cy = gy + (box[1] + box[3] / 2) * gh; x.translate(cx, cy); x.rotate(box[4] * Math.PI / 180); x.translate(-cx, -cy); }
+                    x.drawImage(lg, gx + f.x * gw, gy + f.y * gh, f.w * gw, f.h * gh);
+                    x.restore();
+                }
+                return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/png'); });
+            });
+        });
+    },
+
+    build: function () {
+        var r = TR.st.rec, plan = TR.st.plan; if (!plan || TR.st.busy) return;
+        var out = TR.$('b-out'), go = TR.$('b-go');
+        var skip = {}; plan.products.forEach(function (p) { if (p.exists) skip[p.style] = 1; });
+        var items = r.work.items.filter(function (it) { return TR.st.P[it.style] && !skip[it.style]; });
+        var jobs = [];
+        items.forEach(function (it) { it.colors.forEach(function (n) { jobs.push({ it: it, color: n }); }); });
+        TR.st.busy = true; go.disabled = true; TR.$('b-plan').disabled = true;
+        var status = document.createElement('p'); status.className = 'msg warn'; out.prepend(status);
+        var say = function (t) { status.textContent = t; };
+        var blobs = [], done = 0;
+        // Mockups one at a time: they are small and it keeps memory flat.
+        var chain = Promise.resolve();
+        jobs.forEach(function (j) {
+            chain = chain.then(function () { return TR.mockup(j.it, j.color); }).then(function (b) { blobs.push(b); done++; say('Drawing mockups ' + done + ' of ' + jobs.length + '...'); });
+        });
+        chain.then(function () {
+            say('Uploading ' + blobs.length + ' images to Shopify...');
+            var files = jobs.map(function (j, k) { return { filename: TR.U.colorLabel(j.color, '', '').replace(/[^a-z0-9]+/gi, '-') + '-' + j.it.style + '-' + k + '.png', mimeType: 'image/png', fileSize: blobs[k].size }; });
+            return CatalogClient.stagedUploads(files).then(function (sj) {
+                if (sj.__status !== 200 || !sj.targets || sj.targets.length !== files.length) throw new Error(sj.error || sj.reason || ('Could not get upload targets, HTTP ' + sj.__status));
+                var urls = [], c2 = Promise.resolve(), up = 0;
+                sj.targets.forEach(function (t, k) {
+                    c2 = c2.then(function () { return CatalogClient.uploadToTarget(t, new File([blobs[k]], files[k].filename, { type: 'image/png' })); })
+                        .then(function (u) { urls[k] = u; up++; say('Uploading images ' + up + ' of ' + files.length + '...'); });
+                });
+                return c2.then(function () { return urls; });
+            });
+        }).then(function (urls) {
+            say('Creating drafts in Shopify...');
+            var img = {}; jobs.forEach(function (j, k) { img[j.it.style + '|' + j.color] = urls[k]; });
+            var specs = items.map(function (it) {
+                var s = TR.specFor(it);
+                s.colors.forEach(function (c) { c.image = img[it.style + '|' + c.name] || null; });
+                return s;
+            });
+            return TR.api('/team-requests/build', { body: { id: r.id, dryRun: false, products: specs } });
+        }).then(function (j) {
+            TR.st.busy = false;
+            if (j.__status !== 200) throw new Error(j.error || j.reason || ('HTTP ' + j.__status));
+            TR.st.rec = j.rec; TR.st.plan = null;
+            var ok = j.results.filter(function (x) { return x.ok; });
+            var html = '<div class="msg ' + (ok.length === j.results.length ? 'ok' : 'warn') + '">Created ' + ok.length + ' of ' + j.results.length + ' as drafts.</div><table class="plan"><tbody>' +
+                j.results.map(function (x) {
+                    return '<tr><td>' + TR.esc(x.title || x.handle) + '</td><td>' + (x.ok ? '<a target="_blank" rel="noopener" href="' + TR.ADMIN + '/products/' + TR.gidNum(x.id) + '">Open in Shopify</a>' : x.skipped ? '<span style="color:var(--warn)">' + TR.esc(x.reason) + '</span>' : '<span style="color:var(--bad)">' + TR.esc((x.errors || []).join('; ')) + '</span>') + '</td></tr>';
+                }).join('') + '</tbody></table>' +
+                (j.collection ? '<p>Collection: ' + (j.collection.ok ? '<a target="_blank" rel="noopener" href="' + TR.ADMIN + '/collections/' + TR.gidNum(j.collection.id) + '">' + TR.esc(j.collection.title) + '</a>, unpublished' : TR.esc(j.collection.reason || (j.collection.errors || []).join('; '))) + '</p>' : '');
+            TR.renderDetail();
+            TR.$('b-out').innerHTML = html;
+            TR.loadList();
+        }).catch(function (e) {
+            TR.st.busy = false;
+            say('Stopped: ' + e.message + '. Nothing after this step ran.');
+            status.className = 'msg bad';
+            TR.$('b-plan').disabled = false;
+        });
+    },
+
+    // ---------- import ----------
+    doImport: function () {
+        var msg = TR.$('imp-msg');
+        TR.api('/team-requests/import', { body: { text: TR.$('imp-text').value } }).then(function (j) {
+            if (j.__status !== 200) { msg.innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; return; }
+            TR.$('imp').classList.add('hidden'); TR.$('imp-text').value = ''; msg.innerHTML = '';
+            TR.loadList().then(function () { TR.open(j.rec.id); });
+        });
+    },
+};
+
+document.addEventListener('DOMContentLoaded', TR.init);

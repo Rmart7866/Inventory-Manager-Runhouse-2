@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Store Requests</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  Team store requests, the staff side of the Build Your Team Store page.
+  Customers file requests on the storefront; the Worker stores them; this
+  page lists, edits and builds them. Every call needs the write secret, so
+  this public page shows nothing without it.
+-->
+<style>
+:root {
+  --bg: #0d1117; --surface: #161d29; --surface-2: #1b2331;
+  --line: rgba(255,255,255,.09); --line-2: rgba(255,255,255,.16);
+  --text: #e9eef6; --muted: #aeb9c8; --muted-2: #8b97a8;
+  --accent: #4c9bff; --ok: #3ddc97; --bad: #ff7a90; --warn: #f2c14e;
+  --ring: 0 0 0 2px rgba(76,155,255,.45);
+}
+* { box-sizing: border-box; border-radius: 0; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+.hidden { display: none !important; }
+
+header.top { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+header.top h1 { font-size: 17px; margin: 0; font-weight: 700; }
+header.top .sp { flex: 1; }
+.btn { background: var(--surface-2); border: 1px solid var(--line-2); padding: 7px 12px; cursor: pointer; font-weight: 600; min-height: 34px; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.pri { background: var(--accent); border-color: var(--accent); color: #06121f; }
+.btn.danger { color: var(--bad); }
+.btn.danger.arm { background: var(--bad); color: #1a0509; border-color: var(--bad); }
+.btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--ring); }
+input[type=text], input[type=number], input[type=search], input[type=password], select, textarea {
+  background: var(--bg); border: 1px solid var(--line-2); padding: 7px 9px; min-height: 34px; }
+label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
+/* gate */
+#gate { max-width: 420px; margin: 12vh auto; padding: 24px; background: var(--surface); border: 1px solid var(--line); }
+#gate h2 { margin: 0 0 6px; font-size: 18px; }
+#gate p { color: var(--muted); margin: 0 0 16px; }
+#gate form { display: flex; gap: 8px; }
+#gate input { flex: 1; }
+#gate .err { color: var(--bad); margin-top: 10px; }
+
+/* layout */
+#app { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: calc(100vh - 63px); }
+#side { border-right: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
+#side .filters { display: flex; border-bottom: 1px solid var(--line); }
+#side .filters button { flex: 1; background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 4px; cursor: pointer; color: var(--muted); font-weight: 600; }
+#side .filters button.on { color: var(--text); border-bottom-color: var(--accent); }
+#side .search { padding: 10px; border-bottom: 1px solid var(--line); }
+#side .search input { width: 100%; }
+#list { overflow: auto; flex: 1; }
+.row { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 11px 14px; cursor: pointer; }
+.row:hover { background: var(--surface-2); }
+.row.on { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+.row .t { font-weight: 700; display: flex; gap: 8px; align-items: baseline; }
+.row .t span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .m { color: var(--muted-2); font-size: 12.5px; margin-top: 2px; }
+.pill { font-size: 11.5px; font-weight: 700; padding: 1px 7px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.new { color: var(--accent); } .pill.progress { color: var(--warn); } .pill.waiting { color: #c3a6ff; }
+.pill.done { color: var(--ok); } .pill.archived { color: var(--muted-2); }
+.empty { color: var(--muted-2); padding: 24px 16px; }
+
+#main { min-width: 0; }
+#detail { padding: 18px 24px 80px; max-width: 1200px; }
+.dhead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; align-items: start; }
+.dhead .team input { font-size: 20px; font-weight: 700; width: 100%; background: transparent; border-color: transparent; padding-left: 0; }
+.dhead .team input:hover, .dhead .team input:focus { border-color: var(--line-2); padding-left: 8px; }
+.dhead .who { color: var(--muted); }
+.dhead .acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.dirty-note { color: var(--warn); font-size: 12.5px; }
+.flags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.flag { font-size: 12px; color: var(--muted); border: 1px solid var(--line-2); padding: 1px 7px; }
+.flag.hot { color: var(--warn); border-color: var(--warn); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 18px 0 16px; }
+.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 9px 12px; cursor: pointer; color: var(--muted); font-weight: 600; margin-bottom: -1px; }
+.tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+.msg { padding: 9px 12px; border: 1px solid var(--line-2); margin: 10px 0; }
+.msg.bad { border-color: var(--bad); color: var(--bad); }
+.msg.ok { border-color: var(--ok); color: var(--ok); }
+.msg.warn { border-color: var(--warn); color: var(--warn); }
+
+/* products */
+.item { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 16px; padding: 14px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 10px; }
+.item .name { font-weight: 700; }
+.item .sub { color: var(--muted-2); font-size: 12.5px; }
+.item .grid { display: grid; grid-template-columns: 1fr 110px 150px; gap: 10px 14px; margin-top: 10px; align-items: end; }
+.item .grid .wide { grid-column: 1 / -1; }
+.item .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.item .bad { color: var(--bad); font-size: 12.5px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); padding: 3px 8px; background: none; cursor: pointer; font-size: 12.5px; }
+.chip.on { border-color: var(--accent); background: rgba(76,155,255,.12); }
+.chip.unk { border-color: var(--bad); color: var(--bad); background: rgba(255,122,144,.1); text-decoration: line-through; }
+.chip i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); flex: none; }
+.allcols { margin-top: 8px; padding: 8px; border: 1px dashed var(--line-2); }
+
+/* the garment tile: white, because the catalog photos are shot on white */
+.mk { position: relative; display: block; background: #fff; line-height: 0; }
+.mk > img.g { width: 100%; height: auto; display: block; }
+.mk > .lb { position: absolute; }
+.mk > .lb > img { width: 100%; height: 100%; object-fit: contain; object-position: top center; display: block; }
+.mk > .lb > span { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; font: 700 10px/1 'DM Sans', sans-serif; color: #888; outline: 1px dashed #aaa; text-align: center; }
+
+.adder { margin-top: 14px; position: relative; max-width: 520px; }
+.adder input { width: 100%; }
+.adder .res { position: absolute; left: 0; right: 0; top: 100%; background: var(--surface-2); border: 1px solid var(--line-2); z-index: 4; max-height: 320px; overflow: auto; }
+.adder .res button { display: flex; gap: 10px; align-items: center; width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 6px 10px; text-align: left; cursor: pointer; }
+.adder .res button:hover { background: var(--surface); }
+.adder .res img { width: 40px; height: 40px; object-fit: contain; background: #fff; }
+
+/* logos */
+.logos { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.logo { background: var(--surface); border: 1px solid var(--line); padding: 12px; }
+.checker { height: 150px; display: flex; align-items: center; justify-content: center;
+  background: #fff repeating-conic-gradient(#e6e6e6 0% 25%, #fff 0% 50%) 50% / 16px 16px; margin-bottom: 10px; }
+.checker img { max-width: 92%; max-height: 92%; }
+.checker span { color: #666; font-weight: 700; }
+.logo .warn { color: var(--warn); font-size: 12.5px; margin: 4px 0; }
+
+/* build */
+table.plan { width: 100%; border-collapse: collapse; margin: 10px 0; }
+table.plan th, table.plan td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.plan th { color: var(--muted); font-weight: 600; font-size: 12.5px; }
+.kv { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 8px 14px; max-width: 760px; }
+pre.orig { white-space: pre-wrap; background: var(--surface); border: 1px solid var(--line); padding: 12px; max-height: 480px; overflow: auto; font-size: 12.5px; }
+.log li { color: var(--muted); margin-bottom: 4px; }
+
+/* placement editor */
+#pe { position: fixed; inset: 0; background: rgba(5,8,13,.78); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
+#pe .box { background: #111828; border: 1px solid var(--line-2); display: grid; grid-template-columns: auto 280px; gap: 20px; padding: 20px; max-width: 100%; max-height: 100%; overflow: auto; }
+#pe .stage { width: min(520px, 70vw); position: relative; user-select: none; touch-action: none; }
+#pe .lb { outline: 2px dashed var(--accent); cursor: move; }
+#pe .lb .h { position: absolute; right: -8px; bottom: -8px; width: 16px; height: 16px; background: var(--accent); cursor: nwse-resize; }
+#pe .side h3 { margin: 0 0 4px; font-size: 16px; }
+#pe .side p { color: var(--muted); margin: 0 0 12px; font-size: 13px; }
+#pe .side .row2 { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+#pe .readout { font-variant-numeric: tabular-nums; color: var(--muted-2); font-size: 12px; margin-top: 8px; }
+
+/* import */
+#imp { position: fixed; inset: 0; background: rgba(5,8,13,.78); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
+#imp .box { background: #111828; border: 1px solid var(--line-2); padding: 20px; width: min(720px, 100%); }
+#imp textarea { width: 100%; height: 280px; margin: 10px 0; }
+
+@media (max-width: 900px) {
+  #app { grid-template-columns: 1fr; }
+  #side { max-height: 40vh; }
+  .item { grid-template-columns: 90px minmax(0, 1fr); }
+  .item .grid { grid-template-columns: 1fr; }
+  #pe .box { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Team store requests</h1>
+  <span class="sp"></span>
+  <button class="btn" id="imp-open" type="button">Import an email</button>
+  <button class="btn" id="refresh" type="button">Refresh</button>
+  <a class="btn" href="index.html" style="text-decoration:none;display:inline-flex;align-items:center">Inventory tool</a>
+</header>
+
+<section id="gate" class="hidden">
+  <h2>Write secret needed</h2>
+  <p>Requests carry customer names and emails, so this page needs the same write secret as the inventory tool. Paste it once and this browser keeps it.</p>
+  <form id="gate-form"><input type="password" id="gate-in" autocomplete="off" placeholder="Write secret"><button class="btn pri" type="submit">Unlock</button></form>
+  <div class="err" id="gate-err"></div>
+</section>
+
+<div id="app" class="hidden">
+  <aside id="side">
+    <div class="filters" id="filters">
+      <button type="button" data-f="open" class="on">Open</button>
+      <button type="button" data-f="done">Done</button>
+      <button type="button" data-f="archived">Archived</button>
+      <button type="button" data-f="all">All</button>
+    </div>
+    <div class="search"><input type="search" id="q" placeholder="Search team or email"></div>
+    <div id="list"></div>
+  </aside>
+  <main id="main"><div id="detail"><p class="empty">Pick a request on the left.</p></div></main>
+</div>
+
+<div id="imp" class="hidden" role="dialog" aria-modal="true" aria-labelledby="imp-h">
+  <div class="box">
+    <h3 id="imp-h" style="margin:0">Import a request from its email</h3>
+    <p style="color:var(--muted);margin:6px 0 0">Paste the whole email body. The builder always included a machine-readable block between TRHSB markers, and that is what gets read.</p>
+    <textarea id="imp-text" spellcheck="false"></textarea>
+    <div id="imp-msg"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" type="button" id="imp-cancel">Cancel</button><button class="btn pri" type="button" id="imp-go">Import</button></div>
+  </div>
+</div>
+
+<div id="pe" class="hidden" role="dialog" aria-modal="true" aria-labelledby="pe-h"></div>
+
+<script src="catalog-client.js?v=23"></script>
+<script src="team-request-utils.js?v=1"></script>
+<script src="team-requests.js?v=1"></script>
+</body>
+</html>

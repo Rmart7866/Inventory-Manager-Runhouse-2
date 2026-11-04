@@ -33,6 +33,8 @@ import { dropshipSales } from './sales.js';
 import { applyTagChanges, applyMetafields } from './tags.js';
 import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from './product-edit.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
+import { handleIntake, handleStaff, handleImport } from './teamreq.js';
+import { handleBuild } from './teamreq-build.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
   readApparel, readApparelMeta, writeApparel,
@@ -392,6 +394,18 @@ async function handleDropshipSales(request, env) {
   return json(report, 200, request, env);
 }
 
+// Team store request routes return { status, body } or { raw, type } from
+// teamreq.js, which knows nothing about CORS. This puts them on the wire.
+function teamReqRoute(fn) {
+  return async (request, env) => {
+    const r = await fn(request, env);
+    if (r.raw) {
+      return new Response(r.raw, { status: 200, headers: { 'Content-Type': r.type, 'Cache-Control': 'private, max-age=3600', ...corsHeaders(request, env) } });
+    }
+    return json(r.body, r.status || 200, request, env);
+  };
+}
+
 async function handleStatus(request, env) {
   const scope = new URL(request.url).searchParams.get('active') === '1' ? 'active' : 'all';
   const meta = await readCatalogMeta(env, scope);
@@ -403,6 +417,14 @@ async function handleStatus(request, env) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    // CUSTOMER INTAKE for the team store builder, handled BEFORE auth and
+    // before the table on purpose: customers on therunhouse.com hold no token.
+    // It can only append a request to the queue, never read one or touch
+    // Shopify, and it carries its own Origin, size, honeypot and rate checks.
+    // See teamreq.js. It is not a way around the write gate: nothing it does
+    // reaches the store.
+    if (url.pathname === '/team-requests/submit') return handleIntake(request, env);
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(request, env) });
@@ -443,6 +465,19 @@ export default {
       '/product/update': { handler: handleProductUpdate, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/product/prices': { handler: handleProductPrices, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/product/media': { handler: handleProductMedia, forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // Team store requests (teamreq.js). Customer names and emails live here,
+      // so even the reads need the write secret. The edits only touch our own
+      // KV, but they are still marked forWrite so they close with every other
+      // write if ALLOW_BEARER_WRITES is ever removed.
+      '/team-requests': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'list')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/team-requests/one': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'one')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/team-requests/logo-file': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo-get')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/team-requests/update': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'update')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      '/team-requests/delete': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'delete')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      '/team-requests/logo': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      '/team-requests/import': { handler: teamReqRoute(handleImport), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // A real Shopify write: create-only, draft-only, collection unpublished.
+      '/team-requests/build': { handler: teamReqRoute(handleBuild), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
     };
     const route = routes[url.pathname];
     if (!route) return json({ error: 'Not found' }, 404, request, env);

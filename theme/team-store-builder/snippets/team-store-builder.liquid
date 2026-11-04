@@ -212,6 +212,9 @@
   <input type="hidden" name="contact[body]" id="h-body">
   <input type="hidden" name="return_to" id="h-ret">
 </form>
+<!-- A field no person sees or tabs to. A bot that fills every input fills
+     this one, and the Worker quietly drops what it sends. -->
+<input type="text" id="sb-hp" name="sb-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
 
 
 <script>
@@ -637,6 +640,7 @@ root.querySelectorAll('.steps span').forEach(function(sp){sp.setAttribute('role'
 /* One flag for BOTH send buttons: disabling only the one pressed left
    the other free to send the same request again. */
 var SENDING=false;
+var WURL='https://runhouse-inventory-worker.ryan-486.workers.dev';
 window.addEventListener('pageshow',function(e){if(e.persisted&&SENDING){SENDING=false;[$('send'),$('bfm-send')].forEach(function(b){b.disabled=false});$('send').textContent=SLAB.send;$('bfm-send').textContent=SLAB.bfm}});
 var SLAB={send:$('send').textContent,bfm:$('bfm-send').textContent};
 function sendReq(bfm){if(SENDING)return;if(!valid()){step(1);$('e-1').hidden=false;markBad();if(bfm)$('e-1').scrollIntoView({block:'center'});return}
@@ -659,7 +663,18 @@ function sendReq(bfm){if(SENDING)return;if(!valid()){step(1);$('e-1').hidden=fal
   var js={v:D.v,mode:UPD?'update':'new',store:UPD?{name:S.store.n,handle:S.store.h,url:'https://therunhouse.com/collections/'+S.store.h,existing_styles:Object.keys(S.have||{})}:null,team:t.team,contact:{name:t.name,email:t.email,phone:t.phone||''},date:t.date||'',logos:lstat,logo_files:LK.reduce(function(o,k){if(L[k])o[k]=L[k].url||'';return o},{main:L.main&&L.main.url||'',dark:L.dark&&L.dark.url||''}),logo_names:LK.reduce(function(o,k){if(L[k])o[k]=LN[k];return o},{}),logo_notes:t.logonote||'',fundraising_pct:fpct(),build_for_me:!!bfm,group:G0?G0.n:'',team_colors:{main:TC.m?cdesc('m',EM):'',second:TC.s?cdesc('s',ES):'',main_custom:TC.m==='X'?(TC.mx||{}):null,second_custom:TC.s==='X'?(TC.sx||{}):null,neutrals:(TC.n||[]).map(function(k){return FAM[k].n})},notes:notes,items:r.map(function(x){return{style:x.p.s,colors:x.s.c,second_logo:xlabel(x),placement:plabel(x.p),logo_choice:twoLogos()?{front:pdesc(x.p,'f'),second:xlabel(x)?pdesc(x.p,'x'):'',by_color:x.s.c.reduce(function(o,nm){var c=x.p.c[cidx(x.p,nm)];o[nm]={front:LN[lkey(c,pk(x.p,'f'))]||'',second:xlabel(x)?LN[lkey(c,pk(x.p,'x'))]||'':''};return o},{})}:null,msrp:x.p.m+(loc2(x.p,x.s)?3:0),price:price(x.p,x.s.x)}})};
   lines.push('','--- machine-readable (do not edit) ---','TRHSB'+JSON.stringify(js)+'TRHSB');
   $('h-name').value=t.name;$('h-email').value=t.email;$('h-phone').value=t.phone||'';$('h-subj').value=UPD?'Team Store Update: '+S.store.n:'Team Store Request'+(bfm?' (build for me)':'')+': '+t.team;$('h-body').value=lines.join('\n');
-  $('h-ret').value=location.pathname+'?submitted=1';var sb=bfm?$('bfm-send'):$('send');SENDING=true;[$('send'),$('bfm-send')].forEach(function(b){b.disabled=true});sb.textContent='Sending...';var f=$('sb-form');if(f.requestSubmit)f.requestSubmit();else f.submit();
+  $('h-ret').value=location.pathname+'?submitted=1';var sb=bfm?$('bfm-send'):$('send');SENDING=true;[$('send'),$('bfm-send')].forEach(function(b){b.disabled=true});sb.textContent='Sending...';var f=$('sb-form');
+  /* THE REQUEST GOES TO THE STAFF INBOX, NOT TO EMAIL. It is saved by the
+     Worker (team-requests.html is where staff see it), and only if that save
+     fails or hangs does the old contact form email go out instead, so no
+     request is ever lost. A success goes to the same thank-you screen the
+     email path always returned to. */
+  var mail=function(){if(f.requestSubmit)f.requestSubmit();else f.submit()};
+  var ac=window.AbortController?new AbortController():null,tmo=setTimeout(function(){if(ac)ac.abort()},20000);
+  fetch(WURL+'/team-requests/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request:js,text:lines.join('\n'),hp:($('sb-hp')||{}).value||''}),signal:ac?ac.signal:undefined})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status)})
+    .then(function(j){clearTimeout(tmo);if(!j||!j.ok)throw 0;location.href=location.pathname+'?submitted=1'})
+    .catch(function(){clearTimeout(tmo);mail()});
   /* A successful send LEAVES this page (return_to ?submitted=1), so the
      buttons only need to come back if it never left. They used to come
      back on a 15 second timer whether or not the post had finished, and a
