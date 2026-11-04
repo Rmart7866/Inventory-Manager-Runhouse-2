@@ -148,7 +148,7 @@
   <div class="bfm newonly">
 <a href="#" id="bfm">Not sure what to pick? Just send us your logo and colors</a> and we'll build your store for you.
     <div id="bfmbox" hidden>
-<label class="f">Anything we should know? <span style="font-weight:400;text-transform:none">(optional)</span><textarea id="bfm-notes" rows="3" placeholder="Products you have in mind, how many people, deadlines..."></textarea></label><button type="button" class="btn or" id="bfm-send">Send: build my store for me</button>
+<label class="f">Anything we should know? <span style="font-weight:400;text-transform:none">(optional)</span><textarea id="bfm-notes" rows="3" placeholder="Products you have in mind, how many people, deadlines..."></textarea></label><p class="err" id="e-bfm" role="alert" hidden></p><button type="button" class="btn or" id="bfm-send">Send: build my store for me</button>
 </div>
   </div>
 </section>
@@ -224,6 +224,11 @@ D.cats.forEach(function(c){c.p.forEach(function(p){p.img=u(p.img);p.c.forEach(fu
 var root=document.getElementById('trh-sb'),$=function(id){return document.getElementById(id)};
 var KEY='trh-sb-v2',S={team:{},sel:{},cat:0,logos:{},opt:{rmbg:'auto'},pv:{}};
 try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');if(sv&&sv.sel){S=sv;S.logos=S.logos||{};S.opt=S.opt||{rmbg:'auto'};S.pv=S.pv||{}}}catch(e){}
+/* An upload cut off by a reload comes back as state 'up' with no File
+   behind it (the File cannot be saved), so it would read "Uploading..."
+   forever and Send would refuse on it forever. It failed: say so, and
+   the customer can pick the file again. */
+for(var k0 in S.logos){if(S.logos[k0]&&S.logos[k0].state==='up')S.logos[k0].state='err'}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){try{var c=JSON.parse(JSON.stringify(S));for(var k in c.logos){delete c.logos[k].img;delete c.logos[k].wimg}localStorage.setItem(KEY,JSON.stringify(c))}catch(e2){}}}
 var P={};D.cats.forEach(function(c){c.p.forEach(function(p){P[p.s]=p;p.cat=c.name})});
 var fields=['team','name','email','phone','date','logo','logonote','fund'];
@@ -252,9 +257,18 @@ function processLogo(file,rm,cb){
     URL.revokeObjectURL(url);var sm=[],d2=c2.getContext('2d').getImageData(0,0,c2.width,c2.height).data,stp=Math.max(1,Math.floor(d2.length/4/600));for(var z=0;z<d2.length/4;z+=stp){var o=z*4;if(d2[o+3]>128)sm.push([d2[o],d2[o+1],d2[o+2]])}
     cb(c2.toDataURL('image/png'),c3.toDataURL('image/png'),sm)};
   im.onerror=function(){cb(null)};im.src=url}
+/* The logo rides into Shopify as a line item property, so every upload
+   briefly puts the $0 logo product in the customer's REAL cart, and the
+   line has to come out again. That removal used to be fire and forget:
+   one failed request, or a tab closed between the two calls, and the
+   line went on to their checkout. It is now checked and retried, and on
+   every load any leftover line for this variant is swept out. */
+function zeroLine(key,n){n=n||0;return fetch('/cart/change.js',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:key,quantity:0}),credentials:'same-origin'}).then(function(r){if(!r.ok)throw new Error(r.status)}).catch(function(){if(n<2)return new Promise(function(res){setTimeout(function(){res(zeroLine(key,n+1))},800*(n+1))})})}
+function sweepCart(){fetch('/cart.js',{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(c){(c&&c.items||[]).forEach(function(it){if(String(it.variant_id)===UPV&&it.quantity>0)zeroLine(it.key)})}).catch(function(){})}
 function upload(file,cb){var fd=new FormData();fd.append('id',UPV);fd.append('quantity','1');fd.append('properties[Logo]',file);
   fetch('/cart/add.js',{method:'POST',body:fd,headers:{Accept:'application/json'},credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){
-    var u=j&&j.properties&&j.properties.Logo;if(j&&j.key)fetch('/cart/change.js',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:j.key,quantity:0}),credentials:'same-origin'});cb(u||null,j&&j.description)}).catch(function(){cb(null)})}
+    var u=j&&j.properties&&j.properties.Logo;if(j&&j.key)zeroLine(j.key);cb(u||null,j&&j.description)}).catch(function(){cb(null)})}
+sweepCart();
 var RAW={};var LK=['main','dark','l3','l4','l5'];function haveLogos(){return LK.filter(function(k){return S.logos[k]&&S.logos[k].img})}
 function showSlots(){var shown=0;['l3','l4','l5'].forEach(function(k,i){var prev=i===0?'dark':['l3','l4'][i-1];var vis=!!S.logos[k]||(S.ex||0)>i;$('lx-'+k).hidden=!vis;if(vis)shown++});$('addlogo').hidden=shown>=3}
 var STDEF={};LK.forEach(function(k){var e=$('st-'+k);if(e){STDEF[k]=e.innerHTML}});
@@ -265,9 +279,12 @@ function showLogo(k){var L=S.logos[k],pv=$('pv-'+k),st=$('st-'+k);
   st.innerHTML=esc(L.name)+' &middot; '+(L.state==='ok'?(L.fromStore?'From your store &#10003;':'Uploaded &#10003;'):L.state==='err'?'Upload failed. Try again, or email it to teamstores@therunhouse.com':'Uploading...')+(L.img?'':'<br>Previews need PNG, JPG or SVG. We\'ll still use this file for your store.')+' <a href="#" data-rm="'+k+'">Remove</a>';
   var a=st.querySelector('[data-rm]');if(a)a.onclick=function(e){e.preventDefault();delete S.logos[k];delete RAW[k];$('file-'+k).value='';recReset();save();showLogo(k)}}
 function pick(k){var f=$('file-'+k).files[0];if(!f)return;if(f.size>20*1024*1024){$('st-'+k).textContent='That file is over 20MB. Please use a smaller file.';$('st-'+k).className='st2 bad';return}
-  RAW[k]=f;S.logos[k]={name:f.name,state:'up',forStore:S.mode==='upd'?(S.store?S.store.h:'*'):''};showLogo(k);
-  processLogo(f,S.opt.rmbg,function(img,wimg,sm){S.logos[k].img=img;S.logos[k].smp=sm;save();showLogo(k);recReset();if(k==='main')autoColors()});
-  upload(f,function(u){if(!S.logos[k])return;S.logos[k].url=u;S.logos[k].state=u?'ok':'err';save();showLogo(k)});
+  /* rec is THIS pick. Pick file A then file B quickly and A's preview or
+     upload can finish last; without the identity check it wrote A's
+     image or URL onto B's record, so the wrong logo was submitted. */
+  var rec={name:f.name,state:'up',forStore:S.mode==='upd'?(S.store?S.store.h:'*'):''};RAW[k]=f;S.logos[k]=rec;showLogo(k);
+  processLogo(f,S.opt.rmbg,function(img,wimg,sm){if(S.logos[k]!==rec)return;rec.img=img;rec.smp=sm;save();showLogo(k);recReset();if(k==='main')autoColors()});
+  upload(f,function(u){if(S.logos[k]!==rec)return;rec.url=u;rec.state=u?'ok':'err';save();showLogo(k)});
 }
 LK.forEach(function(k){$('file-'+k).onchange=function(){pick(k)}});$('addlogo').onclick=function(){S.ex=Math.min(3,(S.ex||0)+1);save();showSlots()};
 if(S.opt.rmbg===true||S.opt.rmbg===false||!S.opt.rmbg)S.opt.rmbg='auto';$('opt-rmbg').value=S.opt.rmbg;
@@ -618,8 +635,12 @@ root.querySelectorAll('.steps span').forEach(function(sp){sp.setAttribute('role'
     step(3)}
   sp.onclick=go;sp.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});$('back2').onclick=function(){step(2)};$('tray1').onclick=function(){step(1)};
 function sendReq(bfm){if(!valid()){step(1);$('e-1').hidden=false;markBad();if(bfm)$('e-1').scrollIntoView({block:'center'});return}
-  for(var k in S.logos){if(S.logos[k].state==='up'){$('e-3').hidden=false;$('e-3').textContent='Your logo is still uploading. Please wait a moment and try again.';return}}
-  $('e-3').hidden=true;var t=S.team,r=rows(),L=S.logos;
+  /* "Build it for me" lives on step 1, where #e-3 is hidden with the rest
+     of step 3, so this message used to go nowhere and the click did
+     nothing visible. It goes beside whichever button was pressed. */
+  var eu=bfm?$('e-bfm'):$('e-3');
+  for(var k in S.logos){if(S.logos[k].state==='up'){eu.hidden=false;eu.textContent='Your logo is still uploading. Please wait a moment and try again.';return}}
+  $('e-3').hidden=true;$('e-bfm').hidden=true;var t=S.team,r=rows(),L=S.logos;
   var UPD=S.mode==='upd';var NEWL=LK.some(function(k){return L[k]&&!L[k].fromStore});var lstat=(UPD&&!NEWL&&L.main&&L.main.fromStore?'Store logos on file (loaded automatically)':'')||(L.main&&L.main.url?(UPD?'New logo uploaded':'Uploaded'):'')||(UPD?'Use the logos already on the store':'')||t.logo||'not provided';
   var G0=UPD?null:grpOf();var lines=UPD?['TEAM STORE UPDATE - ADD ITEMS TO EXISTING STORE','Store: '+S.store.n+' (https://therunhouse.com/collections/'+S.store.h+')','Products in store now: '+(S.haveN||0)]:['TEAM STORE REQUEST'+(bfm?' - BUILD IT FOR ME (no products picked)':''),'Team: '+t.team,'Group type: '+(G0?G0.n:'not given'),'Contact: '+t.name+' ('+t.email+(t.phone?', '+t.phone:'')+')','Store opening: '+(t.date||'not given'),'Logos: '+lstat+(t.logonote?' | '+t.logonote:'')];
   LK.forEach(function(k){if(L[k])lines.push(LN[k]+' file: '+(L[k].url||'upload failed')+' ('+L[k].name+')')});
@@ -801,6 +822,7 @@ get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){
   ------------------------------------------------------------------ */
   var STRIP = /[\u2192\u2190\u2193\u2191\u2713\u2714\u00BB]/g;
   var OPTIONAL = /\s*\(?\boptional\b\)?\s*/i;
+  var SPARE_HINT = 'Another version, like a sleeve icon or a wordmark.';
   var busy = false;
 
   function tidy() {
@@ -822,13 +844,20 @@ get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){
         out = out.replace(/\s{2,}/g, ' ');
         if (out !== v) node.nodeValue = out;
       });
-      // the same hint repeated on every spare logo slot: keep the first
+      /* The same hint repeated on every spare logo slot: keep the first.
+         ONLY the spare-slot hint, and decided afresh on every pass. The
+         first version hid any repeated .st2 and never unhid it, and
+         these same elements later carry "Uploading...", "Upload failed"
+         and the Remove link, so slots 4 and 5 showed none of that and a
+         stuck upload there had no visible way out. */
       var hints = root.querySelectorAll('.st2');
-      var seenHint = {};
+      var seenHint = false;
       Array.prototype.forEach.call(hints, function (h) {
         var k = (h.textContent || '').trim();
-        if (!k) return;
-        if (seenHint[k]) { h.style.display = 'none'; } else { seenHint[k] = 1; }
+        var dup = k === SPARE_HINT && seenHint;
+        if (k === SPARE_HINT) seenHint = true;
+        var want = dup ? 'none' : '';
+        if (h.style.display !== want) h.style.display = want;
       });
     } finally {
       busy = false;
