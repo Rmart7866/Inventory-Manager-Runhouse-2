@@ -126,6 +126,13 @@ export async function acquireBuildLock(env, scope) {
   return true;
 }
 
+// True while a catalog rebuild holds the lock. The team store sales run
+// checks this before starting its own bulk operation, because Shopify runs
+// one bulk query per app at a time and the rebuild cancels whatever it finds.
+export async function isBuildLocked(env, scope) {
+  return !!(await env.CATALOG.get(lockKey(scope), 'text'));
+}
+
 export async function releaseBuildLock(env, scope) {
   await env.CATALOG.delete(lockKey(scope));
 }

@@ -1721,6 +1721,15 @@ to the contact form email only if that save fails. Staff work them in
   `treqcosts`, behind the write secret.
 - **An approval goes stale when anything the customer SAW changes** (products,
   colours, sizes, price, placement, logo), never on a note or a cost edit.
+- **Store sales share Shopify's ONE bulk query slot with the catalog rebuild**,
+  and `runBulkQuery` cancels whatever it finds. So `teamreq-sales.js` never
+  cancels: it refuses to start while a rebuild holds the lock or any bulk job
+  runs, and reports a cancelled run instead of hanging. A sale belongs to a store
+  by product TAG (473 of 476 stores are tag rules, measured 2026-11-04) or by
+  product id for the 3 hand picked ones. **Totals count each line once**: some
+  products sit in two stores, which overstated 2026 revenue by $9,578 when the
+  rows were simply added up. Fundraising is a markup, so the team's share is
+  revenue x pct / (100 + pct).
 
 ## How a run flows
 

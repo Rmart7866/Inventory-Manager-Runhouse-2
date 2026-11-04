@@ -127,6 +127,10 @@ export function metaOf(rec) {
     // customer's own opening date (d) on the page, not here, so it is clear
     // which of the two a day on the calendar came from.
     r: String(w.release || '').slice(0, 10),
+    // For the sales view: the fundraising markup the customer chose, and the
+    // collection this tool built, so a built store picks up its percentage.
+    f: Number(r.fundraising_pct) || 0,
+    ch: String((rec.build && rec.build.collection && rec.build.collection.handle) || '').slice(0, 120),
     cl: String(w.close || '').slice(0, 10),
     a: String(w.assignee || '').slice(0, 40),
     // The customer's answer on the proof link: approved, changes, or blank.

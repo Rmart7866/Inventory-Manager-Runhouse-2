@@ -217,6 +217,30 @@ label.f { font-size: 13px; color: var(--muted); }
 .ev.close { color: var(--bad); border-style: solid; background: rgba(255,122,144,.08); }
 .key.closek { border-color: var(--bad); }
 
+
+/* team store sales */
+.sumrow { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 12px; }
+.sumrow div { background: var(--surface); border: 1px solid var(--line); padding: 10px 14px; min-width: 130px; }
+.sumrow span { display: block; font-size: 13px; color: var(--muted); }
+.sumrow b { font-size: 19px; font-variant-numeric: tabular-nums; }
+.toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 12px 0 6px; }
+.toolbar .sp { flex: 1; }
+.toolbar input[type=search] { min-width: 240px; }
+.tablewrap { overflow-x: auto; }
+table.sales td, table.sales th { white-space: nowrap; }
+table.sales th button { background: none; border: 0; color: var(--muted); font: inherit; font-weight: 600; font-size: 13px; cursor: pointer; padding: 0; }
+table.sales th button:hover { color: var(--text); }
+table.sales .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.sales th.num button { text-align: right; }
+table.sales input { width: 76px; text-align: right; min-height: 30px; padding: 3px 6px; }
+table.sales input.pct { width: 56px; }
+table.sales tbody tr:hover td { background: rgba(255,255,255,.03); }
+table.sales td.owe { color: var(--warn); font-weight: 700; }
+.linkish { background: none; border: 0; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; padding: 0; text-align: left; white-space: normal; }
+.linkish:hover { color: var(--accent); text-decoration: underline; }
+.detail-row td { background: var(--surface); color: var(--muted); white-space: normal !important; }
+.detail-row ul { margin: 6px 0 0; padding-left: 18px; }
+
 @media (max-width: 900px) {
   #app { grid-template-columns: 1fr; }
   #side { max-height: 40vh; }
@@ -231,6 +255,7 @@ label.f { font-size: 13px; color: var(--muted); }
   <h1>Team store requests</h1>
   <span class="sp"></span>
   <button class="btn" id="cal-open" type="button">Calendar</button>
+  <button class="btn" id="sales-open" type="button">Store sales</button>
   <button class="btn" id="refresh" type="button">Refresh</button>
   <a class="btn" href="index.html" style="text-decoration:none;display:inline-flex;align-items:center">Inventory tool</a>
 </header>
@@ -262,6 +287,6 @@ label.f { font-size: 13px; color: var(--muted); }
 
 <script src="catalog-client.js?v=23"></script>
 <script src="team-request-utils.js?v=1"></script>
-<script src="team-requests.js?v=5"></script>
+<script src="team-requests.js?v=6"></script>
 </body>
 </html>

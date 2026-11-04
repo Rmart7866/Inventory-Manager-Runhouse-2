@@ -58,6 +58,7 @@ var TR = {
         TR.$('me').addEventListener('change', function () { try { localStorage.setItem('rhStaffName', this.value.trim()); } catch (e) { /* private mode */ } TR.renderList(); });
         TR.$('refresh').addEventListener('click', function () { TR.loadList(); });
         TR.$('cal-open').addEventListener('click', TR.showCalendar);
+        TR.$('sales-open').addEventListener('click', TR.showSales);
         window.addEventListener('beforeunload', function (e) { if (TR.st.dirty) { e.preventDefault(); e.returnValue = ''; } });
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') TR.closePlacement();
@@ -955,6 +956,164 @@ var TR = {
             status.className = 'msg bad';
             TR.$('b-plan').disabled = false;
         });
+    },
+
+    // ---------- team store sales ----------
+    // Orders, units and revenue per team store, and what each team has earned
+    // from fundraising. The Worker reads the orders with a Shopify bulk job;
+    // this view starts it, polls it, and shows the last result meanwhile.
+    showSales: function () {
+        if (TR.st.dirty && !window.confirm('You have unsaved changes on this request. Leave them?')) return;
+        TR.st.dirty = false; TR.st.rec = null; TR.st.view = 'sales';
+        history.replaceState(null, '', location.pathname);
+        TR.st.sales = TR.st.sales || { sort: 'revenue', dir: -1, q: '', zero: false, period: 'year' };
+        TR.renderList();
+        TR.$('detail').innerHTML = '<p class="empty">Loading sales...</p>';
+        TR.salesPoll(false);
+    },
+
+    sinceFor: function (period) {
+        var d = new Date(), iso = function (x) { return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+        if (period === 'year') return d.getFullYear() + '-01-01';
+        if (period === '90') return iso(new Date(d - 90 * 86400000));
+        if (period === '365') return iso(new Date(d - 365 * 86400000));
+        if (period === '730') return iso(new Date(d - 730 * 86400000));
+        return TR.st.sales.custom || iso(new Date(d - 365 * 86400000));
+    },
+
+    salesPoll: function (loop) {
+        TR.api('/team-requests/sales/status').then(function (j) {
+            if (TR.st.view !== 'sales') return;
+            if (j.__status !== 200) { TR.$('detail').innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; return; }
+            var S = TR.st.sales;
+            S.result = j.result; S.fund = j.fund || {}; S.state = j.state; S.objects = j.objects; S.error = j.error;
+            TR.renderSales();
+            clearTimeout(S.timer);
+            if (j.state === 'running' || j.state === 'processing') S.timer = setTimeout(function () { TR.salesPoll(true); }, 4000);
+        });
+    },
+
+    salesRun: function () {
+        var S = TR.st.sales, since = TR.sinceFor(S.period);
+        TR.api('/team-requests/sales/run', { body: { since: since } }).then(function (j) {
+            if (j.__status !== 200) { S.error = j.error || j.reason || ('HTTP ' + j.__status); S.state = 'failed'; TR.renderSales(); return; }
+            S.state = 'running'; S.objects = 0; S.error = ''; TR.renderSales();
+            S.timer = setTimeout(function () { TR.salesPoll(true); }, 4000);
+        });
+    },
+
+    // The fundraising markup a store carries: what staff saved for it, or the
+    // percentage the customer picked on the builder for a store this tool
+    // built, or none.
+    fundFor: function (h) {
+        var f = (TR.st.sales.fund || {})[h];
+        if (f) return { pct: f.pct, paid: f.paid || 0, saved: true };
+        var r = TR.st.list.filter(function (x) { return x.ch === h && x.f; })[0];
+        return { pct: r ? r.f : 0, paid: 0, saved: false };
+    },
+
+    earned: function (revenue, pct) { return pct ? revenue * pct / (100 + pct) : 0; },
+    money: function (n) { return '$' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+
+    renderSales: function () {
+        var S = TR.st.sales, R = S.result, el = TR.$('detail');
+        var running = S.state === 'running' || S.state === 'processing';
+        var since = TR.sinceFor(S.period);
+        var head = '<div class="calhead"><h2 style="min-width:0">Team store sales</h2><span class="sp"></span>' +
+            '<label class="sub" for="sl-p">Period</label><select id="sl-p">' + [['year', 'This year'], ['90', 'Last 90 days'], ['365', 'Last 365 days'], ['730', 'Last 2 years'], ['custom', 'Since a date']].map(function (o) {
+                return '<option value="' + o[0] + '"' + (S.period === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+            }).join('') + '</select>' +
+            (S.period === 'custom' ? '<input type="date" id="sl-c" value="' + TR.esc(S.custom || since) + '">' : '') +
+            '<button class="btn pri" type="button" id="sl-run"' + (running ? ' disabled' : '') + '>' + (running ? 'Reading orders...' : 'Update from Shopify') + '</button></div>';
+        var status = running ? '<div class="msg warn">Reading orders from Shopify' + (S.objects ? ', ' + Number(S.objects).toLocaleString() + ' records so far' : '') + '. A year takes a minute or two; this page updates by itself.</div>' :
+            S.state === 'failed' ? '<div class="msg bad">' + TR.esc(S.error || 'The sales job did not finish.') + '</div>' : '';
+        if (!R) { el.innerHTML = head + status + (running ? '' : '<p class="empty">No figures yet. Pick a period and press Update from Shopify.</p>'); TR.wireSales(); return; }
+
+        var rows = R.stores.map(function (s) {
+            var f = TR.fundFor(s.h), earned = TR.earned(s.revenue, f.pct);
+            return { s: s, f: f, earned: earned, owed: earned - f.paid };
+        });
+        var q = (S.q || '').toLowerCase();
+        var shown = rows.filter(function (r) { return (!q || r.s.n.toLowerCase().indexOf(q) >= 0) && (S.zero || r.s.units > 0 || q); });
+        var key = S.sort, dir = S.dir;
+        var val = function (r) { return key === 'name' ? r.s.n.toLowerCase() : key === 'earned' ? r.earned : key === 'owed' ? r.owed : key === 'last' ? r.s.last : r.s[key]; };
+        shown.sort(function (a, b) { var x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * dir; });
+        var sold = rows.filter(function (r) { return r.s.units > 0; });
+        var tot = sold.reduce(function (t, r) { t.o += r.s.orders; t.u += r.s.units; t.r += r.s.revenue; t.e += r.earned; t.w += Math.max(0, r.owed); return t; }, { o: 0, u: 0, r: 0, e: 0, w: 0 });
+        // Orders, units and revenue come from the Worker's de-duplicated total
+        // when it has one: a product in two stores is one sale, not two.
+        if (R.total) { tot.o = R.total.orders; tot.u = R.total.units; tot.r = R.total.revenue; }
+        var th = function (k, label, num) { return '<th class="' + (num ? 'num' : '') + '"><button type="button" data-sort="' + k + '">' + label + (S.sort === k ? (S.dir < 0 ? ' ↓' : ' ↑') : '') + '</button></th>'; };
+        var stale = R.since !== since && !running ? '<div class="msg warn">These figures are from ' + TR.esc(TR.fmtDate(R.since)) + ' on. Press Update from Shopify for the period you picked.</div>' : '';
+
+        el.innerHTML = head + status + stale +
+            '<div class="sumrow"><div><span>Stores with sales</span><b>' + sold.length + '</b></div><div><span>Orders</span><b>' + tot.o.toLocaleString() + '</b></div><div><span>Units</span><b>' + tot.u.toLocaleString() + '</b></div><div><span>Revenue</span><b>' + TR.money(tot.r) + '</b></div><div><span>Teams earned</span><b>' + TR.money(tot.e) + '</b></div><div><span>Still owed</span><b>' + TR.money(tot.w) + '</b></div></div>' +
+            '<p class="sub">Figures for ' + TR.esc(TR.fmtDate(R.since)) + ' to ' + TR.esc(new Date(R.at).toLocaleString()) + '. Revenue is what customers paid after discounts, less refunds; cancelled and test orders are left out. To work out what a team is owed, pick a period that covers the whole store, since <b>Paid</b> is everything paid to date.</p>' +
+            '<div class="toolbar"><input type="search" id="sl-q" placeholder="Find a store" value="' + TR.esc(S.q || '') + '" aria-label="Find a store">' +
+            '<label class="sub"><input type="checkbox" id="sl-z"' + (S.zero ? ' checked' : '') + '> Show the ' + (rows.length - sold.length) + ' stores with no sales</label><span class="sp"></span>' +
+            '<button class="btn" type="button" id="sl-csv">Download CSV</button></div>' +
+            '<div class="tablewrap"><table class="plan sales"><thead><tr>' + th('name', 'Store') + th('orders', 'Orders', 1) + th('units', 'Units', 1) + th('revenue', 'Revenue', 1) + th('last', 'Last sale') +
+            '<th class="num">Fundraising</th>' + th('earned', 'Team earned', 1) + '<th class="num">Paid to date</th>' + th('owed', 'Still owed', 1) + '</tr></thead><tbody>' +
+            shown.map(function (r) {
+                var s = r.s;
+                return '<tr data-h="' + TR.esc(s.h) + '"><td><button type="button" class="linkish" data-x="' + TR.esc(s.h) + '">' + TR.esc(s.n) + '</button></td>' +
+                    '<td class="num">' + s.orders + '</td><td class="num">' + s.units + '</td><td class="num">' + TR.money(s.revenue) + '</td><td>' + (s.last ? TR.esc(TR.fmtDate(s.last)) : '') + '</td>' +
+                    '<td class="num"><input type="number" min="0" max="100" step="1" class="pct" value="' + (r.f.pct || '') + '" placeholder="0" aria-label="Fundraising percent for ' + TR.esc(s.n) + '">%' + (r.f.pct && !r.f.saved ? ' <span class="sub" title="From the customer\'s request">req</span>' : '') + '</td>' +
+                    '<td class="num">' + (r.f.pct ? TR.money(r.earned) : '') + '</td>' +
+                    '<td class="num">' + (r.f.pct ? '<input type="number" min="0" step="0.01" class="paid" value="' + (r.f.paid || '') + '" placeholder="0" aria-label="Paid to ' + TR.esc(s.n) + '">' : '') + '</td>' +
+                    '<td class="num ' + (r.owed > 0.005 ? 'owe' : '') + '">' + (r.f.pct ? TR.money(r.owed) : '') + '</td></tr>' +
+                    '<tr class="detail-row hidden" data-d="' + TR.esc(s.h) + '"><td colspan="9">' + (s.top.length ? '<b>Best sellers</b><ul>' + s.top.map(function (t) { return '<li>' + TR.esc(t.t) + ': ' + t.u + ' units, ' + TR.money(t.r) + '</li>'; }).join('') + '</ul>' : 'No sales in this period.') + '</td></tr>';
+            }).join('') + '</tbody></table></div>' +
+            (shown.length ? '' : '<p class="empty">No store matches.</p>');
+        TR.wireSales();
+    },
+
+    wireSales: function () {
+        var S = TR.st.sales, el = TR.$('detail');
+        TR.$('sl-p').onchange = function () { S.period = this.value; TR.renderSales(); };
+        var c = TR.$('sl-c'); if (c) c.onchange = function () { S.custom = this.value; TR.renderSales(); };
+        TR.$('sl-run').onclick = TR.salesRun;
+        var qq = TR.$('sl-q'); if (!qq) return;
+        qq.oninput = function () { S.q = this.value; var pos = this.selectionStart; TR.renderSales(); var n = TR.$('sl-q'); n.focus(); n.setSelectionRange(pos, pos); };
+        TR.$('sl-z').onchange = function () { S.zero = this.checked; TR.renderSales(); };
+        TR.$('sl-csv').onclick = TR.salesCsv;
+        el.querySelectorAll('[data-sort]').forEach(function (b) {
+            b.onclick = function () { var k = b.dataset.sort; S.dir = S.sort === k ? -S.dir : (k === 'name' ? 1 : -1); S.sort = k; TR.renderSales(); };
+        });
+        el.querySelectorAll('[data-x]').forEach(function (b) {
+            b.onclick = function () { var d = el.querySelector('[data-d="' + CSS.escape(b.dataset.x) + '"]'); if (d) d.classList.toggle('hidden'); };
+        });
+        el.querySelectorAll('tr[data-h]').forEach(function (tr) {
+            var h = tr.dataset.h, pct = tr.querySelector('.pct'), paid = tr.querySelector('.paid');
+            var save = function () {
+                var f = TR.fundFor(h);
+                var body = { h: h, pct: pct ? Number(pct.value) || 0 : f.pct, paid: paid ? Number(paid.value) || 0 : f.paid };
+                TR.api('/team-requests/sales/fund', { body: body }).then(function (j) {
+                    if (j.__status !== 200) { el.insertAdjacentHTML('afterbegin', '<div class="msg bad">' + TR.esc(j.error || j.reason || 'Could not save') + '</div>'); return; }
+                    S.fund = j.fund; TR.renderSales();
+                });
+            };
+            if (pct) pct.onchange = save;
+            if (paid) paid.onchange = save;
+        });
+    },
+
+    // The table as a spreadsheet, every store including those with no sales.
+    salesCsv: function () {
+        var R = TR.st.sales.result; if (!R) return;
+        // Quoted without a regex literal: the repo's wiring test lexer reads a
+        // quote inside a regex as the start of a string (see CLAUDE.md).
+        var DQ = String.fromCharCode(34);
+        var q = function (v) { v = String(v == null ? '' : v); return (v.indexOf(DQ) >= 0 || v.indexOf(',') >= 0 || v.indexOf('\n') >= 0) ? DQ + v.split(DQ).join(DQ + DQ) + DQ : v; };
+        var lines = [['Store', 'Collection', 'Orders', 'Units', 'Revenue', 'Last sale', 'Fundraising %', 'Team earned', 'Paid to date', 'Still owed'].join(',')];
+        R.stores.forEach(function (s) {
+            var f = TR.fundFor(s.h), e = TR.earned(s.revenue, f.pct);
+            lines.push([s.n, s.h, s.orders, s.units, s.revenue.toFixed(2), s.last, f.pct || 0, e.toFixed(2), (f.paid || 0).toFixed(2), (e - (f.paid || 0)).toFixed(2)].map(q).join(','));
+        });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+        a.download = 'team-store-sales-from-' + R.since + '.csv';
+        document.body.appendChild(a); a.click(); a.remove();
     },
 
     // ---------- release calendar ----------

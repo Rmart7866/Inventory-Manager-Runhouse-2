@@ -36,6 +36,7 @@ import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from '.
 import { handleIntake, handleStaff } from './teamreq.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
+import { handleSalesRun, handleSalesStatus, handleSalesFund } from './teamreq-sales.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
   readApparel, readApparelMeta, writeApparel,
@@ -483,6 +484,11 @@ export default {
       '/team-requests/logo-file': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo-get')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/costs': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'costs')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/proof-link': { handler: teamReqRoute(handleProofLink), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // Team store sales: READS orders through a bulk job, revenue behind the
+      // write secret like /sales/dropship. Fund settings are our own KV.
+      '/team-requests/sales/run': { handler: teamReqRoute(handleSalesRun), forWrite: false, needsWriteSecret: true, methods: ['POST'] },
+      '/team-requests/sales/status': { handler: teamReqRoute(handleSalesStatus), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/team-requests/sales/fund': { handler: teamReqRoute(handleSalesFund), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/update': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'update')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/delete': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'delete')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/logo': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
