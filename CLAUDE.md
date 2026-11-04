@@ -139,6 +139,9 @@ node tools/clear-singlet-needham.mjs         # repair: singlets must have NO Nee
 # Redo, the returns app's cart line item
 node tools/move-redo-location.mjs            # which store orders carrying it route to
 
+# PHYSICAL STORE stock, not dropship. Owner directed, nothing calls it.
+node tools/zero-falmouth-feetures.mjs        # dry run, --apply, --restore <file>
+
 # Collective, the dropship marketplace: 2,728 products across 40+ vendors.
 node tools/tag-collective-apparel.mjs         # the apparel tags, by VENDOR verdict
 node tools/group-collective-colorways.mjs     # cw-group + swatches for one-product-per-colour
@@ -190,6 +193,23 @@ paged dev path. That is how `createdAt` was lost for a month.
 blocks `*.xlsx`, `*.csv`, `*.local`, `.dev.vars`, and the per-run rollback files.
 Never commit those. `barcode-data.js` is committed on purpose because it is
 barcodes only, no pricing.
+
+**THE ONE TOOL THAT WRITES TO A PHYSICAL STORE IS `zero-falmouth-feetures.mjs`,
+and it is owner directed.** Everything else in `tools/` is Needham scoped for
+the reason directly below. This one sets the FALMOUTH on-hand to 0 on all 25
+Feetures products, which is real counted sock stock in a shop, so it is not
+part of any routine and nothing calls it. Run 2026-11-04 on owner request: 114
+levels written, 64 carrying 300 units cleared and 50 sitting NEGATIVE at -127
+brought up to 0, with Needham (248u), Walpole (119u) and every other location
+untouched and verified by re-reading the store.
+
+Three guards are worth keeping if this is ever copied for another brand or
+store. COMMITTED stock aborts the whole run, because an unfulfilled order
+pointed at that shelf becomes unpickable the moment you zero under it.
+`compareQuantity` is sent on every line, so a number that changed between the
+read and the write is rejected rather than clobbered. And the vendor and
+location are literals, never a search, for the same reason
+`tools/set-inventory-policy.mjs` takes explicit handles.
 
 **Needham scoping.** Dropshipped product is footwear stocked at the single
 **Needham** location. Every write is Needham scoped and every removed/zero
