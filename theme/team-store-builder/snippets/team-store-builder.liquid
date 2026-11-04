@@ -720,7 +720,15 @@ get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){
         if (!btn.getAttribute('data-trh-label')) {
           btn.setAttribute('data-trh-label', btn.textContent.trim());
         }
-        btn.textContent = added ? 'Added' : btn.getAttribute('data-trh-label');
+        /* WRITE ONLY ON A CHANGE. Assigning textContent replaces the
+           child text node even when the string is identical, and that
+           is a childList mutation, and the observer below calls paint
+           on a childList mutation. Unconditional, this was a loop that
+           re-rendered these four buttons every 120ms forever, which in
+           turn starved every TRAILING debounce on the page: a timer
+           that is cleared every 120ms never fires. */
+        var want = added ? 'Added' : btn.getAttribute('data-trh-label');
+        if (btn.textContent !== want) btn.textContent = want;
       }
     });
   }
@@ -796,10 +804,17 @@ get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){
     }
   }
 
-  var tidyTimer = null;
+  /* LEADING EDGE, not a plain trailing debounce. A trailing-only timer
+     is cleared by every new mutation, so while anything on the page is
+     mutating faster than the delay it never fires at all. Running on
+     the first mutation after a quiet spell, and at most every 200ms
+     during a storm, cannot be starved. */
+  var tidyTimer = null, tidyLast = 0;
+  function runTidy() { tidyLast = Date.now(); tidy(); paint(); }
   function scheduleTidy() {
+    if (Date.now() - tidyLast > 200) { runTidy(); return; }
     clearTimeout(tidyTimer);
-    tidyTimer = setTimeout(function () { tidy(); paint(); }, 120);
+    tidyTimer = setTimeout(runTidy, 200);
   }
 
   function start() {
@@ -815,6 +830,143 @@ get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){
     document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 450); });
   } else {
     setTimeout(start, 450);
+  }
+})();
+</script>
+<script>
+/* =====================================================================
+   ENLARGE A PRODUCT PHOTO
+
+   The pictures render about 121x190 inside a card while the files
+   themselves run to 420px on the long edge, so an organiser judging a
+   colour is looking at roughly a third of the pixels we already have.
+   A click opens the same mock-up at native size.
+
+   It CLONES .mks rather than lifting the <img>. The logo is a separate,
+   absolutely positioned image sized in PERCENT of the garment, so a
+   clone scales with the frame and the logo stays where it was placed.
+   Moving the real node would leave a hole in the card.
+
+   The clone lives outside #trh-sb, so none of the .mk rules reach it
+   and the sizes in trh-builder.css under #imod are the whole story.
+   That is the point: the card's 190px cap is what we are escaping, but
+   it also means the overlay's position:absolute has to be restated
+   there or the logo renders as a block image under the garment.
+
+   Separable: this block owns one element it creates itself and adds no
+   markup to the builder.
+   ===================================================================== */
+(function () {
+  var root = document.getElementById('trh-sb');
+  if (!root) return;
+
+  var mod = document.createElement('div');
+  mod.id = 'imod';
+  mod.hidden = true;
+  mod.setAttribute('role', 'dialog');
+  mod.setAttribute('aria-modal', 'true');
+  mod.innerHTML =
+    '<figure class="ibox">' +
+      '<button type="button" class="ix" aria-label="Close">×</button>' +
+      '<div class="istage"></div>' +
+      '<figcaption class="icap"></figcaption>' +
+    '</figure>';
+  document.body.appendChild(mod);
+
+  var stage = mod.querySelector('.istage');
+  var cap = mod.querySelector('.icap');
+  var back = null;
+
+  function close() {
+    mod.hidden = true;
+    stage.innerHTML = '';
+    if (back && back.focus) { try { back.focus(); } catch (e) {} }
+    back = null;
+  }
+
+  function open(im) {
+    var mks = im.querySelector('.mks');
+    if (!mks) return;
+    var g = mks.querySelector('img.g');
+    if (!g || !g.getAttribute('src')) return;
+    stage.innerHTML = '';
+    stage.appendChild(mks.cloneNode(true));
+    /* The app builds the alt as "<product> - <colour>" itself, so the
+       caption comes off the data and not off a guess at a class name. */
+    cap.textContent = (g.getAttribute('alt') || '').replace(/ - /, ' · ');
+    back = im;
+    mod.hidden = false;
+    var x = mod.querySelector('.ix');
+    if (x && x.focus) { try { x.focus(); } catch (e) {} }
+  }
+
+  root.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    /* Never swallow a click the builder owns. Every control in here is
+       a button, a link or a field, and the picture is none of those. */
+    if (t.closest('button, a, input, label, select, textarea')) return;
+    var im = t.closest('.im');
+    if (im) open(im);
+  });
+
+  /* The picture is not a control, so it gets a tab stop and the two
+     keys that activate one. */
+  root.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var im = t.closest('.im');
+    if (!im || im !== t) return;
+    e.preventDefault();
+    open(im);
+  });
+
+  mod.addEventListener('click', function (e) {
+    if (e.target === mod || (e.target.closest && e.target.closest('.ix'))) close();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !mod.hidden) close();
+  });
+
+  /* The cards are rebuilt on every state change, so the tab stop and
+     the hover affordance are re-applied rather than set once. Only
+     childList is observed, so stamping an attribute cannot retrigger
+     this. */
+  function mark() {
+    var ims = root.querySelectorAll('.im');
+    Array.prototype.forEach.call(ims, function (im) {
+      if (im.getAttribute('data-zoom') === '1') return;
+      if (!im.querySelector('.mks img.g')) return;
+      im.setAttribute('data-zoom', '1');
+      im.setAttribute('tabindex', '0');
+      im.setAttribute('role', 'button');
+      im.setAttribute('aria-label', 'Enlarge photo');
+    });
+  }
+
+  /* Leading edge for the reason recorded on scheduleTidy above: a
+     trailing-only debounce is starved by anything that mutates faster
+     than its delay, and step 3's pictures went unmarked for exactly
+     that reason. */
+  var t = null, last = 0;
+  function runMark() { last = Date.now(); mark(); }
+  function soon() {
+    if (Date.now() - last > 200) { runMark(); return; }
+    clearTimeout(t);
+    t = setTimeout(runMark, 200);
+  }
+
+  function start() {
+    mark();
+    if (window.MutationObserver) {
+      new MutationObserver(soon).observe(root, { childList: true, subtree: true });
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 500); });
+  } else {
+    setTimeout(start, 500);
   }
 })();
 </script>
