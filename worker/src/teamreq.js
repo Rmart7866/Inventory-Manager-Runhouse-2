@@ -351,29 +351,4 @@ export async function handleStaff(request, env, which) {
   return { status: 404, body: { error: 'Not found' } };
 }
 
-// Import an old request from its email. The builder has always put a
-// machine-readable copy between TRHSB markers, so a pasted email parses
-// exactly, no guessing. Staff only (it is called through handleStaff's
-// sibling route, below), and it goes through the same clean() as intake.
-export function parseEmail(text) {
-  const m = String(text || '').match(/TRHSB(\{[\s\S]*\})TRHSB/);
-  if (!m) return null;
-  try { return JSON.parse(m[1]); } catch { return null; }
-}
-
-export async function handleImport(request, env) {
-  let b;
-  try { b = await request.json(); } catch { b = null; }
-  const req = parseEmail(b && b.text);
-  if (!req) return { status: 400, body: { error: 'No TRHSB block found in that text. Paste the whole email body.' } };
-  const v = validateSubmission({ request: req });
-  if (!v.ok) return { status: 400, body: { error: v.error } };
-  const clean_ = clean(req);
-  const now = new Date().toISOString();
-  const rec = { id: newId(), created: now, updated: now, status: 'new', source: 'import', req: clean_, text: String(b.text).slice(0, 60000), work: workFrom(clean_), notes: '', log: [] };
-  log(rec, 'Imported from an email');
-  await writeRec(env, rec);
-  return { body: { ok: true, rec } };
-}
-
 export { readRec, writeRec, log, PREFIX, LOGO_PREFIX, STATUSES };

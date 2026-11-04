@@ -171,11 +171,6 @@ pre.orig { white-space: pre-wrap; background: var(--surface); border: 1px solid 
 #pe .side .row2 { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 #pe .readout { font-variant-numeric: tabular-nums; color: var(--muted-2); font-size: 12px; margin-top: 8px; }
 
-/* import */
-#imp { position: fixed; inset: 0; background: rgba(5,8,13,.78); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
-#imp .box { background: #111828; border: 1px solid var(--line-2); padding: 20px; width: min(720px, 100%); }
-#imp textarea { width: 100%; height: 280px; margin: 10px 0; }
-
 @media (max-width: 900px) {
   #app { grid-template-columns: 1fr; }
   #side { max-height: 40vh; }
@@ -190,7 +185,6 @@ pre.orig { white-space: pre-wrap; background: var(--surface); border: 1px solid 
   <h1>Team store requests</h1>
   <span class="sp"></span>
   <button class="btn" id="cal-open" type="button">Calendar</button>
-  <button class="btn" id="imp-open" type="button">Import an email</button>
   <button class="btn" id="refresh" type="button">Refresh</button>
   <a class="btn" href="index.html" style="text-decoration:none;display:inline-flex;align-items:center">Inventory tool</a>
 </header>
@@ -216,20 +210,10 @@ pre.orig { white-space: pre-wrap; background: var(--surface); border: 1px solid 
   <main id="main"><div id="detail"><p class="empty">Pick a request on the left.</p></div></main>
 </div>
 
-<div id="imp" class="hidden" role="dialog" aria-modal="true" aria-labelledby="imp-h">
-  <div class="box">
-    <h3 id="imp-h" style="margin:0">Import a request from its email</h3>
-    <p style="color:var(--muted);margin:6px 0 0">Paste the whole email body. The builder always included a machine-readable block between TRHSB markers, and that is what gets read.</p>
-    <textarea id="imp-text" spellcheck="false"></textarea>
-    <div id="imp-msg"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" type="button" id="imp-cancel">Cancel</button><button class="btn pri" type="button" id="imp-go">Import</button></div>
-  </div>
-</div>
-
 <div id="pe" class="hidden" role="dialog" aria-modal="true" aria-labelledby="pe-h"></div>
 
 <script src="catalog-client.js?v=23"></script>
 <script src="team-request-utils.js?v=1"></script>
-<script src="team-requests.js?v=2"></script>
+<script src="team-requests.js?v=3"></script>
 </body>
 </html>

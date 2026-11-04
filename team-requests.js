@@ -53,13 +53,10 @@ var TR = {
         });
         TR.$('q').addEventListener('input', function () { TR.st.q = this.value.toLowerCase(); TR.renderList(); });
         TR.$('refresh').addEventListener('click', function () { TR.loadList(); });
-        TR.$('imp-open').addEventListener('click', function () { TR.$('imp').classList.remove('hidden'); TR.$('imp-text').focus(); });
-        TR.$('imp-cancel').addEventListener('click', function () { TR.$('imp').classList.add('hidden'); });
-        TR.$('imp-go').addEventListener('click', TR.doImport);
         TR.$('cal-open').addEventListener('click', TR.showCalendar);
         window.addEventListener('beforeunload', function (e) { if (TR.st.dirty) { e.preventDefault(); e.returnValue = ''; } });
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') { TR.$('imp').classList.add('hidden'); TR.closePlacement(); }
+            if (e.key === 'Escape') TR.closePlacement();
         });
         TR.start();
     },
@@ -192,7 +189,6 @@ var TR = {
         if (q.group) facts.push(TR.esc(q.group));
         if (q.team_colors && q.team_colors.main) facts.push(TR.esc(q.team_colors.main + (q.team_colors.second ? ' + ' + q.team_colors.second : '')));
         if (q.fundraising_pct) facts.push('fundraising ' + TR.esc(q.fundraising_pct) + '%');
-        if (r.source === 'import') facts.push('imported from email');
 
         TR.$('detail').innerHTML =
             '<div class="dhead"><div>' +
@@ -979,15 +975,6 @@ var TR = {
         }).catch(function (e) { done(); TR.flash('Could not make the PDF: ' + e.message, 'bad'); });
     },
 
-    // ---------- import ----------
-    doImport: function () {
-        var msg = TR.$('imp-msg');
-        TR.api('/team-requests/import', { body: { text: TR.$('imp-text').value } }).then(function (j) {
-            if (j.__status !== 200) { msg.innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; return; }
-            TR.$('imp').classList.add('hidden'); TR.$('imp-text').value = ''; msg.innerHTML = '';
-            TR.loadList().then(function () { TR.open(j.rec.id); });
-        });
-    },
 };
 
 document.addEventListener('DOMContentLoaded', TR.init);

@@ -16,7 +16,7 @@
 
 import worker from '../src/index.js';
 import { planProduct, productSetInputFor, slug } from '../src/teamreq-build.js';
-import { parseEmail, clean } from '../src/teamreq.js';
+import { clean } from '../src/teamreq.js';
 
 let failures = 0;
 const check = (name, cond, detail) => {
@@ -130,15 +130,6 @@ r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: 
 check('an edit from a stale copy is refused, not merged', r.status === 409);
 r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { status: 'bogus' } } });
 check('an unknown status is refused', r.status === 400);
-
-console.log('\nImport from an email');
-const email = 'TEAM STORE REQUEST\nTeam: Old Club\n--- machine-readable (do not edit) ---\nTRHSB' + JSON.stringify({ mode: 'new', team: 'Old Club', contact: { email: 'a@b.co' }, items: [] }) + 'TRHSB';
-check('the TRHSB block parses', parseEmail(email).team === 'Old Club');
-r = await call('/team-requests/import', { method: 'POST', headers: STAFF, body: { text: email } });
-j = await r.json();
-check('a pasted email becomes a request', r.status === 200 && j.rec.source === 'import' && j.rec.work.team === 'Old Club');
-r = await call('/team-requests/import', { method: 'POST', headers: STAFF, body: { text: 'just words' } });
-check('text with no TRHSB block is refused', r.status === 400);
 
 console.log('\nBuilding drafts');
 const plan = planProduct('Walpole Track & Field', 'Walpole Track & Field Team Store', { style: 'PC380', name: 'Port & Co Performance Tee', category: 'Short Sleeve T-Shirts', sizes: ['S', 'M', 'L'], price: 25, colors: [{ name: 'Deep Navy', label: 'Deep Navy w/ Full Chest Logo', image: 'https://up/1' }] });

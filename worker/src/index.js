@@ -33,7 +33,7 @@ import { dropshipSales } from './sales.js';
 import { applyTagChanges, applyMetafields } from './tags.js';
 import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from './product-edit.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
-import { handleIntake, handleStaff, handleImport } from './teamreq.js';
+import { handleIntake, handleStaff } from './teamreq.js';
 import { handleBuild } from './teamreq-build.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -475,7 +475,6 @@ export default {
       '/team-requests/update': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'update')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/delete': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'delete')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/logo': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
-      '/team-requests/import': { handler: teamReqRoute(handleImport), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       // A real Shopify write: create-only, draft-only, collection unpublished.
       '/team-requests/build': { handler: teamReqRoute(handleBuild), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
     };
