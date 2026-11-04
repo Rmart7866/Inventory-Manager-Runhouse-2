@@ -2420,3 +2420,99 @@
   #trh-sb .p .im[data-zoom="1"]::after,
   #trh-sb .tile .im[data-zoom="1"]::after { opacity: .85; }
 }
+
+/* ==== The browser's own Choose File control was showing raw ===========
+   Measured on step 1: a grey OS button, Noto Sans at 13px, inside a
+   page set in Chivo with square corners, sitting in the logo box on
+   both the new-store and the add-to-store flows. It was the one
+   control on the page that had never been dressed.
+
+   ::file-selector-button styles it with no markup change and no JS. The
+   old -webkit- spelling is repeated in its own block on purpose: an
+   unrecognised pseudo-element invalidates the WHOLE rule it appears
+   in, so the two cannot be comma joined or neither would apply.
+
+   color:transparent hides the "No file chosen" string the control
+   prints beside its button. That is not a loss: pick() already writes
+   the real filename into the .st2 line underneath, which is where the
+   green "TRH Logo-01.png" comes from. */
+#trh-sb .up input[type="file"] {
+  color: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  max-width: 100%;
+}
+#trh-sb .up input[type="file"]::file-selector-button {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 18px;
+  margin: 0 12px 0 0;
+  border: 1px solid var(--d2);
+  border-radius: 0;
+  background: #fff;
+  color: var(--d2);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+#trh-sb .up input[type="file"]::-webkit-file-upload-button {
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 18px;
+  margin: 0 12px 0 0;
+  border: 1px solid var(--d2);
+  border-radius: 0;
+  background: #fff;
+  color: var(--d2);
+  cursor: pointer;
+}
+#trh-sb .up input[type="file"]:hover::file-selector-button { background: var(--d2); color: #fff; }
+#trh-sb .up input[type="file"]:focus-visible::file-selector-button {
+  outline: 2px solid var(--d3); outline-offset: 2px;
+}
+
+/* ==== A flagged field has to say so on its own ========================
+   Measured unfocused: a .bad field was #fff6f5 against #f4f2ef for a
+   good one, which is pink-white against warm-white and reads as
+   nothing at all on a white card. The only real explanation, #e-1,
+   sat 734px BELOW the field and off screen, because in the
+   add-to-store flow the fields are at the top and that banner is down
+   by the Next button. So the page scrolled you to a field that looked
+   almost normal and kept the reason out of sight.
+
+   The bar is inset, not a border, because these inputs are border:0
+   and a real border would shift the text sideways by its own width. */
+/* !important because the original rule at the top of this file carries
+   it: `#trh-sb input.bad{border-color:#b3261e!important;background:
+   #fff6f5!important}`. Its border-color has been dead for a while, the
+   restyle set these inputs to border:0 and a colour on a zero width
+   border paints nothing, which is half of why a flagged field stopped
+   being visible at all. */
+#trh-sb input.bad,
+#trh-sb select.bad,
+#trh-sb textarea.bad {
+  background: #fdeeec !important;
+  box-shadow: inset 4px 0 0 #b3261e;
+}
+/* Focus still has to win, so the two shadows are composed rather than
+   replaced, or focusing a flagged field would hide that it is flagged. */
+#trh-sb input.bad:focus,
+#trh-sb select.bad:focus,
+#trh-sb textarea.bad:focus {
+  box-shadow: inset 4px 0 0 #b3261e, inset 0 0 0 2px var(--d3);
+}
+
+/* The banner itself was one line of bare red text. It is the only thing
+   standing between an organiser and the next step, so it gets the
+   weight of a real notice. */
+#trh-sb .err {
+  background: #fdeeec;
+  border-left: 4px solid #b3261e;
+  color: #8c1d16;
+  padding: 12px 16px;
+  margin: 0 0 18px;
+  font-size: 15px;
+  font-weight: 500;
+}
+#trh-sb .err[hidden] { display: none; }

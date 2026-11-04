@@ -970,4 +970,46 @@ get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){
   }
 })();
 </script>
+<script>
+/* =====================================================================
+   THE ERROR BANNER BELONGS WITH THE FIELDS IT IS ABOUT
+
+   #e-1 is written last in step 1, next to the Next button, which is the
+   right place in the NEW STORE flow because the fields run most of the
+   way down to it. In the ADD TO MY EXISTING STORE flow the form is
+   three fields at the top and the logo and colour blocks fill the rest,
+   so the banner ended up 734px below the field it was describing and
+   off the bottom of the screen. markBad() then scrolls you to the
+   field, so you land on a faintly tinted box with the only explanation
+   out of view.
+
+   Moving it is enough. The app only ever sets .textContent and .hidden
+   on this element, so it goes on working wherever it sits, and it is
+   re-inserted as a DIRECT CHILD of the step rather than inside the
+   heading's own container, so its layout context does not change.
+
+   Separable: no markup was edited, this block moves one node.
+   ===================================================================== */
+(function () {
+  function place() {
+    var step = document.getElementById('sb-1');
+    var err = document.getElementById('e-1');
+    var head = document.getElementById('h-team');
+    if (!step || !err || !head) return;
+    /* Walk up to whichever direct child of the step contains the
+       heading, so the banner lands beside that block and not inside a
+       grid cell of it. */
+    var anchor = head;
+    while (anchor.parentNode && anchor.parentNode !== step) anchor = anchor.parentNode;
+    if (anchor.parentNode !== step) return;
+    if (err.nextElementSibling === anchor) return;   // already placed
+    step.insertBefore(err, anchor);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(place, 520); });
+  } else {
+    setTimeout(place, 520);
+  }
+})();
+</script>
 {%- endraw -%}
