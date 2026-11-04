@@ -2683,3 +2683,9 @@
 /* The footnote shows on the first card only (see "Less copy"), which
    left the button on the right of one card and the left of the rest. */
 #trh-sb .bund .bfoot .btn { margin-left: auto; }
+
+/* A color with no straight-on photo (Vegas Gold): the color itself, big,
+   and one plain sentence, instead of an angled shot or a wrong color. */
+#trh-sb .ys-stage.ys-empty { flex-direction: column; align-items: center; text-align: center; gap: 18px; padding: 56px 28px; }
+#trh-sb .ys-empty i { width: 120px; height: 120px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(13, 20, 32, .14); }
+#trh-sb .ys-empty p { margin: 0; max-width: 300px; color: var(--dim); font-size: 15px; line-height: 1.45; }

@@ -572,7 +572,7 @@ function review(shared){var r=rows();var t=S.team,m=S.logos[haveLogos()[0]]||S.l
   var nolog=!haveLogos().length?'<p class="sbn" style="margin:0 0 10px">Upload a PNG, JPG or SVG logo on the Team step to see it on every item.</p>':'';
   var share=r.length?'<div class="share"><button type="button" class="btn alt" id="dl">Download preview image</button><button type="button" class="btn alt" id="pr">Print / save PDF</button>'+(shared?'':'<button type="button" class="btn alt" id="lnk">Copy share link</button>')+'<span class="sbn" id="shmsg"></span></div>':'';
   $('rev').innerHTML=r.length?share+'<div id="shareable">'+head+nolog+'<div class="gal">'+tiles+'</div></div>'+(shared?'':'<table><tr><th>Product</th><th>Colors</th><th>Price</th><th></th></tr>'+r.map(function(x){return'<tr><td><b>'+esc(x.p.n)+'</b><br><span class="sbn">'+esc(x.p.s)+' &middot; '+esc(x.p.cat)+'</span></td><td>'+esc(x.s.c.join(', '))+(plabel(x.p)?'<br><span class="sbn">Logo: '+plabel(x.p)+(pdesc(x.p,'f')&&pdesc(x.p,'f')!=='auto'?' ('+pdesc(x.p,'f')+')':'')+'</span>':'')+(xlabel(x)?'<br><span class="sbn">+ second logo: '+esc(xlabel(x))+(pdesc(x.p,'x')&&pdesc(x.p,'x')!=='auto'?' ('+pdesc(x.p,'x')+')':'')+'</span>':'')+'</td><td>'+money(price(x.p,x.s.x))+(fpct()?'<br><span class="sbn">MSRP '+money(x.p.m+(loc2(x.p,x.s)?3:0))+'</span>':'')+'</td><td><button class="x" data-s="'+esc(x.p.s)+'">Remove</button></td></tr>'}).join('')+'</table>'):'<p>No products selected yet.</p>';
-  $('rev').querySelectorAll('.x').forEach(function(b){b.onclick=function(){delete S.sel[b.dataset.s];save();review()}});if($('send'))$('send').disabled=!r.length;
+  $('rev').querySelectorAll('.x').forEach(function(b){b.onclick=function(){delete S.sel[b.dataset.s];save();review()}});if($('send'))$('send').disabled=SENDING||!r.length;
   if($('dl'))$('dl').onclick=dlImage;if($('pr'))$('pr').onclick=function(){root.classList.add('printing');window.print();setTimeout(function(){root.classList.remove('printing')},500)};if($('lnk'))$('lnk').onclick=copyLink}
 
 /* ---------- share ---------- */
@@ -634,7 +634,12 @@ root.querySelectorAll('.steps span').forEach(function(sp){sp.setAttribute('role'
     if(!count()[0]){if(c!==2)step(2);note('Pick at least one product and color first');return}
     step(3)}
   sp.onclick=go;sp.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});$('back2').onclick=function(){step(2)};$('tray1').onclick=function(){step(1)};
-function sendReq(bfm){if(!valid()){step(1);$('e-1').hidden=false;markBad();if(bfm)$('e-1').scrollIntoView({block:'center'});return}
+/* One flag for BOTH send buttons: disabling only the one pressed left
+   the other free to send the same request again. */
+var SENDING=false;
+window.addEventListener('pageshow',function(e){if(e.persisted&&SENDING){SENDING=false;[$('send'),$('bfm-send')].forEach(function(b){b.disabled=false});$('send').textContent=SLAB.send;$('bfm-send').textContent=SLAB.bfm}});
+var SLAB={send:$('send').textContent,bfm:$('bfm-send').textContent};
+function sendReq(bfm){if(SENDING)return;if(!valid()){step(1);$('e-1').hidden=false;markBad();if(bfm)$('e-1').scrollIntoView({block:'center'});return}
   /* "Build it for me" lives on step 1, where #e-3 is hidden with the rest
      of step 3, so this message used to go nowhere and the click did
      nothing visible. It goes beside whichever button was pressed. */
@@ -654,20 +659,48 @@ function sendReq(bfm){if(!valid()){step(1);$('e-1').hidden=false;markBad();if(bf
   var js={v:D.v,mode:UPD?'update':'new',store:UPD?{name:S.store.n,handle:S.store.h,url:'https://therunhouse.com/collections/'+S.store.h,existing_styles:Object.keys(S.have||{})}:null,team:t.team,contact:{name:t.name,email:t.email,phone:t.phone||''},date:t.date||'',logos:lstat,logo_files:LK.reduce(function(o,k){if(L[k])o[k]=L[k].url||'';return o},{main:L.main&&L.main.url||'',dark:L.dark&&L.dark.url||''}),logo_names:LK.reduce(function(o,k){if(L[k])o[k]=LN[k];return o},{}),logo_notes:t.logonote||'',fundraising_pct:fpct(),build_for_me:!!bfm,group:G0?G0.n:'',team_colors:{main:TC.m?cdesc('m',EM):'',second:TC.s?cdesc('s',ES):'',main_custom:TC.m==='X'?(TC.mx||{}):null,second_custom:TC.s==='X'?(TC.sx||{}):null,neutrals:(TC.n||[]).map(function(k){return FAM[k].n})},notes:notes,items:r.map(function(x){return{style:x.p.s,colors:x.s.c,second_logo:xlabel(x),placement:plabel(x.p),logo_choice:twoLogos()?{front:pdesc(x.p,'f'),second:xlabel(x)?pdesc(x.p,'x'):'',by_color:x.s.c.reduce(function(o,nm){var c=x.p.c[cidx(x.p,nm)];o[nm]={front:LN[lkey(c,pk(x.p,'f'))]||'',second:xlabel(x)?LN[lkey(c,pk(x.p,'x'))]||'':''};return o},{})}:null,msrp:x.p.m+(loc2(x.p,x.s)?3:0),price:price(x.p,x.s.x)}})};
   lines.push('','--- machine-readable (do not edit) ---','TRHSB'+JSON.stringify(js)+'TRHSB');
   $('h-name').value=t.name;$('h-email').value=t.email;$('h-phone').value=t.phone||'';$('h-subj').value=UPD?'Team Store Update: '+S.store.n:'Team Store Request'+(bfm?' (build for me)':'')+': '+t.team;$('h-body').value=lines.join('\n');
-  $('h-ret').value=location.pathname+'?submitted=1';var sb=bfm?$('bfm-send'):$('send'),lab=sb.textContent;sb.disabled=true;sb.textContent='Sending...';var f=$('sb-form');if(f.requestSubmit)f.requestSubmit();else f.submit();setTimeout(function(){sb.disabled=false;sb.textContent=lab},15000)}
+  $('h-ret').value=location.pathname+'?submitted=1';var sb=bfm?$('bfm-send'):$('send');SENDING=true;[$('send'),$('bfm-send')].forEach(function(b){b.disabled=true});sb.textContent='Sending...';var f=$('sb-form');if(f.requestSubmit)f.requestSubmit();else f.submit();
+  /* A successful send LEAVES this page (return_to ?submitted=1), so the
+     buttons only need to come back if it never left. They used to come
+     back on a 15 second timer whether or not the post had finished, and a
+     slow post or a captcha step then took a second click and sent the
+     request twice. Now nothing re-arms them on a timer: after 30 seconds
+     the customer is told it is still going and that a reload is safe,
+     since every pick is already saved. */
+  setTimeout(function(){var eu=bfm?$('e-bfm'):$('e-3');eu.hidden=false;eu.textContent='Still sending. If this page has not moved on in a minute, check your connection and reload. Your picks are saved.'},30000)}
 /* THE BIG PREVIEW ON STEP 1. Their logo on a real garment in their main
    color, redrawn on every save(), which is the one call every logo,
    color and team name change already ends in. Built from the same
    catalog photo and print box (box(p)) the step 3 tiles use, so the big
    shirt and the small ones can never disagree about where a logo sits.
-   The garment for each tab is the most ordered style (p.u) that carries
-   the color, matched on the family code in c[8], never on a color name. */
-var YV=[['Short Sleeve T-Shirts','Tee'],['Long Sleeve T-Shirts','Long sleeve'],['Hoodies','Hoodie'],['Headwear','Hat']],YCUR='Tee',YCOL='m';
-function ypick(cat,code){var C=null,best=null;D.cats.forEach(function(c){if(c.name===cat)C=c});if(!C)return null;
-  C.p.forEach(function(p){if(!p.pb)return;for(var i=0;i<p.c.length;i++){var c=p.c[i];if(c[8]===code&&!c[4]&&c[2]){if(!best||(p.u||0)>(best.p.u||0))best={p:p,ci:i};break}}});return best}
+   The color is matched on the family code in c[8], never on a name.
+
+   ONLY STRAIGHT-ON PHOTOS. The catalog mixes flat front shots with
+   three-quarter angles, and the first version took the most ordered
+   style, which put the hat tab on an angled trucker cap almost every
+   time. So each tab is a hand-checked list of styles shot straight on,
+   in order of preference, unisex cuts first. Every one of these was
+   looked at in every team color, 2026-11-04, and the camera angle is
+   not even constant within a style: the two photos in YSKIP are side
+   views of styles that are otherwise straight on. A color with no
+   straight-on photo on a tab loses that tab rather than showing an
+   angle. Adding a style here means looking at its photos first. */
+var YV=[['Short Sleeve T-Shirts','Tee',['PC380','PC450','BC3001CVC','NL6010','NKBQ5231','1717','LPC380','LPC450','NKBQ5234']],
+  ['Long Sleeve T-Shirts','Long sleeve',['PC380LS','PC450LS','6014','BC3501','BC6500','LPC54LS']],
+  ['Hoodies','Hoodie',['DT6100','PC78H','S700','BC3719','LPC78H','DT6101']],
+  ['Headwear','Hat',['STC26','C977','STC15','CP90','C939']]],YCUR='Tee',YCOL='m';
+var YSKIP=/\/sbc-(?:pc380-charcoal|stc26-graphite)\.jpg/;
+function ypick(cat,code,list){var C=null;D.cats.forEach(function(c){if(c.name===cat)C=c});if(!C)return null;
+  for(var j=0;j<list.length;j++){var p=null;C.p.forEach(function(q){if(q.s===list[j])p=q});if(!p||!p.pb)continue;
+    for(var i=0;i<p.c.length;i++){var c=p.c[i];if(c[8]===code&&!c[4]&&c[2]&&!YSKIP.test(c[2]))return{p:p,ci:i}}}return null}
 function ylum(h){var r=hexrgb(h);return(.299*r[0]+.587*r[1]+.114*r[2])/255}
 function ydraw(){var el=$('ys');if(!el)return;var em=eff('m'),es=eff('s');if(YCOL==='s'&&!es)YCOL='m';var e=YCOL==='s'?es:em;var code=e?e.code:'GH';
-  var vs=YV.map(function(v){return{l:v[1],r:ypick(v[0],code)}}).filter(function(x){return x.r});if(!vs.length){el.hidden=true;return}el.hidden=false;
+  var sw=es?'<div class="ysw" role="group" aria-label="Preview color">'+[['m',em],['s',es]].map(function(x){return'<button type="button" data-c="'+x[0]+'" aria-pressed="'+(YCOL===x[0])+'" title="'+esc(x[1].name)+'"><i style="background:'+x[1].hex+'"></i><span>'+esc(x[1].name)+'</span></button>'}).join('')+'</div>':'';
+  var swOn=function(){el.querySelectorAll('.ysw button').forEach(function(bt){bt.onclick=function(){YCOL=bt.dataset.c;ydraw()}})};
+  var vs=YV.map(function(v){return{l:v[1],r:ypick(v[0],code,v[2])}}).filter(function(x){return x.r});el.hidden=false;
+  /* Vegas Gold is carried only on angled photos. Say so, in the color,
+     rather than break the straight-on rule or show some other color. */
+  if(!vs.length){el.innerHTML='<div class="ys-stage ys-empty"><i style="background:'+e.hex+'"></i><p>We don\'t have a straight-on photo in '+esc(e.name)+' yet. You\'ll see every '+esc(e.name)+' product in the next step.</p></div>'+(sw?'<div class="ys-meta">'+sw+'</div>':'');swOn();return}
   var cur=vs.filter(function(x){return x.l===YCUR})[0]||vs[0],p=cur.r.p,c=p.c[cur.r.ci],b=box(p),lg=logoFor(c,'auto');
   var anyLogo=haveLogos().length>0,nm=((S.mode==='upd'&&S.store?S.store.n:S.team&&S.team.team)||'').trim();
   var ov;if(lg)ov=L(lg,b);else{
@@ -677,12 +710,11 @@ function ydraw(){var el=$('ys');if(!el)return;var em=eff('m'),es=eff('s');if(YCO
     var t=nm||'Your logo',w=b[2]*100,lw=Math.max.apply(null,t.split(/\s+/).map(function(s){return s.length})),fs=Math.min(w/(lw*.66),w*1.9/(t.length*.66),b[3]*100*.42,w*.3);
     ov='<span class="ytx'+(nm?'':' ph')+'" style="left:'+(b[0]*100)+'%;top:'+(b[1]*100)+'%;width:'+w+'%;height:'+(b[3]*100)+'%;font-size:'+fs.toFixed(2)+'cqw;color:'+(ylum(c[5])>.55?'#14171c':'#fff')+'">'+esc(t)+'</span>'}
   var note=!e?'Pick your main color below and it shows up here.':!anyLogo?'Add your logo to see it here.':!lg?'Your file is in. PDF and AI logos appear in the preview we email you.':'';
-  var sw=es?'<div class="ysw" role="group" aria-label="Preview color">'+[['m',em],['s',es]].map(function(x){return'<button type="button" data-c="'+x[0]+'" aria-pressed="'+(YCOL===x[0])+'" title="'+esc(x[1].name)+'"><i style="background:'+x[1].hex+'"></i><span>'+esc(x[1].name)+'</span></button>'}).join('')+'</div>':'';
   el.innerHTML='<div class="ys-stage'+(e?'':' none')+'"><span class="mk ys-mk"><img class="g" src="'+esc(c[2])+'" alt="'+esc(p.n+' in '+c[0])+'">'+ov+'</span></div>'+
     '<div class="ys-tabs" role="group" aria-label="Garment">'+vs.map(function(x){return'<button type="button" data-v="'+esc(x.l)+'" aria-pressed="'+(x===cur)+'">'+esc(x.l)+'</button>'}).join('')+'</div>'+
     '<div class="ys-meta"><p class="ys-cap"><b>'+esc(p.n)+'</b><span>'+esc(c[0])+'</span></p>'+sw+'</div>'+(note?'<p class="ys-note">'+note+'</p>':'');
   el.querySelectorAll('.ys-tabs button').forEach(function(bt){bt.onclick=function(){YCUR=bt.dataset.v;ydraw()}});
-  el.querySelectorAll('.ysw button').forEach(function(bt){bt.onclick=function(){YCOL=bt.dataset.c;ydraw()}})}
+  swOn()}
 var save0=save;save=function(){save0();try{ydraw()}catch(x){}};
 ydraw();
 $('send').onclick=function(){sendReq(false)};$('bfm-send').onclick=function(){sendReq(true)};
