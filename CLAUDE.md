@@ -30,6 +30,7 @@ rule exists. Match that when you edit.
 | `catalog-ui.js` | Freshness bar, refresh button, fallback and building banners |
 | `sales-report.js` | The weekly dropship sales panel. Reads `GET /sales/dropship`, write-secret gated because revenue should not sit behind the public bundle token |
 | `b2b-links.js` | Firestore-backed scraper link lists for ASICS and Brooks |
+| `team-requests.html` + `team-requests.js` | Staff inbox for Build Your Team Store requests: edit products, drag logo placement, replace logos, build drafts. Worker side is `worker/src/teamreq*.js` |
 | `barcode-data.js` | Generated barcode map (ASICS + ON), about 2 MB, committed |
 | `apparel.html` + `on-apparel-converter.js` | ON apparel, on its own page. See "Apparel" below |
 | `worker/` | The Cloudflare Worker: `src/*.js`, `test/*.mjs`, `wrangler.toml` |
@@ -74,6 +75,7 @@ node test/alt-text.mjs                        # alt text copy: codes, colours, o
 node test/seo-titles.mjs                      # seo titles: 60 char budget, distinctness beats the noun
 node test/scraper-feeds-tool.mjs             # the scraper's CSV still feeds the inventory manager
 node test/asics-headless.mjs                  # headless runner: row location, real converter, POD drift
+node test/team-request-utils.mjs              # team store drafts: size ladders, logo box, logo fit in pixels
 node scrapers/on/test/apparel.mjs             # ON scraper: apparel sizes survive a scrape
 node scrapers/asics/test/api.mjs              # ASICS API: real qty not the 30 cap, gendered width
 node scrapers/asics/test/location-per-link.mjs # a URL line can send its stock to Warehouse
@@ -1688,6 +1690,28 @@ goes ACTIVE, using the tag the WORKER computed. Kill switch:
 (only the export line differs), and `tag-groups.js` is a pure subset. The tag the
 tool writes must equal the tag the storefront groups on. If the tag rule needs to
 change, change it in Color Swatch and re-copy, then run `npm run parity`.
+
+## Team store requests
+
+The Build Your Team Store page (theme snippet, `theme/team-store-builder/`)
+saves each request to the Worker, `POST /team-requests/submit`, and falls back
+to the contact form email only if that save fails. Staff work them in
+`team-requests.html`. The rules worth knowing before changing any of it:
+
+- **Intake is the one Worker route with no token**, because customers send it.
+  It can only append a request: storefront Origin only, 256 KB, a honeypot, 8 an
+  hour per IP. Every other request route needs the WRITE SECRET, reads included,
+  because these hold customer names and emails.
+- **The customer's original is never edited.** Staff edit `rec.work`; `rec.req`
+  is the record of what was asked for.
+- **Build is create-only, draft-only, and fails CLOSED.** If the handle check
+  errors, nothing is built (Stage 4 fails open; a team store is dozens of
+  products). The collection is a smart one, TAG equals the team tag, unpublished.
+- **A colour the style does not carry blocks the build.** `colorIdx` falls back to
+  the first colour, so without that check a missing colour is built as black
+  under the requested name.
+- **Mockups come from the 420 px catalog photos**, so they are placeholders for
+  review, not storefront images.
 
 ## How a run flows
 
