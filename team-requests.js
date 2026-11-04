@@ -344,28 +344,28 @@ var TR = {
     },
 
     // ---------- email the proof ----------
-    // Downloads the proof PDF and opens an email to the customer with the
-    // approval link in it. An email link cannot attach a file, so the
-    // message says to attach the PDF that just downloaded.
+    // Downloads the proof PDF and opens an email to the customer. The PDF is
+    // the whole proof: owner's call, the email carries no link, and the
+    // customer answers by replying. An email link cannot attach a file, so
+    // the message is written for the PDF that just downloaded to be attached.
     emailProof: function (btn) {
         var r = TR.st.rec, c = (r.req && r.req.contact) || {};
         if (TR.st.dirty) { TR.flash('Save your changes first, so the proof shows them.', 'warn'); return; }
         if (!c.email) { TR.flash('This request has no customer email.', 'bad'); return; }
-        TR.getLink(false).then(function (url) {
-            var w = r.work, first = String(c.name || '').split(/\s+/)[0];
-            var body = (first ? 'Hi ' + first + ',' : 'Hi,') + '\n\n' +
-                'Here is the proof for the ' + w.team + ' team store. You can look through every product and approve it, or tell us what to change, here:\n\n' + url + '\n\n' +
-                'The same proof is attached as a PDF if that is easier to share.' + (w.release ? ' We are planning to open the store on ' + TR.fmtDate(w.release) + '.' : '') + '\n\n' +
-                'Thanks,\nThe Run House\nteamstores@therunhouse.com';
-            var href = 'mailto:' + encodeURIComponent(c.email) + '?subject=' + encodeURIComponent('Your ' + w.team + ' team store proof') + '&body=' + encodeURIComponent(body);
-            TR.proofPdf(TR.$('d-pdf'), function () {
-                TR.go(href);
-                // Sent to the customer, so it is now waiting on them.
-                TR.save({ status: r.status === 'new' || r.status === 'progress' ? 'waiting' : r.status }).then(function () {
-                    TR.flash('The proof PDF downloaded and your email opened. Attach the PDF, then send. Status is now Waiting on customer.', 'ok');
-                });
+        var w = r.work, first = String(c.name || '').split(/\s+/)[0];
+        var body = (first ? 'Hi ' + first + ',' : 'Hi,') + '\n\n' +
+            'Attached is the proof for the ' + w.team + ' team store. It shows every product in each colour, with the sizes, prices and where your logo will go.' +
+            (w.release ? ' We are planning to open the store on ' + TR.fmtDate(w.release) + '.' : '') + '\n\n' +
+            'Please reply to this email to approve it, or tell us what you would like changed and we will send you an updated proof. Nothing goes live until you approve.\n\n' +
+            'Thanks,\nThe Run House\nteamstores@therunhouse.com';
+        var href = 'mailto:' + encodeURIComponent(c.email) + '?subject=' + encodeURIComponent('Your ' + w.team + ' team store proof') + '&body=' + encodeURIComponent(body);
+        TR.proofPdf(TR.$('d-pdf'), function () {
+            TR.go(href);
+            // Sent to the customer, so it is now waiting on them.
+            TR.save({ status: r.status === 'new' || r.status === 'progress' ? 'waiting' : r.status }).then(function () {
+                TR.flash('The proof PDF downloaded and your email opened. Attach the PDF, then send. Status is now Waiting on customer.', 'ok');
             });
-        }).catch(function (e) { TR.flash('Could not make the link: ' + e.message, 'bad'); });
+        });
     },
 
     // "2026-12-01" to "Tue, Dec 1, 2026", read as a calendar day, never as
