@@ -1238,10 +1238,15 @@
   display: flex; flex-direction: column;
   padding: 18px 16px 20px;
 }
+/* THREE lines, not two. Measured on a real build 2026-11-03: 14 of 17
+   tiles were cut off mid word, "Port Authority Women's Silk Touc...",
+   and on this page the name is the record of what is being ordered.
+   The slot stays FIXED, which is what keeps the prices on one
+   baseline, it is simply one line deeper. */
 #trh-sb .gal .tile .nm {
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 2.5em; line-height: 1.25;
+  min-height: 3.75em; line-height: 1.25;
   font-size: 15px; margin-bottom: 4px;
 }
 /* The price in a preview tile is .pr2, not .price. Checked against the
@@ -1959,7 +1964,11 @@
 #trh-sb .trh-hero .lead { font-size: 20px !important; max-width: 42ch; }
 
 /* ---- Garments larger again, everywhere ------------------------------- */
-#trh-sb .tile .im, #trh-sb .tile img { width: 100%; height: auto; }
+/* img.g, not img, because a mock-up holds TWO images: the garment
+   (.g) and the logo laid over it (.l). The overlay is positioned and
+   sized in PERCENT of the garment by an inline style, so a blanket
+   rule here resizes the logo instead of the shirt. */
+#trh-sb .tile .im, #trh-sb .tile img.g { width: 100%; height: auto; }
 #trh-sb .grid { gap: 26px !important; }
 #trh-sb .tile { padding: 22px 22px 24px; }
 #trh-sb .gal .tile { padding: 20px 18px 22px; }
@@ -1992,14 +2001,27 @@
 #trh-sb .gal .tile .im,
 #trh-sb .grid .tile .im,
 #trh-sb .tile .im {
-  height: 190px;
+  --tileimg: 190px;
+  height: var(--tileimg);
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 14px;
 }
-#trh-sb .tile .im img {
-  max-height: 100%; max-width: 100%;
+/* THIS MUST SAY img.g AND NOT img, and saying img broke the review
+   page. A mock-up is a garment image (.g) with the team's logo laid
+   over it (.l), and the overlay is positioned AND sized in percent of
+   the garment by an inline style that L() writes. `width: auto
+   !important` beats an inline style, so every logo on step 3 was
+   blown up to the full width of its tile and spilled across the
+   garment, in the printed preview and the downloaded image too. */
+#trh-sb .tile .im img.g {
+  max-width: 100%;
   width: auto !important; height: auto !important;
   object-fit: contain;
+  /* And the cap has to agree with the box, or the garment hangs out of
+     it. A plain max-height:100% cannot do this job: the image's parent
+     is .mk, whose own height is auto, and a percentage against an auto
+     height is ignored. One variable so the two can never disagree. */
+  max-height: var(--tileimg);
 }
 /* the bundle strips keep their own smaller, already even boxes */
 #trh-sb .bund .bpx .im { height: 120px; margin-bottom: 8px; }
@@ -2035,7 +2057,7 @@
 
   /* The grid prints four across per the original rule; keep the image
      boxes even so rows do not break raggedly across a page. */
-  #trh-sb .gal .tile .im, #trh-sb .tile .im { height: 150px !important; }
+  #trh-sb .gal .tile .im, #trh-sb .tile .im { --tileimg: 150px; height: 150px !important; }
   #trh-sb .tile { box-shadow: none !important; border: 0 !important; }
   #trh-sb .gal .tile .nm { min-height: 0 !important; }
 }
