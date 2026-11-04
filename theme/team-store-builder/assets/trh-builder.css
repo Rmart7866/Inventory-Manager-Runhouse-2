@@ -2229,3 +2229,51 @@
   min-width: max-content;
 }
 #trh-sb .p .sw { align-items: center; }
+
+/* ===================================================================
+   QUIETER CARDS
+   -------------------------------------------------------------------
+   "Random lines between colors" are not lines. Each swatch is a
+   .rec button in a .sw.named row holding TWO children: an <i> with the
+   swatch image and a <span> with the colour name. An earlier pass here
+   forced those buttons to 30x30 to make them tidy circles, but left
+   overflow visible, so every colour name spilled out of its circle and
+   the clipped text showed as a thin mark between swatches. They were
+   fragments of the words "Navy", "Black", "Charcoal Heather".
+
+   The name is already on the button's title attribute, so it is
+   available on hover and to a screen reader without being printed
+   twenty times across a row.
+   =================================================================== */
+#trh-sb .p .sw.named .rec,
+#trh-sb .p .sw .rec {
+  width: 30px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border-radius: 50% !important;
+  position: relative;
+}
+#trh-sb .p .sw .rec > span { display: none !important; }
+#trh-sb .p .sw .rec > i {
+  position: absolute; inset: 0;
+  width: 100% !important; height: 100% !important;
+  border-radius: 50%; background-size: cover; background-position: center;
+}
+
+/* ---- No style codes --------------------------------------------------
+   "S6000 · S-3XL" is a manufacturer's code and a size range. Neither
+   helps an organiser choosing a garment, and it was a line of grey
+   text on every card. It stays in the summary on step 3, where it is
+   the useful place for it, since that is what the quote is built on. */
+#trh-sb .p .st { display: none !important; }
+
+/* ---- Say the pricing note once ---------------------------------------
+   "Per item, 1 logo included" was true on all five cards in a row. */
+#trh-sb .p:not(:first-of-type) .pr small { display: none !important; }
+
+/* With the code line and four of the five notes gone, the card can
+   breathe rather than just being shorter. */
+#trh-sb .p .nm { margin-bottom: 10px; }
+#trh-sb .p .pr { margin-bottom: 14px; }
+#trh-sb .p .sw { gap: 10px; row-gap: 10px; }
