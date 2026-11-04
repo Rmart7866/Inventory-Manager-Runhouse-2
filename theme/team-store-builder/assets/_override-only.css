@@ -2014,3 +2014,118 @@
 #trh-sb .p .nm { margin-bottom: 10px; }
 #trh-sb .p .pr { margin-bottom: 14px; }
 #trh-sb .p .sw { gap: 10px; row-gap: 10px; }
+
+/* ==== Step 1: their logo, big, on a shirt in their color ==============
+   The first screen used to be one form stretched across 1,324px, with
+   inputs running edge to edge and nothing to look at. Now the form takes
+   the left column and the right column holds the product the customer is
+   actually buying: a real catalog photo in their main color with their
+   logo on the print box, redrawn on every change (ydraw in the snippet).
+
+   Plain on purpose. The photo is the content, so the panel around it is
+   a white field and a single rule: no gradient, no glow, no badge. White
+   because the catalog photos are shot on white, and any tint here would
+   show the edge of every JPG.
+
+   420px is a ceiling, not a taste. The garment photos are 420px masters,
+   so anything larger is an upscale, and a soft shirt undersells a logo. */
+#trh-sb .ys { display: block; }
+#trh-sb .ys[hidden] { display: none; }
+#trh-sb .ys-stage {
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 28px 24px 20px;
+  display: flex; justify-content: center;
+}
+#trh-sb .ys .ys-mk {
+  display: block; position: relative; line-height: 0;
+  width: 100%; max-width: 420px; margin: 0 auto;
+  /* lets the team name size itself in cqw against the photo's width */
+  container-type: inline-size;
+}
+#trh-sb .ys .ys-mk > img.g { width: 100%; height: auto; max-height: none; max-width: 100%; display: block; }
+#trh-sb .ys-stage.none .ys-mk > img.g { opacity: .55; }
+
+/* The team name standing in for a logo that cannot be drawn yet. */
+#trh-sb .ys .ytx {
+  position: absolute; display: flex; align-items: center; justify-content: center;
+  text-align: center; overflow: hidden; pointer-events: none;
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+  font-weight: 800; text-transform: uppercase; line-height: .95;
+  letter-spacing: -.005em; text-wrap: balance; overflow-wrap: anywhere;
+}
+#trh-sb .ys .ytx.ph {
+  font-weight: 600; letter-spacing: .04em; opacity: .5;
+  outline: 1.5px dashed currentColor; outline-offset: -1px;
+}
+
+/* Garment switch: words with an underline, the step rail's language. */
+#trh-sb .ys-tabs { display: flex; flex-wrap: wrap; gap: 0 4px; margin: 14px 0 0; border-bottom: 1px solid var(--rule); }
+#trh-sb .ys-tabs button {
+  background: none !important; border: 0 !important; border-radius: 0 !important;
+  box-shadow: none !important; padding: 0 12px !important; min-height: var(--tap);
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--dim) !important;
+  border-bottom: 2px solid transparent !important; margin-bottom: -1px; cursor: pointer;
+}
+#trh-sb .ys-tabs button:hover { color: var(--d2) !important; }
+#trh-sb .ys-tabs button[aria-pressed="true"] { color: var(--d2) !important; border-bottom-color: var(--d3) !important; }
+
+#trh-sb .ys-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 14px 0 0; }
+#trh-sb .ys-cap { margin: 0; line-height: 1.3; min-width: 0; }
+#trh-sb .ys-cap b {
+  display: block; color: var(--d2); font-size: 17px; font-weight: 700;
+  font-family: var(--typeHeaderPrimary), var(--typeHeaderFallback, sans-serif);
+}
+#trh-sb .ys-cap span { color: var(--dim); font-size: 14px; }
+
+/* Main or second color, shown only once a second color is set. */
+#trh-sb .ysw { display: flex; gap: 6px; }
+#trh-sb .ysw button {
+  display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap);
+  padding: 0 12px !important; background: #fff !important; color: var(--d2) !important;
+  border: 1px solid var(--rule) !important; border-radius: 0 !important; box-shadow: none !important;
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+#trh-sb .ysw button[aria-pressed="true"] { border-color: var(--d2) !important; box-shadow: inset 0 0 0 1px var(--d2) !important; }
+#trh-sb .ysw i { width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(13, 20, 32, .18); flex: none; }
+#trh-sb .ys-note { margin: 10px 0 0; font-size: 14px; color: var(--dim); }
+
+/* Two columns once there is room for both, the preview sticking under
+   the site header (--sbtop is that header's height, set by the snippet)
+   while the form scrolls past it. The mode switch stays full width
+   because it decides what the rest of the card is. */
+@media (min-width: 1000px) {
+  #trh-sb #sb-1 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 440px);
+    column-gap: 56px; row-gap: 0; align-items: start;
+  }
+  #trh-sb #sb-1 > * { grid-column: 1; min-width: 0; }
+  #trh-sb #sb-1 > .mode { grid-column: 1 / -1; }
+  #trh-sb #sb-1 > .ys {
+    grid-column: 2; grid-row: 2 / span 40; align-self: start;
+    position: sticky; top: calc(var(--sbtop, 0px) + 24px);
+  }
+}
+/* One column: the preview goes AFTER the fields that change it, so the
+   customer sees the result right under the color they just tapped
+   rather than a shirt at the top of the page they have scrolled past. */
+@media (max-width: 999px) {
+  #trh-sb #sb-1 { display: flex; flex-direction: column; }
+  #trh-sb #sb-1 > .ys { order: 1; margin: 22px 0 6px; }
+  #trh-sb #sb-1 > .grid2 ~ :not(.ys) { order: 2; }
+  #trh-sb .ys .ys-mk { max-width: 340px; }
+  #trh-sb .ys-stage { padding: 20px 16px 14px; }
+}
+
+/* ==== Step 2: every category on screen at desktop width ===============
+   15 tabs in a strip that scrolled sideways, 2,207px of them in a 1,324px
+   box, so Bottoms through Running & Team Extras sat off the right edge
+   with only a fade to say so, and on a Mac with a mouse there is no
+   visible scrollbar at all. With room, they wrap. On a phone the strip
+   still scrolls, which is what thumbs expect. */
+@media (min-width: 1000px) {
+  #trh-sb .tabs { flex-wrap: wrap; overflow-x: visible; row-gap: 2px; }
+  #trh-sb .tabs.fr, #trh-sb .tabs.fl { -webkit-mask-image: none; mask-image: none; }
+}

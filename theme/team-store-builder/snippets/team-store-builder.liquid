@@ -53,6 +53,7 @@
   <div class="mode" id="mode">
 <button type="button" data-m="new"><b>Start a new store</b><span>For a team or group that doesn't have a Run House store yet.</span></button><button type="button" data-m="upd"><b>Add to my existing store</b><span>Already have a team store? Add new items to it.</span></button>
 </div>
+  <aside class="ys" id="ys" aria-label="Preview of your logo on a shirt"></aside>
   <div class="calm">
 <b>✓ You can't get this wrong.</b> Nothing you pick is final. We'll check every detail and send you a free preview before anything goes live.</div>
   <h3 id="h-team">Your team</h3>
@@ -633,6 +634,36 @@ function sendReq(bfm){if(!valid()){step(1);$('e-1').hidden=false;markBad();if(bf
   lines.push('','--- machine-readable (do not edit) ---','TRHSB'+JSON.stringify(js)+'TRHSB');
   $('h-name').value=t.name;$('h-email').value=t.email;$('h-phone').value=t.phone||'';$('h-subj').value=UPD?'Team Store Update: '+S.store.n:'Team Store Request'+(bfm?' (build for me)':'')+': '+t.team;$('h-body').value=lines.join('\n');
   $('h-ret').value=location.pathname+'?submitted=1';var sb=bfm?$('bfm-send'):$('send'),lab=sb.textContent;sb.disabled=true;sb.textContent='Sending...';var f=$('sb-form');if(f.requestSubmit)f.requestSubmit();else f.submit();setTimeout(function(){sb.disabled=false;sb.textContent=lab},15000)}
+/* THE BIG PREVIEW ON STEP 1. Their logo on a real garment in their main
+   color, redrawn on every save(), which is the one call every logo,
+   color and team name change already ends in. Built from the same
+   catalog photo and print box (box(p)) the step 3 tiles use, so the big
+   shirt and the small ones can never disagree about where a logo sits.
+   The garment for each tab is the most ordered style (p.u) that carries
+   the color, matched on the family code in c[8], never on a color name. */
+var YV=[['Short Sleeve T-Shirts','Tee'],['Long Sleeve T-Shirts','Long sleeve'],['Hoodies','Hoodie'],['Headwear','Hat']],YCUR='Tee',YCOL='m';
+function ypick(cat,code){var C=null,best=null;D.cats.forEach(function(c){if(c.name===cat)C=c});if(!C)return null;
+  C.p.forEach(function(p){if(!p.pb)return;for(var i=0;i<p.c.length;i++){var c=p.c[i];if(c[8]===code&&!c[4]&&c[2]){if(!best||(p.u||0)>(best.p.u||0))best={p:p,ci:i};break}}});return best}
+function ylum(h){var r=hexrgb(h);return(.299*r[0]+.587*r[1]+.114*r[2])/255}
+function ydraw(){var el=$('ys');if(!el)return;var em=eff('m'),es=eff('s');if(YCOL==='s'&&!es)YCOL='m';var e=YCOL==='s'?es:em;var code=e?e.code:'GH';
+  var vs=YV.map(function(v){return{l:v[1],r:ypick(v[0],code)}}).filter(function(x){return x.r});if(!vs.length){el.hidden=true;return}el.hidden=false;
+  var cur=vs.filter(function(x){return x.l===YCUR})[0]||vs[0],p=cur.r.p,c=p.c[cur.r.ci],b=box(p),lg=logoFor(c,'auto');
+  var anyLogo=haveLogos().length>0,nm=((S.mode==='upd'&&S.store?S.store.n:S.team&&S.team.team)||'').trim();
+  var ov;if(lg)ov=L(lg,b);else{
+    /* No image to place: a PDF or AI file, or nothing yet. Set the team
+       name where the logo would go, sized to the print box in cqw so it
+       scales with the photo, rather than an empty "your logo" frame. */
+    var t=nm||'Your logo',w=b[2]*100,lw=Math.max.apply(null,t.split(/\s+/).map(function(s){return s.length})),fs=Math.min(w/(lw*.66),w*1.9/(t.length*.66),b[3]*100*.42,w*.3);
+    ov='<span class="ytx'+(nm?'':' ph')+'" style="left:'+(b[0]*100)+'%;top:'+(b[1]*100)+'%;width:'+w+'%;height:'+(b[3]*100)+'%;font-size:'+fs.toFixed(2)+'cqw;color:'+(ylum(c[5])>.55?'#14171c':'#fff')+'">'+esc(t)+'</span>'}
+  var note=!e?'Pick your main color below and it shows up here.':!anyLogo?'Add your logo to see it here.':!lg?'Your file is in. PDF and AI logos appear in the preview we email you.':'';
+  var sw=es?'<div class="ysw" role="group" aria-label="Preview color">'+[['m',em],['s',es]].map(function(x){return'<button type="button" data-c="'+x[0]+'" aria-pressed="'+(YCOL===x[0])+'" title="'+esc(x[1].name)+'"><i style="background:'+x[1].hex+'"></i><span>'+esc(x[1].name)+'</span></button>'}).join('')+'</div>':'';
+  el.innerHTML='<div class="ys-stage'+(e?'':' none')+'"><span class="mk ys-mk"><img class="g" src="'+esc(c[2])+'" alt="'+esc(p.n+' in '+c[0])+'">'+ov+'</span></div>'+
+    '<div class="ys-tabs" role="group" aria-label="Garment">'+vs.map(function(x){return'<button type="button" data-v="'+esc(x.l)+'" aria-pressed="'+(x===cur)+'">'+esc(x.l)+'</button>'}).join('')+'</div>'+
+    '<div class="ys-meta"><p class="ys-cap"><b>'+esc(p.n)+'</b><span>'+esc(c[0])+'</span></p>'+sw+'</div>'+(note?'<p class="ys-note">'+note+'</p>':'');
+  el.querySelectorAll('.ys-tabs button').forEach(function(bt){bt.onclick=function(){YCUR=bt.dataset.v;ydraw()}});
+  el.querySelectorAll('.ysw button').forEach(function(bt){bt.onclick=function(){YCOL=bt.dataset.c;ydraw()}})}
+var save0=save;save=function(){save0();try{ydraw()}catch(x){}};
+ydraw();
 $('send').onclick=function(){sendReq(false)};$('bfm-send').onclick=function(){sendReq(true)};
 var hm=location.hash.match(/#p=([\w-]+)/);if(!(hm&&openShared(hm[1])))step(S.team&&S.team.team&&Object.keys(S.sel).length?2:1);
 function protect(){try{if(window.Shopify&&Shopify.captcha&&Shopify.captcha.protect)Shopify.captcha.protect($('sb-form'))}catch(e){}}

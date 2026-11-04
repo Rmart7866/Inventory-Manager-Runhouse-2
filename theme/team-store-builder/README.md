@@ -228,6 +228,22 @@ Colour chips stay circular throughout. They are the one element a
 shopper reads as "a colour" rather than "a control", and the PDP swatches
 are circular too.
 
+## Step 1 shows their logo on a shirt
+
+The right column of step 1 is a live preview: the customer's logo on the
+real catalog photo of a garment in their main color, redrawn on every
+`save()`. It is drawn with `box(p)` and `L()`, the same print box and
+overlay the step 3 tiles use, so the big shirt cannot disagree with the
+small ones. The garment per tab (Tee, Long sleeve, Hoodie, Hat) is the most
+ordered style (`p.u`) carrying that color, matched on the family code in
+`c[8]`. With no drawable logo (nothing yet, or a PDF/AI file) the team name
+is set on the print box instead. The photos are 420px masters, which is why
+the preview stops at 420px wide.
+
+Below 1000px it is one column and the preview sits AFTER the fields that
+change it. That layout was checked by forcing the rules on in a desktop
+window, not on a phone.
+
 ## What has NOT been verified
 
 **Mobile.** The breakpoints exist in the builder's own stylesheet, 640px,
