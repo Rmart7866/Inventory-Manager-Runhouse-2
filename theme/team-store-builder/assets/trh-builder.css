@@ -2039,3 +2039,193 @@
   #trh-sb .tile { box-shadow: none !important; border: 0 !important; }
   #trh-sb .gal .tile .nm { min-height: 0 !important; }
 }
+
+/* ===================================================================
+   THE "PICK PRODUCTS ONE AT A TIME" CARD
+   -------------------------------------------------------------------
+   Measured one card: 676px tall, made of .pop 27, .im 190, .nm 35,
+   .st 21, .pr 52, .pos 102, .sws 196, .cn 23.
+
+   .pos is the logo position toggle, two buttons and a label, and it
+   was taking 102px. That is this stylesheet's fault: the global rule
+   that made every button 48px tall for touch also hit these two, the
+   row then wrapped, and a two-option switch ended up taller than the
+   product name, the code and the price combined. The buttons were also
+   106px and 108px wide, which is the "uneven" being described: two
+   halves of one control at different widths because each was sized by
+   its own label.
+
+   It becomes a real segmented control: one track, two equal halves,
+   no wrap. And the card gets a product-card hierarchy, picture first,
+   then name and price on one line, then the choices.
+   =================================================================== */
+
+/* ---- The logo toggle ------------------------------------------------ */
+#trh-sb .p .pos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap !important;
+  margin: 2px 0 14px;
+}
+#trh-sb .p .pos > span {
+  font-size: 13px !important;
+  color: var(--dim);
+  white-space: nowrap;
+}
+/* the two options share one track and split it evenly */
+#trh-sb .p .pos {
+  --seg: #eceae6;
+}
+#trh-sb .p .pos button {
+  min-height: 40px !important;
+  padding: 0 10px !important;
+  font-size: 13px !important;
+  background: var(--seg) !important;
+  color: #45494f !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  width: 100% !important;
+  white-space: nowrap;
+}
+#trh-sb .p .pos button.on {
+  background: var(--d1) !important;
+  color: #fff !important;
+}
+/* wrap the two buttons into an even pair */
+#trh-sb .p .pos > button:nth-of-type(1) { grid-column: 2; }
+#trh-sb .p .pos > button:nth-of-type(2) { grid-column: 3; }
+#trh-sb .p .pos { grid-template-columns: auto 1fr 1fr; }
+
+/* ---- Card hierarchy -------------------------------------------------
+   Name and price on one line, the way a product card reads, instead of
+   the price sitting in its own 52px band underneath. */
+#trh-sb .p {
+  display: flex; flex-direction: column;
+  padding: 22px 22px 24px;
+}
+#trh-sb .p .nm {
+  font-size: 17px !important;
+  line-height: 1.25;
+  margin: 0 0 2px;
+  min-height: 0 !important;
+}
+#trh-sb .p .st { margin-bottom: 12px; }
+#trh-sb .p .pr {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 0 0 4px; min-height: 0 !important;
+}
+#trh-sb .p .pr .price {
+  font-size: 26px !important;
+  line-height: 1;
+}
+#trh-sb .p .pr small { margin-left: auto; text-align: right; }
+
+/* The swatch block is the main interaction, so it gets the room the
+   toggle gave back. */
+#trh-sb .p .sws { margin-top: 4px; }
+#trh-sb .p .sw { gap: 12px; }
+#trh-sb .p .sw button { width: 30px; height: 30px; }
+
+/* ---- Character on the card ------------------------------------------
+   The picture gets a tinted stage instead of floating on white, which
+   is what makes a cut-out garment read as a product shot rather than
+   as a loose PNG. */
+#trh-sb .p .im,
+#trh-sb .bund .bc .bpx .im {
+  background: #f4f2ef;
+  border-radius: 2px;
+}
+#trh-sb .p .im { height: 230px; padding: 14px; }
+#trh-sb .p:hover .im { background: #efece7; }
+
+/* The POPULAR flag stops being a chip floating over the corner and
+   becomes a quiet line above the name. */
+#trh-sb .p .pop {
+  position: static !important;
+  background: transparent !important;
+  color: var(--d3) !important;
+  padding: 0 !important;
+  font-size: 12px !important;
+  letter-spacing: .1em;
+  margin-bottom: 8px;
+}
+
+/* The two halves were still 77px and 79px. A grid item defaults to
+   min-width:auto, so the button with the longer label ("Left chest"
+   against "Full chest") refuses to shrink to its share of the track
+   and takes the extra two pixels from its neighbour. min-width:0 is
+   what makes 1fr actually mean 1fr. */
+#trh-sb .p .pos button { min-width: 0 !important; }
+
+/* ---- The real unevenness: the name sets the whole card -------------
+   "Champion Powerblend Crewneck Sweatshirt" is two lines, "Charles
+   River Women's Willow Mock-Neck Sweatshirt" is three. Everything
+   under the name inherits that difference, so the price, the logo
+   toggle and the swatches all sat at a different height in every card
+   across the row. Fixing the toggle alone was never going to fix the
+   look, because the toggle was not what was moving.
+
+   The name gets a fixed two line slot, the same treatment the step 3
+   preview grid already has, and every control below it lines up. */
+#trh-sb .p .nm {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.5em;
+}
+
+/* "More colors (37)" was wrapping to three lines and taking a
+   different height in every card. */
+#trh-sb .p .sw .more {
+  white-space: nowrap;
+  min-height: 36px !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+}
+
+/* The swatch row keeps one line and scrolls rather than reflowing the
+   card, so a product with 37 colours is not twice the height of one
+   with 7. */
+#trh-sb .p .sws { min-height: 0; }
+#trh-sb .p .sw {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+/* The per-item note sat beside the price and wrapped to two lines at
+   this column width, nudging the row below it. */
+#trh-sb .p .pr small {
+  font-size: 12px !important;
+  line-height: 1.3;
+  max-width: 11ch;
+}
+
+/* With the name pinned, the rest of the stack can be given a
+   consistent rhythm instead of whatever fell out of the content. */
+#trh-sb .p .st { min-height: 1.4em; }
+#trh-sb .p .pr { margin-bottom: 10px; }
+#trh-sb .p .cn { margin-top: 10px; }
+
+/* The last 25px of unevenness was the POPULAR label. Measured every
+   element in a row of five: image 230, name 42, code 21, price 42,
+   toggle 40, all identical. The only difference was that three cards
+   carried .pop at 17px plus its 8px margin and two did not, so two
+   cards began 25px higher and every control below inherited the
+   offset. Reserve the slot whether or not the flag is there. */
+#trh-sb .p:not(:has(.pop)) { padding-top: 47px; }
+
+/* "More colors (37)" is a flex item in the swatch row. Flex items
+   shrink by default, so it was being squeezed to 30px while its label
+   was set to nowrap, and the text spilled out past the button and
+   over the edge of the card. It keeps its own width now, and the row
+   wraps around it. */
+#trh-sb .p .sw .more,
+#trh-sb .sw .more {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: max-content;
+}
+#trh-sb .p .sw { align-items: center; }
