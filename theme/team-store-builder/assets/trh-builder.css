@@ -2003,3 +2003,39 @@
 }
 /* the bundle strips keep their own smaller, already even boxes */
 #trh-sb .bund .bpx .im { height: 120px; margin-bottom: 8px; }
+
+/* ===================================================================
+   PRINT: THE SHARED PREVIEW HAS TO SURVIVE PAPER
+   -------------------------------------------------------------------
+   "Print / save PDF" is how an organiser sends the preview to the rest
+   of their committee, and the original stylesheet already supports it:
+   @media print hides everything except #shareable.
+
+   This restyle nearly broke it. .storehead is INSIDE #shareable, and
+   it had been given white type on a photograph. Browsers do not print
+   background graphics by default, so the team's own name, the single
+   most important thing on the sheet, would have come out white on
+   white paper. Verified that the element really is inside #shareable
+   before assuming it mattered.
+
+   On paper it inverts: navy type on white, no photograph, no ink
+   wasted on a dark band. The screen keeps the picture.
+   =================================================================== */
+@media print {
+  #trh-sb .storehead {
+    background: none !important;
+    background-image: none !important;
+    border-bottom: 3px solid #0d2347 !important;
+    padding: 0 0 12px !important;
+  }
+  #trh-sb .storehead b { color: #0d2347 !important; font-size: 30px !important; }
+  #trh-sb .storehead,
+  #trh-sb .storehead * { color: #3a3a3a !important; }
+  #trh-sb .storehead b { color: #0d2347 !important; }
+
+  /* The grid prints four across per the original rule; keep the image
+     boxes even so rows do not break raggedly across a page. */
+  #trh-sb .gal .tile .im, #trh-sb .tile .im { height: 150px !important; }
+  #trh-sb .tile { box-shadow: none !important; border: 0 !important; }
+  #trh-sb .gal .tile .nm { min-height: 0 !important; }
+}
