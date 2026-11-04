@@ -35,6 +35,19 @@ const MAX_BODY = 256 * 1024;          // a 100 item request is about 30 KB
 const MAX_LOGO = 20 * 1024 * 1024;    // the builder's own cap
 const RATE_PER_HOUR = 8;
 const STATUSES = ['new', 'progress', 'waiting', 'done', 'archived'];
+// Wholesale cost per style, typed by staff. NEVER in the builder catalog:
+// that file is public on the CDN and this repo is public, so cost lives here,
+// behind the write secret, and nowhere a customer can reach.
+const COSTS_KEY = 'treqcosts';
+
+async function rememberCosts(env, rec) {
+  const items = ((rec.work && rec.work.items) || []).filter((it) => it.cost > 0 && it.style);
+  if (!items.length) return;
+  const cur = (await env.CATALOG.get(COSTS_KEY, 'json')) || {};
+  let n = 0;
+  for (const it of items) if (cur[it.style] !== it.cost) { cur[it.style] = it.cost; n++; }
+  if (n) await env.CATALOG.put(COSTS_KEY, JSON.stringify(cur));
+}
 
 // ---------- small helpers --------------------------------------------------
 
@@ -114,6 +127,11 @@ export function metaOf(rec) {
     // customer's own opening date (d) on the page, not here, so it is clear
     // which of the two a day on the calendar came from.
     r: String(w.release || '').slice(0, 10),
+    cl: String(w.close || '').slice(0, 10),
+    a: String(w.assignee || '').slice(0, 40),
+    // The customer's answer on the proof link: approved, changes, or blank.
+    // "stale" when staff changed the products after the customer answered.
+    ap: rec.approval ? (rec.approval.stale ? 'stale' : rec.approval.state) : '',
   };
 }
 
@@ -243,6 +261,12 @@ export async function listRequests(env) {
 // What staff may change. Anything else in a patch is ignored, so the stored
 // original (req), the id and the build record can never be edited from the
 // page, only appended to by the code paths that own them.
+// What the customer actually approves. Cost is left out on purpose: it is
+// ours, it is never shown to them, and changing it changes nothing they saw.
+function itemSig(it) {
+  return [it.style, it.colors, it.sizes, it.price, it.placement, it.boxes, it.logo];
+}
+
 export function applyPatch(rec, patch) {
   const changed = [];
   if (patch.status != null) {
@@ -257,12 +281,15 @@ export function applyPatch(rec, patch) {
     if (typeof w.tag === 'string') cur.tag = w.tag.slice(0, 120);
     // A calendar date or nothing. Anything else is refused rather than
     // stored, because the calendar sorts on it.
-    if (typeof w.release === 'string') {
-      if (w.release && !/^\d{4}-\d{2}-\d{2}$/.test(w.release)) throw new Error('Release date must be YYYY-MM-DD');
-      cur.release = w.release;
+    for (const k of ['release', 'close']) {
+      if (typeof w[k] !== 'string') continue;
+      if (w[k] && !/^\d{4}-\d{2}-\d{2}$/.test(w[k])) throw new Error((k === 'close' ? 'Close' : 'Release') + ' date must be YYYY-MM-DD');
+      cur[k] = w[k];
     }
+    if (typeof w.assignee === 'string') cur.assignee = w.assignee.trim().slice(0, 60);
     if (w.logos && typeof w.logos === 'object') cur.logos = w.logos;
     if (Array.isArray(w.items)) {
+      const before = JSON.stringify((cur.items || []).map(itemSig));
       cur.items = w.items.map((it) => ({
         style: String(it.style || ''),
         colors: Array.isArray(it.colors) ? it.colors.map(String) : [],
@@ -272,7 +299,16 @@ export function applyPatch(rec, patch) {
         sizes: Array.isArray(it.sizes) ? it.sizes.map(String).filter(Boolean) : null,
         boxes: it.boxes && typeof it.boxes === 'object' ? it.boxes : {},
         logo: String(it.logo || 'main'),
+        cost: Number(it.cost) > 0 ? Math.round(Number(it.cost) * 100) / 100 : 0,
       }));
+      // An answer the customer gave is about the store they SAW. If the
+      // products, colours, sizes, prices or placement change after it, the
+      // approval no longer covers what will be built, so it is marked stale
+      // rather than left looking like a yes.
+      if (rec.approval && JSON.stringify(cur.items.map(itemSig)) !== before) {
+        rec.approval.stale = true;
+        changed.push('products changed after the customer answered');
+      }
     }
     rec.work = cur;
     changed.push('edited the request');
@@ -283,6 +319,7 @@ export function applyPatch(rec, patch) {
 export async function handleStaff(request, env, which) {
   const url = new URL(request.url);
   if (which === 'list') return { body: { requests: await listRequests(env) } };
+  if (which === 'costs') return { body: { costs: (await env.CATALOG.get(COSTS_KEY, 'json')) || {} } };
 
   if (which === 'one') {
     const rec = await readRec(env, url.searchParams.get('id'));
@@ -334,6 +371,7 @@ export async function handleStaff(request, env, which) {
     try { changed = applyPatch(rec, b.patch || {}); } catch (e) { return { status: 400, body: { error: e.message } }; }
     if (changed.length) log(rec, changed.join(', '));
     await writeRec(env, rec);
+    await rememberCosts(env, rec);
     return { body: { ok: true, rec } };
   }
 

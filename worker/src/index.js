@@ -35,6 +35,7 @@ import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import { handleIntake, handleStaff } from './teamreq.js';
 import { handleBuild } from './teamreq-build.js';
+import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
   readApparel, readApparelMeta, writeApparel,
@@ -426,6 +427,14 @@ export default {
     // reaches the store.
     if (url.pathname === '/team-requests/submit') return handleIntake(request, env);
 
+    // CUSTOMER PROOF LINK, also before auth: the customer holds a per-request
+    // token, not our token. It can read one request's proof (an allowlisted
+    // view, no emails, notes or costs) and record an approve or change answer.
+    // See teamreq-proof.js.
+    if (['/team-requests/proof', '/team-requests/proof-logo', '/team-requests/respond'].includes(url.pathname)) {
+      return handlePublicProof(request, env, url.pathname);
+    }
+
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(request, env) });
     }
@@ -472,6 +481,8 @@ export default {
       '/team-requests': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'list')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/one': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'one')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/logo-file': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo-get')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/team-requests/costs': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'costs')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/team-requests/proof-link': { handler: teamReqRoute(handleProofLink), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/update': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'update')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/delete': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'delete')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/logo': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },

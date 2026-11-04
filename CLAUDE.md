@@ -1712,6 +1712,15 @@ to the contact form email only if that save fails. Staff work them in
   under the requested name.
 - **Mockups come from the 420 px catalog photos**, so they are placeholders for
   review, not storefront images.
+- **The customer proof link is an ALLOWLIST.** `proof.html?id=&t=` reads
+  `proofView()` in `teamreq-proof.js`, built field by field, so a field added to
+  the record later cannot leak by default. Never emails, notes, costs or the
+  original. The token is 192 random bits; "Make a new link" replaces it.
+- **Costs never go in the builder catalog.** That file is public on the CDN.
+  Staff type a cost per item and the Worker remembers it per style under
+  `treqcosts`, behind the write secret.
+- **An approval goes stale when anything the customer SAW changes** (products,
+  colours, sizes, price, placement, logo), never on a note or a cost edit.
 
 ## How a run flows
 

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Team Store Proof | The Run House</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  The customer's side of a team store request. They arrive from a private
+  link (?id=...&t=...) staff send them, see every product the way it will be
+  made, and approve it or ask for changes. The Worker gives this page an
+  allowlisted view only: no emails, costs or staff notes ever reach it.
+-->
+<style>
+:root { --ink: #0d1420; --dim: #4e5a6c; --line: #d9e0ea; --navy: #13284f; --blue: #1e4ea8; --field: #f4f2ef; --ok: #17733f; --warn: #8a5a00; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #fff; color: var(--ink); font: 17px/1.55 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+a { color: var(--blue); }
+.band { background: var(--navy); color: #fff; padding: 28px 20px 30px; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+.band .wrap { padding: 0; display: flex; gap: 24px; align-items: center; justify-content: space-between; }
+.band .k { font-size: 13px; font-weight: 700; letter-spacing: .08em; opacity: .85; margin: 0 0 6px; }
+.band h1 { margin: 0; font-size: clamp(26px, 5vw, 40px); line-height: 1.1; }
+.band .logo { width: 120px; height: 120px; background: #fff; display: flex; align-items: center; justify-content: center; flex: none; }
+.band .logo img { max-width: 92%; max-height: 92%; }
+.facts { display: flex; gap: 28px; flex-wrap: wrap; margin: 26px 0 8px; }
+.facts div span { display: block; font-size: 14px; color: var(--dim); }
+.facts div b { font-size: 18px; }
+.lead { max-width: 720px; color: var(--ink); margin: 14px 0 6px; }
+.status { padding: 14px 16px; margin: 18px 0; border: 2px solid var(--line); }
+.status.approved { border-color: var(--ok); color: var(--ok); }
+.status.changes { border-color: var(--warn); color: var(--warn); }
+h2 { font-size: 24px; margin: 38px 0 4px; }
+.meta { color: var(--dim); margin: 0 0 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+.tile figure { margin: 0; }
+.tile figcaption { margin-top: 8px; font-weight: 600; }
+.mk { position: relative; display: block; background: #fff; line-height: 0; border: 1px solid var(--line); }
+.mk > img.g { width: 100%; height: auto; display: block; }
+.mk > .lb { position: absolute; }
+.mk > .lb > img { width: 100%; height: 100%; object-fit: contain; object-position: top center; display: block; }
+.answer { background: var(--field); padding: 26px 22px; margin: 48px 0 30px; }
+.answer h2 { margin-top: 0; }
+.answer label { display: block; font-weight: 600; margin: 14px 0 6px; }
+.answer input, .answer textarea { width: 100%; font: inherit; padding: 11px 12px; border: 1px solid #b9c3d1; background: #fff; color: var(--ink); }
+.answer textarea { min-height: 120px; }
+.btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+.btn { font: inherit; font-weight: 700; padding: 13px 22px; min-height: 48px; border: 2px solid var(--navy); background: #fff; color: var(--navy); cursor: pointer; }
+.btn.pri { background: var(--navy); color: #fff; }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.err { color: #a0182c; margin-top: 10px; font-weight: 600; }
+.foot { color: var(--dim); font-size: 14px; border-top: 1px solid var(--line); padding: 20px 0 40px; }
+.msg { max-width: 640px; margin: 15vh auto; padding: 0 20px; text-align: center; }
+@media (max-width: 600px) { .band .logo { width: 84px; height: 84px; } .grid { grid-template-columns: 1fr 1fr; gap: 12px; } }
+</style>
+</head>
+<body>
+<div id="root"><p class="msg">Loading your store...</p></div>
+<script src="team-request-utils.js?v=1"></script>
+<script>
+(function () {
+  var WORKER = (function () { try { return localStorage.getItem('rhWorkerUrl') || 'https://runhouse-inventory-worker.ryan-486.workers.dev'; } catch (e) { return 'https://runhouse-inventory-worker.ryan-486.workers.dev'; } })();
+  var U = TeamReqUtils, qs = new URLSearchParams(location.search), id = qs.get('id'), t = qs.get('t');
+  var root = document.getElementById('root');
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var fmt = function (iso) { var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''; };
+  var fail = function (text) { root.innerHTML = '<p class="msg">' + esc(text) + '<br><br>Questions? Email <a href="mailto:teamstores@therunhouse.com">teamstores@therunhouse.com</a>.</p>'; };
+  if (!id || !t) { fail('This link is missing part of its address. Please use the full link from your email.'); return; }
+
+  Promise.all([
+    fetch(WORKER + '/team-requests/proof?id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t)).then(function (r) { return r.json().then(function (j) { j.__s = r.status; return j; }); }),
+    fetch(U.CATALOG_URL).then(function (r) { return r.json(); })
+  ]).then(function (res) {
+    var v = res[0], D = res[1];
+    if (v.__s !== 200) { fail(v.error || 'This link is not valid.'); return; }
+    var P = {};
+    D.cats.forEach(function (c) { c.p.forEach(function (p) { p.c.forEach(function (k) { k[2] = U.expand(k[2]); }); P[p.s] = p; }); });
+    var logoSrc = function (slot) {
+      var L = v.logos[slot]; if (!L) return null;
+      if (L.url) return L.url;
+      if (L.staff) return WORKER + '/team-requests/proof-logo?id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t) + '&slot=' + encodeURIComponent(slot);
+      return null;
+    };
+    var image = function (slot) { var L = v.logos[slot]; return L && !/\.(pdf|ai|eps)$/i.test(L.name || L.url || ''); };
+    var mk = function (it, p, n) {
+      var c = p.c.filter(function (x) { return x[0] === n; })[0]; if (!c) return '';
+      var b = U.boxFor(it, p, n), src = image(it.logo || 'main') ? logoSrc(it.logo || 'main') : null;
+      var lb = b && src ? '<div class="lb" style="left:' + b[0] * 100 + '%;top:' + b[1] * 100 + '%;width:' + b[2] * 100 + '%;height:' + b[3] * 100 + '%' + (b[4] ? ';transform:rotate(' + b[4] + 'deg)' : '') + '"><img alt="" src="' + esc(src) + '"></div>' : '';
+      return '<span class="mk"><img class="g" alt="' + esc(p.n + ' in ' + n) + '" src="' + esc(c[2]) + '">' + lb + '</span>';
+    };
+    var main = Object.keys(v.logos)[0];
+    var items = v.items.filter(function (it) { return P[it.style]; });
+    var ap = v.approval;
+    var stateHtml = !ap ? '' :
+      ap.state === 'approved' ? '<div class="status approved"><b>You approved this store on ' + esc(new Date(ap.at).toLocaleDateString()) + '.</b> Thank you. We will be in touch when it goes live.</div>' :
+      ap.state === 'changes' ? '<div class="status changes"><b>You asked for changes on ' + esc(new Date(ap.at).toLocaleDateString()) + '.</b> We are working on them and will send you an updated proof.</div>' :
+      '<div class="status"><b>We have updated your store since you last answered.</b> Please take another look and let us know.</div>';
+
+    root.innerHTML =
+      '<div class="band"><div class="wrap"><div><p class="k">THE RUN HOUSE / TEAM STORE PROOF</p><h1>' + esc(v.team) + ' Team Store</h1></div>' +
+        (main && image(main) && logoSrc(main) ? '<div class="logo"><img alt="Your logo" src="' + esc(logoSrc(main)) + '"></div>' : '') + '</div></div>' +
+      '<div class="wrap">' +
+        '<div class="facts">' + (v.release ? '<div><span>Store opens</span><b>' + esc(fmt(v.release)) + '</b></div>' : '') + (v.close ? '<div><span>Orders close</span><b>' + esc(fmt(v.close)) + '</b></div>' : '') +
+          '<div><span>Products</span><b>' + items.length + '</b></div></div>' +
+        '<p class="lead">' + (v.contactName ? 'Hi ' + esc(v.contactName) + ', here' : 'Here') + ' is your store as we will build it. Please check each product, colour, size range, price and where the logo sits, then approve it or tell us what to change below. Nothing goes live until you approve.</p>' +
+        stateHtml +
+        items.map(function (it) {
+          var p = P[it.style];
+          var bits = ['$' + Number(it.price || 0).toFixed(2)];
+          if ((it.sizes || []).length) bits.push('Sizes ' + it.sizes.join(', '));
+          if (it.placement) bits.push('Logo: ' + it.placement);
+          return '<h2>' + esc(p.n) + '</h2><p class="meta">' + bits.map(esc).join(' &nbsp;/&nbsp; ') + '</p><div class="grid">' +
+            it.colors.map(function (n) { return '<div class="tile"><figure>' + mk(it, p, n) + '<figcaption>' + esc(n) + '</figcaption></figure></div>'; }).join('') + '</div>';
+        }).join('') +
+        '<section class="answer" aria-labelledby="ans-h"><h2 id="ans-h">Is this right?</h2>' +
+          '<p style="margin:0">Approve it and we will start setting up your store. If anything needs to change, tell us what and we will send you a new proof.</p>' +
+          '<label for="a-name">Your name</label><input id="a-name" autocomplete="name" value="' + esc(v.contactName) + '">' +
+          '<label for="a-msg">Changes or notes <span style="font-weight:400;color:var(--dim)">(needed if you are asking for changes)</span></label><textarea id="a-msg" placeholder="For example: make the logo bigger on the hoodie, and drop the white tee."></textarea>' +
+          '<div class="btns"><button class="btn pri" type="button" id="a-ok">Approve this store</button><button class="btn" type="button" id="a-ch">Request changes</button></div>' +
+          '<div class="err" id="a-err" role="alert"></div></section>' +
+        '<div class="foot">Mockups show logo size and position on our catalog photos, and colours can look different on screen. Questions? Email <a href="mailto:teamstores@therunhouse.com">teamstores@therunhouse.com</a>.</div>' +
+      '</div>';
+
+    var send = function (action) {
+      var err = document.getElementById('a-err'), msg = document.getElementById('a-msg').value;
+      if (action === 'changes' && !msg.trim()) { err.textContent = 'Please tell us what to change.'; document.getElementById('a-msg').focus(); return; }
+      var btns = root.querySelectorAll('.btns .btn'); btns.forEach(function (b) { b.disabled = true; });
+      err.textContent = '';
+      fetch(WORKER + '/team-requests/respond', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, t: t, action: action, message: msg, name: document.getElementById('a-name').value }) })
+        .then(function (r) { return r.json().then(function (j) { if (r.status !== 200) throw new Error(j.error || 'Something went wrong.'); return j; }); })
+        .then(function () {
+          root.querySelector('.answer').innerHTML = action === 'approve'
+            ? '<h2>Thank you, your store is approved.</h2><p style="margin:0">We will set it up and let you know when it goes live.</p>'
+            : '<h2>Thanks, we have your changes.</h2><p style="margin:0">We will update your store and send you a new proof.</p>';
+          root.querySelector('.answer').focus();
+        })
+        .catch(function (e) { btns.forEach(function (b) { b.disabled = false; }); err.textContent = e.message + ' You can also email teamstores@therunhouse.com.'; });
+    };
+    document.getElementById('a-ok').onclick = function () { send('approve'); };
+    document.getElementById('a-ch').onclick = function () { send('changes'); };
+    root.querySelector('.answer').tabIndex = -1;
+  }).catch(function () { fail('We could not load your store right now. Please try again in a minute.'); });
+})();
+</script>
+</body>
+</html>

@@ -17,7 +17,9 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 var TR = {
-    st: { list: [], rec: null, dirty: false, filter: 'open', q: '', tab: 'products', D: null, P: {}, CAT: {}, logoSrc: {}, plan: null, busy: false },
+    st: { list: [], rec: null, dirty: false, filter: 'open', q: '', tab: 'products', D: null, P: {}, CAT: {}, logoSrc: {}, plan: null, busy: false, costs: {} },
+    PROOF_PAGE: 'https://rmart7866.github.io/Inventory-Manager-Runhouse-2/proof.html',
+    APPROVAL: { approved: 'Customer approved', changes: 'Customer asked for changes', stale: 'Changed since the customer answered' },
     U: TeamReqUtils,
     STATUS: { new: 'New', progress: 'In progress', waiting: 'Waiting on customer', done: 'Done', archived: 'Archived' },
     ADMIN: 'https://admin.shopify.com/store/therunhouse',
@@ -52,6 +54,8 @@ var TR = {
             TR.renderList();
         });
         TR.$('q').addEventListener('input', function () { TR.st.q = this.value.toLowerCase(); TR.renderList(); });
+        TR.$('me').value = TR.myName();
+        TR.$('me').addEventListener('change', function () { try { localStorage.setItem('rhStaffName', this.value.trim()); } catch (e) { /* private mode */ } TR.renderList(); });
         TR.$('refresh').addEventListener('click', function () { TR.loadList(); });
         TR.$('cal-open').addEventListener('click', TR.showCalendar);
         window.addEventListener('beforeunload', function (e) { if (TR.st.dirty) { e.preventDefault(); e.returnValue = ''; } });
@@ -75,6 +79,7 @@ var TR = {
             TR.st.list = j.requests || [];
             TR.renderList();
             TR.loadCatalog();
+            TR.api('/team-requests/costs').then(function (c) { TR.st.costs = (c && c.costs) || {}; });
             var h = location.hash.replace('#', '');
             if (h) TR.open(h);
         }).catch(function (e) { TR.showGate('Could not reach the Worker: ' + e.message); });
@@ -109,8 +114,10 @@ var TR = {
 
     // ---------- list ----------
     renderList: function () {
-        var f = TR.st.filter, q = TR.st.q;
+        var f = TR.st.filter, q = TR.st.q, me = TR.myName().toLowerCase();
+        var dups = TR.duplicates();
         var rows = TR.st.list.filter(function (r) {
+            if (f === 'mine' && (!me || String(r.a || '').toLowerCase() !== me || ['done', 'archived'].indexOf(r.s) >= 0)) return false;
             if (f === 'open' && ['new', 'progress', 'waiting'].indexOf(r.s) < 0) return false;
             if (f === 'done' && r.s !== 'done') return false;
             if (f === 'archived' && r.s !== 'archived') return false;
@@ -122,11 +129,52 @@ var TR = {
             var bits = [r.n + (r.n === 1 ? ' product' : ' products'), TR.ago(r.c)];
             if (r.r) bits.push('releases ' + TR.esc(TR.fmtDate(r.r)));
             else if (r.d) bits.push('asked for ' + TR.esc(TR.fmtDate(r.d)));
+            if (r.a) bits.push(TR.esc(r.a));
+            var tags = [];
+            if (r.ap) tags.push('<span class="tag ' + r.ap + '">' + TR.APPROVAL[r.ap] + '</span>');
+            var cd = TR.daysUntil(r.cl);
+            if (cd != null && cd >= 0 && cd <= 7 && ['done', 'archived'].indexOf(r.s) < 0) tags.push('<span class="tag closing">Closes ' + (cd === 0 ? 'today' : cd === 1 ? 'tomorrow' : 'in ' + cd + ' days') + '</span>');
+            if (dups[r.id]) tags.push('<span class="tag dup">Possible duplicate</span>');
+            if (r.m === 'update') tags.push('<span class="tag">Add to store</span>');
+            if (r.b) tags.push('<span class="tag">Build it for me</span>');
             return '<button type="button" class="row' + (r.id === cur ? ' on' : '') + '" data-id="' + r.id + '">' +
                 '<div class="t"><span>' + TR.esc(r.t || '(no name)') + '</span><span class="pill ' + r.s + '">' + TR.STATUS[r.s] + '</span></div>' +
-                '<div class="m">' + bits.join(' · ') + (r.m === 'update' ? ' · <b>add to store</b>' : '') + (r.b ? ' · <b>build it for me</b>' : '') + (r.x ? ' · built' : '') + '</div></button>';
-        }).join('') : '<p class="empty">' + (TR.st.list.length ? 'Nothing matches.' : 'No requests yet. They appear here when a customer presses Send on the builder.') + '</p>';
+                '<div class="m">' + bits.join(' · ') + '</div>' + (tags.length ? '<div class="tags">' + tags.join('') + '</div>' : '') + '</button>';
+        }).join('') : '<p class="empty">' + (f === 'mine' && !me ? 'Type your name above to see the requests assigned to you.' : TR.st.list.length ? 'Nothing matches.' : 'No requests yet. They appear here when a customer presses Send on the builder.') + '</p>';
         TR.$('list').querySelectorAll('.row').forEach(function (b) { b.onclick = function () { TR.open(b.dataset.id); }; });
+    },
+
+    // This browser's staff name, for the Mine filter. Per browser on purpose:
+    // the page has no logins, so it cannot know who is looking.
+    myName: function () { try { return localStorage.getItem('rhStaffName') || ''; } catch (e) { return ''; } },
+
+    daysUntil: function (iso) {
+        var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); if (!m) return null;
+        var t = new Date(); t.setHours(0, 0, 0, 0);
+        return Math.round((new Date(+m[1], +m[2] - 1, +m[3]) - t) / 86400000);
+    },
+
+    // A likely resend: within a week, and either the same team name (letters
+    // and digits only) or the same email AND the same first word of the team
+    // ("Walpole T&F" against "Walpole Track & Field"). The same email alone is
+    // NOT enough: one athletic director files a store per sport, and calling
+    // those duplicates would teach staff to ignore the flag. Those are
+    // returned separately as "same contact", a note rather than a warning.
+    duplicates: function () { return TR.related().dup; },
+
+    related: function () {
+        var dup = {}, contact = {}, L = TR.st.list.filter(function (r) { return r.s !== 'archived'; });
+        var norm = function (t) { return String(t || '').toLowerCase().replace(/[^a-z0-9]/g, ''); };
+        var first = function (t) { return (String(t || '').toLowerCase().match(/[a-z0-9]+/) || [''])[0]; };
+        var add = function (m, a, b) { (m[a.id] = m[a.id] || []).push(b.id); (m[b.id] = m[b.id] || []).push(a.id); };
+        for (var i = 0; i < L.length; i++) for (var j = i + 1; j < L.length; j++) {
+            var a = L[i], b = L[j];
+            if (Math.abs(new Date(a.c) - new Date(b.c)) >= 7 * 86400000) continue;
+            var sameEmail = a.e && a.e.toLowerCase() === String(b.e || '').toLowerCase();
+            if ((norm(a.t) && norm(a.t) === norm(b.t)) || (sameEmail && first(a.t) && first(a.t) === first(b.t))) add(dup, a, b);
+            else if (sameEmail) add(contact, a, b);
+        }
+        return { dup: dup, contact: contact };
     },
 
     ago: function (iso) {
@@ -195,16 +243,23 @@ var TR = {
                 '<div class="team"><input type="text" id="d-team" value="' + TR.esc(w.team) + '" aria-label="Team name"></div>' +
                 '<div class="who">' + TR.esc(c.name || '') + ' · <a href="mailto:' + TR.esc(c.email) + '">' + TR.esc(c.email) + '</a>' + (c.phone ? ' · ' + TR.esc(c.phone) : '') + ' · sent ' + TR.ago(r.created) + '</div>' +
                 '<div class="rel"><label for="d-rel">Release</label><input type="date" id="d-rel" value="' + TR.esc(w.release || '') + '">' +
-                    (q.date ? '<span class="sub">customer asked for ' + TR.esc(TR.fmtDate(q.date)) + (w.release ? '' : ', used until you set one') + '</span>' : '<span class="sub">no date from the customer</span>') + '</div>' +
+                    '<label for="d-close">Orders close</label><input type="date" id="d-close" value="' + TR.esc(w.close || '') + '">' +
+                    '<label for="d-who">Handled by</label><input type="text" id="d-who" list="who-list" value="' + TR.esc(w.assignee || '') + '" placeholder="Name" style="width:130px">' +
+                    '<datalist id="who-list">' + TR.names().map(function (n) { return '<option value="' + TR.esc(n) + '">'; }).join('') + '</datalist></div>' +
+                (q.date ? '<div class="sub" style="margin-top:6px">Customer asked for ' + TR.esc(TR.fmtDate(q.date)) + (w.release ? '' : ', shown on the calendar until you set a release date') + '.</div>' : '') +
                 (facts.length ? '<div class="sub" style="margin-top:6px">' + facts.join(' · ') + '</div>' : '') +
                 (flags.length ? '<div class="flags">' + flags.join('') + '</div>' : '') +
             '</div><div class="acts">' +
                 '<select id="d-status" aria-label="Status">' + Object.keys(TR.STATUS).map(function (k) { return '<option value="' + k + '"' + (k === r.status ? ' selected' : '') + '>' + TR.STATUS[k] + '</option>'; }).join('') + '</select>' +
+                '<button class="btn" type="button" id="d-link">Approval link</button>' +
+                '<button class="btn" type="button" id="d-mail">Email the proof</button>' +
                 '<button class="btn" type="button" id="d-pdf">Proof PDF</button>' +
                 '<button class="btn pri" type="button" id="save"' + (TR.st.dirty ? '' : ' disabled') + '>Save</button>' +
                 '<span class="dirty-note" id="dirty">' + (TR.st.dirty ? 'Unsaved changes' : '') + '</span>' +
             '</div></div>' +
             '<div id="flash" class="msg hidden"></div>' +
+            TR.approvalHtml(r) + TR.dupHtml(r) +
+            (w.close && w.release && w.close < w.release ? '<div class="msg warn"><b>Orders close before the store opens.</b> Close ' + TR.esc(TR.fmtDate(w.close)) + ', opens ' + TR.esc(TR.fmtDate(w.release)) + '. One of the dates is probably wrong.</div>' : '') +
             (q.notes ? '<div class="msg warn"><b>Customer note:</b> ' + TR.esc(q.notes) + '</div>' : '') +
             '<div class="tabs" role="tablist">' + [['products', 'Products (' + (w.items || []).length + ')'], ['logos', 'Logos'], ['build', 'Build'], ['orig', 'History']].map(function (t) {
                 return '<button type="button" role="tab" data-t="' + t[0] + '" class="' + (TR.st.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>';
@@ -212,6 +267,11 @@ var TR = {
 
         TR.$('d-team').addEventListener('input', function () { w.team = this.value; TR.touch(); });
         TR.$('d-rel').addEventListener('change', function () { w.release = this.value; TR.touch(); });
+        TR.$('d-close').addEventListener('change', function () { w.close = this.value; TR.touch(); });
+        TR.$('d-who').addEventListener('input', function () { w.assignee = this.value; TR.touch(); });
+        TR.$('d-link').addEventListener('click', function () { TR.showLink(false); });
+        TR.$('d-mail').addEventListener('click', function () { TR.emailProof(this); });
+        TR.$('detail').querySelectorAll('[data-open]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); TR.open(a.dataset.open); }; });
         TR.$('d-status').addEventListener('change', function () { TR.save({ status: this.value }); });
         TR.$('save').addEventListener('click', function () { TR.save(); });
         TR.$('d-pdf').addEventListener('click', function () { TR.proofPdf(this); });
@@ -219,6 +279,93 @@ var TR = {
             b.onclick = function () { TR.st.tab = b.dataset.t; TR.renderDetail(); };
         });
         ({ products: TR.paneProducts, logos: TR.paneLogos, build: TR.paneBuild, orig: TR.paneOrig })[TR.st.tab]();
+    },
+
+
+    names: function () {
+        var seen = {}, out = [];
+        TR.st.list.concat([{ a: TR.myName() }]).forEach(function (r) { var n = String(r.a || '').trim(); if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; out.push(n); } });
+        return out.sort();
+    },
+
+    // The customer's answer, at the top where it cannot be missed. A stale
+    // approval says so plainly: the yes was for a store that has since changed.
+    approvalHtml: function (r) {
+        var a = r.approval; if (!a) return '';
+        var when = new Date(a.at).toLocaleString(), by = a.by ? ' (' + TR.esc(a.by) + ')' : '';
+        if (a.stale) return '<div class="msg warn"><b>Changed since the customer answered.</b> They ' + (a.state === 'approved' ? 'approved' : 'asked for changes') + ' on ' + when + by + ', before your latest edits. Send the link again so they see the current store.</div>';
+        if (a.state === 'approved') return '<div class="msg ok"><b>Customer approved</b> on ' + when + by + '.' + (a.message ? ' They added: ' + TR.esc(a.message) : '') + '</div>';
+        return '<div class="msg warn"><b>Customer asked for changes</b> on ' + when + by + ': ' + TR.esc(a.message) + '</div>';
+    },
+
+    dupHtml: function (r) {
+        var rel = TR.related(), d = rel.dup[r.id], c = rel.contact[r.id];
+        var links = function (ids) {
+            return ids.map(function (id) {
+                var o = TR.st.list.filter(function (x) { return x.id === id; })[0];
+                return '<a href="#' + id + '" data-open="' + id + '">' + TR.esc(o ? o.t : id) + ', sent ' + (o ? TR.ago(o.c) : '') + '</a>';
+            }).join(', ');
+        };
+        return (d ? '<div class="msg warn"><b>Possible duplicate</b> of ' + links(d) + '. Archive one if it is a resend.</div>' : '') +
+            (c ? '<div class="msg"><b>Same contact</b> also sent ' + links(c) + '.</div>' : '');
+    },
+
+    // ---------- approval link ----------
+    go: function (url) { window.location.href = url; },
+
+    linkFor: function (id, t) { return TR.PROOF_PAGE + '?id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t); },
+
+    getLink: function (renew) {
+        var r = TR.st.rec;
+        return TR.api('/team-requests/proof-link', { body: { id: r.id, renew: !!renew } }).then(function (j) {
+            if (j.__status !== 200) throw new Error(j.error || j.reason || ('HTTP ' + j.__status));
+            TR.st.rec = j.rec;
+            return TR.linkFor(j.id, j.t);
+        });
+    },
+
+    showLink: function (renew) {
+        if (TR.st.dirty) { TR.flash('Save your changes first, so the link shows them.', 'warn'); return; }
+        TR.getLink(renew).then(function (url) {
+            TR.renderDetail();
+            TR.flash('', 'ok');
+            var m = TR.$('flash');
+            m.innerHTML = '<b>Approval link</b> for the customer. Anyone with it can see this store and answer, so send it only to them.' +
+                '<div class="linkrow"><input type="text" readonly id="lk" value="' + TR.esc(url) + '"><button class="btn" type="button" id="lk-copy">Copy</button>' +
+                '<a class="btn" href="' + TR.esc(url) + '" target="_blank" rel="noopener">Open</a><button class="btn quiet" type="button" id="lk-new">Make a new link</button></div>' +
+                '<div class="sub">A new link stops the old one working. Use it if this one went to the wrong person.</div>';
+            TR.$('lk').addEventListener('focus', function (e) { e.target.select(); });
+            TR.$('lk-copy').onclick = function () {
+                var b = this;
+                (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function () { b.textContent = 'Copied'; }, function () { TR.$('lk').select(); b.textContent = 'Press Cmd+C'; });
+            };
+            TR.$('lk-new').onclick = function () { TR.showLink(true); };
+        }).catch(function (e) { TR.flash('Could not make the link: ' + e.message, 'bad'); });
+    },
+
+    // ---------- email the proof ----------
+    // Downloads the proof PDF and opens an email to the customer with the
+    // approval link in it. An email link cannot attach a file, so the
+    // message says to attach the PDF that just downloaded.
+    emailProof: function (btn) {
+        var r = TR.st.rec, c = (r.req && r.req.contact) || {};
+        if (TR.st.dirty) { TR.flash('Save your changes first, so the proof shows them.', 'warn'); return; }
+        if (!c.email) { TR.flash('This request has no customer email.', 'bad'); return; }
+        TR.getLink(false).then(function (url) {
+            var w = r.work, first = String(c.name || '').split(/\s+/)[0];
+            var body = (first ? 'Hi ' + first + ',' : 'Hi,') + '\n\n' +
+                'Here is the proof for the ' + w.team + ' team store. You can look through every product and approve it, or tell us what to change, here:\n\n' + url + '\n\n' +
+                'The same proof is attached as a PDF if that is easier to share.' + (w.release ? ' We are planning to open the store on ' + TR.fmtDate(w.release) + '.' : '') + '\n\n' +
+                'Thanks,\nThe Run House\nteamstores@therunhouse.com';
+            var href = 'mailto:' + encodeURIComponent(c.email) + '?subject=' + encodeURIComponent('Your ' + w.team + ' team store proof') + '&body=' + encodeURIComponent(body);
+            TR.proofPdf(TR.$('d-pdf'), function () {
+                TR.go(href);
+                // Sent to the customer, so it is now waiting on them.
+                TR.save({ status: r.status === 'new' || r.status === 'progress' ? 'waiting' : r.status }).then(function () {
+                    TR.flash('The proof PDF downloaded and your email opened. Attach the PDF, then send. Status is now Waiting on customer.', 'ok');
+                });
+            });
+        }).catch(function (e) { TR.flash('Could not make the link: ' + e.message, 'bad'); });
     },
 
     // "2026-12-01" to "Tue, Dec 1, 2026", read as a calendar day, never as
@@ -318,6 +465,7 @@ var TR = {
         }
         var cat = TR.st.CAT[it.style];
         if (it.sizes == null) it.sizes = TR.U.sizesFor(p, cat);
+        if (!it.cost && TR.st.costs[it.style]) it.cost = TR.st.costs[it.style];
         var first = it.colors[0] || (p.c[0] && p.c[0][0]);
         var problems = [];
         if (!it.colors.length) problems.push('Pick at least one colour.');
@@ -335,7 +483,9 @@ var TR = {
                 }).join('') + '<button type="button" class="chip" data-more="1">+ colour</button></div><div class="allcols hidden" id="allcols-' + i + '"></div></div>' +
                 '<div><label class="f" for="sz-' + i + '">Sizes</label><input type="text" id="sz-' + i + '" value="' + TR.esc(it.sizes.join(', ')) + '" style="width:100%"></div>' +
                 '<div><label class="f" for="pr-' + i + '">Price</label><input type="number" min="0" step="0.01" id="pr-' + i + '" value="' + (it.price || '') + '" style="width:100%"></div>' +
+                '<div><label class="f" for="co-' + i + '">Our cost</label><input type="number" min="0" step="0.01" id="co-' + i + '" value="' + (it.cost || '') + '" placeholder="' + (TR.st.costs[it.style] ? TR.st.costs[it.style] : '') + '" style="width:100%"></div>' +
             '</div>' +
+            '<div class="money" id="mo-' + i + '">' + TR.moneyHtml(it) + '</div>' +
             (problems.length ? '<p class="bad">' + problems.join(' ') + '</p>' : '') +
             // One line for the logo: where it sits, and the one button that
             // changes it. The logo picker appears only when there is a choice.
@@ -347,6 +497,20 @@ var TR = {
             }).join('') + '</select>' : '') +
             '<span style="flex:1"></span><button class="btn danger quiet" type="button" data-rm="' + i + '">Remove</button></div>' +
             '</div></div>';
+    },
+
+    // The price check. The builder adds the team's fundraising percentage on
+    // top of the base price, so the team's share comes off the top before
+    // our margin. Cost is ours and never leaves this page or the Worker.
+    moneyHtml: function (it) {
+        var price = Number(it.price) || 0, cost = Number(it.cost) || 0;
+        var pct = Number((TR.st.rec.req || {}).fundraising_pct) || 0;
+        var team = pct ? price - price / (1 + pct / 100) : 0;
+        if (!price) return '<span class="sub">Set a price to see the margin.</span>';
+        if (!cost) return (pct ? 'Team fundraising $' + team.toFixed(2) + ' (' + pct + '%) · ' : '') + '<span class="sub">Add our cost to see the margin.</span>';
+        var m = price - team - cost, mp = m / price * 100;
+        var cls = m <= 0 ? 'neg' : mp < 25 ? 'thin' : 'okm';
+        return (pct ? 'Team fundraising $' + team.toFixed(2) + ' · ' : '') + '<span class="' + cls + '">Our margin $' + m.toFixed(2) + ' (' + mp.toFixed(0) + '%)</span>' + (m <= 0 ? ' · <b>selling at a loss</b>' : mp < 25 ? ' · thin' : '');
     },
 
     // ", moved" or ", tilted 8 degrees", so the card says what was changed
@@ -389,7 +553,8 @@ var TR = {
         TR.$('sz-' + i).addEventListener('change', function () {
             it.sizes = this.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean); TR.touch(); TR.paneProducts();
         });
-        TR.$('pr-' + i).addEventListener('input', function () { it.price = Number(this.value) || 0; TR.touch(); });
+        TR.$('pr-' + i).addEventListener('input', function () { it.price = Number(this.value) || 0; TR.touch(); TR.$('mo-' + i).innerHTML = TR.moneyHtml(it); });
+        TR.$('co-' + i).addEventListener('input', function () { it.cost = Number(this.value) || 0; TR.touch(); TR.$('mo-' + i).innerHTML = TR.moneyHtml(it); });
         var lg = TR.$('lg-' + i);
         if (lg) lg.addEventListener('change', function () { it.logo = this.value; TR.touch(); TR.paneProducts(); });
         card.querySelector('[data-place]').onclick = function () { TR.openPlacement(i); };
@@ -814,7 +979,13 @@ var TR = {
         var first = new Date(y, mo, 1), start = new Date(y, mo, 1 - first.getDay());
         var live = TR.st.list.filter(function (r) { return r.s !== 'archived'; });
         var byDay = {}, undated = [];
-        live.forEach(function (r) { var d = TR.dayOf(r); if (d) (byDay[d.iso] = byDay[d.iso] || []).push({ r: r, asked: d.asked }); else undated.push(r); });
+        live.forEach(function (r) {
+            var d = TR.dayOf(r);
+            if (d) (byDay[d.iso] = byDay[d.iso] || []).push({ r: r, asked: d.asked }); else undated.push(r);
+            // The close date is its own entry: a store is on the calendar
+            // the day it opens and again the day orders stop.
+            if (r.cl) (byDay[r.cl] = byDay[r.cl] || []).push({ r: r, close: true });
+        });
         var iso = function (d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
         var today = iso(new Date());
         var cells = '';
@@ -823,6 +994,7 @@ var TR = {
             if (k === 35 && d.getMonth() !== mo) break;
             cells += '<div class="day' + (d.getMonth() !== mo ? ' out' : '') + (key === today ? ' today' : '') + '"><span class="dn">' + d.getDate() + '</span>' +
                 (byDay[key] || []).map(function (x) {
+                    if (x.close) return '<button type="button" class="ev close" data-id="' + x.r.id + '" title="Orders close for ' + TR.esc(x.r.t) + '">Orders close · ' + TR.esc(x.r.t || '(no name)') + '</button>';
                     return '<button type="button" class="ev ' + x.r.s + (x.asked ? ' asked' : '') + '" data-id="' + x.r.id + '" title="' + TR.esc(x.r.t) + ', ' + TR.STATUS[x.r.s] + (x.asked ? ', the customer\'s requested date, no release date set yet' : '') + '">' + TR.esc(x.r.t || '(no name)') + '</button>';
                 }).join('') + '</div>';
         }
@@ -830,7 +1002,7 @@ var TR = {
             '<div class="calhead"><button class="btn" type="button" id="cal-prev" aria-label="Previous month">‹</button>' +
             '<h2>' + m.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) + '</h2>' +
             '<button class="btn" type="button" id="cal-next" aria-label="Next month">›</button><button class="btn" type="button" id="cal-today">Today</button>' +
-            '<span class="sp"></span><span class="sub"><span class="key solid"></span> release date &nbsp; <span class="key dash"></span> customer\'s requested date</span></div>' +
+            '<span class="sp"></span><span class="sub"><span class="key solid"></span> release date &nbsp; <span class="key dash"></span> customer\'s requested date &nbsp; <span class="key closek"></span> orders close</span></div>' +
             '<div class="cal"><div class="dow">Sun</div><div class="dow">Mon</div><div class="dow">Tue</div><div class="dow">Wed</div><div class="dow">Thu</div><div class="dow">Fri</div><div class="dow">Sat</div>' + cells + '</div>' +
             (undated.length ? '<h3 style="margin:20px 0 8px;font-size:15px">No date yet (' + undated.length + ')</h3><div class="chips">' + undated.map(function (r) {
                 return '<button type="button" class="ev ' + r.s + '" data-id="' + r.id + '">' + TR.esc(r.t || '(no name)') + '</button>';
@@ -866,7 +1038,7 @@ var TR = {
         });
     },
 
-    proofPdf: function (btn) {
+    proofPdf: function (btn, after) {
         var r = TR.st.rec, w = r.work, q = r.req || {};
         if (TR.st.dirty) { TR.flash('Save your changes first, so the proof shows them.', 'warn'); return; }
         var items = w.items.filter(function (it) { return TR.st.P[it.style] && it.colors.some(function (n) { return TR.hasColor(TR.st.P[it.style], n); }); });
@@ -972,6 +1144,7 @@ var TR = {
             }
             doc.save(team.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() + '-store-proof.pdf');
             done();
+            if (after) after();
         }).catch(function (e) { done(); TR.flash('Could not make the PDF: ' + e.message, 'bad'); });
     },
 

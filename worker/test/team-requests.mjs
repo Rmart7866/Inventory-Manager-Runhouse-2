@@ -131,6 +131,71 @@ check('an edit from a stale copy is refused, not merged', r.status === 409);
 r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { status: 'bogus' } } });
 check('an unknown status is refused', r.status === 400);
 
+
+console.log('\nClose date, assignee, costs');
+r = await call('/team-requests/one?id=' + id, { headers: STAFF });
+rec = await r.json();
+r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { work: { ...rec.work, close: '2026-12-12', assignee: 'Ryan', items: rec.work.items.map((it) => ({ ...it, cost: 11.5 })) } } } });
+j = await r.json();
+check('a close date and an assignee save', j.rec.work.close === '2026-12-12' && j.rec.work.assignee === 'Ryan');
+r = await call('/team-requests', { headers: STAFF });
+let row = (await r.json()).requests.find((x) => x.id === id);
+check('both reach the list summary', row.cl === '2026-12-12' && row.a === 'Ryan');
+r = await call('/team-requests/costs', { headers: STAFF });
+check('a typed cost is remembered for that style', (await r.json()).costs[j.rec.work.items[0].style] === 11.5);
+r = await call('/team-requests/costs', { headers: { Authorization: 'Bearer tok' } });
+check('and costs are NOT readable with the public token', r.status === 403);
+r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { work: { ...j.rec.work, close: 'soon' } } } });
+check('a close date that is not a date is refused', r.status === 400);
+
+console.log('\nCustomer proof link');
+const PAGES = { Origin: 'https://rmart7866.github.io', 'Content-Type': 'application/json', 'CF-Connecting-IP': '5.5.5.5' };
+r = await call('/team-requests/proof-link', { method: 'POST', headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' }, body: { id } });
+check('making a link needs the write secret', r.status === 403);
+r = await call('/team-requests/proof-link', { method: 'POST', headers: STAFF, body: { id } });
+j = await r.json();
+const tok = j.t;
+check('staff get a long random token', typeof tok === 'string' && tok.length >= 30);
+r = await call('/team-requests/proof?id=' + id + '&t=' + tok, { headers: PAGES });
+const view = await r.json();
+check('the customer can read their proof with it', r.status === 200 && view.team && view.items.length === 1);
+const blob = JSON.stringify(view);
+check('the proof carries NO email', !/coach@example\.com/.test(blob));
+check('no cost', !/"cost"|11\.5/.test(blob));
+check('no staff notes, history or original submission', !/"notes"|"log"|"req"|"text"/.test(blob));
+r = await call('/team-requests/proof?id=' + id + '&t=' + tok.slice(0, -1) + 'x', { headers: PAGES });
+check('a wrong token gets nothing', r.status === 404);
+r = await call('/team-requests/proof?id=' + id, { headers: PAGES });
+check('no token gets nothing', r.status === 404);
+
+r = await call('/team-requests/respond', { method: 'POST', headers: { ...PAGES, Origin: 'https://evil.example' }, body: { id, t: tok, action: 'approve' } });
+check('an answer from another site is refused', r.status === 403);
+r = await call('/team-requests/respond', { method: 'POST', headers: PAGES, body: { id, t: tok, action: 'changes', message: '' } });
+check('asking for changes needs a message', r.status === 400);
+r = await call('/team-requests/respond', { method: 'POST', headers: PAGES, body: { id, t: tok, action: 'approve', name: 'Coach' } });
+check('the customer can approve', r.status === 200 && (await r.json()).approval.state === 'approved');
+r = await call('/team-requests', { headers: STAFF });
+check('and staff see it in the list', (await r.json()).requests.find((x) => x.id === id).ap === 'approved');
+
+r = await call('/team-requests/one?id=' + id, { headers: STAFF });
+rec = await r.json();
+r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { notes: 'just a note' } } });
+check('a note does not undo the approval', (await r.json()).rec.approval.stale === false);
+r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { work: { ...rec.work, items: rec.work.items.map((it) => ({ ...it, cost: 99 })) } } } });
+check('nor does a cost change, the customer never saw it', (await r.json()).rec.approval.stale === false);
+r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, patch: { work: { ...rec.work, items: rec.work.items.map((it) => ({ ...it, price: 30 })) } } } });
+j = await r.json();
+check('a PRICE change after approval marks it stale', j.rec.approval.stale === true);
+r = await call('/team-requests', { headers: STAFF });
+check('and the list says so', (await r.json()).requests.find((x) => x.id === id).ap === 'stale');
+
+r = await call('/team-requests/proof-link', { method: 'POST', headers: STAFF, body: { id, renew: true } });
+const tok2 = (await r.json()).t;
+r = await call('/team-requests/proof?id=' + id + '&t=' + tok, { headers: PAGES });
+check('a renewed link shuts the old one off', tok2 !== tok && r.status === 404);
+r = await call('/team-requests/proof-logo?id=' + id + '&t=' + tok2 + '&slot=main', { headers: PAGES });
+check('a customer url logo is not proxied (it is public already)', r.status === 404);
+
 console.log('\nBuilding drafts');
 const plan = planProduct('Walpole Track & Field', 'Walpole Track & Field Team Store', { style: 'PC380', name: 'Port & Co Performance Tee', category: 'Short Sleeve T-Shirts', sizes: ['S', 'M', 'L'], price: 25, colors: [{ name: 'Deep Navy', label: 'Deep Navy w/ Full Chest Logo', image: 'https://up/1' }] });
 check('the title follows the hand-built stores', plan.title === 'Walpole Track & Field - Port & Co Performance Tee (PC380)', plan.title);
