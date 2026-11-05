@@ -203,6 +203,26 @@ export function intakeCors(request, env) {
   return h;
 }
 
+// The style placements staff changed, for the CUSTOMER builder on the
+// storefront, so its previews match the proof and the build. Public on
+// purpose and read only: it is where a logo box sits on a garment and
+// nothing else, so who saved it and when are left out. The builder lays
+// these over the catalog's boxes (Dan's) and keeps his if this fails.
+export async function handlePublicPlacements(request, env) {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: intakeCors(request, env) });
+  if (request.method !== 'GET') return intakeJson({ error: 'GET only' }, 405, request, env);
+  const all = (await env.CATALOG.get(PLACE_KEY, 'json')) || {};
+  const out = {};
+  for (const [s, t] of Object.entries(all)) {
+    const o = {};
+    for (const k of PLACE_ZONES) if (Array.isArray(t && t[k])) o[k] = t[k];
+    if (Object.keys(o).length) out[s] = o;
+  }
+  return new Response(JSON.stringify({ placements: out }), {
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60', ...intakeCors(request, env) },
+  });
+}
+
 function intakeJson(body, status, request, env) {
   return new Response(JSON.stringify(body), {
     status,

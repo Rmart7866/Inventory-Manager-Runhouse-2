@@ -741,7 +741,10 @@ if(document.getElementById('captcha-bootstrap'))protect();else{fetch('/pages/con
 }
 var root=document.getElementById('trh-sb'),ld=document.createElement('div');ld.id='trh-ld';ld.style.cssText='padding:14px 16px;margin:0 0 12px;border-radius:10px;background:#f3f4f6;color:#374151;font-weight:600;text-align:center';ld.textContent='Loading products…';if(root)root.insertBefore(ld,root.firstChild);
 function get(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})}
-get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){ld.remove();BOOT(D)}).catch(function(e){ld.style.background='#fef2f2';ld.style.color='#991b1b';ld.innerHTML='Sorry, we couldn’t load the product catalog. Please refresh the page, or email us and we’ll help.';if(window.console)console.error('builder catalog',e)});
+/* Staff can move a style's logo box on the Team Requests Placements tab. Lay those over the catalog's boxes (Dan's placement tool numbers) so this preview matches the proof and the build. Two seconds at most, and any failure keeps the catalog's boxes. */
+var PLP=Promise.race([fetch('https://runhouse-inventory-worker.ryan-486.workers.dev/team-requests/placements/public').then(function(r){return r.ok?r.json():null}).catch(function(){return null}),new Promise(function(res){setTimeout(function(){res(null)},2000)})]);
+function plApply(D,j){var T=j&&j.placements;if(!T)return D;var M={bk:'Back',bn:'Back neck',sl:'Sleeve'};(D.cats||[]).forEach(function(c){(c.p||[]).forEach(function(p){var t=T[p.s];if(!t)return;if(p.ch){if(t.fc){p.fcb=t.fc;p.pb=t.fc}if(t.lc)p.lcb=t.lc}else if(t.pb&&p.pb)p.pb=t.pb;for(var k in M)if(t[k]&&p.loc&&p.loc[M[k]])p.loc[M[k]]=[p.loc[M[k]][0],t[k]]})});return D}
+get(CURL).catch(function(){return get(CURL+'?r='+Date.now())}).then(function(D){return PLP.then(function(j){try{return plApply(D,j)}catch(e){return D}})}).then(function(D){ld.remove();BOOT(D)}).catch(function(e){ld.style.background='#fef2f2';ld.style.color='#991b1b';ld.innerHTML='Sorry, we couldn’t load the product catalog. Please refresh the page, or email us and we’ll help.';if(window.console)console.error('builder catalog',e)});
 })();
 
 /* keep category tabs pinned just under the site's fixed header */

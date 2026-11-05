@@ -1717,7 +1717,12 @@ to the contact form email only if that save fails. Staff work them in
   (KV `treqplace`, only the zones staff changed: fc lc pb bk bn sl), then the
   catalog's own box. `TeamReqUtils.boxFor` and `loc2` take the style changes
   as an argument so the staff page and `proof.html` resolve them identically;
-  the proof GET sends only the request's own styles.
+  the proof GET sends only the request's own styles. The CUSTOMER builder
+  (the theme snippet) reads them too, from the public, boxes-only
+  `GET /team-requests/placements/public`, and lays them over the catalog
+  before it boots. It waits two seconds at most and keeps the catalog's
+  boxes on any failure, so the builder can never be stopped by this. The
+  old page body builder does NOT read them; only the theme snippet does.
 - **The catalog's boxes ARE Dan's placements. Do not import anything to get
   them.** `fcb`, `lcb`, `pb` and `loc` in the builder catalog are identical,
   number for number, to `builder_data.json` in his team-store-builder repo,

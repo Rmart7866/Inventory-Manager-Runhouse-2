@@ -212,6 +212,13 @@ r = await call('/team-requests/placements/save', { method: 'POST', headers: STAF
 check('a tilt past 45 degrees is refused', r.status === 400);
 r = await call('/team-requests/placements', { headers: STAFF });
 check('and reads back', (await r.json()).placements.PC380.fc[2] === 0.38);
+r = await call('/team-requests/placements/public', { headers: { Origin: 'https://therunhouse.com' } });
+j = await r.json();
+check('the customer builder reads the boxes with no token', r.status === 200 && j.placements.PC380.fc[2] === 0.38);
+check('and only the boxes, never who saved them or when', !('from' in j.placements.PC380) && !('at' in j.placements.PC380) && !('by' in j.placements.PC380));
+check('with CORS for the storefront', r.headers.get('Access-Control-Allow-Origin') === 'https://therunhouse.com');
+r = await call('/team-requests/placements/public', { method: 'POST', headers: SHOPFRONT, body: {} });
+check('and it cannot be written to', r.status === 405);
 r = await call('/team-requests/placements/save', { method: 'POST', headers: STAFF, body: { style: 'ST350', by: 'Ryan', boxes: { bn: [0.42, 0.05, 0.15, 0.08], sl: [0.8, 0.2, 0.1, 0.1, 10] } } });
 j = await r.json();
 check('back neck and sleeve save, with who saved them', r.status === 200 && j.placements.ST350.bn[3] === 0.08 && j.placements.ST350.sl[4] === 10 && j.placements.ST350.by === 'Ryan');

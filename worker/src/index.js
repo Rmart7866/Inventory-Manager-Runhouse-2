@@ -33,7 +33,7 @@ import { dropshipSales } from './sales.js';
 import { applyTagChanges, applyMetafields } from './tags.js';
 import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from './product-edit.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
-import { handleIntake, handleStaff } from './teamreq.js';
+import { handleIntake, handleStaff, handlePublicPlacements } from './teamreq.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
 import { handleSalesRun, handleSalesStatus, handleSalesFund } from './teamreq-sales.js';
@@ -428,6 +428,9 @@ export default {
     // See teamreq.js. It is not a way around the write gate: nothing it does
     // reaches the store.
     if (url.pathname === '/team-requests/submit') return handleIntake(request, env);
+    // Where staff moved a logo for a whole style, for the customer builder.
+    // Read only and boxes only, so it needs no token. See teamreq.js.
+    if (url.pathname === '/team-requests/placements/public') return handlePublicPlacements(request, env);
 
     // CUSTOMER PROOF LINK, also before auth: the customer holds a per-request
     // token, not our token. It can read one request's proof (an allowlisted
