@@ -131,8 +131,8 @@ export function productSetInputFor(plan, opts = {}) {
     ],
     variants,
     files,
-    // Team, club and school gear stays out of site search. Public race and
-    // event merch (marathons, 5Ks, finisher stores) stays searchable.
+    // Site search follows the "Keep in site search" box on the Build tab,
+    // which is ticked by default; unticked, the product is hidden.
     ...(opts.searchable ? {} : { metafields: [{ namespace: 'seo', key: 'hidden', type: 'number_integer', value: '1' }] }),
   };
 }

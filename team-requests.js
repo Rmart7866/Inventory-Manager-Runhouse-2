@@ -1012,15 +1012,15 @@ var TR = {
         // this store, in which case colour names fall back to "w/ Full Chest Logo".
         if (!w.noCodes) TR.codeProblems().forEach(function (l) { problems.push(l + ' needs its Logo Master Folder code (Logos tab), which goes in every colour name. Or tick Build without logo codes below.'); });
         var upd = r.req && r.req.mode === 'update';
-        // Race and event merch stays in site search; team gear does not.
-        if (typeof w.searchable !== 'boolean') w.searchable = /race|event/i.test((r.req && r.req.group) || '');
+        // Kept in site search unless staff untick it for this store.
+        if (typeof w.searchable !== 'boolean') w.searchable = true;
         var undrawable = Object.keys(w.logos || {}).filter(function (k) { return !TR.isImageLogo(k); });
         var prev = r.build && r.build.at ? '<div class="msg ok">Built ' + TR.ago(r.build.at) + ': ' + (r.build.products || []).length + ' draft products' +
             (r.build.collection && r.build.collection.handle ? ', collection <a target="_blank" rel="noopener" href="' + TR.ADMIN + '/collections/' + TR.gidNum(r.build.collection.id) + '">' + TR.esc(r.build.collection.handle) + '</a>' : '') + '. Building again only adds products whose handles are still free.</div>' : '';
         pane.innerHTML = prev +
             (upd ? '<div class="msg">This adds to the existing store <b>' + TR.esc(r.req.store && r.req.store.name) + '</b>. New products take that store\'s tag and naming, styles it already carries are skipped, and no collection is created.</div>'
                 : '<div class="kv"><label class="f" for="b-tag">Collection tag</label><div><input type="text" id="b-tag" value="' + TR.esc(w.tag || '') + '" style="width:100%"><div class="sub">Every product gets this tag, and the new smart collection, named for the team, is TAG equals this. The team slug, the same tag the back office automation uses.</div></div></div>') +
-            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-search"' + (w.searchable ? ' checked' : '') + '> Keep in site search: public race or event merch. Team, club and school gear is hidden from search.</label>' +
+            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-search"' + (w.searchable ? ' checked' : '') + '> Keep in site search</label>' +
             '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-nocodes"' + (w.noCodes ? ' checked' : '') + '> Build without logo codes: colour names read "Jet Black w/ Full Chest Logo" instead of "Jet Black (D055 (FC))". Off by default, because the codes are how the decorator matches print files.</label>' +
             (problems.length ? '<div class="msg bad"><b>Fix these first:</b><br>' + problems.map(TR.esc).join('<br>') + '</div>' : '') +
             (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(w.logos[k].label || k); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
@@ -1052,17 +1052,21 @@ var TR = {
             (done ? '<div class="msg ok">Went live ' + TR.ago(r.live.at) + ': ' + (r.live.products || []).length + ' products' + (r.live.collection && r.live.collection.handle ? ', <a target="_blank" rel="noopener" href="' + TR.STORE_URL + TR.esc(r.live.collection.handle) + '">open the store</a>' : '') + '.</div>' : '') +
             '<p class="sub" style="max-width:760px">Publishes this request\'s ' + built.length + ' draft product' + (built.length === 1 ? '' : 's') + (r.req && r.req.mode === 'update' ? ' into the existing store' : ' and its collection, and puts the store on the Team Stores page') + '. Nothing else on the site is touched: products built by hand or by the back office automation, and anything archived, are left alone.</p>' +
             '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="gl-ok"> The customer approved this store.</label>' +
+            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="gl-feeds"> Also publish to the Facebook and Google feeds</label>' +
             '<div style="display:flex;gap:8px;margin:8px 0"><button class="btn" type="button" id="gl-check" disabled>Check what goes live</button><button class="btn pri" type="button" id="gl-go" disabled>Go live</button></div><div id="gl-out"></div></div>';
     },
 
     wireLive: function () {
         var ok = TR.$('gl-ok'); if (!ok) return;
         var chk = TR.$('gl-check'), go = TR.$('gl-go'), out = TR.$('gl-out'), plan = null, armed = false;
+        var feeds = TR.$('gl-feeds');
         ok.onchange = function () { chk.disabled = !ok.checked; go.disabled = true; plan = null; out.innerHTML = ''; };
+        // Changing the channels means the plan shown is no longer the plan.
+        feeds.onchange = function () { go.disabled = true; plan = null; out.innerHTML = ''; };
         chk.onclick = function () {
             if (TR.st.dirty) { TR.flash('Save your changes first.', 'warn'); return; }
             out.innerHTML = '<p class="sub">Reading the store from Shopify...</p>';
-            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: true } }).then(function (j) {
+            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: true, feeds: feeds.checked } }).then(function (j) {
                 if (j.__status !== 200) { out.innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; return; }
                 plan = j.plan;
                 var nothing = !plan.activate.length && !plan.collection;
@@ -1082,7 +1086,7 @@ var TR = {
             if (!plan || !ok.checked) return;
             if (!armed) { armed = true; go.textContent = 'Click again to publish to customers'; go.classList.add('arm'); setTimeout(function () { armed = false; go.textContent = 'Go live'; go.classList.remove('arm'); }, 5000); return; }
             go.disabled = true; chk.disabled = true; go.textContent = 'Publishing...';
-            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: false, approved: true } }).then(function (j) {
+            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: false, approved: true, feeds: feeds.checked } }).then(function (j) {
                 if (j.__status !== 200) { out.innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; go.textContent = 'Go live'; return; }
                 TR.st.rec = j.rec; TR.loadList(); TR.renderDetail();
                 var bad = j.results.filter(function (x) { return !x.ok; }).concat(j.collection && !j.collection.ok ? [j.collection] : []);

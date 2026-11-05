@@ -16,9 +16,10 @@
 //
 // CHANNELS, measured 2026-11-05 over 30 live team store products: all of
 // them on every channel EXCEPT Facebook & Instagram and Google & YouTube,
-// the ad and shopping feeds, which only 6 carried. Team gear stays out of
-// feeds the same way it stays out of site search; a store marked searchable
-// (public race or event merch) goes to every channel.
+// the ad and shopping feeds, which only 6 carried. So the feeds are left out
+// unless staff tick "Also publish to the Facebook and Google feeds". That is
+// its own choice, NOT the site search box: a store can be searchable on the
+// site and still have no business in an ad feed.
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 
@@ -28,8 +29,8 @@ import { readRec, writeRec, log } from './teamreq.js';
 const FEEDS = /facebook|instagram|google|youtube/i;
 
 // Pure, so the test can pin it.
-export function pickChannels(pubs, searchable) {
-  return pubs.filter((p) => searchable || !FEEDS.test(p.name));
+export function pickChannels(pubs, feeds) {
+  return pubs.filter((p) => feeds || !FEEDS.test(p.name));
 }
 
 // What would change. Pure: nodes are the current products as Shopify reports them.
@@ -67,7 +68,7 @@ export async function handleGoLive(request, env) {
     return { status: 502, body: { error: 'Could not read the store from Shopify, so nothing was changed. ' + String(e && e.message || e) } };
   }
   const plan = livePlan(nodes, ids);
-  const channels = pickChannels(pubs, !!(rec.work && rec.work.searchable));
+  const channels = pickChannels(pubs, b.feeds === true);
   const summary = {
     activate: plan.activate.map((n) => ({ id: n.id, title: n.title, handle: n.handle })),
     already: plan.already.map((n) => n.title), archived: plan.archived.map((n) => n.title), missing: plan.missing.length,

@@ -25,7 +25,7 @@ const team = pickChannels(pubs, false).map((p) => p.name);
 check('team gear goes to the Online Store', team.includes('Online Store'));
 check('and point of sale and the rest', team.includes('Point of Sale') && team.includes('Shop'));
 check('but NOT the Facebook and Google feeds', !team.some((n) => /Facebook|Google/.test(n)), team.join(', '));
-check('a searchable race store goes everywhere', pickChannels(pubs, true).length === pubs.length);
+check('ticking the feeds box adds Facebook and Google', pickChannels(pubs, true).length === pubs.length);
 
 console.log('\nWhat changes');
 const ids = ['a', 'b', 'c', 'd'];

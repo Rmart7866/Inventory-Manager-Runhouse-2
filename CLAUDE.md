@@ -1730,8 +1730,11 @@ to the contact form email only if that save fails. Staff work them in
     what his automation reads. Saving instead of emailing would starve it.
   - Our "Build" follows HIS conventions exactly (team slug tag, collection
     named for the team, Color then Size, spelled sizes, colour values
-    `Jet Black (D055 (FC))`, race/event stores searchable), so whichever
+    `Jet Black (D055 (FC))`), so whichever
     system runs second finds the store already built and skips it.
+  - Site search is a per store box, "Keep in site search", ticked by default.
+    It is NOT tied to channels: Go live leaves out the Facebook and Google feeds
+    unless its own box is ticked, matching the live team stores.
   - SanMar data (sizes, descriptions, stock, big photos), the Drive folder and
     Gmail drafts live in HIS setup only. Logo codes are typed by staff here.
   His Logo Placement Tool sets per style default boxes on DIFFERENT photos
