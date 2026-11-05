@@ -1733,7 +1733,12 @@ var TR = {
                     '<li>Saving changes every new mockup, proof and build for this style. A store that moved its own logo keeps it.</li></ul>' +
                 '</aside>';
         }
+        // Every click redraws the page, so keep the list and the window where
+        // they were. Without this the list jumps back to the top each time.
+        var old = el.querySelector('.pz-list'), keep = old ? old.scrollTop : 0, wy = window.scrollY;
         el.innerHTML = '<div class="pz-head"><h2>Logo placements</h2><span class="sub">' + changedN + ' of ' + all.length + ' styles changed from Dan\'s boxes</span></div><div class="pz">' + list + main + side + '</div>';
+        var nl = el.querySelector('.pz-list'); if (nl) nl.scrollTop = keep;
+        if (old) window.scrollTo(0, wy);
         TR.wirePlacements();
     },
 
