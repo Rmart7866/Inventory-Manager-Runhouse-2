@@ -408,16 +408,25 @@ var TR = {
         return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
     },
 
-    // Two clicks, not a browser dialog: the first arms it for four seconds.
-    armDelete: function (b) {
-        var t = null;
-        b.onclick = function () {
+    // Every removal asks "are you sure" the same way: the first click turns
+    // the button red and says what will happen, a second click within four
+    // seconds does it. Not a browser dialog, because those block the page.
+    arm: function (b, sure, fn) {
+        var t = null, was = b.innerHTML;
+        b.onclick = function (e) {
+            if (e) e.stopPropagation();
             if (!b.classList.contains('arm')) {
-                b.classList.add('arm'); b.textContent = 'Click again to delete for good';
-                t = setTimeout(function () { b.classList.remove('arm'); b.textContent = 'Delete this request'; }, 4000);
+                b.classList.add('arm'); b.textContent = sure;
+                t = setTimeout(function () { b.classList.remove('arm'); b.innerHTML = was; }, 4000);
                 return;
             }
             clearTimeout(t);
+            fn();
+        };
+    },
+
+    armDelete: function (b) {
+        TR.arm(b, 'Click again to delete for good', function () {
             var r = TR.st.rec;
             TR.api('/team-requests/delete', { body: { id: r.id } }).then(function (j) {
                 if (j.__status !== 200) { TR.flash(j.error || ('Delete failed, HTTP ' + j.__status), 'bad'); return; }
@@ -426,7 +435,7 @@ var TR = {
                 TR.$('detail').innerHTML = '<p class="msg ok">Deleted.</p>';
                 TR.loadList();
             });
-        };
+        });
     },
 
     // ---------- garment + logo, as the builder draws it ----------
@@ -618,10 +627,10 @@ var TR = {
     wireItem: function (it, i) {
         var card = document.querySelector('.item[data-i="' + i + '"]') || document.querySelector('[data-rm="' + i + '"]').closest('.item');
         var rm = card.querySelector('[data-rm]');
-        if (rm) rm.onclick = function () { TR.st.rec.work.items.splice(i, 1); TR.touch(); TR.paneProducts(); };
+        if (rm) TR.arm(rm, 'Sure? Remove it', function () { TR.st.rec.work.items.splice(i, 1); TR.touch(); TR.paneProducts(); });
         var p = TR.st.P[it.style]; if (!p) return;
         card.querySelectorAll('.chip.on').forEach(function (b) {
-            b.onclick = function () { it.colors = it.colors.filter(function (n) { return n !== b.dataset.col; }); delete it.boxes[b.dataset.col]; TR.touch(); TR.paneProducts(); };
+            TR.arm(b, 'Remove ' + b.dataset.col + '?', function () { it.colors = it.colors.filter(function (n) { return n !== b.dataset.col; }); if (it.boxes) delete it.boxes[b.dataset.col]; TR.touch(); TR.paneProducts(); });
         });
         card.querySelector('[data-more]').onclick = function () {
             var box = TR.$('allcols-' + i);
@@ -1577,12 +1586,12 @@ var TR = {
             });
         };
         var rs = TR.$('pl-reset');
-        if (rs) rs.onclick = function () {
+        if (rs) TR.arm(rs, 'Sure? This drops the saved boxes', function () {
             TR.api('/team-requests/placements/save', { body: { style: S.style, reset: true } }).then(function (j) {
                 if (j.__status !== 200) { msg.textContent = j.error || ('HTTP ' + j.__status); return; }
                 TR.st.TPL = j.placements; S.box = null; S.dirty = false; TR.renderPlacements(); TR.$('pl-msg').textContent = 'Back to the catalog\'s boxes.';
             });
-        };
+        });
     },
 
     // ---------- release calendar ----------
