@@ -1721,6 +1721,22 @@ to the contact form email only if that save fails. Staff work them in
   `treqcosts`, behind the write secret.
 - **An approval goes stale when anything the customer SAW changes** (products,
   colours, sizes, price, placement, logo), never on a note or a cost edit.
+- **A SECOND SYSTEM BUILDS TEAM STORES TOO: Dan's back office automation**
+  (its own repo; runbook read 2026-11-05). It runs through Claude on Dan's Mac,
+  reads the request EMAILS in Gmail (the TRHSB block), renders mockups from
+  high-res SanMar photos, writes print logos to the Drive "Logo Master Folder"
+  and builds DRAFT stores. Three consequences:
+  - The builder must ALWAYS email. It saves to our inbox too, but the email is
+    what his automation reads. Saving instead of emailing would starve it.
+  - Our "Build" follows HIS conventions exactly (team slug tag, collection
+    named for the team, Color then Size, spelled sizes, colour values
+    `Jet Black (D055 (FC))`, race/event stores searchable), so whichever
+    system runs second finds the store already built and skips it.
+  - SanMar data (sizes, descriptions, stock, big photos), the Drive folder and
+    Gmail drafts live in HIS setup only. Logo codes are typed by staff here.
+  His Logo Placement Tool sets per style default boxes on DIFFERENT photos
+  than the catalog's 420 px ones; they must be mapped through each garment's
+  outline before going into the catalog.
 - **Store sales share Shopify's ONE bulk query slot with the catalog rebuild**,
   and `runBulkQuery` cancels whatever it finds. So `teamreq-sales.js` never
   cancels: it refuses to start while a rebuild holds the lock or any bulk job

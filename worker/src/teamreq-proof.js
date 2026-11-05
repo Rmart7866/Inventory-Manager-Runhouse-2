@@ -70,7 +70,8 @@ export function proofView(rec) {
     logos,
     items: (w.items || []).map((it) => ({
       style: it.style, colors: it.colors, sizes: it.sizes, price: it.price,
-      placement: it.placement, boxes: it.boxes, logo: it.logo,
+      placement: it.placement, boxes: it.boxes, logo: it.logo, logo2: it.logo2, logoBy: it.logoBy,
+      second_logo: it.second_logo,
     })),
     approval: rec.approval ? { state: rec.approval.stale ? 'stale' : rec.approval.state, at: rec.approval.at, message: rec.approval.message || '' } : null,
   };

@@ -197,7 +197,8 @@ var TR = {
             TR.st.rec = rec; TR.st.dirty = false; TR.st.plan = null; TR.st.tab = TR.st.tab || 'products'; TR.st.view = 'detail';
             history.replaceState(null, '', '#' + id);
             TR.renderList();
-            TR.renderDetail();
+            TR.$('detail').innerHTML = '<p class="empty">Loading logos...</p>';
+            TR.prepLogos().then(function () { if (TR.st.rec && TR.st.rec.id === rec.id) TR.renderDetail(); });
         });
     },
 
@@ -414,20 +415,61 @@ var TR = {
             .catch(function () { return null; });
     },
 
+    // Load and clean every logo on the request once: white backgrounds
+    // knocked out, trimmed, and colour samples taken for the per colour pick
+    // (TeamReqUtils.loadLogo, the back office renderer's rule). Everything
+    // that draws a logo reads TR.st.L afterwards, so it is synchronous.
+    prepLogos: function () {
+        var logos = (TR.st.rec && TR.st.rec.work.logos) || {};
+        TR.st.L = {};
+        return Promise.all(Object.keys(logos).map(function (k) {
+            if (!TR.isImageLogo(k)) return null;
+            return TR.logoSlotSrc(k).then(function (src) { return src ? TR.U.loadLogo(src) : null; })
+                .then(function (o) { if (o) TR.st.L[k] = o; }).catch(function () { /* drawn as missing */ });
+        }));
+    },
+
+    hexOf: function (p, color) { var c = p.c[TR.colorIdx(p, color)]; return c ? c[5] : '#888888'; },
+
+    // Which logo goes on this colour: the customer's per colour pick, the
+    // item's fixed choice, else whichever shows best. which 'f' front, 'x' second.
+    logoOf: function (it, p, color, which) { return TR.U.resolveLogo(it, color, which, TR.st.L || {}, TR.hexOf(p, color)); },
+    logoUrl: function (k) { return k && TR.st.L && TR.st.L[k] ? TR.st.L[k].url : null; },
+
     isImageLogo: function (slot) {
         var L = TR.st.rec.work.logos[slot]; if (!L) return false;
         var n = String(L.name || L.url || L.key || '') + ' ' + String(L.type || '');
         return !/\.(pdf|ai|eps)\b|application\/(pdf|postscript|illustrator)/i.test(n);
     },
 
-    mkHtml: function (p, colorName, box, logoSrc, id) {
+    lbHtml: function (box, src, id) {
+        var st = 'left:' + (box[0] * 100) + '%;top:' + (box[1] * 100) + '%;width:' + (box[2] * 100) + '%;height:' + (box[3] * 100) + '%' + (box[4] ? ';transform:rotate(' + box[4] + 'deg)' : '');
+        return '<div class="lb"' + (id ? ' id="' + id + '"' : '') + ' style="' + st + '">' + (src ? '<img alt="" src="' + TR.esc(src) + '">' : '<span>LOGO</span>') + (id ? '<div class="h" id="' + id + '-h"></div>' : '') + '</div>';
+    },
+
+    // The front of a garment: its logo, plus a second logo when the customer
+    // put one on the sleeve (a front side location).
+    mkHtml: function (p, colorName, box, logoSrc, id, extra) {
         var ci = TR.colorIdx(p, colorName), c = p.c[ci] || p.c[0];
-        var lb = '';
-        if (box) {
-            var st = 'left:' + (box[0] * 100) + '%;top:' + (box[1] * 100) + '%;width:' + (box[2] * 100) + '%;height:' + (box[3] * 100) + '%' + (box[4] ? ';transform:rotate(' + box[4] + 'deg)' : '');
-            lb = '<div class="lb"' + (id ? ' id="' + id + '"' : '') + ' style="' + st + '">' + (logoSrc ? '<img alt="" src="' + TR.esc(logoSrc) + '">' : '<span>LOGO</span>') + (id ? '<div class="h" id="' + id + '-h"></div>' : '') + '</div>';
-        }
+        var lb = box ? TR.lbHtml(box, logoSrc, id) : '';
+        if (extra && extra.box) lb += TR.lbHtml(extra.box, extra.src, null);
         return '<span class="mk"><img class="g" crossorigin="anonymous" alt="' + TR.esc(p.n + ' in ' + (c ? c[0] : '')) + '" src="' + TR.esc(c ? c[2] : p.img) + '">' + lb + '</span>';
+    },
+
+    // The back, for a back or back neck second logo. Null when the colour has
+    // no back photo, or the catalog marks it as one that takes no back logo.
+    backHtml: function (it, p, colorName) {
+        var l = TR.U.loc2(it, p), c = p.c[TR.colorIdx(p, colorName)];
+        if (!l || l.side !== 'b' || !c || !c[6]) return null;
+        var src = c[7] ? null : TR.logoUrl(TR.logoOf(it, p, colorName, 'x'));
+        return '<span class="mk"><img class="g" crossorigin="anonymous" alt="' + TR.esc(p.n + ' in ' + c[0] + ', back') + '" src="' + TR.esc(c[6]) + '">' + (src ? TR.lbHtml(l.box, src, null) : '') + '</span>';
+    },
+
+    // The front preview of one colour, with everything that prints on it.
+    frontOf: function (it, p, colorName, id, boxOverride) {
+        var l = TR.U.loc2(it, p);
+        var extra = l && l.side === 'f' ? { box: l.box, src: TR.logoUrl(TR.logoOf(it, p, colorName, 'x')) } : null;
+        return TR.mkHtml(p, colorName, boxOverride || TR.U.boxFor(it, p, colorName), TR.logoUrl(TR.logoOf(it, p, colorName, 'f')), id, extra);
     },
 
     // colorIdx falls back to the first colour, which is right for a preview
@@ -446,11 +488,16 @@ var TR = {
     paneProducts: function () {
         var w = TR.st.rec.work, pane = TR.$('pane');
         if (!TR.st.D) { pane.innerHTML = '<p class="empty">Loading the product catalog...</p>'; return; }
-        pane.innerHTML = (w.items || []).map(function (it, i) { return TR.itemHtml(it, i); }).join('') +
+        var bfm = TR.st.rec.req && TR.st.rec.req.build_for_me;
+        pane.innerHTML = (!w.items.length || bfm ? '<div class="msg">' + (bfm ? '<b>Build it for me:</b> the customer left the products to us. ' : '') +
+                'Fill from the starter set for their group (' + TR.esc((TR.st.rec.req && TR.st.rec.req.group) || 'School sports team') + '): six proven styles in their main colour plus a neutral, priced with their fundraising. ' +
+                '<button class="btn" type="button" id="fill-starter">Fill from starter set</button></div>' : '') +
+            (w.items || []).map(function (it, i) { return TR.itemHtml(it, i); }).join('') +
             '<datalist id="pl-words"><option value="Full chest"><option value="Left chest"><option value="Front"><option value="Full back"><option value="Sleeve"></datalist>' +
             '<div class="adder"><label class="f" for="add-q">Add a product</label><input type="search" id="add-q" placeholder="Search by name or style code, e.g. hoodie or DT6100" autocomplete="off"><div class="res hidden" id="add-res"></div></div>';
         (w.items || []).forEach(function (it, i) { TR.wireItem(it, i); });
         TR.wireAdder();
+        var fs = TR.$('fill-starter'); if (fs) fs.onclick = TR.fillStarter;
         // Keep the colour list open across the redraw a toggle causes.
         if (TR.st.openCols != null) {
             var oc = document.querySelector('.item[data-i="' + TR.st.openCols + '"] [data-more]');
@@ -475,7 +522,7 @@ var TR = {
         if (!it.sizes.length) problems.push('The catalog does not say which sizes this comes in. Type them in.');
         var slots = Object.keys(TR.st.rec.work.logos || {});
         return '<div class="item" data-i="' + i + '">' +
-            '<div id="thumb-' + i + '">' + TR.mkHtml(p, first, TR.U.boxFor(it, p, first), null) + '</div>' +
+            '<div class="thumbs" id="thumb-' + i + '">' + TR.frontOf(it, p, first) + (TR.backHtml(it, p, first) || '') + '</div>' +
             '<div><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' +
             '<div class="grid">' +
                 '<div class="wide"><label class="f">Colours</label><div class="chips">' + it.colors.map(function (n) {
@@ -492,12 +539,20 @@ var TR = {
             // changes it. The logo picker appears only when there is a choice.
             '<div class="bar"><span class="where">Logo: <b>' + TR.esc(it.placement || 'default placement') + '</b>' + TR.tiltNote(it) + '</span>' +
             '<button class="btn" type="button" data-place="' + i + '">Move logo</button>' +
-            (slots.length > 1 ? '<select id="lg-' + i + '" aria-label="Which logo">' + slots.map(function (k) {
-                var L = TR.st.rec.work.logos[k];
-                return '<option value="' + k + '"' + (k === (it.logo || 'main') ? ' selected' : '') + '>' + TR.esc((L && L.label) || k) + '</option>';
-            }).join('') + '</select>' : '') +
+            (slots.length > 1 ? TR.logoSelect('lg-' + i, it.logo, 'Front logo') : '') +
             '<span style="flex:1"></span><button class="btn danger quiet" type="button" data-rm="' + i + '">Remove</button></div>' +
+            (p.loc && Object.keys(p.loc).length ? '<div class="bar"><span class="where">Second logo</span><select id="l2-' + i + '" aria-label="Second logo location"><option value="">None</option>' +
+                Object.keys(p.loc).map(function (k) { return '<option' + (k === it.second_logo ? ' selected' : '') + '>' + TR.esc(k) + '</option>'; }).join('') + '</select>' +
+                (it.second_logo && slots.length > 1 ? TR.logoSelect('lx-' + i, it.logo2, 'Second logo') : '') +
+                '<span class="sub">A second logo adds $3 to the price; changing it here does not reprice.</span></div>' : '') +
+            (it.logoBy && Object.keys(it.logoBy).length ? '<p class="sub" style="margin:6px 0 0">The customer picked which logo goes on each colour. Choosing a logo above replaces their picks.</p>' : '') +
             '</div></div>';
+    },
+
+    logoSelect: function (id, value, label) {
+        var logos = TR.st.rec.work.logos || {};
+        return '<select id="' + id + '" aria-label="' + label + '"><option value="auto"' + (!value || value === 'auto' ? ' selected' : '') + '>' + label + ': auto, best on each colour</option>' +
+            Object.keys(logos).map(function (k) { return '<option value="' + k + '"' + (k === value ? ' selected' : '') + '>' + label + ': ' + TR.esc(logos[k].label || k) + '</option>'; }).join('') + '</select>';
     },
 
     // The price check. The builder adds the team's fundraising percentage on
@@ -528,10 +583,6 @@ var TR = {
         var rm = card.querySelector('[data-rm]');
         if (rm) rm.onclick = function () { TR.st.rec.work.items.splice(i, 1); TR.touch(); TR.paneProducts(); };
         var p = TR.st.P[it.style]; if (!p) return;
-        TR.logoSlotSrc(it.logo || 'main').then(function (src) {
-            var first = it.colors[0] || p.c[0][0];
-            var th = TR.$('thumb-' + i); if (th && src) th.innerHTML = TR.mkHtml(p, first, TR.U.boxFor(it, p, first), src);
-        });
         card.querySelectorAll('.chip.on').forEach(function (b) {
             b.onclick = function () { it.colors = it.colors.filter(function (n) { return n !== b.dataset.col; }); delete it.boxes[b.dataset.col]; TR.touch(); TR.paneProducts(); };
         });
@@ -556,9 +607,70 @@ var TR = {
         });
         TR.$('pr-' + i).addEventListener('input', function () { it.price = Number(this.value) || 0; TR.touch(); TR.$('mo-' + i).innerHTML = TR.moneyHtml(it); });
         TR.$('co-' + i).addEventListener('input', function () { it.cost = Number(this.value) || 0; TR.touch(); TR.$('mo-' + i).innerHTML = TR.moneyHtml(it); });
+        // A staff choice applies to every colour, so it replaces the
+        // customer's per colour picks for that logo position.
+        var clearBy = function (which) { Object.keys(it.logoBy || {}).forEach(function (c) { it.logoBy[c][which] = ''; }); };
         var lg = TR.$('lg-' + i);
-        if (lg) lg.addEventListener('change', function () { it.logo = this.value; TR.touch(); TR.paneProducts(); });
+        if (lg) lg.addEventListener('change', function () { it.logo = this.value; clearBy('f'); TR.touch(); TR.paneProducts(); });
+        var lx = TR.$('lx-' + i);
+        if (lx) lx.addEventListener('change', function () { it.logo2 = this.value; clearBy('x'); TR.touch(); TR.paneProducts(); });
+        var l2 = TR.$('l2-' + i);
+        if (l2) l2.addEventListener('change', function () { it.second_logo = this.value; TR.touch(); TR.paneProducts(); });
         card.querySelector('[data-place]').onclick = function () { TR.openPlacement(i); };
+    },
+
+    // ---------- starter sets (the back office runbook, step 2) ----------
+    STARTER: {
+        'Track & XC': ['PC380', 'ST350LS', 'DT6100', '9904', 'DT1800', 'C402'],
+        'School sports team': ['NL6010', 'DT6100', 'S6000', 'DT6107', 'C402', '92001'],
+        'Run club': ['ST350', 'LST350', 'ST350LS', 'LST356', 'ST850', 'NKFB6444'],
+        'School or PTO': ['PC380', 'PC380Y', 'DT6100', 'PC78YH', 'DT1800', 'BP60'],
+        'Business or organization': ['BC3001CVC', 'DT6100', 'ST850', 'K500', 'F223', 'C402'],
+        'Charity, race or event': ['PC450', 'PC380', 'DT6100', 'DT6104', 'ST850', 'C402'],
+    },
+
+    // The colour family code of the team's main colour. A colour that was
+    // not listed arrives as "NOT LISTED: <name> ~ closest <family>".
+    mainFamily: function () {
+        var q = TR.st.rec.req || {}, name = String((q.team_colors && q.team_colors.main) || ''), m = name.match(/closest (.+)$/);
+        if (m) name = m[1];
+        var f = (TR.st.D.fam || []).filter(function (x) { return x[1].toLowerCase() === name.trim().toLowerCase(); })[0];
+        return f ? f[0] : '';
+    },
+
+    fillStarter: function () {
+        var w = TR.st.rec.work, q = TR.st.rec.req || {};
+        var styles = TR.STARTER[q.group] || TR.STARTER['School sports team'];
+        var fam = TR.mainFamily(), pct = Number(q.fundraising_pct) || 0;
+        // A light logo reads on black, a dark one on white or grey heather.
+        var main = TR.st.L && (TR.st.L.main || TR.st.L[Object.keys(TR.st.L)[0]]), light = false;
+        if (main && main.samples.length) {
+            var lum = main.samples.reduce(function (a, s) { return a + (0.299 * s[0] + 0.587 * s[1] + 0.114 * s[2]) / 255; }, 0) / main.samples.length;
+            light = lum > 0.6;
+        }
+        var neutrals = light ? ['BK'] : ['WH', 'GH'];
+        var best = function (p, codes) {
+            var pool = p.c.filter(function (c) { return !c[4] && codes.indexOf(c[8]) >= 0; });
+            pool.sort(function (a, b) { return codes.indexOf(a[8]) - codes.indexOf(b[8]) || (a[9] || 0) - (b[9] || 0); });
+            return pool[0] ? pool[0][0] : null;
+        };
+        var added = [], missing = [];
+        styles.forEach(function (st) {
+            var p = TR.st.P[st]; if (!p) { missing.push(st); return; }
+            if (w.items.some(function (it) { return it.style === st; })) return;
+            var cat = TR.st.CAT[st], one = /Headwear|Bags/.test(cat || '');
+            var cols = [];
+            var a = fam ? best(p, [fam]) : null; if (a) cols.push(a);
+            if (!one || !cols.length) { var n = best(p, neutrals); if (n && cols.indexOf(n) < 0) cols.push(n); }
+            if (!cols.length && p.c[0]) cols.push(p.c[0][0]);
+            w.items.push({
+                style: st, colors: one ? cols.slice(0, 1) : cols, placement: p.ch || p.pm === 'fc' ? 'Full chest' : 'Front',
+                second_logo: '', price: Math.ceil((p.m || 0) * (1 + pct / 100)), sizes: null, boxes: {}, logo: 'auto', logo2: 'auto', logoBy: {},
+            });
+            added.push(p.n);
+        });
+        TR.touch(); TR.paneProducts();
+        TR.flash('Added ' + added.length + ' from the ' + (q.group || 'School sports team') + ' starter set' + (fam ? '' : ', with neutral colours only because the main colour did not match a family') + '.' + (missing.length ? ' Not in the catalog: ' + missing.join(', ') + '.' : '') + ' Check them, then Save.', missing.length ? 'warn' : 'ok');
     },
 
     wireAdder: function () {
@@ -600,7 +712,7 @@ var TR = {
         TR.st.pe = pe;
         var el = TR.$('pe');
         el.classList.remove('hidden');
-        TR.logoSlotSrc(it.logo || 'main').then(function (src) {
+        Promise.resolve(TR.logoUrl(TR.logoOf(it, p, colors[0], 'f'))).then(function (src) {
             pe.src = src;
             el.innerHTML = '<div class="box"><div class="stage" id="pe-stage"></div><div class="side">' +
                 '<h3 id="pe-h">Move the logo</h3><p>' + TR.esc(p.n) + '. Drag the box to move it, drag the blue corner to resize, and tilt it with the slider. The logo keeps its shape inside the box.</p>' +
@@ -657,6 +769,8 @@ var TR = {
         var pe = TR.st.pe; if (!pe) return;
         var it = TR.st.rec.work.items[pe.i], p = TR.st.P[it.style];
         var stage = TR.$('pe-stage');
+        // The logo that actually goes on the colour being previewed.
+        pe.src = TR.logoUrl(TR.logoOf(it, p, pe.color, 'f'));
         stage.innerHTML = TR.mkHtml(p, pe.color, pe.box, pe.src, 'pe-lb');
         TR.readout();
         var lb = TR.$('pe-lb'), handle = TR.$('pe-lb-h'), mk = stage.querySelector('.mk');
@@ -720,11 +834,19 @@ var TR = {
             return '<div class="logo" data-k="' + k + '"><div class="checker" id="lg-pv-' + k + '"><span>Loading</span></div>' +
                 '<b>' + TR.esc(L.label || k) + '</b><div class="sub">' + TR.esc(L.name || (L.url ? L.url.split('/').pop().split('?')[0] : '')) + ' · ' + (L.from === 'staff' ? 'replaced by staff' : 'from the customer') + '</div>' +
                 '<div id="lg-warn-' + k + '"></div>' +
+                (TR.st.L && TR.st.L[k] && TR.st.L[k].cleaned ? '<p class="sub" style="margin:4px 0">White background removed automatically for the mockups.</p>' : '') +
+                '<label class="f" for="cd-' + k + '" style="margin-top:8px">Logo Master Folder code</label><input type="text" id="cd-' + k + '" data-code="' + k + '" value="' + TR.esc(L.code || '') + '" placeholder="e.g. D055" style="width:120px;text-transform:uppercase">' +
                 '<div class="bar" style="display:flex;gap:8px;margin-top:8px"><label class="btn" style="display:inline-flex;align-items:center">Replace<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="' + k + '" class="hidden"></label>' +
                 (L.url ? '<a class="btn" style="text-decoration:none;display:inline-flex;align-items:center" target="_blank" rel="noopener" href="' + TR.esc(L.url) + '">Open file</a>' : '') + '</div></div>';
         }).join('') + '</div>' : '<p class="empty">The customer did not upload a logo.' + (TR.st.rec.req.logos ? ' They said: ' + TR.esc(TR.st.rec.req.logos) : '') + '</p>') +
-            '<div class="bar" style="margin-top:14px;display:flex;gap:8px;align-items:center"><label class="btn" style="display:inline-flex;align-items:center">Add another logo<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="__new" class="hidden"></label><span class="sub">A replaced logo keeps the original in the history, and every preview and mockup switches to the new file.</span></div>';
+            '<div class="bar" style="margin-top:14px;display:flex;gap:8px;align-items:center"><label class="btn" style="display:inline-flex;align-items:center">Add another logo<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="__new" class="hidden"></label><span class="sub">A replaced logo keeps the original in the history, and every preview and mockup switches to the new file.</span></div>' +
+            (slots.length ? '<h3 style="margin:22px 0 6px;font-size:15px">Print files</h3><p class="sub" style="max-width:720px">Each logo at print size for every place it is used on this store: 300 dpi transparent PNGs named <b>CODE (FC).png</b> and so on, the Logo Master Folder convention. Codes come from that folder: the store\'s first letter and the next free number, a different code for each artwork.</p>' +
+                '<div class="bar" style="display:flex;gap:8px;align-items:center"><button class="btn pri" type="button" id="pf-go">Download print files</button><span class="sub" id="pf-msg"></span></div>' : '');
         slots.forEach(function (k) { TR.checkLogo(k); });
+        pane.querySelectorAll('[data-code]').forEach(function (inp) {
+            inp.addEventListener('input', function () { w.logos[inp.dataset.code].code = this.value.trim().toUpperCase(); TR.touch(); });
+        });
+        var pf = TR.$('pf-go'); if (pf) pf.onclick = function () { TR.printFiles(pf); };
         pane.querySelectorAll('input[data-up]').forEach(function (inp) {
             inp.onchange = function () {
                 var f = inp.files[0]; if (!f) return;
@@ -735,10 +857,63 @@ var TR = {
                 TR.flash('Uploading ' + f.name + '...', 'warn');
                 TR.api('/team-requests/logo', { method: 'POST', form: fd }).then(function (j) {
                     if (j.__status !== 200) { TR.flash(j.error || ('Upload failed, HTTP ' + j.__status), 'bad'); return; }
-                    TR.st.rec = j.rec; TR.renderDetail(); TR.flash('Logo replaced. The original is still listed in the history.', 'ok');
+                    TR.st.rec = j.rec;
+                    TR.prepLogos().then(function () { TR.renderDetail(); TR.flash('Logo replaced. The original is still listed in the history.', 'ok'); });
                 });
             };
         });
+    },
+
+    // ---------- print files (make_logo_files.py, in the browser) ----------
+    // Which print locations each logo is used in on this store.
+    printNeeds: function () {
+        var w = TR.st.rec.work, need = {};
+        var add = function (k, pl) { if (k) { need[k] = need[k] || {}; need[k][pl] = 1; } };
+        w.items.forEach(function (it) {
+            var p = TR.st.P[it.style]; if (!p) return;
+            var cat = TR.st.CAT[p.s], pl = TR.U.plCode(it.placement, cat), l2 = TR.U.loc2(it, p);
+            it.colors.forEach(function (n) {
+                add(TR.logoOf(it, p, n, 'f'), pl);
+                if (l2) add(TR.logoOf(it, p, n, 'x'), TR.U.plCode(l2.name, cat));
+            });
+        });
+        return need;
+    },
+
+    JSZIP: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+
+    printFiles: function (btn) {
+        var w = TR.st.rec.work, logos = w.logos || {}, need = TR.printNeeds(), msg = TR.$('pf-msg');
+        var keys = Object.keys(need);
+        if (!keys.length) { msg.textContent = 'No product uses a logo yet.'; return; }
+        var noCode = keys.filter(function (k) { return !logos[k].code; }), noImg = keys.filter(function (k) { return !TR.st.L[k]; });
+        if (noCode.length) { msg.textContent = 'Give ' + noCode.map(function (k) { return logos[k].label || k; }).join(', ') + ' a code first.'; return; }
+        btn.disabled = true; msg.textContent = 'Making files...';
+        var load = window.JSZip ? Promise.resolve() : new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = TR.JSZIP; sc.onload = res; sc.onerror = function () { rej(new Error('Could not load the zip library')); }; document.head.appendChild(sc); });
+        load.then(function () {
+            var zip = new window.JSZip(), warn = [], jobs = [];
+            keys.filter(function (k) { return TR.st.L[k]; }).forEach(function (k) {
+                Object.keys(need[k]).forEach(function (pl) {
+                    var L = TR.st.L[k], inch = TR.U.PRINT_IN[pl] || TR.U.PRINT_IN.FC, W = Math.round(inch[0] * 300), H = Math.round(inch[1] * 300);
+                    var sc = Math.min(W / L.w, H / L.h);
+                    if (sc > 1.15) warn.push(logos[k].code + ' (' + pl + '): the file is only ' + L.w + ' x ' + L.h + ' px, enlarged ' + sc.toFixed(1) + 'x to reach ' + inch[0] + ' x ' + inch[1] + ' in');
+                    var cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(L.w * sc)); cv.height = Math.max(1, Math.round(L.h * sc));
+                    var x = cv.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+                    x.drawImage(L.canvas, 0, 0, cv.width, cv.height);
+                    jobs.push(new Promise(function (res) { cv.toBlob(function (b) { zip.file(logos[k].code + ' (' + pl + ').png', b); res(); }, 'image/png'); }));
+                });
+            });
+            return Promise.all(jobs).then(function () {
+                if (warn.length || noImg.length) zip.file('READ ME.txt', (warn.length ? 'Enlarged to reach print size, ask for a bigger file or a vector:\n' + warn.join('\n') + '\n\n' : '') + (noImg.length ? 'Not made here (PDF or AI files, make these by hand):\n' + noImg.map(function (k) { return logos[k].code + ' ' + (logos[k].name || ''); }).join('\n') + '\n' : ''));
+                return zip.generateAsync({ type: 'blob' });
+            }).then(function (blob) {
+                var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                a.download = String(w.team || 'team').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '-logo-files.zip';
+                document.body.appendChild(a); a.click(); a.remove();
+                btn.disabled = false;
+                msg.textContent = jobs.length + ' files.' + (warn.length ? ' ' + warn.length + ' had to be enlarged, see READ ME.txt.' : '') + (noImg.length ? ' PDF or AI logos are not included.' : '') + ' Save them to the store\'s folder in the Logo Master Folder.';
+            });
+        }).catch(function (e) { btn.disabled = false; msg.textContent = 'Could not make the files: ' + e.message; });
     },
 
     // Checks a print shop would ask about, shown as hints, never as blockers.
@@ -786,13 +961,35 @@ var TR = {
     },
 
     // ---------- build ----------
+    // One product for the build. Each colour's option value names the code
+    // of the logo printed on it and where, "Jet Black (D055 (FC))", the form
+    // the Logo Master Folder and the hand built stores use; a colour whose
+    // logo has no code yet is reported by codeProblems() and blocks the build.
     specFor: function (it) {
         var p = TR.st.P[it.style]; if (!p) return null;
-        var L = TR.st.rec.work.logos[it.logo || 'main'];
+        var cat = TR.st.CAT[p.s], pl = TR.U.plCode(it.placement, cat), logos = TR.st.rec.work.logos || {};
         return {
-            style: p.s, name: p.n, category: TR.st.CAT[p.s], sizes: it.sizes || TR.U.sizesFor(p, TR.st.CAT[p.s]), price: it.price,
-            colors: it.colors.map(function (n) { return { name: n, label: TR.U.colorLabel(n, it.placement, L && L.label) }; }),
+            style: p.s, name: p.n, category: cat, sizes: it.sizes || TR.U.sizesFor(p, cat), price: it.price,
+            colors: it.colors.map(function (n) {
+                var k = TR.logoOf(it, p, n, 'f'), L = k && logos[k];
+                return { name: n, label: L && L.code ? TR.U.codeLabel(n, L.code, pl) : TR.U.colorLabel(n, it.placement, L && L.label) };
+            }),
         };
+    },
+
+    // Every logo that will print on something needs its Logo Master Folder
+    // code before a build, because the code is what the colour names carry
+    // and what the decorator files are named by.
+    codeProblems: function () {
+        var w = TR.st.rec.work, logos = w.logos || {}, need = {};
+        w.items.forEach(function (it) {
+            var p = TR.st.P[it.style]; if (!p) return;
+            it.colors.forEach(function (n) {
+                var k = TR.logoOf(it, p, n, 'f'); if (k) need[k] = 1;
+                if (TR.U.loc2(it, p)) { var x = TR.logoOf(it, p, n, 'x'); if (x) need[x] = 1; }
+            });
+        });
+        return Object.keys(need).filter(function (k) { return logos[k] && !logos[k].code; }).map(function (k) { return logos[k].label || k; });
     },
 
     paneBuild: function () {
@@ -811,17 +1008,24 @@ var TR = {
         });
         if (!w.items.length) problems.push('There are no products on this request.');
         if (!String(w.team || '').trim()) problems.push('The request needs a team name.');
+        TR.codeProblems().forEach(function (l) { problems.push(l + ' needs its Logo Master Folder code (Logos tab), which goes in every colour name.'); });
+        var upd = r.req && r.req.mode === 'update';
+        // Race and event merch stays in site search; team gear does not.
+        if (typeof w.searchable !== 'boolean') w.searchable = /race|event/i.test((r.req && r.req.group) || '');
         var undrawable = Object.keys(w.logos || {}).filter(function (k) { return !TR.isImageLogo(k); });
         var prev = r.build && r.build.at ? '<div class="msg ok">Built ' + TR.ago(r.build.at) + ': ' + (r.build.products || []).length + ' draft products' +
             (r.build.collection && r.build.collection.handle ? ', collection <a target="_blank" rel="noopener" href="' + TR.ADMIN + '/collections/' + TR.gidNum(r.build.collection.id) + '">' + TR.esc(r.build.collection.handle) + '</a>' : '') + '. Building again only adds products whose handles are still free.</div>' : '';
         pane.innerHTML = prev +
-            '<div class="kv"><label class="f" for="b-tag">Collection tag</label><div><input type="text" id="b-tag" value="' + TR.esc(w.tag || '') + '" style="width:100%"><div class="sub">Every product gets this tag, and the new smart collection is TAG equals this. Match what you would type by hand.</div></div></div>' +
+            (upd ? '<div class="msg">This adds to the existing store <b>' + TR.esc(r.req.store && r.req.store.name) + '</b>. New products take that store\'s tag and naming, styles it already carries are skipped, and no collection is created.</div>'
+                : '<div class="kv"><label class="f" for="b-tag">Collection tag</label><div><input type="text" id="b-tag" value="' + TR.esc(w.tag || '') + '" style="width:100%"><div class="sub">Every product gets this tag, and the new smart collection, named for the team, is TAG equals this. The team slug, the same tag the back office automation uses.</div></div></div>') +
+            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-search"' + (w.searchable ? ' checked' : '') + '> Keep in site search: public race or event merch. Team, club and school gear is hidden from search.</label>' +
             (problems.length ? '<div class="msg bad"><b>Fix these first:</b><br>' + problems.map(TR.esc).join('<br>') + '</div>' : '') +
             (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(w.logos[k].label || k); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
-            '<p class="sub">Builds every product below as a <b>draft</b> with a mockup per colour (the garment photo with the logo where you placed it), plus an <b>unpublished</b> collection. Nothing appears on the site until someone publishes it in Shopify. Mockups use the 420 px catalog photos, so swap in proper ones before going live.</p>' +
+            '<p class="sub">Builds every product as a <b>draft</b>: Color then Size options with sizes spelled out, colours named by logo code ("Jet Black (D055 (FC))"), a front mockup per colour and a back one where there is a back logo' + (upd ? '' : ', plus an <b>unpublished</b> collection') + '. Nothing appears on the site until someone publishes it. Mockups use the 420 px catalog photos, so swap in proper ones before going live.</p>' +
             '<div style="display:flex;gap:8px;margin:12px 0"><button class="btn" type="button" id="b-plan"' + (problems.length ? ' disabled' : '') + '>Check the plan</button><button class="btn pri" type="button" id="b-go" disabled>Create drafts</button></div>' +
             '<div id="b-out"></div>';
-        TR.$('b-tag').addEventListener('input', function () { w.tag = this.value; TR.touch(); });
+        var bt = TR.$('b-tag'); if (bt) bt.addEventListener('input', function () { w.tag = this.value; TR.touch(); });
+        TR.$('b-search').addEventListener('change', function () { w.searchable = this.checked; TR.touch(); });
         TR.$('b-plan').onclick = TR.dryRun;
         TR.$('b-go').onclick = TR.build;
         if (TR.st.plan) TR.showPlan(TR.st.plan);
@@ -833,7 +1037,7 @@ var TR = {
         var go = function () {
             var specs = TR.st.rec.work.items.map(TR.specFor).filter(Boolean);
             TR.$('b-out').innerHTML = '<p class="sub">Checking which handles are free...</p>';
-            TR.api('/team-requests/build', { body: { id: TR.st.rec.id, dryRun: true, products: specs } }).then(function (j) {
+            TR.api('/team-requests/build', { body: { id: TR.st.rec.id, dryRun: true, searchable: !!TR.st.rec.work.searchable, products: specs } }).then(function (j) {
                 if (j.__status !== 200) { TR.$('b-out').innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; return; }
                 TR.st.plan = j.plan; TR.showPlan(j.plan);
             });
@@ -850,7 +1054,9 @@ var TR = {
                 return '<tr><td><b>' + TR.esc(p.title) + '</b><br><span class="sub">' + TR.esc(p.handle) + (p.productType ? ' · ' + TR.esc(p.productType) : ' · no category') + '</span></td><td>' + TR.esc(p.sizes.join(', ')) + '</td><td>' + p.colors.map(TR.esc).join('<br>') + '</td><td>$' + TR.esc(p.price || '') + '</td><td>' + p.variants + '</td><td>' +
                     (p.exists ? '<span style="color:var(--warn)">Already exists, will be skipped</span>' : 'New draft') + '</td></tr>';
             }).join('') + '</tbody></table>' +
-            '<p>Collection <b>' + TR.esc(plan.collection.title) + '</b> (' + TR.esc(plan.collection.handle) + '), rule TAG = <b>' + TR.esc(plan.collection.tag) + '</b>: ' + (plan.collection.exists ? '<span style="color:var(--warn)">already exists, left alone</span>' : 'will be created, unpublished') + '.</p>' +
+            (plan.update ? '<p>Into the existing store <b>' + TR.esc(plan.collection.title) + '</b> through its tag <b>' + TR.esc(plan.collection.tag) + '</b>.' + (plan.alreadyIn && plan.alreadyIn.length ? ' Already in the store, so skipped: ' + plan.alreadyIn.map(TR.esc).join(', ') + '.' : '') + '</p>'
+                : '<p>Collection <b>' + TR.esc(plan.collection.title) + '</b> (' + TR.esc(plan.collection.handle) + '), rule TAG = <b>' + TR.esc(plan.collection.tag) + '</b>: ' + (plan.collection.exists ? '<span style="color:var(--warn)">already exists, left alone</span>' : 'will be created, unpublished') + '.</p>') +
+            '<p class="sub">' + (plan.searchable ? 'Kept in site search.' : 'Hidden from site search.') + '</p>' +
             '<p><b>' + fresh.length + '</b> new draft products, <b>' + variants + '</b> variants.</p>';
         TR.$('b-go').disabled = !fresh.length;
         TR.$('b-go').textContent = fresh.length ? 'Create ' + fresh.length + ' draft' + (fresh.length === 1 ? '' : 's') : 'Nothing new to create';
@@ -868,36 +1074,52 @@ var TR = {
 
     // One drawing, two uses: the PNG uploaded to Shopify and the JPEG in the
     // proof PDF, so the customer approves exactly what gets built.
-    mockup: function (it, colorName) {
-        return TR.mockupCanvas(it, colorName, 1200).then(function (cv) {
+    mockup: function (it, colorName, back) {
+        return TR.mockupCanvas(it, colorName, 1200, back).then(function (cv) {
             return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/png'); });
         });
     },
 
-    mockupCanvas: function (it, colorName, S) {
+    // Draws one cleaned logo into a box on the garment, the same rule as the
+    // preview and the back office renderer: fit inside, centred, top aligned,
+    // then turned about the box centre.
+    drawLogo: function (x, L, box, gx, gy, gw, gh, nw, nh) {
+        if (!L || !box) return;
+        var f = TR.U.fitLogo(box, L.w, L.h, nw, nh);
+        x.save();
+        if (box[4]) { var cx = gx + (box[0] + box[2] / 2) * gw, cy = gy + (box[1] + box[3] / 2) * gh; x.translate(cx, cy); x.rotate(box[4] * Math.PI / 180); x.translate(-cx, -cy); }
+        x.drawImage(L.canvas, gx + f.x * gw, gy + f.y * gh, f.w * gw, f.h * gh);
+        x.restore();
+    },
+
+    // One mockup: the front with its logo (and a sleeve logo), or with back
+    // true, the back with a back or back neck logo.
+    mockupCanvas: function (it, colorName, S, back) {
         var p = TR.st.P[it.style], c = p.c[TR.colorIdx(p, colorName)];
-        var PAD = Math.round(S / 20);
-        return TR.loadImg(c[2]).then(function (g) {
+        var PAD = Math.round(S / 20), l2 = TR.U.loc2(it, p), L = TR.st.L || {};
+        return TR.loadImg(back ? c[6] : c[2]).then(function (g) {
             var cv = document.createElement('canvas'); cv.width = S; cv.height = S;
             var x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
             x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
             var sc = Math.min((S - 2 * PAD) / g.naturalWidth, (S - 2 * PAD) / g.naturalHeight);
             var gw = g.naturalWidth * sc, gh = g.naturalHeight * sc, gx = (S - gw) / 2, gy = (S - gh) / 2;
             x.drawImage(g, gx, gy, gw, gh);
-            var box = TR.U.boxFor(it, p, colorName);
-            var slot = it.logo || 'main';
-            var draw = box && TR.isImageLogo(slot) ? TR.logoSlotSrc(slot).then(function (src) { return src ? TR.loadImg(src) : null; }).catch(function () { return null; }) : Promise.resolve(null);
-            return draw.then(function (lg) {
-                if (lg) {
-                    var f = TR.U.fitLogo(box, lg.naturalWidth, lg.naturalHeight, g.naturalWidth, g.naturalHeight);
-                    x.save();
-                    if (box[4]) { var cx = gx + (box[0] + box[2] / 2) * gw, cy = gy + (box[1] + box[3] / 2) * gh; x.translate(cx, cy); x.rotate(box[4] * Math.PI / 180); x.translate(-cx, -cy); }
-                    x.drawImage(lg, gx + f.x * gw, gy + f.y * gh, f.w * gw, f.h * gh);
-                    x.restore();
-                }
-                return cv;
-            });
+            var nw = g.naturalWidth, nh = g.naturalHeight;
+            if (back) {
+                if (l2 && l2.side === 'b' && !c[7]) TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'x')], l2.box, gx, gy, gw, gh, nw, nh);
+            } else {
+                if (!c[4]) TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'f')], TR.U.boxFor(it, p, colorName), gx, gy, gw, gh, nw, nh);
+                if (l2 && l2.side === 'f') TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'x')], l2.box, gx, gy, gw, gh, nw, nh);
+            }
+            return cv;
         });
+    },
+
+    // Does this colour get a back mockup? Only with a back side second logo
+    // and a back photo.
+    hasBack: function (it, p, colorName) {
+        var l2 = TR.U.loc2(it, p), c = p.c[TR.colorIdx(p, colorName)];
+        return !!(l2 && l2.side === 'b' && c && c[6]);
     },
 
     build: function () {
@@ -906,7 +1128,13 @@ var TR = {
         var skip = {}; plan.products.forEach(function (p) { if (p.exists) skip[p.style] = 1; });
         var items = r.work.items.filter(function (it) { return TR.st.P[it.style] && !skip[it.style]; });
         var jobs = [];
-        items.forEach(function (it) { it.colors.forEach(function (n) { jobs.push({ it: it, color: n }); }); });
+        items.forEach(function (it) {
+            var p = TR.st.P[it.style];
+            it.colors.forEach(function (n) {
+                jobs.push({ it: it, color: n });
+                if (TR.hasBack(it, p, n)) jobs.push({ it: it, color: n, back: true });
+            });
+        });
         TR.st.busy = true; go.disabled = true; TR.$('b-plan').disabled = true;
         var status = document.createElement('p'); status.className = 'msg warn'; out.prepend(status);
         var say = function (t) { status.textContent = t; };
@@ -914,11 +1142,11 @@ var TR = {
         // Mockups one at a time: they are small and it keeps memory flat.
         var chain = Promise.resolve();
         jobs.forEach(function (j) {
-            chain = chain.then(function () { return TR.mockup(j.it, j.color); }).then(function (b) { blobs.push(b); done++; say('Drawing mockups ' + done + ' of ' + jobs.length + '...'); });
+            chain = chain.then(function () { return TR.mockup(j.it, j.color, j.back); }).then(function (b) { blobs.push(b); done++; say('Drawing mockups ' + done + ' of ' + jobs.length + '...'); });
         });
         chain.then(function () {
             say('Uploading ' + blobs.length + ' images to Shopify...');
-            var files = jobs.map(function (j, k) { return { filename: TR.U.colorLabel(j.color, '', '').replace(/[^a-z0-9]+/gi, '-') + '-' + j.it.style + '-' + k + '.png', mimeType: 'image/png', fileSize: blobs[k].size }; });
+            var files = jobs.map(function (j, k) { return { filename: j.it.style + '-' + String(j.color).replace(/[^a-z0-9]+/gi, '-') + (j.back ? '-back' : '') + '-' + k + '.png', mimeType: 'image/png', fileSize: blobs[k].size }; });
             return CatalogClient.stagedUploads(files).then(function (sj) {
                 if (sj.__status !== 200 || !sj.targets || sj.targets.length !== files.length) throw new Error(sj.error || sj.reason || ('Could not get upload targets, HTTP ' + sj.__status));
                 var urls = [], c2 = Promise.resolve(), up = 0;
@@ -930,13 +1158,13 @@ var TR = {
             });
         }).then(function (urls) {
             say('Creating drafts in Shopify...');
-            var img = {}; jobs.forEach(function (j, k) { img[j.it.style + '|' + j.color] = urls[k]; });
+            var img = {}; jobs.forEach(function (j, k) { img[j.it.style + '|' + j.color + (j.back ? '|b' : '')] = urls[k]; });
             var specs = items.map(function (it) {
                 var s = TR.specFor(it);
-                s.colors.forEach(function (c) { c.image = img[it.style + '|' + c.name] || null; });
+                s.colors.forEach(function (c) { c.image = img[it.style + '|' + c.name] || null; c.back = img[it.style + '|' + c.name + '|b'] || null; });
                 return s;
             });
-            return TR.api('/team-requests/build', { body: { id: r.id, dryRun: false, products: specs } });
+            return TR.api('/team-requests/build', { body: { id: r.id, dryRun: false, searchable: !!r.work.searchable, products: specs } });
         }).then(function (j) {
             TR.st.busy = false;
             if (j.__status !== 200) throw new Error(j.error || j.reason || ('HTTP ' + j.__status));
@@ -1205,11 +1433,18 @@ var TR = {
         var label = btn.textContent; btn.disabled = true; btn.textContent = 'Making PDF...';
         var done = function () { btn.disabled = false; btn.textContent = label; };
         var jobs = [];
-        items.forEach(function (it) { it.colors.forEach(function (n) { if (TR.hasColor(TR.st.P[it.style], n)) jobs.push({ it: it, color: n }); }); });
+        items.forEach(function (it) {
+            var p = TR.st.P[it.style];
+            it.colors.forEach(function (n) {
+                if (!TR.hasColor(p, n)) return;
+                jobs.push({ it: it, color: n });
+                if (TR.hasBack(it, p, n)) jobs.push({ it: it, color: n, back: true });
+            });
+        });
         var shots = {}, chain = Promise.resolve();
         jobs.forEach(function (j) {
-            chain = chain.then(function () { return TR.mockupCanvas(j.it, j.color, 900); })
-                .then(function (cv) { shots[j.it.style + '|' + j.color] = cv.toDataURL('image/jpeg', 0.86); });
+            chain = chain.then(function () { return TR.mockupCanvas(j.it, j.color, 900, j.back); })
+                .then(function (cv) { shots[j.it.style + '|' + j.color + (j.back ? '|b' : '')] = cv.toDataURL('image/jpeg', 0.86); });
         });
         var logo = null;
         var slot = (items[0].logo || 'main');
@@ -1277,19 +1512,25 @@ var TR = {
                     var bits = [p.s];
                     if (it.price) bits.push('$' + Number(it.price).toFixed(2));
                     if ((it.sizes || []).length) bits.push('Sizes ' + it.sizes.join(', '));
-                    bits.push('Logo: ' + (it.placement || 'as shown'));
+                    bits.push('Logo: ' + (it.placement || 'as shown') + (it.second_logo ? ', plus ' + it.second_logo.toLowerCase() : ''));
                     doc.splitTextToSize(bits.join('   /   '), W - 2 * M).forEach(function (l) { text(l, M, y); y += 13; });
                     y += 6;
                 };
                 if (y + 40 + ROW > BOTTOM) { doc.addPage(); y = M + 6; }
                 head(false);
-                cols.forEach(function (n, k) {
+                // A colour's back view follows its front, labelled as such.
+                var tiles = [];
+                cols.forEach(function (n) {
+                    tiles.push({ key: it.style + '|' + n, label: n });
+                    if (shots[it.style + '|' + n + '|b']) tiles.push({ key: it.style + '|' + n + '|b', label: n + ', back' });
+                });
+                tiles.forEach(function (t, k) {
                     if (k % 3 === 0 && k > 0) y += ROW;
                     if (k % 3 === 0 && y + ROW > BOTTOM) { doc.addPage(); y = M + 6; head(true); }
                     var x = M + (k % 3) * (size + GAP);
                     doc.setDrawColor(219, 227, 239); doc.rect(x, y, size, size);
-                    doc.addImage(shots[it.style + '|' + n], 'JPEG', x + 1, y + 1, size - 2, size - 2);
-                    doc.setFontSize(9.5); doc.setTextColor(ink[0], ink[1], ink[2]); text(doc.splitTextToSize(n, size)[0], x, y + size + 13);
+                    doc.addImage(shots[t.key], 'JPEG', x + 1, y + 1, size - 2, size - 2);
+                    doc.setFontSize(9.5); doc.setTextColor(ink[0], ink[1], ink[2]); text(doc.splitTextToSize(t.label, size)[0], x, y + size + 13);
                 });
                 y += ROW + 16;
             });

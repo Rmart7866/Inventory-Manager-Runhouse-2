@@ -15,7 +15,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import worker from '../src/index.js';
-import { planProduct, productSetInputFor, slug } from '../src/teamreq-build.js';
+import { planProduct, productSetInputFor, slug, spellSize, existingStoreInfo } from '../src/teamreq-build.js';
 import { clean } from '../src/teamreq.js';
 
 let failures = 0;
@@ -106,7 +106,7 @@ console.log('\nEditing');
 r = await call('/team-requests/one?id=' + id, { headers: STAFF });
 let rec = await r.json();
 check('the working copy starts from the submission', rec.work.items[0].style === 'PC380' && rec.work.logos.main.url.includes('a.png'));
-check('the default tag is "<team> Team Store"', rec.work.tag === 'Walpole Track & Field Team Store');
+check('the default tag is the team slug, as the back office automation tags stores', rec.work.tag === 'walpole-track-and-field', rec.work.tag);
 
 r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id, base: rec.updated, patch: { status: 'progress', req: { team: 'HACKED' }, work: { items: [{ style: 'DT6100', colors: ['Navy'], price: 45, boxes: { Navy: [0.3, 0.2, 0.4, 0.3] } }] } } } });
 j = await r.json();
@@ -209,6 +209,25 @@ check('a tee gets the activewear T-shirt category', input.category === 'gid://sh
 check('3 sizes x 1 colour is 3 variants, each pointing at its mockup', input.variants.length === 3 && input.variants.every((v) => v.file && v.file.originalSource === 'https://up/1'));
 check('an unknown category gets NO category, never a guess', !productSetInputFor(planProduct('T', 't', { style: 'X', name: 'Towel', category: 'Accessories', colors: [{ name: 'Red' }] })).category);
 check('slug drops accents and symbols', slug('Écoles & Co!') === 'ecoles-and-co');
+
+console.log('\nThe back office automation\'s conventions');
+check('sizes are spelled out', ['XS', 'S', 'M', 'L', 'XL', '2XL', '4XL'].map(spellSize).join(',') === 'XSmall,Small,Medium,Large,XLarge,2XLarge,4XLarge');
+check('tall sizes too, and youth and toddler sizes are left alone', spellSize('XLT') === 'XLarge Tall' && spellSize('2XLT') === '2XLarge Tall' && spellSize('2T') === '2T' && spellSize('One Size') === 'One Size');
+check('the options are Color then Size', input.productOptions[0].name === 'Color' && input.productOptions[1].name === 'Size');
+check('and every variant names them in that order', input.variants.every((v) => v.optionValues[0].optionName === 'Color'));
+check('plan sizes come out spelled', plan.sizes.join(',') === 'Small,Medium,Large');
+const fb = productSetInputFor(planProduct('T', 't', { style: 'DT6100', name: 'Hoodie', category: 'Hoodies', sizes: ['M'], price: 45, colors: [{ name: 'Navy', label: 'Navy (D055 (LC))', image: 'https://up/f', back: 'https://up/b' }] }));
+check('a colour with a back logo gets its front then its back mockup', fb.files.map((f) => f.originalSource).join(',') === 'https://up/f,https://up/b');
+check('and the variant shows the front', fb.variants[0].file.originalSource === 'https://up/f');
+check('the colour value carries the logo code', fb.productOptions[0].values[0].name === 'Navy (D055 (LC))');
+check('team gear is hidden from site search', fb.metafields && fb.metafields[0].key === 'hidden');
+const race = productSetInputFor(planProduct('T', 't', { style: 'X', name: 'Tee', category: 'Short Sleeve T-Shirts', colors: [{ name: 'Red' }] }), { searchable: true });
+check('public race merch stays searchable', !race.metafields);
+const info = existingStoreInfo({ title: 'Redbrook Community Store', ruleSet: { rules: [{ column: 'TAG', relation: 'EQUALS', condition: 'Redbrook Comm' }] }, products: { nodes: [{ title: 'Redbrook Community - Mens Essential Tee (PC61)' }, { title: 'Redbrook Community - Mens Tall Essential Tee (PC61T)' }] } });
+check('an existing store gives its tag', info.tag === 'Redbrook Comm');
+check('its naming prefix', info.prefix === 'Redbrook Community');
+check('and the styles it already carries', info.styles.has('PC61') && info.styles.has('PC61T') && info.styles.size === 2);
+check('a store with no tag rule gives no tag, so the build refuses', existingStoreInfo({ ruleSet: null, products: { nodes: [] } }).tag === null);
 
 // Fail CLOSED: with Shopify unreachable the handle check throws, and the
 // build must refuse rather than create blind.

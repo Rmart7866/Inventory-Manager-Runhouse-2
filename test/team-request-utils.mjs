@@ -57,5 +57,27 @@ console.log('\nThe colour option value');
 eq('matches the hand-built stores', U.colorLabel('Navy', 'Left chest', 'Main logo'), 'Navy w/ Left Chest Logo');
 eq('names a second logo when that is the one used', U.colorLabel('Red', 'Full chest', 'Second logo'), 'Red w/ Full Chest Second logo');
 
+console.log('\nThe back office automation\'s rules');
+eq('full chest is FC', U.plCode('Full chest', 'Short Sleeve T-Shirts'), 'FC');
+eq('left chest is LC', U.plCode('Left chest', 'Hoodies'), 'LC');
+eq('anything on a hat is HAT', U.plCode('Front', 'Headwear'), 'HAT');
+eq('back neck is BN, not BK', U.plCode('Back neck', 'Hoodies'), 'BN');
+eq('back is BK', U.plCode('Back', 'Hoodies'), 'BK');
+eq('the colour value carries the code', U.codeLabel('Jet Black', 'D055', 'FC'), 'Jet Black (D055 (FC))');
+const hood = { loc: { Back: ['b', [0.3, 0.1, 0.4, 0.32]], Sleeve: ['f', [0.83, 0.31, 0.09, 0.09]] } };
+eq('a back second logo prints on the back', U.loc2({ second_logo: 'Back' }, hood).side, 'b');
+eq('a sleeve prints on the front photo', U.loc2({ second_logo: 'Sleeve' }, hood).side, 'f');
+eq('no second logo is null', U.loc2({ second_logo: '' }, hood), null);
+
+const white = { samples: [[250, 250, 250], [240, 240, 240]] }, navy = { samples: [[20, 30, 70], [10, 20, 60]] };
+eq('a white logo shows better on black than a navy one', U.autoKey({ main: navy, dark: white }, '#1c1c1c'), 'dark');
+eq('and the main logo wins on white', U.autoKey({ main: navy, dark: white }, '#ffffff'), 'main');
+eq('with one logo there is nothing to pick', U.autoKey({ main: navy }, '#1c1c1c'), 'main');
+const it = { logo: 'auto', logo2: 'auto', logoBy: { Kelly: { f: 'main', x: '' } } };
+eq('the customer\'s per colour pick wins', U.resolveLogo(it, 'Kelly', 'f', { main: navy, dark: white }, '#1c1c1c'), 'main');
+eq('a colour they did not pick falls back to auto', U.resolveLogo(it, 'Black', 'f', { main: navy, dark: white }, '#1c1c1c'), 'dark');
+eq('a fixed staff choice beats auto', U.resolveLogo({ logo: 'main', logoBy: {} }, 'Black', 'f', { main: navy, dark: white }, '#1c1c1c'), 'main');
+eq('a pick of a logo that is gone falls back', U.resolveLogo({ logo: 'l3', logoBy: {} }, 'Black', 'f', { main: navy }, '#1c1c1c'), 'main');
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

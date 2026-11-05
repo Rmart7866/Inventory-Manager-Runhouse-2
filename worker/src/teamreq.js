@@ -83,6 +83,18 @@ export function newId(now = Date.now()) {
 // The working copy staff edit. Built once from the submission; the original
 // stays untouched in rec.req so there is always a record of what the
 // customer actually asked for.
+// The builder sends logo choices by label; the page works in slot keys.
+const LOGO_LABELS = { 'main logo': 'main', 'second logo': 'dark', 'logo 3': 'l3', 'logo 4': 'l4', 'logo 5': 'l5' };
+function logoKey(label) { return LOGO_LABELS[String(label || '').toLowerCase()] || ''; }
+function byColor(m) {
+  const out = {};
+  for (const c of Object.keys(m || {})) {
+    const f = logoKey(m[c] && m[c].front), x = logoKey(m[c] && m[c].second);
+    if (f || x) out[c] = { f, x };
+  }
+  return out;
+}
+
 export function workFrom(req) {
   const logos = {};
   const files = (req && req.logo_files) || {};
@@ -94,7 +106,8 @@ export function workFrom(req) {
   const team = String((isUpd ? req.store && req.store.name : req && req.team) || '').trim();
   return {
     team,
-    tag: team ? team + ' Team Store' : '',
+    // The team slug, as the back office automation tags its stores.
+    tag: team ? team.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : '',
     logos,
     items: ((req && req.items) || []).map((it) => ({
       style: String(it.style || ''),
@@ -104,7 +117,12 @@ export function workFrom(req) {
       price: Number(it.price) || 0,
       sizes: null,        // null: derive from the catalog at build time
       boxes: {},          // { "<color>": [x, y, w, h] } placement overrides
-      logo: 'main',
+      // Which logo goes on which colour. The customer may have picked per
+      // colour on the builder; otherwise 'auto' picks whichever logo shows
+      // up best on that garment colour, the builder's own rule.
+      logo: logoKey(it.logo_choice && it.logo_choice.front) || 'auto',
+      logo2: logoKey(it.logo_choice && it.logo_choice.second) || 'auto',
+      logoBy: byColor(it.logo_choice && it.logo_choice.by_color),
     })),
   };
 }
@@ -268,7 +286,7 @@ export async function listRequests(env) {
 // What the customer actually approves. Cost is left out on purpose: it is
 // ours, it is never shown to them, and changing it changes nothing they saw.
 function itemSig(it) {
-  return [it.style, it.colors, it.sizes, it.price, it.placement, it.boxes, it.logo];
+  return [it.style, it.colors, it.sizes, it.price, it.placement, it.boxes, it.logo, it.logo2, it.logoBy, it.second_logo];
 }
 
 export function applyPatch(rec, patch) {
@@ -291,6 +309,8 @@ export function applyPatch(rec, patch) {
       cur[k] = w[k];
     }
     if (typeof w.assignee === 'string') cur.assignee = w.assignee.trim().slice(0, 60);
+    // Public race or event merch stays in site search; team gear does not.
+    if (typeof w.searchable === 'boolean') cur.searchable = w.searchable;
     if (w.logos && typeof w.logos === 'object') cur.logos = w.logos;
     if (Array.isArray(w.items)) {
       const before = JSON.stringify((cur.items || []).map(itemSig));
@@ -302,7 +322,9 @@ export function applyPatch(rec, patch) {
         price: Number(it.price) || 0,
         sizes: Array.isArray(it.sizes) ? it.sizes.map(String).filter(Boolean) : null,
         boxes: it.boxes && typeof it.boxes === 'object' ? it.boxes : {},
-        logo: String(it.logo || 'main'),
+        logo: String(it.logo || 'auto'),
+        logo2: String(it.logo2 || 'auto'),
+        logoBy: it.logoBy && typeof it.logoBy === 'object' ? it.logoBy : {},
         cost: Number(it.cost) > 0 ? Math.round(Number(it.cost) * 100) / 100 : 0,
       }));
       // An answer the customer gave is about the store they SAW. If the

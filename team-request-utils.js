@@ -108,12 +108,119 @@ var TeamReqUtils = {
     },
 
     // The colour option value, in the form staff already write by hand:
-    // "Navy w/ Left Chest Main Logo (R021)". There is no design code yet at
-    // this stage, so it stops at the placement.
+    // "Navy w/ Left Chest Main Logo (R021)". Used when no logo code is set.
     colorLabel: function (color, placement, logoLabel) {
         var where = placement ? String(placement).replace(/\b\w/g, function (c) { return c.toUpperCase(); }) + ' ' : '';
         var which = logoLabel && !/^main logo$/i.test(logoLabel) ? logoLabel : 'Logo';
         return String(color) + ' w/ ' + where + which;
+    },
+
+    // ---- The back office automation's rules (Dan's runbook, 2026-11-05) ----
+
+    // The print location as the Logo Master Folder files name it: FC full
+    // chest, LC left chest, HAT, BK back, BN back neck. SL (sleeve) and LL
+    // (left leg) are not in that runbook's list; they are named the same way
+    // so a person can see what they are.
+    plCode: function (placement, category) {
+        var t = String(placement || '').toLowerCase();
+        if (/headwear/i.test(category || '')) return 'HAT';
+        if (/back neck/.test(t)) return 'BN';
+        if (/back/.test(t)) return 'BK';
+        if (/left chest/.test(t)) return 'LC';
+        if (/sleeve/.test(t)) return 'SL';
+        if (/leg/.test(t)) return 'LL';
+        return 'FC';
+    },
+
+    // Print sizes in inches, from make_logo_files.py. SL and LL borrow the
+    // left chest size, which is the closest thing that runbook defines.
+    PRINT_IN: { FC: [10, 10], BK: [10, 10], LC: [3.5, 3.5], BN: [2, 2], HAT: [4, 2], SL: [3.5, 3.5], LL: [3.5, 3.5] },
+
+    // "Jet Black (D055 (FC))": the colour, the code of the logo printed on it,
+    // and where. Never the builder's "Main logo" label.
+    codeLabel: function (color, code, pl) { return String(color) + ' (' + code + ' (' + pl + '))'; },
+
+    // The second logo the customer added (back, back neck or sleeve), from
+    // the catalog's own locations: side 'f' prints on the front photo, 'b' on
+    // the back photo.
+    loc2: function (item, p) {
+        var name = item && item.second_logo, l = name && p && p.loc && p.loc[name];
+        return l ? { name: name, side: l[0], box: l[1] } : null;
+    },
+
+    // How well a logo shows on a garment colour, 0 to 1: the mean colour
+    // distance of the logo's own pixels from the garment, the builder's vis()
+    // and render_mockups.py visib(), so all three pick the same logo.
+    vis: function (samples, hex) {
+        if (!samples || !samples.length) return 0.5;
+        var h = String(hex || '#888888').replace('#', ''), g = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)], n = 0;
+        for (var i = 0; i < samples.length; i++) {
+            var q = samples[i], dr = q[0] - g[0], dg = q[1] - g[1], db = q[2] - g[2];
+            n += Math.min(160, Math.sqrt(0.3 * dr * dr + 0.59 * dg * dg + 0.11 * db * db));
+        }
+        return n / samples.length / 160;
+    },
+
+    ORDER: ['main', 'dark', 'l3', 'l4', 'l5'],
+
+    // The first logo wins unless another shows at least 10% better.
+    autoKey: function (logos, hex) {
+        var ks = this.ORDER.filter(function (k) { return logos[k]; });
+        Object.keys(logos).forEach(function (k) { if (ks.indexOf(k) < 0) ks.push(k); });
+        if (!ks.length) return null;
+        var best = ks[0], bv = this.vis(logos[ks[0]].samples, hex);
+        for (var i = 1; i < ks.length; i++) { var v = this.vis(logos[ks[i]].samples, hex); if (v > bv * 1.1) { best = ks[i]; bv = v; } }
+        return best;
+    },
+
+    // Which logo goes on this colour. The customer's per colour pick first,
+    // then the item's fixed choice, then whichever shows best. which: 'f' for
+    // the front logo, 'x' for the second.
+    resolveLogo: function (item, color, which, logos, hex) {
+        var by = (item && item.logoBy && item.logoBy[color]) || {};
+        var pick = which === 'x' ? by.x : by.f;
+        if (pick && logos[pick]) return pick;
+        var fixed = which === 'x' ? item.logo2 : item.logo;
+        if (fixed && fixed !== 'auto' && logos[fixed]) return fixed;
+        return this.autoKey(logos, hex);
+    },
+
+    // ---- browser only: clean a logo the way render_mockups.py does ----
+    // A logo with no transparency gets its near-white background knocked
+    // out (fully clear above 235, faded between 212 and 235), then every logo
+    // is trimmed to its visible pixels. Returns { url, w, h, samples }.
+    _logoCache: {},
+    loadLogo: function (src) {
+        var self = this;
+        if (self._logoCache[src]) return self._logoCache[src];
+        self._logoCache[src] = new Promise(function (res, rej) {
+            var im = new Image();
+            if (!/^(blob|data):/.test(src)) im.crossOrigin = 'anonymous';
+            im.onload = function () {
+                var W = im.naturalWidth, H = im.naturalHeight, c = document.createElement('canvas'); c.width = W; c.height = H;
+                var x = c.getContext('2d'); x.drawImage(im, 0, 0);
+                var d = x.getImageData(0, 0, W, H), a = d.data, opaque = true, i;
+                for (i = 3; i < a.length; i += 4) if (a[i] < 250) { opaque = false; break; }
+                if (opaque) {
+                    for (i = 0; i < a.length; i += 4) {
+                        var mn = Math.min(a[i], a[i + 1], a[i + 2]);
+                        if (mn > 235) a[i + 3] = 0; else if (mn > 212) a[i + 3] = Math.min(a[i + 3], Math.round((235 - mn) / 23 * 255));
+                    }
+                }
+                var x0 = W, y0 = H, x1 = -1, y1 = -1;
+                for (var y = 0; y < H; y++) for (var xx = 0; xx < W; xx++) if (a[(y * W + xx) * 4 + 3] > 16) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+                if (x1 < 0) { x0 = 0; y0 = 0; x1 = W - 1; y1 = H - 1; }
+                x.putImageData(d, 0, 0);
+                var tw = x1 - x0 + 1, th = y1 - y0 + 1, t = document.createElement('canvas'); t.width = tw; t.height = th;
+                t.getContext('2d').drawImage(c, x0, y0, tw, th, 0, 0, tw, th);
+                var td = t.getContext('2d').getImageData(0, 0, tw, th).data, samples = [], step = Math.max(1, Math.floor(tw * th / 600));
+                for (i = 0; i < tw * th; i += step) if (td[i * 4 + 3] > 128) samples.push([td[i * 4], td[i * 4 + 1], td[i * 4 + 2]]);
+                t.toBlob(function (b) { res({ url: URL.createObjectURL(b), w: tw, h: th, samples: samples, cleaned: opaque, canvas: t }); }, 'image/png');
+            };
+            im.onerror = function () { rej(new Error('Could not load the logo')); };
+            im.src = src;
+        });
+        return self._logoCache[src];
     }
 };
 

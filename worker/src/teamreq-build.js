@@ -1,13 +1,15 @@
 // teamreq-build.js, The Run House. Turn a team store request into Shopify
 // drafts: one smart collection and one product per style.
 //
-// THE SHAPE IS COPIED FROM THE STORES STAFF ALREADY BUILD BY HAND, read off
-// the live store 2026-11-04 (Redbrook Community, Falmouth HS, Keefe Tech,
-// Norwell): a smart collection whose single rule is TAG EQUALS "<team tag>",
-// products titled "<Team> - <garment> (<STYLE>)", vendor The Run House, the
-// team tag, options Size x Color with the colour value naming the logo
-// ("Navy w/ Left Chest Logo"), CONTINUE selling because it is made to order,
-// and seo.hidden so a team's gear does not surface in site search.
+// THE SHAPE MATCHES THE BACK OFFICE AUTOMATION THAT ALSO BUILDS STORES
+// (Dan's team store runbook, 2026-11-05) and the stores built by hand: a
+// smart collection named for the team whose single rule is TAG EQUALS the
+// team slug, products titled "<Team> - <garment> (<STYLE>)", vendor The Run
+// House, options Color then Size with sizes spelled out, colour values
+// naming the logo code ("Jet Black (D055 (FC))"), CONTINUE selling because
+// it is made to order, and seo.hidden unless it is public race merch.
+// Matching matters beyond looks: each builder's duplicate check finds the
+// other's store only if the tag and handles agree.
 //
 // SAFETY, the same floor as Stage 4 and stricter in one place:
 //   - DRAFT ONLY. status is always DRAFT and nothing is published to any
@@ -61,32 +63,51 @@ const TYPE_BY_CATEGORY = {
 };
 export function typeFor(category) { return TYPE_BY_CATEGORY[category] || ''; }
 
+// SIZES ARE SPELLED OUT, the way the stores staff build by hand spell them
+// (XSmall, Small, ... 2XLarge). The catalog gives the short form.
+const SIZE_WORDS = { XXS: 'XXSmall', XS: 'XSmall', S: 'Small', M: 'Medium', L: 'Large', XL: 'XLarge' };
+export function spellSize(s) {
+  const t = String(s).trim();
+  if (SIZE_WORDS[t]) return SIZE_WORDS[t];
+  let m = t.match(/^(\d)XL$/);
+  if (m) return m[1] + 'XLarge';
+  m = t.match(/^(L|XL|\dXL)T$/);
+  if (m) return spellSize(m[1]) + ' Tall';
+  return t;
+}
+
 // One planned product from one page spec. Pure, so the test can pin it.
-// spec = { style, name, category, sizes:[...], price, colors:[{name, label, image}] }
+// spec = { style, name, category, sizes:[...], price, colors:[{name, label, image, back}] }
+// The title, handle, options and colour values follow the conventions of the
+// back office automation that also builds team stores (Color then Size,
+// spelled sizes, "Jet Black (D055 (FC))"), so a store built here and one
+// built there look the same, and each one's duplicate check sees the other's.
 export function planProduct(team, tag, spec) {
   const title = (team + ' - ' + spec.name + ' (' + spec.style + ')').slice(0, 250);
   const handle = slug(team + ' ' + spec.name + ' ' + spec.style);
-  const sizes = (spec.sizes && spec.sizes.length ? spec.sizes : ['One Size']).map(String);
-  const colors = (spec.colors || []).map((c) => ({ value: String(c.label || c.name).slice(0, 250), image: c.image || null, name: String(c.name) }));
+  const sizes = (spec.sizes && spec.sizes.length ? spec.sizes : ['One Size']).map(spellSize);
+  const colors = (spec.colors || []).map((c) => ({ value: String(c.label || c.name).slice(0, 250), image: c.image || null, back: c.back || null, name: String(c.name) }));
   const productType = typeFor(spec.category);
   const price = Number(spec.price) > 0 ? Number(spec.price).toFixed(2) : null;
   return { style: spec.style, title, handle, productType, sizes, colors, price, tag, variants: sizes.length * colors.length };
 }
 
-export function productSetInputFor(plan) {
+export function productSetInputFor(plan, opts = {}) {
   const files = [];
   const fileFor = {};
+  const addFile = (url, alt) => {
+    if (url && !fileFor[url]) { fileFor[url] = { originalSource: url, alt, contentType: 'IMAGE' }; files.push(fileFor[url]); }
+  };
+  // Each colour's mockup, front then back, in that order.
   for (const c of plan.colors) {
-    if (c.image && !fileFor[c.image]) {
-      fileFor[c.image] = { originalSource: c.image, alt: plan.title + ' in ' + c.name, contentType: 'IMAGE' };
-      files.push(fileFor[c.image]);
-    }
+    addFile(c.image, plan.title + ' in ' + c.name);
+    addFile(c.back, plan.title + ' in ' + c.name + ', back');
   }
   const variants = [];
   for (const c of plan.colors) {
     for (const s of plan.sizes) {
       const v = {
-        optionValues: [{ optionName: 'Size', name: s }, { optionName: 'Color', name: c.value }],
+        optionValues: [{ optionName: 'Color', name: c.value }, { optionName: 'Size', name: s }],
         inventoryPolicy: 'CONTINUE',   // made to order, as every team store item is
         inventoryItem: { tracked: true },
       };
@@ -105,12 +126,14 @@ export function productSetInputFor(plan) {
     status: 'DRAFT',
     tags: [plan.tag],
     productOptions: [
-      { name: 'Size', values: plan.sizes.map((n) => ({ name: n })) },
       { name: 'Color', values: plan.colors.map((c) => ({ name: c.value })) },
+      { name: 'Size', values: plan.sizes.map((n) => ({ name: n })) },
     ],
     variants,
     files,
-    metafields: [{ namespace: 'seo', key: 'hidden', type: 'number_integer', value: '1' }],
+    // Team, club and school gear stays out of site search. Public race and
+    // event merch (marathons, 5Ks, finisher stores) stays searchable.
+    ...(opts.searchable ? {} : { metafields: [{ namespace: 'seo', key: 'hidden', type: 'number_integer', value: '1' }] }),
   };
 }
 
@@ -124,9 +147,23 @@ async function existingProductHandles(client, handles) {
   return found;
 }
 
-async function collectionExists(client, handle) {
-  const body = await client.graphql('query($h:String!){ collectionByHandle(handle:$h){ id handle } }', { h: handle });
+async function collectionByHandle(client, handle) {
+  const body = await client.graphql(`query($h:String!){ collectionByHandle(handle:$h){ id handle title
+    ruleSet{ rules{ column relation condition } }
+    products(first:250){ nodes{ title } } } }`, { h: handle });
   return body.data.collectionByHandle;
+}
+
+// "Add to my existing store": the store already exists, so its tag is what
+// puts new products in it, its naming is what they copy, and a style it
+// already carries is skipped. Pure, so the test can drive it.
+export function existingStoreInfo(col) {
+  const rule = ((col && col.ruleSet && col.ruleSet.rules) || []).find((r) => r.column === 'TAG' && r.relation === 'EQUALS');
+  const titles = ((col && col.products && col.products.nodes) || []).map((n) => n.title);
+  const withPrefix = titles.find((t) => t.indexOf(' - ') > 0);
+  const styles = new Set();
+  for (const t of titles) { const m = t.match(/\(([A-Za-z0-9]+)\)\s*$/); if (m) styles.add(m[1].toUpperCase()); }
+  return { tag: rule ? rule.condition : null, prefix: withPrefix ? withPrefix.split(' - ')[0] : (col && col.title) || '', styles };
 }
 
 export async function handleBuild(request, env) {
@@ -137,32 +174,54 @@ export async function handleBuild(request, env) {
   if (b.products.length > 60) return { status: 400, body: { error: 'At most 60 products per build' } };
   const rec = await readRec(env, b.id);
   if (!rec) return { status: 404, body: { error: 'Request not found' } };
+  const client = createShopifyClient(env);
 
-  const team = String((rec.work && rec.work.team) || '').trim();
-  const tag = String((rec.work && rec.work.tag) || (team + ' Team Store')).trim();
+  // ADD TO AN EXISTING STORE: no new collection; its tag and its naming.
+  const updHandle = rec.req && rec.req.mode === 'update' && rec.req.store && rec.req.store.handle;
+  let team = String((rec.work && rec.work.team) || '').trim();
+  let tag = String((rec.work && rec.work.tag) || slug(team)).trim();
+  let carried = new Set(), update = null;
+  if (updHandle) {
+    let col;
+    try { col = await collectionByHandle(client, updHandle); } catch (e) {
+      return { status: 502, body: { error: 'Could not read the existing store, so nothing was built. ' + String(e && e.message || e) } };
+    }
+    if (!col) return { status: 400, body: { error: 'The store ' + updHandle + ' was not found on Shopify.' } };
+    const info = existingStoreInfo(col);
+    if (!info.tag) return { status: 400, body: { error: 'The store ' + col.title + ' has no TAG rule, so new products could not be put in it. Add them by hand.' } };
+    tag = info.tag; team = info.prefix || team; carried = info.styles;
+    update = { handle: col.handle, title: col.title, id: col.id };
+  }
   if (!team || !tag) return { status: 400, body: { error: 'The request needs a team name and a collection tag first' } };
 
-  const plans = b.products.map((p) => planProduct(team, tag, p));
+  const all = b.products.map((p) => planProduct(team, tag, p));
+  const plans = all.filter((p) => !carried.has(String(p.style).toUpperCase()));
+  const alreadyIn = all.filter((p) => carried.has(String(p.style).toUpperCase())).map((p) => p.style);
+  if (!plans.length) return { status: 400, body: { error: 'The store already carries every style on this request: ' + alreadyIn.join(', ') } };
   const bad = plans.filter((p) => !p.colors.length);
   if (bad.length) return { status: 400, body: { error: 'Every product needs at least one colour: ' + bad.map((p) => p.style).join(', ') } };
   const tooBig = plans.filter((p) => p.variants > 2000);
   if (tooBig.length) return { status: 400, body: { error: 'Too many variants on ' + tooBig.map((p) => p.style).join(', ') } };
 
-  const collection = { title: (b.collectionTitle || team + ' Team Store').slice(0, 250), handle: slug(b.collectionHandle || team + ' team store'), tag };
+  // The collection is named for the team, as the hand built stores are.
+  const collection = update
+    ? { title: update.title, handle: update.handle, tag, existing: true }
+    : { title: (b.collectionTitle || team).slice(0, 250), handle: slug(b.collectionHandle || team), tag };
+  const searchable = !!b.searchable;
 
   // Create-only, fail CLOSED. If we cannot tell what exists, build nothing.
-  const client = createShopifyClient(env);
-  let existing, colExisting;
+  let existing, colExisting = null;
   try {
     existing = await existingProductHandles(client, plans.map((p) => p.handle));
-    colExisting = await collectionExists(client, collection.handle);
+    if (!update) colExisting = await collectionByHandle(client, collection.handle);
   } catch (e) {
     return { status: 502, body: { error: 'Could not check which handles already exist, so nothing was built. ' + String(e && e.message || e) } };
   }
 
   const plan = {
-    collection: { ...collection, exists: !!colExisting },
-    products: plans.map((p) => ({ style: p.style, title: p.title, handle: p.handle, productType: p.productType, sizes: p.sizes, colors: p.colors.map((c) => c.value), images: p.colors.filter((c) => c.image).length, price: p.price, variants: p.variants, exists: existing.has(p.handle) })),
+    collection: { ...collection, exists: !!colExisting || !!update },
+    update: !!update, alreadyIn, searchable,
+    products: plans.map((p) => ({ style: p.style, title: p.title, handle: p.handle, productType: p.productType, sizes: p.sizes, colors: p.colors.map((c) => c.value), images: p.colors.reduce((n, c) => n + (c.image ? 1 : 0) + (c.back ? 1 : 0), 0), price: p.price, variants: p.variants, exists: existing.has(p.handle) })),
   };
   if (b.dryRun !== false) return { body: { dryRun: true, plan } };
 
@@ -170,7 +229,7 @@ export async function handleBuild(request, env) {
   for (const p of plans) {
     if (existing.has(p.handle)) { results.push({ style: p.style, handle: p.handle, skipped: true, reason: 'A product with this handle already exists, so it was left alone.' }); continue; }
     try {
-      const body = await client.graphql(PRODUCT_SET, { input: productSetInputFor(p) });
+      const body = await client.graphql(PRODUCT_SET, { input: productSetInputFor(p, { searchable }) });
       const r = (body.data && body.data.productSet) || {};
       const errs = r.userErrors || [];
       results.push(errs.length || !r.product
@@ -182,7 +241,9 @@ export async function handleBuild(request, env) {
   }
 
   let col = null;
-  if (colExisting) {
+  if (update) {
+    col = { handle: update.handle, id: update.id, title: update.title, skipped: true, reason: 'Added to the existing store ' + update.title + ' through its tag ' + tag + '.' };
+  } else if (colExisting) {
     col = { handle: colExisting.handle, id: colExisting.id, skipped: true, reason: 'A collection with this handle already exists, so it was left alone. Products carry the tag ' + tag + '.' };
   } else {
     try {
@@ -205,7 +266,7 @@ export async function handleBuild(request, env) {
     products: (rec.build && rec.build.products || []).concat(made.map((r) => ({ style: r.style, id: r.id, handle: r.handle, title: r.title }))),
   };
   if (rec.status === 'new') rec.status = 'progress';
-  log(rec, 'Built ' + made.length + ' draft product' + (made.length === 1 ? '' : 's') + (col && col.ok ? ' and the collection ' + col.handle : ''));
+  log(rec, 'Built ' + made.length + ' draft product' + (made.length === 1 ? '' : 's') + (update ? ' into ' + update.title : col && col.ok ? ' and the collection ' + col.handle : '') + (alreadyIn.length ? ', skipped ' + alreadyIn.join(', ') + ' (already in the store)' : ''));
   await writeRec(env, rec);
-  return { body: { ok: true, collection: col, results, rec } };
+  return { body: { ok: true, collection: col, results, alreadyIn, rec } };
 }
