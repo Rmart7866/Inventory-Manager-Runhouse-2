@@ -84,9 +84,10 @@ var TeamReqUtils = {
     },
 
     // Where the logo goes, most specific first: a staff box for this store
-    // and colour, a staff box for this store, the STYLE's saved template
-    // (the placement screen, seeded from the back office placement tool),
-    // then the catalog's own box.
+    // and colour, a staff box for this store, a box staff changed for the
+    // whole STYLE on the Placements tab, then the catalog's own box. The
+    // catalog's boxes ARE Dan's placement tool numbers (fcb, lcb, pb, loc are
+    // identical to his builder_data.json), measured on the trimmed photo.
     boxFor: function (item, p, color, tpl) {
         var b = item && item.boxes || {};
         return b[color] || b['*'] || this.templateBox(tpl, p, item && item.placement) || this.defaultBox(p, item && item.placement);
@@ -159,8 +160,9 @@ var TeamReqUtils = {
     loc2: function (item, p, tpl) {
         var name = item && item.second_logo, l = name && p && p.loc && p.loc[name];
         if (!l) return null;
-        // A style's saved back box beats the catalog's generic one.
-        var box = name === 'Back' && tpl && tpl.bk ? tpl.bk : l[1];
+        // A box staff changed on the Placements tab beats the catalog's.
+        var z = { 'Back': 'bk', 'Back neck': 'bn', 'Sleeve': 'sl' }[name];
+        var box = z && tpl && tpl[z] ? tpl[z] : l[1];
         return { name: name, side: l[0], box: box };
     },
 

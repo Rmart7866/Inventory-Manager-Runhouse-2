@@ -43,6 +43,9 @@ const COSTS_KEY = 'treqcosts';
 // each box [x, y, w, h, tilt?] in fractions of the catalog photo. Seeded
 // from the back office placement tool, edited on the Placements screen.
 export const PLACE_KEY = 'treqplace';
+// fc/lc full and left chest on a style that offers both, pb the one fixed
+// placement of every other style, then the three second logo spots.
+export const PLACE_ZONES = ['fc', 'lc', 'pb', 'bk', 'bn', 'sl'];
 
 function okBox(b) {
   return Array.isArray(b) && (b.length === 4 || b.length === 5) && b.every((v) => typeof v === 'number' && Number.isFinite(v)) &&
@@ -403,16 +406,21 @@ export async function handleStaff(request, env, which) {
     const style = String(b.style || '').trim().toUpperCase().slice(0, 30);
     if (!style) return { status: 400, body: { error: 'Which style?' } };
     const all = (await env.CATALOG.get(PLACE_KEY, 'json')) || {};
+    // Only the zones staff CHANGED are stored. Everything else stays on the
+    // catalog's own box, which is where Dan's placement tool writes, so an
+    // untouched style keeps following his numbers. No zones left, no entry.
     if (b.reset) { delete all[style]; }
     else {
-      const t = { from: 'staff', at: new Date().toISOString() };
-      for (const k of ['fc', 'lc', 'pb', 'bk']) {
+      const t = { from: 'staff', at: new Date().toISOString(), by: String(b.by || '').trim().slice(0, 40) };
+      let n = 0;
+      for (const k of PLACE_ZONES) {
         if (b.boxes && b.boxes[k] != null) {
           if (!okBox(b.boxes[k])) return { status: 400, body: { error: 'The ' + k + ' box is not a valid box' } };
           t[k] = b.boxes[k].map((v) => Math.round(v * 10000) / 10000);
+          n++;
         }
       }
-      all[style] = t;
+      if (n) all[style] = t; else delete all[style];
     }
     await env.CATALOG.put(PLACE_KEY, JSON.stringify(all));
     return { body: { ok: true, placements: all } };

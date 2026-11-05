@@ -90,6 +90,10 @@ eq('a template missing that zone falls back too', U.boxFor({ placement: 'Left ch
 eq('a hat uses the front box', U.boxFor({ placement: 'Front', boxes: {} }, { pb: [0, 0, 1, 1] }, 'Red', { pb: [0.3, 0.3, 0.3, 0.2] }), [0.3, 0.3, 0.3, 0.2]);
 eq('a back logo uses the template back box', U.loc2({ second_logo: 'Back' }, tee2, tpl).box, tpl.bk);
 eq('and the catalog one without a template', U.loc2({ second_logo: 'Back' }, tee2, null).box, [0.3, 0.1, 0.4, 0.32]);
+const tee3 = { ch: 1, fcb: tee2.fcb, lcb: tee2.lcb, loc: { 'Back neck': ['b', [0.43, 0.06, 0.14, 0.07]], Sleeve: ['f', [0.84, 0.23, 0.09, 0.09]] } };
+eq('a changed back neck box is used', U.loc2({ second_logo: 'Back neck' }, tee3, { bn: [0.42, 0.05, 0.15, 0.08] }).box, [0.42, 0.05, 0.15, 0.08]);
+eq('a changed sleeve box is used, on the front', U.loc2({ second_logo: 'Sleeve' }, tee3, { sl: [0.8, 0.2, 0.1, 0.1, 10] }).box, [0.8, 0.2, 0.1, 0.1, 10]);
+eq('a back box change does not move the back neck', U.loc2({ second_logo: 'Back neck' }, tee3, { bk: [0.3, 0.1, 0.4, 0.3] }).box, [0.43, 0.06, 0.14, 0.07]);
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

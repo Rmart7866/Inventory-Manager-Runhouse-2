@@ -56,6 +56,7 @@ var TR = {
         TR.$('q').addEventListener('input', function () { TR.st.q = this.value.toLowerCase(); TR.renderList(); });
         TR.$('home-back').addEventListener('click', function () { TR.home(); });
         TR.$('home-h').addEventListener('click', function () { TR.home(); });
+        TR.$('home-tab').addEventListener('click', function () { TR.home(); });
         TR.$('me').value = TR.myName();
         TR.$('me').addEventListener('change', function () { try { localStorage.setItem('rhStaffName', this.value.trim()); } catch (e) { /* private mode */ } TR.renderList(); });
         // The list refreshes itself: every minute, and when you come back to
@@ -87,7 +88,7 @@ var TR = {
             TR.renderList();
             TR.loadCatalog();
             TR.api('/team-requests/costs').then(function (c) { TR.st.costs = (c && c.costs) || {}; });
-            TR.api('/team-requests/placements').then(function (c) { TR.st.TPL = (c && c.placements) || {}; if (TR.st.rec) TR.renderDetail(); });
+            TR.api('/team-requests/placements').then(function (c) { TR.st.TPL = (c && c.placements) || {}; if (TR.st.rec) TR.renderDetail(); TR.renderPlacements(); });
             var h = location.hash.replace('#', '');
             if (h) TR.open(h);
         }).catch(function (e) { TR.showGate('Could not reach the Worker: ' + e.message); });
@@ -112,6 +113,7 @@ var TR = {
             });
             TR.st.D = D;
             if (TR.st.rec) TR.renderDetail();
+            TR.renderPlacements();
             return D;
         });
     },
@@ -192,8 +194,10 @@ var TR = {
 
     renderList: function () {
         var f = TR.st.filter, q = TR.st.q, me = TR.myName().trim().toLowerCase();
-        var home = TR.isHome();
+        var home = TR.isHome(), v = TR.st.rec ? 'home' : ({ cal: 'cal', sales: 'sales', place: 'place' }[TR.st.view] || 'home');
         document.body.classList.toggle('home', home);
+        document.body.classList.toggle('full', v !== 'home');
+        document.querySelectorAll('#toptabs [data-v]').forEach(function (b) { b.setAttribute('aria-current', String(b.dataset.v === v)); });
         var dups = TR.duplicates();
         var match = function (r) { return !q || (String(r.t) + ' ' + String(r.e) + ' ' + String(r.a || '')).toLowerCase().indexOf(q) >= 0; };
         // counts on the tabs, so an empty Unclaimed tab is news in itself
@@ -1575,13 +1579,77 @@ var TR = {
         document.body.appendChild(a); a.click(); a.remove();
     },
 
-    // ---------- placements: the default logo box per style ----------
-    // The back office placement tool, inside this page. A style's saved
-    // boxes are what every new preview, mockup, proof and build starts from;
-    // a store can still move its own logo on top. Seeded 2026-11-05 with the
-    // 67 templates set in that tool, converted from its trimmed photos to
-    // these catalog photos through each garment's outline.
-    ZONES: { fc: 'Full chest', lc: 'Left chest', pb: 'Front', bk: 'Back' },
+    // ---------- placements: where a logo prints on each style ----------
+    // Every box starts as the CATALOG's, and the catalog's boxes ARE Dan's
+    // placement tool numbers: fcb, lcb, pb and loc in the builder catalog
+    // are identical to his builder_data.json, which his render_mockups.py
+    // draws from, measured on the trimmed garment photo (our catalog photos
+    // are already trimmed). This tab stores only what staff CHANGE, zone by
+    // zone, so a style nobody touched keeps following his numbers. A store
+    // can still move its own logo on top of either.
+    //
+    // NOT imported, on purpose: the placements.json export that ships with
+    // his tool. It is an older dataset, not what his renderer reads (several
+    // garments carry one identical untouched default, ST350's back box is a
+    // 12% wide sliver), and seeding it on 2026-11-05 pulled every mockup
+    // away from his current numbers until it was removed the same day.
+    PZ: {
+        fc: { label: 'Full chest', side: 'f' },
+        lc: { label: 'Left chest', side: 'f' },
+        pb: { label: 'Front', side: 'f' },
+        sl: { label: 'Sleeve', side: 'f', loc: 'Sleeve' },
+        bk: { label: 'Back', side: 'b', loc: 'Back' },
+        bn: { label: 'Back neck', side: 'b', loc: 'Back neck' },
+    },
+
+    // The zones a style has, in the order the placement tool lists them.
+    plZones: function (p) {
+        var z = p.ch ? ['fc', 'lc'] : (p.pb ? ['pb'] : []);
+        ['sl', 'bk', 'bn'].forEach(function (k) {
+            var l = p.loc && p.loc[TR.PZ[k].loc]; if (!l) return;
+            if (l[0] === 'b' && !p.c.some(function (c) { return c[6]; })) return;
+            z.push(k);
+        });
+        return z;
+    },
+
+    // What the one fixed placement of a style is called: its catalog pm.
+    plLabel: function (p, z) {
+        if (z !== 'pb') return TR.PZ[z].label;
+        if (/headwear|bags|accessor/i.test(TR.st.CAT[p.s] || '')) return 'Front';
+        return { lc: 'Left chest', lg: 'Left leg' }[p.pm] || 'Full chest';
+    },
+
+    plInches: function (p, z) {
+        var s = TR.U.PRINT_IN[TR.U.plCode(TR.plLabel(p, z), TR.st.CAT[p.s])];
+        return s ? s[0] + ' x ' + s[1] + ' in' : '';
+    },
+
+    // Dan's box for a zone, straight out of the catalog.
+    danBox: function (p, z) {
+        if (z === 'fc') return p.fcb || null; if (z === 'lc') return p.lcb || null; if (z === 'pb') return p.pb || null;
+        var l = p.loc && p.loc[TR.PZ[z].loc]; return l ? l[1] : null;
+    },
+
+    // What is in force now: a saved staff change, else Dan's.
+    liveBox: function (p, z) { var t = TR.tplOf(p); return (t && t[z]) || TR.danBox(p, z); },
+
+    sameBox: function (a, b) {
+        if (!a || !b) return !a && !b;
+        var n = function (x) { x = TR.box5(x); return x.slice(0, 4).map(function (v) { return Math.round(v * 1000); }).concat([Math.round(x[4])]).join(','); };
+        return n(a) === n(b);
+    },
+
+    // The box being edited: an unsaved draft, else what is in force.
+    pzBox: function (p, z) {
+        var d = TR.st.pl.drafts[p.s];
+        return TR.box5((d && d[z]) || TR.liveBox(p, z));
+    },
+
+    pzUnsaved: function (s) {
+        var d = TR.st.pl.drafts[s], p = TR.st.P[s]; if (!d || !p) return 0;
+        return Object.keys(d).filter(function (z) { return !TR.sameBox(d[z], TR.liveBox(p, z)); }).length;
+    },
 
     // A plain sample logo to place against: round (a crest) or wide (a
     // wordmark), the two shapes the placement tool tests with.
@@ -1596,108 +1664,177 @@ var TR = {
         if (TR.st.dirty && !window.confirm('You have unsaved changes on this request. Leave them?')) return;
         TR.st.dirty = false; TR.st.rec = null; TR.st.view = 'place';
         history.replaceState(null, '', location.pathname);
-        TR.st.pl = TR.st.pl || { q: '', filter: 'all', style: null, zone: 'fc', color: null, wide: false };
+        TR.st.pl = TR.st.pl || { q: '', filter: 'all', style: null, zone: null, color: null, wide: false, drafts: {} };
         TR.renderList(); TR.renderPlacements();
-    },
-
-    plZones: function (p) {
-        var z = p.ch ? ['fc', 'lc'] : ['pb'];
-        if (p.loc && p.loc.Back && p.c.some(function (c) { return c[6]; })) z.push('bk');
-        return z;
-    },
-
-    // The box shown for a zone: the saved one, else the catalog's.
-    plBox: function (p, zone) {
-        var t = TR.tplOf(p) || {};
-        if (t[zone]) return t[zone].slice();
-        if (zone === 'fc') return (p.fcb || p.pb || [0.3, 0.25, 0.4, 0.3]).slice();
-        if (zone === 'lc') return (p.lcb || [0.55, 0.22, 0.13, 0.13]).slice();
-        if (zone === 'bk') return (p.loc && p.loc.Back ? p.loc.Back[1] : [0.3, 0.15, 0.4, 0.32]).slice();
-        return (p.pb || p.fcb || [0.3, 0.25, 0.4, 0.3]).slice();
+        window.scrollTo(0, 0);
     },
 
     renderPlacements: function () {
         var S = TR.st.pl, el = TR.$('detail');
+        if (!S || TR.st.view !== 'place') return;
         if (!TR.st.D) { el.innerHTML = '<p class="empty">Loading the product catalog...</p>'; return; }
         var TPL = TR.st.TPL || {}, q = S.q.toLowerCase();
-        var styles = Object.keys(TR.st.P).map(function (k) { return TR.st.P[k]; }).filter(function (p) {
-            if (S.filter === 'set' && !TPL[p.s]) return false;
-            if (S.filter === 'unset' && TPL[p.s]) return false;
-            return !q || (p.n + ' ' + p.s).toLowerCase().indexOf(q) >= 0;
-        }).sort(function (a, b) { return (TR.st.CAT[a.s] + a.n).localeCompare(TR.st.CAT[b.s] + b.n); });
-        var setCount = Object.keys(TPL).filter(function (k) { return TR.st.P[k]; }).length;
-        if (!S.style || !TR.st.P[S.style]) S.style = styles[0] && styles[0].s;
+        var all = Object.keys(TR.st.P).map(function (k) { return TR.st.P[k]; }).filter(function (p) { return TR.plZones(p).length; });
+        var changedN = all.filter(function (p) { return TPL[p.s]; }).length;
+        var styles = all.filter(function (p) {
+            if (S.filter === 'changed' && !TPL[p.s] && !TR.pzUnsaved(p.s)) return false;
+            return !q || (p.n + ' ' + p.s + ' ' + (p.b || '')).toLowerCase().indexOf(q) >= 0;
+        });
+        if (!S.style || !TR.st.P[S.style]) S.style = (styles[0] || all[0] || {}).s;
         var p = TR.st.P[S.style];
-        var list = '<div class="pl-list">' + (styles.length ? styles.map(function (x) {
-            var t = TPL[x.s];
-            return '<button type="button" class="pl-row' + (x.s === S.style ? ' on' : '') + '" data-s="' + TR.esc(x.s) + '"><span><b>' + TR.esc(x.n) + '</b><span class="sub">' + TR.esc(x.s) + ' · ' + TR.esc(TR.st.CAT[x.s]) + '</span></span>' +
-                (t ? '<span class="tag ' + (t.from === 'dan' ? '' : 'approved') + '">' + (t.from === 'dan' ? 'set, from Dan' : 'set') + '</span>' : '') + '</button>';
-        }).join('') : '<p class="empty">No style matches.</p>') + '</div>';
-        var ed = '';
+        // the list keeps the catalog's own category order
+        var cats = TR.st.D.cats.map(function (c) { return c.name; }), html = '';
+        cats.forEach(function (cn) {
+            var rows = styles.filter(function (x) { return TR.st.CAT[x.s] === cn; });
+            if (!rows.length) return;
+            html += '<div class="pz-cat">' + TR.esc(cn) + '</div>' + rows.map(function (x) {
+                var t = TPL[x.s], un = TR.pzUnsaved(x.s);
+                var ch = t ? TR.plZones(x).filter(function (z) { return t[z]; }).map(function (z) { return TR.plLabel(x, z); }) : [];
+                var sub = un ? '<span class="pz-un">Unsaved changes</span>' : ch.length ? '<span class="pz-ch">Changed: ' + TR.esc(ch.join(', ')) + '</span>' : '';
+                return '<button type="button" class="pz-row' + (x.s === S.style ? ' on' : '') + '" data-s="' + TR.esc(x.s) + '"><span class="nm">' + TR.esc(x.n) + '</span><span class="cd">' + TR.esc(x.s) + '</span>' + sub + '</button>';
+            }).join('');
+        });
+        var list = '<aside class="pz-list"><div class="tools"><input type="search" id="pz-q" placeholder="Find a style or brand" value="' + TR.esc(S.q) + '" aria-label="Find a style">' +
+            '<div class="chips"><button type="button" class="chip' + (S.filter === 'all' ? ' on' : '') + '" data-pf="all">All ' + all.length + '</button><button type="button" class="chip' + (S.filter === 'changed' ? ' on' : '') + '" data-pf="changed">Changed here ' + changedN + '</button></div></div>' +
+            (html || '<p class="empty">No style matches.</p>') + '</aside>';
+        var main = '', side = '';
         if (p) {
             var zones = TR.plZones(p);
             if (zones.indexOf(S.zone) < 0) S.zone = zones[0];
-            var cols = p.c.filter(function (c) { return !c[4] && (S.zone === 'bk' ? c[6] : c[2]); });
+            var t = TPL[p.s] || {}, d = S.drafts[p.s] || {}, z = S.zone, back = TR.PZ[z].side === 'b';
+            var cols = p.c.filter(function (c) { return !c[4] && (back ? c[6] : c[2]); });
             if (!S.color || !cols.some(function (c) { return c[0] === S.color; })) S.color = cols[0] && cols[0][0];
-            if (!S.box || S.boxFor !== p.s + '|' + S.zone) { S.box = TR.box5(TR.plBox(p, S.zone)); S.boxFor = p.s + '|' + S.zone; S.dirty = false; }
-            var t = TPL[p.s];
-            ed = '<div class="pl-ed"><h3 style="margin:0 0 2px">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + '</span></h3>' +
-                '<p class="sub" style="margin:0 0 10px">' + (t ? 'Saved ' + (t.from === 'dan' ? 'from the placement tool' : 'here') + (t.at ? ', ' + TR.ago(t.at) : '') + '.' : 'Using the catalog\'s box. Save to set this style\'s default.') + '</p>' +
-                '<div class="chips" role="group" aria-label="Where">' + zones.map(function (z) { return '<button type="button" class="chip' + (z === S.zone ? ' on' : '') + '" data-z="' + z + '">' + TR.ZONES[z] + (t && t[z] ? '' : ' (catalog)') + '</button>'; }).join('') + '</div>' +
-                '<div class="pl-grid"><div class="stage" id="pl-stage"></div><div>' +
-                    '<label class="f">Preview colour</label><select id="pl-col" style="width:100%">' + cols.map(function (c) { return '<option' + (c[0] === S.color ? ' selected' : '') + '>' + TR.esc(c[0]) + '</option>'; }).join('') + '</select>' +
-                    '<label class="f" style="margin-top:12px">Sample logo</label><div class="chips"><button type="button" class="chip' + (S.wide ? '' : ' on') + '" data-w="0">Round</button><button type="button" class="chip' + (S.wide ? ' on' : '') + '" data-w="1">Wide</button></div>' +
-                    '<label class="f" style="margin-top:12px" for="pl-tilt">Tilt <span id="pl-tilt-v">' + (S.box[4] || 0) + '°</span></label><input type="range" id="pl-tilt" min="-45" max="45" step="1" value="' + (S.box[4] || 0) + '" style="width:100%">' +
-                    '<p class="sub" style="margin:12px 0">Drag the box to move it and the blue corner to size it. Applies to every new mockup, proof and build for this style; a store can still move its own logo.</p>' +
-                    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" type="button" id="pl-save">Save for this style</button>' + (t ? '<button class="btn quiet" type="button" id="pl-reset">Back to catalog</button>' : '') + '</div>' +
-                    '<p class="sub" id="pl-msg" style="margin-top:8px"></p>' +
-                '</div></div></div>';
+            main = '<section class="pz-main"><div class="pz-title"><h2>' + TR.esc(p.n) + '</h2><span class="sub">' + TR.esc(p.s) + (p.b ? ' · ' + TR.esc(p.b) : '') + ' · ' + TR.esc(TR.st.CAT[p.s]) + '</span></div>' +
+                '<div class="pz-zones" role="group" aria-label="Print location">' + zones.map(function (k) {
+                    var state = d[k] && !TR.sameBox(d[k], TR.liveBox(p, k)) ? ' <em>unsaved</em>' : t[k] ? ' <em>changed</em>' : '';
+                    return '<button type="button" class="chip' + (k === z ? ' on' : '') + '" data-z="' + k + '">' + TR.esc(TR.plLabel(p, k)) + state + '</button>';
+                }).join('') + '</div>' +
+                '<div class="pz-photo"><div class="pz-stage" id="pz-stage"></div></div>' +
+                '<p class="sub" style="margin:8px 0 0">' + (back ? 'Back photo.' : 'Front photo.') + ' Dashed grey boxes are this style\'s other ' + (back ? 'back' : 'front') + ' spots' + (t[z] ? '; the dashed orange one is where Dan had it' : '') + '.</p></section>';
+            var others = TR.st.D ? Object.keys(TR.st.P).filter(function (s) { var o = TR.st.P[s]; return s !== p.s && TR.plZones(o).indexOf(z) >= 0; }) : [];
+            side = '<aside class="pz-side">' +
+                '<div class="card"><h3>' + TR.esc(TR.plLabel(p, z)) + '</h3><p class="sub" style="margin:0 0 10px">Prints up to ' + TR.plInches(p, z) + '. ' +
+                    (t[z] ? 'Changed here' + (t.by ? ' by ' + TR.esc(t.by) : '') + (t.at ? ', ' + TR.ago(t.at) : '') + '.' : 'Dan\'s box, from his placement tool.') + '</p>' +
+                    '<div class="pz-nums">' + [['Left', 0], ['Top', 1], ['Width', 2], ['Height', 3]].map(function (a) {
+                        return '<label>' + a[0] + ' %<input type="number" step="0.1" min="0" max="100" data-n="' + a[1] + '"></label>';
+                    }).join('') + '</div>' +
+                    '<label class="f" style="margin-top:12px" for="pz-tilt">Tilt <span id="pz-tilt-v"></span></label><input type="range" id="pz-tilt" min="-45" max="45" step="1" style="width:100%">' +
+                    '<div class="row2" style="margin-top:10px"><button class="btn" type="button" id="pz-center">Center on garment</button>' +
+                    '<button class="btn quiet" type="button" id="pz-dan"' + (TR.sameBox(TR.pzBox(p, z), TR.danBox(p, z)) ? ' hidden' : '') + '>Back to Dan\'s box</button></div></div>' +
+                '<div class="card"><label class="f" for="pz-col">Preview on</label><select id="pz-col" style="width:100%">' + cols.map(function (c) { return '<option' + (c[0] === S.color ? ' selected' : '') + '>' + TR.esc(c[0]) + '</option>'; }).join('') + '</select>' +
+                    '<label class="f" style="margin-top:10px">Sample logo</label><div class="chips"><button type="button" class="chip' + (S.wide ? '' : ' on') + '" data-w="0">Round</button><button type="button" class="chip' + (S.wide ? ' on' : '') + '" data-w="1">Wide</button></div>' +
+                    '<label class="f" style="margin-top:10px" for="pz-copy">Copy this spot from another style</label><div class="row2"><select id="pz-copy" style="flex:1;min-width:0"><option value="">Pick a style</option>' +
+                        others.map(function (s) { var o = TR.st.P[s]; return '<option value="' + TR.esc(s) + '">' + TR.esc(s + ' · ' + o.n) + '</option>'; }).join('') + '</select><button class="btn" type="button" id="pz-copy-go">Copy</button></div></div>' +
+                '<div class="card"><div class="row2"><button class="btn pri" type="button" id="pz-save">Save</button><button class="btn quiet" type="button" id="pz-undo">Undo</button></div><p class="sub" id="pz-msg" style="margin:8px 0 0"></p></div>' +
+                '<ul class="pz-help"><li>Every box starts where Dan\'s placement tool put it. Change one only when a logo looks wrong on this garment.</li>' +
+                    '<li>Drag the box to move it, the corner to size it. Arrow keys nudge, shift and arrows resize, [ and ] tilt.</li>' +
+                    '<li>Left chest and Sleeve are the wearer\'s left, so they sit on the right of the photo.</li>' +
+                    '<li>The logo shrinks to fit the box and sits at its top, centred.</li>' +
+                    '<li>Saving changes every new mockup, proof and build for this style. A store that moved its own logo keeps it.</li></ul>' +
+                '</aside>';
         }
-        el.innerHTML = '<div class="calhead"><h2 style="min-width:0">Logo placements</h2><span class="sp"></span><span class="sub">' + setCount + ' of ' + Object.keys(TR.st.P).length + ' styles set</span></div>' +
-            '<div class="pl-wrap"><div><div class="toolbar" style="margin-top:0"><input type="search" id="pl-q" placeholder="Find a style" value="' + TR.esc(S.q) + '" aria-label="Find a style">' +
-            '<select id="pl-f" aria-label="Show"><option value="all"' + (S.filter === 'all' ? ' selected' : '') + '>All styles</option><option value="set"' + (S.filter === 'set' ? ' selected' : '') + '>Set</option><option value="unset"' + (S.filter === 'unset' ? ' selected' : '') + '>Not set</option></select></div>' + list + '</div>' + ed + '</div>';
+        el.innerHTML = '<div class="pz-head"><h2>Logo placements</h2><span class="sub">' + changedN + ' of ' + all.length + ' styles changed from Dan\'s boxes</span></div><div class="pz">' + list + main + side + '</div>';
         TR.wirePlacements();
     },
 
-    drawPl: function () {
-        var S = TR.st.pl, p = TR.st.P[S.style], stage = TR.$('pl-stage'); if (!p || !stage) return;
-        var c = p.c.filter(function (x) { return x[0] === S.color; })[0] || p.c[0], src = S.zone === 'bk' ? c[6] : c[2];
-        stage.innerHTML = '<span class="mk"><img class="g" alt="' + TR.esc(p.n + ' in ' + c[0]) + '" src="' + TR.esc(src) + '">' + TR.lbHtml(S.box, TR.sampleLogo(S.wide), 'pl-lb') + '</span>';
-        var tv = function () { var v = TR.$('pl-tilt-v'); if (v) v.textContent = (S.box[4] || 0) + '°'; };
-        TR.wireBoxEditor({ stage: stage, id: 'pl-lb', get: function () { return S.box; }, set: function (b) { S.box = b; S.dirty = true; }, moved: tv, redraw: function () { TR.drawPl(); tv(); }, tilt: TR.$('pl-tilt') });
+    // The stage: the photo, the box being edited with a sample logo, the
+    // other spots on the same side as grey outlines, and Dan's original as
+    // an orange one when it has been moved.
+    drawPz: function () {
+        var S = TR.st.pl, p = TR.st.P[S.style], stage = TR.$('pz-stage'); if (!p || !stage) return;
+        var z = S.zone, back = TR.PZ[z].side === 'b', box = TR.pzBox(p, z);
+        var c = p.c.filter(function (x) { return x[0] === S.color; })[0] || p.c[0], src = back ? c[6] : c[2];
+        var ghost = function (b, label, cls) {
+            b = TR.box5(b);
+            return '<div class="pz-ghost' + (cls ? ' ' + cls : '') + '" style="left:' + b[0] * 100 + '%;top:' + b[1] * 100 + '%;width:' + b[2] * 100 + '%;height:' + b[3] * 100 + '%' + (b[4] ? ';transform:rotate(' + b[4] + 'deg)' : '') + '"><span>' + TR.esc(label) + '</span></div>';
+        };
+        var g = TR.plZones(p).filter(function (k) { return k !== z && TR.PZ[k].side === TR.PZ[z].side; }).map(function (k) { return ghost(TR.pzBox(p, k), TR.plLabel(p, k), ''); }).join('');
+        var dan = TR.danBox(p, z);
+        if (dan && !TR.sameBox(dan, box)) g += ghost(dan, 'Dan', 'dan');
+        stage.innerHTML = '<span class="mk"><img class="g" crossorigin="anonymous" alt="' + TR.esc(p.n + ' in ' + c[0] + (back ? ', back' : '')) + '" src="' + TR.esc(src) + '">' + g + TR.lbHtml(box, TR.sampleLogo(S.wide), 'pz-lb') + '</span>';
+        TR.wireBoxEditor({ stage: stage, id: 'pz-lb', get: function () { return TR.pzBox(p, z); }, set: function (b) { TR.pzSet(b); }, moved: TR.pzReadout, redraw: function () { TR.drawPz(); TR.pzReadout(); }, tilt: TR.$('pz-tilt') });
+        TR.pzReadout();
+    },
+
+    pzSet: function (b) {
+        var S = TR.st.pl;
+        (S.drafts[S.style] = S.drafts[S.style] || {})[S.zone] = TR.box5(b).map(function (v, i) { return i < 4 ? Math.round(v * 10000) / 10000 : v; });
+    },
+
+    // The numbers, the tilt and the Save button, without redrawing the photo,
+    // so dragging stays smooth.
+    pzReadout: function () {
+        var S = TR.st.pl, p = TR.st.P[S.style]; if (!p) return;
+        var b = TR.pzBox(p, S.zone);
+        document.querySelectorAll('.pz-nums input').forEach(function (i) { if (document.activeElement !== i) i.value = (b[+i.dataset.n] * 100).toFixed(1); });
+        var tl = TR.$('pz-tilt'); if (tl) tl.value = b[4] || 0;
+        var tv = TR.$('pz-tilt-v'); if (tv) tv.textContent = (b[4] || 0) + '°';
+        var dn = TR.$('pz-dan'); if (dn) dn.hidden = TR.sameBox(b, TR.danBox(p, S.zone));
+        var n = TR.pzUnsaved(S.style), sv = TR.$('pz-save'), un = TR.$('pz-undo');
+        if (sv) { sv.disabled = !n; sv.textContent = n ? 'Save ' + n + (n === 1 ? ' change' : ' changes') : 'Saved'; }
+        if (un) un.disabled = !n;
     },
 
     wirePlacements: function () {
-        var S = TR.st.pl, el = TR.$('detail');
-        var qq = TR.$('pl-q');
-        qq.oninput = function () { S.q = this.value; var pos = this.selectionStart; TR.renderPlacements(); var n = TR.$('pl-q'); n.focus(); n.setSelectionRange(pos, pos); };
-        TR.$('pl-f').onchange = function () { S.filter = this.value; TR.renderPlacements(); };
-        var leave = function (fn) { return function () { if (S.dirty && !window.confirm('Leave this box without saving?')) return; S.dirty = false; fn.apply(this, arguments); }; };
-        el.querySelectorAll('.pl-row').forEach(function (b) { b.onclick = leave(function () { S.style = b.dataset.s; S.box = null; TR.renderPlacements(); }); });
-        el.querySelectorAll('[data-z]').forEach(function (b) { b.onclick = leave(function () { S.zone = b.dataset.z; S.box = null; TR.renderPlacements(); }); });
+        var S = TR.st.pl, el = TR.$('detail'), p = TR.st.P[S.style];
+        var qq = TR.$('pz-q');
+        qq.oninput = function () { S.q = this.value; var pos = this.selectionStart; TR.renderPlacements(); var n = TR.$('pz-q'); n.focus(); n.setSelectionRange(pos, pos); };
+        el.querySelectorAll('[data-pf]').forEach(function (b) { b.onclick = function () { S.filter = b.dataset.pf; TR.renderPlacements(); }; });
+        // Drafts are kept per style while the page is open, so moving to
+        // another style or zone loses nothing.
+        el.querySelectorAll('.pz-row').forEach(function (b) { b.onclick = function () { S.style = b.dataset.s; S.zone = null; TR.renderPlacements(); }; });
+        if (!p) return;
+        el.querySelectorAll('[data-z]').forEach(function (b) { b.onclick = function () { S.zone = b.dataset.z; TR.renderPlacements(); }; });
         el.querySelectorAll('[data-w]').forEach(function (b) { b.onclick = function () { S.wide = b.dataset.w === '1'; TR.renderPlacements(); }; });
-        var col = TR.$('pl-col'); if (!col) return;
-        col.onchange = function () { S.color = this.value; TR.drawPl(); };
-        TR.$('pl-tilt').oninput = function () { S.box[4] = Number(this.value) || 0; S.dirty = true; TR.drawPl(); TR.$('pl-tilt-v').textContent = S.box[4] + '°'; };
-        TR.drawPl();
-        var msg = TR.$('pl-msg');
-        TR.$('pl-save').onclick = function () {
-            var t = TR.tplOf(TR.st.P[S.style]) || {}, boxes = {};
-            ['fc', 'lc', 'pb', 'bk'].forEach(function (z) { if (t[z]) boxes[z] = t[z]; });
-            var b = S.box.slice(0, 4).map(function (v) { return Math.round(v * 10000) / 10000; }); if (S.box[4]) b.push(S.box[4]);
-            boxes[S.zone] = b;
-            TR.api('/team-requests/placements/save', { body: { style: S.style, boxes: boxes } }).then(function (j) {
-                if (j.__status !== 200) { msg.textContent = j.error || j.reason || ('HTTP ' + j.__status); return; }
-                TR.st.TPL = j.placements; S.dirty = false; TR.renderPlacements(); TR.$('pl-msg').textContent = 'Saved. New mockups, proofs and builds for this style use it.';
+        TR.$('pz-col').onchange = function () { S.color = this.value; TR.drawPz(); };
+        TR.$('pz-tilt').oninput = function () { var b = TR.pzBox(p, S.zone); b[4] = Number(this.value) || 0; TR.pzSet(b); TR.drawPz(); };
+        el.querySelectorAll('.pz-nums input').forEach(function (i) {
+            i.onchange = function () {
+                var v = Number(this.value); if (!isFinite(v)) return;
+                var b = TR.pzBox(p, S.zone), k = +this.dataset.n;
+                b[k] = Math.max(k > 1 ? 0.02 : 0, Math.min(1, v / 100));
+                b[0] = Math.min(b[0], 1 - b[2]); b[1] = Math.min(b[1], 1 - b[3]);
+                TR.pzSet(b); TR.drawPz();
+            };
+        });
+        TR.$('pz-dan').onclick = function () { TR.pzSet(TR.danBox(p, S.zone)); TR.renderPlacements(); };
+        TR.$('pz-copy-go').onclick = function () {
+            var from = TR.st.P[TR.$('pz-copy').value]; if (!from) return;
+            TR.pzSet(TR.liveBox(from, S.zone)); TR.renderPlacements();
+            TR.$('pz-msg').textContent = 'Copied from ' + from.s + '. Check it fits this garment, then Save.';
+        };
+        // The garment's edges at the box's height, the placement tool's own
+        // rule: a pixel is garment when R+G+B is under 735.
+        TR.$('pz-center').onclick = function () {
+            var img = TR.$('pz-stage').querySelector('img.g'), msg = TR.$('pz-msg');
+            try {
+                var cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+                var cx = cv.getContext('2d'); cx.drawImage(img, 0, 0);
+                var b = TR.pzBox(p, S.zone), y = Math.min(cv.height - 1, Math.round((b[1] + b[3] / 2) * cv.height));
+                var row = cx.getImageData(0, y, cv.width, 1).data, l = -1, r = -1;
+                for (var x = 0; x < cv.width; x++) { var k = x * 4; if (row[k] + row[k + 1] + row[k + 2] < 735) { if (l < 0) l = x; r = x; } }
+                if (l < 0) { msg.textContent = 'Could not find the garment edge at that height.'; return; }
+                b[0] = Math.max(0, Math.min(1 - b[2], (l + r) / 2 / cv.width - b[2] / 2));
+                TR.pzSet(b); TR.drawPz(); msg.textContent = 'Centred on the garment at the box\'s height.';
+            } catch (e) { msg.textContent = 'Could not read the photo to centre it.'; }
+        };
+        TR.$('pz-undo').onclick = function () { delete S.drafts[S.style]; TR.renderPlacements(); };
+        TR.$('pz-save').onclick = function () {
+            var btn = this, msg = TR.$('pz-msg'), d = S.drafts[p.s] || {}, boxes = {};
+            // Send every zone that differs from Dan's, saved before or
+            // changed now. A zone put back to Dan's box is simply left out.
+            TR.plZones(p).forEach(function (z) {
+                var b = d[z] || TR.liveBox(p, z);
+                if (b && !TR.sameBox(b, TR.danBox(p, z))) { b = TR.box5(b); boxes[z] = b[4] ? b : b.slice(0, 4); }
+            });
+            btn.disabled = true; msg.textContent = 'Saving...';
+            TR.api('/team-requests/placements/save', { body: { style: p.s, by: TR.myName(), boxes: boxes } }).then(function (j) {
+                if (j.__status !== 200) { btn.disabled = false; msg.textContent = j.error || j.reason || ('Could not save, HTTP ' + j.__status); return; }
+                TR.st.TPL = j.placements; delete S.drafts[p.s]; TR.renderPlacements();
+                TR.$('pz-msg').textContent = Object.keys(boxes).length ? 'Saved. New mockups, proofs and builds for ' + p.s + ' use it.' : 'Saved. ' + p.s + ' is back on Dan\'s boxes.';
             });
         };
-        var rs = TR.$('pl-reset');
-        if (rs) TR.arm(rs, 'Sure? This drops the saved boxes', function () {
-            TR.api('/team-requests/placements/save', { body: { style: S.style, reset: true } }).then(function (j) {
-                if (j.__status !== 200) { msg.textContent = j.error || ('HTTP ' + j.__status); return; }
-                TR.st.TPL = j.placements; S.box = null; S.dirty = false; TR.renderPlacements(); TR.$('pl-msg').textContent = 'Back to the catalog\'s boxes.';
-            });
-        });
+        TR.drawPz();
     },
 
     // ---------- release calendar ----------

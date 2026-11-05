@@ -1713,15 +1713,23 @@ to the contact form email only if that save fails. Staff work them in
 - **Mockups come from the 420 px catalog photos**, so they are placeholders for
   review, not storefront images.
 - **Where a logo sits is decided in three layers, most specific first**: the
-  store's own box (Move logo), then the STYLE template (the Placements screen,
-  KV `treqplace`), then `defaultBox`. `TeamReqUtils.boxFor` takes the template
-  as an argument so the staff page and `proof.html` resolve it identically; the
-  proof GET sends only the request's own styles. 67 templates were seeded from
-  Dan's Logo Placement Tool (`from: 'dan'`). His boxes are fractions of the
-  TRIMMED garment photo, so each was mapped through the garment's bounding box
-  onto our full catalog photo before seeding; pasting his numbers in raw puts
-  every logo in the wrong place. Saving a style on the Placements screen
-  changes every store that has not moved its own logo.
+  store's own box (Move logo), then a STYLE change made on the Placements tab
+  (KV `treqplace`, only the zones staff changed: fc lc pb bk bn sl), then the
+  catalog's own box. `TeamReqUtils.boxFor` and `loc2` take the style changes
+  as an argument so the staff page and `proof.html` resolve them identically;
+  the proof GET sends only the request's own styles.
+- **The catalog's boxes ARE Dan's placements. Do not import anything to get
+  them.** `fcb`, `lcb`, `pb` and `loc` in the builder catalog are identical,
+  number for number, to `builder_data.json` in his team-store-builder repo,
+  which is what his `render_mockups.py` draws from. They are fractions of the
+  TRIMMED garment photo, and our catalog photos are already trimmed (148 of
+  151 sampled carry under 0.5% white margin), so they land where his do.
+  The `data/placements.json` export that ships with his Logo Placement Tool
+  is NOT that data: it is an older dataset recorded against full size
+  supplier photos (1200 x 1800, 840 x 1000), several garments carry one
+  identical untouched default (0.32, 0.24, 0.36, 0.3) and ST350's back box is
+  a 12% wide sliver. It was seeded over the catalog on 2026-11-05, pulled
+  every mockup off his numbers, and was removed the same day.
 - **The page is meant to be picked up cold.** Each request shows one "Next:"
   line worked out from its state, the list refreshes itself every minute, and
   rarely used settings (collection tag, build without codes, the approval link)

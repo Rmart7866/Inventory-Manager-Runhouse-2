@@ -212,6 +212,12 @@ r = await call('/team-requests/placements/save', { method: 'POST', headers: STAF
 check('a tilt past 45 degrees is refused', r.status === 400);
 r = await call('/team-requests/placements', { headers: STAFF });
 check('and reads back', (await r.json()).placements.PC380.fc[2] === 0.38);
+r = await call('/team-requests/placements/save', { method: 'POST', headers: STAFF, body: { style: 'ST350', by: 'Ryan', boxes: { bn: [0.42, 0.05, 0.15, 0.08], sl: [0.8, 0.2, 0.1, 0.1, 10] } } });
+j = await r.json();
+check('back neck and sleeve save, with who saved them', r.status === 200 && j.placements.ST350.bn[3] === 0.08 && j.placements.ST350.sl[4] === 10 && j.placements.ST350.by === 'Ryan');
+r = await call('/team-requests/placements/save', { method: 'POST', headers: STAFF, body: { style: 'ST350', boxes: {} } });
+j = await r.json();
+check('saving no changed zones removes the style, so it follows the catalog again', r.status === 200 && !j.placements.ST350 && !!j.placements.PC380);
 
 console.log('\nBuilding drafts');
 const plan = planProduct('Walpole Track & Field', 'Walpole Track & Field Team Store', { style: 'PC380', name: 'Port & Co Performance Tee', category: 'Short Sleeve T-Shirts', sizes: ['S', 'M', 'L'], price: 25, colors: [{ name: 'Deep Navy', label: 'Deep Navy w/ Full Chest Logo', image: 'https://up/1' }] });
