@@ -1008,7 +1008,9 @@ var TR = {
         });
         if (!w.items.length) problems.push('There are no products on this request.');
         if (!String(w.team || '').trim()) problems.push('The request needs a team name.');
-        TR.codeProblems().forEach(function (l) { problems.push(l + ' needs its Logo Master Folder code (Logos tab), which goes in every colour name.'); });
+        // Codes are required unless staff tick "Build without logo codes" for
+        // this store, in which case colour names fall back to "w/ Full Chest Logo".
+        if (!w.noCodes) TR.codeProblems().forEach(function (l) { problems.push(l + ' needs its Logo Master Folder code (Logos tab), which goes in every colour name. Or tick Build without logo codes below.'); });
         var upd = r.req && r.req.mode === 'update';
         // Race and event merch stays in site search; team gear does not.
         if (typeof w.searchable !== 'boolean') w.searchable = /race|event/i.test((r.req && r.req.group) || '');
@@ -1019,6 +1021,7 @@ var TR = {
             (upd ? '<div class="msg">This adds to the existing store <b>' + TR.esc(r.req.store && r.req.store.name) + '</b>. New products take that store\'s tag and naming, styles it already carries are skipped, and no collection is created.</div>'
                 : '<div class="kv"><label class="f" for="b-tag">Collection tag</label><div><input type="text" id="b-tag" value="' + TR.esc(w.tag || '') + '" style="width:100%"><div class="sub">Every product gets this tag, and the new smart collection, named for the team, is TAG equals this. The team slug, the same tag the back office automation uses.</div></div></div>') +
             '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-search"' + (w.searchable ? ' checked' : '') + '> Keep in site search: public race or event merch. Team, club and school gear is hidden from search.</label>' +
+            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-nocodes"' + (w.noCodes ? ' checked' : '') + '> Build without logo codes: colour names read "Jet Black w/ Full Chest Logo" instead of "Jet Black (D055 (FC))". Off by default, because the codes are how the decorator matches print files.</label>' +
             (problems.length ? '<div class="msg bad"><b>Fix these first:</b><br>' + problems.map(TR.esc).join('<br>') + '</div>' : '') +
             (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(w.logos[k].label || k); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
             '<p class="sub">Builds every product as a <b>draft</b>: Color then Size options with sizes spelled out, colours named by logo code ("Jet Black (D055 (FC))"), a front mockup per colour and a back one where there is a back logo' + (upd ? '' : ', plus an <b>unpublished</b> collection') + '. Nothing appears on the site until someone publishes it. Mockups use the 420 px catalog photos, so swap in proper ones before going live.</p>' +
@@ -1026,6 +1029,8 @@ var TR = {
             '<div id="b-out"></div>';
         var bt = TR.$('b-tag'); if (bt) bt.addEventListener('input', function () { w.tag = this.value; TR.touch(); });
         TR.$('b-search').addEventListener('change', function () { w.searchable = this.checked; TR.touch(); });
+        // Redraw so the code requirement appears or disappears at once.
+        TR.$('b-nocodes').addEventListener('change', function () { w.noCodes = this.checked; TR.touch(); TR.paneBuild(); });
         TR.$('b-plan').onclick = TR.dryRun;
         TR.$('b-go').onclick = TR.build;
         if (TR.st.plan) TR.showPlan(TR.st.plan);
