@@ -665,17 +665,17 @@ function sendReq(bfm){if(SENDING)return;if(!valid()){step(1);$('e-1').hidden=fal
   lines.push('','--- machine-readable (do not edit) ---','TRHSB'+JSON.stringify(js)+'TRHSB');
   $('h-name').value=t.name;$('h-email').value=t.email;$('h-phone').value=t.phone||'';$('h-subj').value=UPD?'Team Store Update: '+S.store.n:'Team Store Request'+(bfm?' (build for me)':'')+': '+t.team;$('h-body').value=lines.join('\n');
   $('h-ret').value=location.pathname+'?submitted=1';var sb=bfm?$('bfm-send'):$('send');SENDING=true;[$('send'),$('bfm-send')].forEach(function(b){b.disabled=true});sb.textContent='Sending...';var f=$('sb-form');
-  /* THE REQUEST GOES TO THE STAFF INBOX, NOT TO EMAIL. It is saved by the
-     Worker (team-requests.html is where staff see it), and only if that save
-     fails or hangs does the old contact form email go out instead, so no
-     request is ever lost. A success goes to the same thank-you screen the
-     email path always returned to. */
+  /* EVERY REQUEST GOES TWO PLACES. It is saved to the staff inbox
+     (team-requests.html) AND emailed through the contact form, because the
+     back office automation that builds stores reads the request emails in
+     Gmail (the TRHSB block). Saving alone left that automation with nothing.
+     The save goes first because the email form is what leaves this page; it
+     gets 20 seconds, and the email goes out whether the save worked or not. */
   var mail=function(){if(f.requestSubmit)f.requestSubmit();else f.submit()};
   var ac=window.AbortController?new AbortController():null,tmo=setTimeout(function(){if(ac)ac.abort()},20000);
   fetch(WURL+'/team-requests/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request:js,text:lines.join('\n'),hp:($('sb-hp')||{}).value||''}),signal:ac?ac.signal:undefined})
-    .then(function(r){return r.ok?r.json():Promise.reject(r.status)})
-    .then(function(j){clearTimeout(tmo);if(!j||!j.ok)throw 0;location.href=location.pathname+'?submitted=1'})
-    .catch(function(){clearTimeout(tmo);mail()});
+    .catch(function(){})
+    .then(function(){clearTimeout(tmo);mail()});
   /* A successful send LEAVES this page (return_to ?submitted=1), so the
      buttons only need to come back if it never left. They used to come
      back on a 15 second timer whether or not the post had finished, and a
