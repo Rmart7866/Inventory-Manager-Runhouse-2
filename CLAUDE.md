@@ -1726,7 +1726,11 @@ to the contact form email only if that save fails. Staff work them in
   line worked out from its state, the list refreshes itself every minute, and
   rarely used settings (collection tag, build without codes, the approval link)
   are folded away rather than removed. Keep new options behind "More options"
-  unless most stores need them.
+  unless most stores need them. The home screen is the list on its own, full
+  width, with Open grouped by who claimed each request (unclaimed first).
+  "Claim" sets Handled by to the name in "You are" and moves New to In
+  progress, through the same base/409 check as Save. Names are per browser
+  because the page has no logins.
 - **The customer proof link is an ALLOWLIST.** `proof.html?id=&t=` reads
   `proofView()` in `teamreq-proof.js`, built field by field, so a field added to
   the record later cannot leak by default. Never emails, notes, costs or the

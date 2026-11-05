@@ -57,7 +57,7 @@ label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4
 #gate .err { color: var(--bad); margin-top: 10px; }
 
 /* layout */
-#app { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: calc(100vh - 63px); }
+#app { display: grid; grid-template-columns: 360px minmax(0, 1fr); min-height: calc(100vh - 63px); }
 #side { border-right: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
 #side .filters { display: flex; border-bottom: 1px solid var(--line); }
 #side .filters button { flex: 1; background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 4px; cursor: pointer; color: var(--muted); font-weight: 600; }
@@ -201,10 +201,53 @@ label.f { font-size: 13px; color: var(--muted); }
 .tag { font-size: 13px; font-weight: 600; padding: 1px 7px; border: 1px solid var(--line-2); color: var(--muted); }
 .tag.approved { color: var(--ok); border-color: var(--ok); }
 .tag.changes, .tag.stale, .tag.closing, .tag.dup { color: var(--warn); border-color: var(--warn); }
-#side .me { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+#side .me { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 #side .me span { white-space: nowrap; }
 #side .me input { flex: 1; min-width: 0; min-height: 30px; padding: 4px 8px; }
 #side .filters button { font-size: 14px; }
+#side .filters .n { color: var(--muted-2); font-weight: 600; margin-left: 4px; }
+body:not(.home) #side .filters { overflow-x: auto; }
+body:not(.home) #side .filters button { flex: none; padding: 10px 7px; font-size: 13px; }
+body:not(.home) #side .filters .n { margin-left: 2px; }
+body:not(.home) #side .filters [data-f=done] .n, body:not(.home) #side .filters [data-f=archived] .n { display: none; }
+
+/* the list: a sidebar while a request is open, the whole page otherwise */
+.homeh { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.lhead { padding: 10px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.ltitle { display: none; margin: 0; font-size: 22px; }
+.backlink { background: none; border: 0; color: var(--accent); font: inherit; font-size: 14px; cursor: pointer; padding: 0; text-align: left; }
+.who { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.who i { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; font-style: normal; font-size: 11.5px; font-weight: 800; color: #0d1117; flex: none; }
+.who.none { color: var(--muted-2); font-weight: 500; font-style: italic; }
+.row .who { margin-top: 6px; }
+body.home #app { grid-template-columns: minmax(0, 1fr); }
+body.home #main { display: none; }
+body.home #side { border-right: 0; background: var(--bg); }
+body.home .backlink { display: none; }
+body.home .ltitle { display: block; }
+body.home .lhead { flex-direction: row; align-items: center; justify-content: space-between; padding: 22px 28px 14px; border: 0; }
+body.home #side .me { font-size: 14px; }
+body.home #side .me input { width: 180px; flex: none; }
+body.home #side .filters { padding: 0 28px; }
+body.home #side .filters button { flex: none; padding: 10px 14px; }
+body.home #side .search { padding: 14px 28px; border: 0; }
+body.home #side .search input { max-width: 420px; }
+body.home #list { padding: 0 28px 60px; overflow: visible; }
+.rtable { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.rtable th:nth-child(1) { width: 34%; } .rtable th:nth-child(2) { width: 20%; } .rtable th:nth-child(3) { width: 15%; }
+.rtable th:nth-child(4) { width: 8%; } .rtable th:nth-child(5) { width: 13%; } .rtable th:nth-child(6) { width: 10%; }
+@media (max-width: 900px) { .rtable th:nth-child(1) { width: 50%; } .rtable th:nth-child(2) { width: 28%; } .rtable th:nth-child(3) { width: 22%; } }
+.rtable th { text-align: left; font-size: 13px; color: var(--muted); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--line-2); }
+.rtable td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; }
+.rtable tbody tr { cursor: pointer; }
+.rtable tbody tr:hover td { background: var(--surface); }
+.rtable .tn { font-weight: 700; font-size: 15px; }
+.rtable .te { color: var(--muted-2); font-size: 13px; margin-top: 2px; }
+.rtable .dim { color: var(--muted); }
+.rgroup { margin: 22px 0 6px; font-size: 15px; display: flex; align-items: center; gap: 10px; }
+.rgroup .c { color: var(--muted-2); font-weight: 500; font-size: 13.5px; }
+.claim { font-size: 13px; padding: 3px 10px; margin-left: 8px; }
+@media (max-width: 900px) { .rtable .opt { display: none; } }
 
 /* request header */
 .rel label { font-size: 13px; }
@@ -277,7 +320,7 @@ table.sales td.owe { color: var(--warn); font-weight: 700; }
 </head>
 <body>
 <header class="top">
-  <h1>Team store requests</h1>
+  <h1><button type="button" id="home-h" class="homeh">Team store requests</button></h1>
   <span class="sp"></span>
   <button class="btn" id="cal-open" type="button">Calendar</button>
   <button class="btn" id="sales-open" type="button">Store sales</button>
@@ -294,15 +337,20 @@ table.sales td.owe { color: var(--warn); font-weight: 700; }
 
 <div id="app" class="hidden">
   <aside id="side">
+    <div class="lhead">
+      <button type="button" id="home-back" class="backlink">&larr; All requests</button>
+      <h2 class="ltitle">Requests</h2>
+      <label class="me"><span>You are</span><input type="text" id="me" placeholder="Your name" autocomplete="off"></label>
+    </div>
     <div class="filters" id="filters">
       <button type="button" data-f="open" class="on">Open</button>
+      <button type="button" data-f="unclaimed">Unclaimed</button>
       <button type="button" data-f="mine">Mine</button>
       <button type="button" data-f="done">Done</button>
       <button type="button" data-f="archived">Archived</button>
       <button type="button" data-f="all">All</button>
     </div>
-    <div class="search"><input type="search" id="q" placeholder="Search team or email" aria-label="Search team or email">
-      <label class="me"><span>Your name</span><input type="text" id="me" placeholder="for the Mine filter" autocomplete="off"></label></div>
+    <div class="search"><input type="search" id="q" placeholder="Search team or email" aria-label="Search team or email"></div>
     <div id="list"></div>
   </aside>
   <main id="main"><div id="detail"><p class="empty">Pick a request on the left.</p></div></main>
@@ -312,6 +360,6 @@ table.sales td.owe { color: var(--warn); font-weight: 700; }
 
 <script src="catalog-client.js?v=23"></script>
 <script src="team-request-utils.js?v=3"></script>
-<script src="team-requests.js?v=13"></script>
+<script src="team-requests.js?v=14"></script>
 </body>
 </html>

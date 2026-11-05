@@ -54,6 +54,8 @@ var TR = {
             TR.renderList();
         });
         TR.$('q').addEventListener('input', function () { TR.st.q = this.value.toLowerCase(); TR.renderList(); });
+        TR.$('home-back').addEventListener('click', function () { TR.home(); });
+        TR.$('home-h').addEventListener('click', function () { TR.home(); });
         TR.$('me').value = TR.myName();
         TR.$('me').addEventListener('change', function () { try { localStorage.setItem('rhStaffName', this.value.trim()); } catch (e) { /* private mode */ } TR.renderList(); });
         // The list refreshes itself: every minute, and when you come back to
@@ -119,35 +121,138 @@ var TR = {
     },
 
     // ---------- list ----------
-    renderList: function () {
-        var f = TR.st.filter, q = TR.st.q, me = TR.myName().toLowerCase();
-        var dups = TR.duplicates();
-        var rows = TR.st.list.filter(function (r) {
-            if (f === 'mine' && (!me || String(r.a || '').toLowerCase() !== me || ['done', 'archived'].indexOf(r.s) >= 0)) return false;
-            if (f === 'open' && ['new', 'progress', 'waiting'].indexOf(r.s) < 0) return false;
-            if (f === 'done' && r.s !== 'done') return false;
-            if (f === 'archived' && r.s !== 'archived') return false;
-            if (q && (String(r.t) + ' ' + String(r.e)).toLowerCase().indexOf(q) < 0) return false;
-            return true;
+    // The home screen is the list on its own, the whole page, and a request
+    // opens beside a narrow copy of it. The calendar, sales and placements
+    // screens keep the narrow copy too, so the way back is always one click.
+    isHome: function () { return !TR.st.rec && (!TR.st.view || TR.st.view === 'home' || TR.st.view === 'detail'); },
+
+    home: function () {
+        if (TR.st.dirty && TR.st.rec && !window.confirm('You have unsaved changes on this request. Leave them?')) return;
+        TR.st.rec = null; TR.st.dirty = false; TR.st.view = 'home';
+        history.replaceState(null, '', location.pathname);
+        TR.$('detail').innerHTML = '';
+        TR.renderList();
+        window.scrollTo(0, 0);
+    },
+
+    flashHome: function (text) { TR.st.homeMsg = text; },
+
+    FILTERS: {
+        open: function (r) { return ['new', 'progress', 'waiting'].indexOf(r.s) >= 0; },
+        unclaimed: function (r) { return ['new', 'progress', 'waiting'].indexOf(r.s) >= 0 && !String(r.a || '').trim(); },
+        mine: function (r, me) { return !!me && String(r.a || '').trim().toLowerCase() === me && ['done', 'archived'].indexOf(r.s) < 0; },
+        done: function (r) { return r.s === 'done'; },
+        archived: function (r) { return r.s === 'archived'; },
+        all: function () { return true; },
+    },
+
+    // Who has a request, as a coloured initial and a name, so it reads at a
+    // glance down a long list. The colour comes from the name, so one person
+    // is always the same colour.
+    badge: function (name) {
+        var h = 0;
+        for (var k = 0; k < name.length; k++) h = (h * 31 + name.toLowerCase().charCodeAt(k)) >>> 0;
+        var col = ['#4c9bff', '#3fd28b', '#ffb547', '#c3a6ff', '#ff7a90', '#34e0ff', '#f5e663', '#9fe870'][h % 8];
+        var ini = name.split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
+        return '<i style="background:' + col + '">' + TR.esc(ini) + '</i>';
+    },
+
+    whoHtml: function (name) {
+        name = String(name || '').trim();
+        if (!name) return '<span class="who none">Not claimed</span>';
+        var me = TR.myName().trim().toLowerCase();
+        return '<span class="who">' + TR.badge(name) + (name.toLowerCase() === me ? 'You' : TR.esc(name)) + '</span>';
+    },
+
+    tagsHtml: function (r, dups) {
+        var tags = [];
+        if (r.ap) tags.push('<span class="tag ' + r.ap + '">' + TR.APPROVAL[r.ap] + '</span>');
+        var cd = TR.daysUntil(r.cl);
+        if (cd != null && cd >= 0 && cd <= 7 && ['done', 'archived'].indexOf(r.s) < 0) tags.push('<span class="tag closing">Closes ' + (cd === 0 ? 'today' : cd === 1 ? 'tomorrow' : 'in ' + cd + ' days') + '</span>');
+        if (dups[r.id]) tags.push('<span class="tag dup">Possible duplicate</span>');
+        if (r.m === 'update') tags.push('<span class="tag">Add to store</span>');
+        if (r.b) tags.push('<span class="tag">Build it for me</span>');
+        return tags.length ? '<div class="tags">' + tags.join('') + '</div>' : '';
+    },
+
+    // One click to take a request: sets "Handled by" to your name and, if it
+    // was still New, moves it to In progress. Same conflict check as Save.
+    claim: function (id) {
+        var me = TR.myName().trim();
+        if (!me) { var m = TR.$('me'); m.focus(); m.placeholder = 'Type your name first'; return; }
+        var r = TR.st.list.filter(function (x) { return x.id === id; })[0]; if (!r) return;
+        var patch = { work: { assignee: me } };
+        if (r.s === 'new') patch.status = 'progress';
+        TR.api('/team-requests/update', { body: { id: id, base: r.u, patch: patch } }).then(function (j) {
+            if (j.__status === 409) { TR.flashHome('Someone changed ' + (r.t || 'that request') + ' a moment ago, so it was not claimed. Have a look and try again.'); }
+            else if (j.__status !== 200) { TR.flashHome(j.error || ('Could not claim it, HTTP ' + j.__status)); }
+            TR.loadList();
         });
-        var cur = TR.st.rec && TR.st.rec.id;
-        TR.$('list').innerHTML = rows.length ? rows.map(function (r) {
-            var bits = [r.n + (r.n === 1 ? ' product' : ' products'), TR.ago(r.c)];
-            if (r.r) bits.push('releases ' + TR.esc(TR.fmtDate(r.r)));
-            else if (r.d) bits.push('asked for ' + TR.esc(TR.fmtDate(r.d)));
-            if (r.a) bits.push(TR.esc(r.a));
-            var tags = [];
-            if (r.ap) tags.push('<span class="tag ' + r.ap + '">' + TR.APPROVAL[r.ap] + '</span>');
-            var cd = TR.daysUntil(r.cl);
-            if (cd != null && cd >= 0 && cd <= 7 && ['done', 'archived'].indexOf(r.s) < 0) tags.push('<span class="tag closing">Closes ' + (cd === 0 ? 'today' : cd === 1 ? 'tomorrow' : 'in ' + cd + ' days') + '</span>');
-            if (dups[r.id]) tags.push('<span class="tag dup">Possible duplicate</span>');
-            if (r.m === 'update') tags.push('<span class="tag">Add to store</span>');
-            if (r.b) tags.push('<span class="tag">Build it for me</span>');
-            return '<button type="button" class="row' + (r.id === cur ? ' on' : '') + '" data-id="' + r.id + '">' +
-                '<div class="t"><span>' + TR.esc(r.t || '(no name)') + '</span><span class="pill ' + r.s + '">' + TR.STATUS[r.s] + '</span></div>' +
-                '<div class="m">' + bits.join(' · ') + '</div>' + (tags.length ? '<div class="tags">' + tags.join('') + '</div>' : '') + '</button>';
-        }).join('') : '<p class="empty">' + (f === 'mine' && !me ? 'Type your name above to see the requests assigned to you.' : TR.st.list.length ? 'Nothing matches.' : 'No requests yet. They appear here when a customer presses Send on the builder.') + '</p>';
-        TR.$('list').querySelectorAll('.row').forEach(function (b) { b.onclick = function () { TR.open(b.dataset.id); }; });
+    },
+
+    renderList: function () {
+        var f = TR.st.filter, q = TR.st.q, me = TR.myName().trim().toLowerCase();
+        var home = TR.isHome();
+        document.body.classList.toggle('home', home);
+        var dups = TR.duplicates();
+        var match = function (r) { return !q || (String(r.t) + ' ' + String(r.e) + ' ' + String(r.a || '')).toLowerCase().indexOf(q) >= 0; };
+        // counts on the tabs, so an empty Unclaimed tab is news in itself
+        TR.$('filters').querySelectorAll('button').forEach(function (b) {
+            var n = TR.st.list.filter(function (r) { return TR.FILTERS[b.dataset.f](r, me); }).length;
+            var label = b.dataset.label || (b.dataset.label = b.textContent);
+            b.innerHTML = TR.esc(label) + (b.dataset.f === 'all' ? '' : '<span class="n">' + n + '</span>');
+        });
+        var rows = TR.st.list.filter(function (r) { return TR.FILTERS[f](r, me) && match(r); });
+        var empty = '<p class="empty">' + (f === 'mine' && !me ? 'Type your name in "You are" to see the requests you have claimed.' : TR.st.list.length ? 'Nothing here.' : 'No requests yet. They appear here when a customer presses Send on the builder.') + '</p>';
+        var msg = TR.st.homeMsg ? '<p class="msg warn" style="margin:0 0 10px">' + TR.esc(TR.st.homeMsg) + '</p>' : '';
+        TR.st.homeMsg = null;
+        if (!home) {
+            var cur = TR.st.rec && TR.st.rec.id;
+            TR.$('list').innerHTML = rows.length ? rows.map(function (r) {
+                var bits = [r.n + (r.n === 1 ? ' product' : ' products'), TR.ago(r.c)];
+                if (r.r) bits.push('releases ' + TR.esc(TR.fmtDate(r.r)));
+                else if (r.d) bits.push('asked for ' + TR.esc(TR.fmtDate(r.d)));
+                return '<button type="button" class="row' + (r.id === cur ? ' on' : '') + '" data-id="' + r.id + '">' +
+                    '<div class="t"><span>' + TR.esc(r.t || '(no name)') + '</span><span class="pill ' + r.s + '">' + TR.STATUS[r.s] + '</span></div>' +
+                    '<div class="m">' + bits.join(' · ') + '</div>' + TR.whoHtml(r.a) + TR.tagsHtml(r, dups) + '</button>';
+            }).join('') : empty;
+            TR.$('list').querySelectorAll('.row').forEach(function (b) { b.onclick = function () { TR.open(b.dataset.id); }; });
+            return;
+        }
+        var table = function (rs) {
+            return '<table class="rtable"><thead><tr><th>Team</th><th>Claimed by</th><th>Status</th><th class="opt">Products</th><th class="opt">Opens</th><th class="opt">Came in</th></tr></thead><tbody>' +
+                rs.map(function (r) {
+                    var claimBtn = !String(r.a || '').trim() && ['done', 'archived'].indexOf(r.s) < 0 ? '<button type="button" class="btn claim" data-claim="' + r.id + '">Claim</button>' : '';
+                    var opens = r.r ? TR.esc(TR.fmtDate(r.r)) : r.d ? '<span class="dim">asked for ' + TR.esc(TR.fmtDate(r.d)) + '</span>' : '<span class="dim">not set</span>';
+                    return '<tr data-id="' + r.id + '"><td><div class="tn">' + TR.esc(r.t || '(no name)') + '</div><div class="te">' + TR.esc(r.e || '') + '</div>' + TR.tagsHtml(r, dups) + '</td>' +
+                        '<td>' + TR.whoHtml(r.a) + claimBtn + '</td>' +
+                        '<td><span class="pill ' + r.s + '">' + TR.STATUS[r.s] + '</span></td>' +
+                        '<td class="opt">' + r.n + '</td><td class="opt">' + opens + '</td><td class="opt dim">' + TR.ago(r.c) + '</td></tr>';
+                }).join('') + '</tbody></table>';
+        };
+        var html;
+        if (!rows.length) html = empty;
+        else if (f === 'open') {
+            // Grouped by who has it: nobody first, then you, then everyone else.
+            var groups = {}, order = [];
+            rows.forEach(function (r) {
+                var k = String(r.a || '').trim(), key = k.toLowerCase();
+                if (!groups[key]) { groups[key] = { name: k, rows: [] }; order.push(key); }
+                groups[key].rows.push(r);
+            });
+            order.sort(function (a, b) {
+                var rank = function (k) { return k === '' ? 0 : k === me ? 1 : 2; };
+                return rank(a) - rank(b) || a.localeCompare(b);
+            });
+            html = order.map(function (k) {
+                var g = groups[k], n = g.rows.length;
+                var title = k === '' ? 'Not claimed yet' : k === me ? 'Yours' : TR.esc(g.name);
+                return '<h3 class="rgroup">' + (k === '' ? '' : '<span class="who">' + TR.badge(g.name) + '</span>') + title + ' <span class="c">' + n + (n === 1 ? ' request' : ' requests') + '</span></h3>' + table(g.rows);
+            }).join('');
+        } else html = table(rows);
+        TR.$('list').innerHTML = msg + html;
+        TR.$('list').querySelectorAll('tr[data-id]').forEach(function (tr) { tr.onclick = function () { TR.open(tr.dataset.id); }; });
+        TR.$('list').querySelectorAll('[data-claim]').forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); b.disabled = true; TR.claim(b.dataset.claim); }; });
     },
 
     // This browser's staff name, for the Mine filter. Per browser on purpose:
@@ -187,7 +292,7 @@ var TR = {
         var d = new Date(iso), s = (Date.now() - d) / 1000;
         if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' min ago';
         if (s < 86400) return Math.round(s / 3600) + ' h ago';
-        if (s < 86400 * 14) return Math.round(s / 86400) + ' days ago';
+        if (s < 86400 * 14) { var dd = Math.round(s / 86400); return dd === 1 ? 'yesterday' : dd + ' days ago'; }
         return d.toLocaleDateString();
     },
 
@@ -430,9 +535,10 @@ var TR = {
             var r = TR.st.rec;
             TR.api('/team-requests/delete', { body: { id: r.id } }).then(function (j) {
                 if (j.__status !== 200) { TR.flash(j.error || ('Delete failed, HTTP ' + j.__status), 'bad'); return; }
-                TR.st.rec = null; TR.st.dirty = false;
+                TR.st.rec = null; TR.st.dirty = false; TR.st.view = 'home';
                 history.replaceState(null, '', location.pathname);
-                TR.$('detail').innerHTML = '<p class="msg ok">Deleted.</p>';
+                TR.$('detail').innerHTML = '';
+                TR.flashHome('Deleted.');
                 TR.loadList();
             });
         });
