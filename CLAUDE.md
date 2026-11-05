@@ -1712,6 +1712,21 @@ to the contact form email only if that save fails. Staff work them in
   under the requested name.
 - **Mockups come from the 420 px catalog photos**, so they are placeholders for
   review, not storefront images.
+- **Where a logo sits is decided in three layers, most specific first**: the
+  store's own box (Move logo), then the STYLE template (the Placements screen,
+  KV `treqplace`), then `defaultBox`. `TeamReqUtils.boxFor` takes the template
+  as an argument so the staff page and `proof.html` resolve it identically; the
+  proof GET sends only the request's own styles. 67 templates were seeded from
+  Dan's Logo Placement Tool (`from: 'dan'`). His boxes are fractions of the
+  TRIMMED garment photo, so each was mapped through the garment's bounding box
+  onto our full catalog photo before seeding; pasting his numbers in raw puts
+  every logo in the wrong place. Saving a style on the Placements screen
+  changes every store that has not moved its own logo.
+- **The page is meant to be picked up cold.** Each request shows one "Next:"
+  line worked out from its state, the list refreshes itself every minute, and
+  rarely used settings (collection tag, build without codes, the approval link)
+  are folded away rather than removed. Keep new options behind "More options"
+  unless most stores need them.
 - **The customer proof link is an ALLOWLIST.** `proof.html?id=&t=` reads
   `proofView()` in `teamreq-proof.js`, built field by field, so a field added to
   the record later cannot leak by default. Never emails, notes, costs or the

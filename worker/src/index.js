@@ -484,6 +484,8 @@ export default {
       '/team-requests/one': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'one')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/logo-file': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo-get')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/costs': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'costs')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/team-requests/placements': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'placements')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/team-requests/placements/save': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'placement-save')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/proof-link': { handler: teamReqRoute(handleProofLink), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       // Team store sales: READS orders through a bulk job, revenue behind the
       // write secret like /sales/dropship. Fund settings are our own KV.

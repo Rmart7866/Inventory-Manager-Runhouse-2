@@ -79,5 +79,17 @@ eq('a colour they did not pick falls back to auto', U.resolveLogo(it, 'Black', '
 eq('a fixed staff choice beats auto', U.resolveLogo({ logo: 'main', logoBy: {} }, 'Black', 'f', { main: navy, dark: white }, '#1c1c1c'), 'main');
 eq('a pick of a logo that is gone falls back', U.resolveLogo({ logo: 'l3', logoBy: {} }, 'Black', 'f', { main: navy }, '#1c1c1c'), 'main');
 
+console.log('\nStyle templates');
+const tee2 = { ch: 1, pb: [0.1, 0.1, 0.1, 0.1], fcb: [0.29, 0.21, 0.4, 0.49], lcb: [0.55, 0.22, 0.13, 0.18], loc: { Back: ['b', [0.3, 0.1, 0.4, 0.32]] } };
+const tpl = { fc: [0.3, 0.25, 0.38, 0.3], lc: [0.56, 0.23, 0.11, 0.1, 5], bk: [0.31, 0.12, 0.38, 0.3] };
+eq('a style template beats the catalog box', U.boxFor({ placement: 'Full chest', boxes: {} }, tee2, 'Navy', tpl), tpl.fc);
+eq('left chest uses the template left chest, tilt and all', U.boxFor({ placement: 'Left chest', boxes: {} }, tee2, 'Navy', tpl), tpl.lc);
+eq('a per store box still beats the template', U.boxFor({ placement: 'Full chest', boxes: { '*': [0.2, 0.2, 0.2, 0.2] } }, tee2, 'Navy', tpl), [0.2, 0.2, 0.2, 0.2]);
+eq('no template falls back to the catalog', U.boxFor({ placement: 'Full chest', boxes: {} }, tee2, 'Navy', null), tee2.fcb);
+eq('a template missing that zone falls back too', U.boxFor({ placement: 'Left chest', boxes: {} }, tee2, 'Navy', { fc: tpl.fc }), tee2.lcb);
+eq('a hat uses the front box', U.boxFor({ placement: 'Front', boxes: {} }, { pb: [0, 0, 1, 1] }, 'Red', { pb: [0.3, 0.3, 0.3, 0.2] }), [0.3, 0.3, 0.3, 0.2]);
+eq('a back logo uses the template back box', U.loc2({ second_logo: 'Back' }, tee2, tpl).box, tpl.bk);
+eq('and the catalog one without a template', U.loc2({ second_logo: 'Back' }, tee2, null).box, [0.3, 0.1, 0.4, 0.32]);
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

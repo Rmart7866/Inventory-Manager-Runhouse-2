@@ -30,6 +30,13 @@ a { color: var(--accent); }
 header.top { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
 header.top h1 { font-size: 17px; margin: 0; font-weight: 700; }
 header.top .sp { flex: 1; }
+header.top .toplink { color: var(--muted); font-size: 14px; margin-left: 6px; }
+.nextstep { margin-top: 10px; font-size: 14.5px; }
+.nextstep b { color: var(--text); }
+.nextstep button { background: none; border: 0; color: var(--accent); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
+details.more { margin: 10px 0; }
+details.more summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+details.more[open] summary { margin-bottom: 8px; }
 .btn { background: var(--surface-2); border: 1px solid var(--line-2); padding: 7px 12px; cursor: pointer; font-weight: 600; min-height: 34px; }
 .btn:hover:not(:disabled) { border-color: var(--accent); }
 .btn:disabled { opacity: .45; cursor: default; }
@@ -244,6 +251,20 @@ table.sales td.owe { color: var(--warn); font-weight: 700; }
 .golive { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
 .golive h3 { margin: 0 0 6px; font-size: 16px; }
 .btn.pri.arm { background: var(--bad); border-color: var(--bad); color: #1a0509; }
+
+/* placements */
+.pl-wrap { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 22px; align-items: start; }
+.pl-list { max-height: calc(100vh - 220px); overflow: auto; border: 1px solid var(--line); }
+.pl-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 8px 10px; cursor: pointer; }
+.pl-row:hover, .pl-row.on { background: var(--surface-2); }
+.pl-row.on { box-shadow: inset 3px 0 0 var(--accent); }
+.pl-row b { display: block; font-weight: 600; }
+.pl-grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(200px, 1fr); gap: 20px; margin-top: 12px; align-items: start; }
+.pl-grid .stage { user-select: none; touch-action: none; }
+.pl-grid .lb, #pe .lb { outline: 2px dashed var(--accent); cursor: move; }
+.pl-grid .lb .h { position: absolute; right: -8px; bottom: -8px; width: 16px; height: 16px; background: var(--accent); cursor: nwse-resize; }
+@media (max-width: 1100px) { .pl-wrap, .pl-grid { grid-template-columns: 1fr; } }
+
 @media (max-width: 900px) {
   #app { grid-template-columns: 1fr; }
   #side { max-height: 40vh; }
@@ -259,8 +280,8 @@ table.sales td.owe { color: var(--warn); font-weight: 700; }
   <span class="sp"></span>
   <button class="btn" id="cal-open" type="button">Calendar</button>
   <button class="btn" id="sales-open" type="button">Store sales</button>
-  <button class="btn" id="refresh" type="button">Refresh</button>
-  <a class="btn" href="index.html" style="text-decoration:none;display:inline-flex;align-items:center">Inventory tool</a>
+  <button class="btn" id="place-open" type="button">Placements</button>
+  <a href="index.html" class="toplink">Inventory tool</a>
 </header>
 
 <section id="gate" class="hidden">
@@ -289,7 +310,7 @@ table.sales td.owe { color: var(--warn); font-weight: 700; }
 <div id="pe" class="hidden" role="dialog" aria-modal="true" aria-labelledby="pe-h"></div>
 
 <script src="catalog-client.js?v=23"></script>
-<script src="team-request-utils.js?v=2"></script>
-<script src="team-requests.js?v=10"></script>
+<script src="team-request-utils.js?v=3"></script>
+<script src="team-requests.js?v=12"></script>
 </body>
 </html>

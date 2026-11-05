@@ -200,6 +200,19 @@ check('a renewed link shuts the old one off', tok2 !== tok && r.status === 404);
 r = await call('/team-requests/proof-logo?id=' + id + '&t=' + tok2 + '&slot=main', { headers: PAGES });
 check('a customer url logo is not proxied (it is public already)', r.status === 404);
 
+console.log('\nStyle placement templates');
+r = await call('/team-requests/placements', { headers: { Authorization: 'Bearer tok' } });
+check('templates need the write secret', r.status === 403);
+r = await call('/team-requests/placements/save', { method: 'POST', headers: STAFF, body: { style: 'pc380', boxes: { fc: [0.3, 0.25, 0.38, 0.3], lc: [0.56, 0.23, 0.11, 0.1, 5] } } });
+j = await r.json();
+check('a style template saves, keyed by the style in capitals', r.status === 200 && j.placements.PC380.fc[0] === 0.3 && j.placements.PC380.lc[4] === 5);
+r = await call('/team-requests/placements/save', { method: 'POST', headers: STAFF, body: { style: 'PC380', boxes: { fc: [0.9, 0.2, 0.4, 0.3] } } });
+check('a box running off the photo is refused', r.status === 400);
+r = await call('/team-requests/placements/save', { method: 'POST', headers: STAFF, body: { style: 'PC380', boxes: { lc: [0.5, 0.2, 0.1, 0.1, 80] } } });
+check('a tilt past 45 degrees is refused', r.status === 400);
+r = await call('/team-requests/placements', { headers: STAFF });
+check('and reads back', (await r.json()).placements.PC380.fc[2] === 0.38);
+
 console.log('\nBuilding drafts');
 const plan = planProduct('Walpole Track & Field', 'Walpole Track & Field Team Store', { style: 'PC380', name: 'Port & Co Performance Tee', category: 'Short Sleeve T-Shirts', sizes: ['S', 'M', 'L'], price: 25, colors: [{ name: 'Deep Navy', label: 'Deep Navy w/ Full Chest Logo', image: 'https://up/1' }] });
 check('the title follows the hand-built stores', plan.title === 'Walpole Track & Field - Port & Co Performance Tee (PC380)', plan.title);

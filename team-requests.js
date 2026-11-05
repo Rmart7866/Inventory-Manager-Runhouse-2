@@ -56,9 +56,13 @@ var TR = {
         TR.$('q').addEventListener('input', function () { TR.st.q = this.value.toLowerCase(); TR.renderList(); });
         TR.$('me').value = TR.myName();
         TR.$('me').addEventListener('change', function () { try { localStorage.setItem('rhStaffName', this.value.trim()); } catch (e) { /* private mode */ } TR.renderList(); });
-        TR.$('refresh').addEventListener('click', function () { TR.loadList(); });
+        // The list refreshes itself: every minute, and when you come back to
+        // the tab. No Refresh button to remember.
+        setInterval(function () { if (!document.hidden && CatalogClient.hasWriteSecret()) TR.loadList(); }, 60000);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden && CatalogClient.hasWriteSecret()) TR.loadList(); });
         TR.$('cal-open').addEventListener('click', TR.showCalendar);
         TR.$('sales-open').addEventListener('click', TR.showSales);
+        TR.$('place-open').addEventListener('click', TR.showPlacements);
         window.addEventListener('beforeunload', function (e) { if (TR.st.dirty) { e.preventDefault(); e.returnValue = ''; } });
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') TR.closePlacement();
@@ -81,6 +85,7 @@ var TR = {
             TR.renderList();
             TR.loadCatalog();
             TR.api('/team-requests/costs').then(function (c) { TR.st.costs = (c && c.costs) || {}; });
+            TR.api('/team-requests/placements').then(function (c) { TR.st.TPL = (c && c.placements) || {}; if (TR.st.rec) TR.renderDetail(); });
             var h = location.hash.replace('#', '');
             if (h) TR.open(h);
         }).catch(function (e) { TR.showGate('Could not reach the Worker: ' + e.message); });
@@ -251,9 +256,9 @@ var TR = {
                 (q.date ? '<div class="sub" style="margin-top:6px">Customer asked for ' + TR.esc(TR.fmtDate(q.date)) + (w.release ? '' : ', shown on the calendar until you set a release date') + '.</div>' : '') +
                 (facts.length ? '<div class="sub" style="margin-top:6px">' + facts.join(' · ') + '</div>' : '') +
                 (flags.length ? '<div class="flags">' + flags.join('') + '</div>' : '') +
+                TR.nextHtml(r) +
             '</div><div class="acts">' +
                 '<select id="d-status" aria-label="Status">' + Object.keys(TR.STATUS).map(function (k) { return '<option value="' + k + '"' + (k === r.status ? ' selected' : '') + '>' + TR.STATUS[k] + '</option>'; }).join('') + '</select>' +
-                '<button class="btn" type="button" id="d-link">Approval link</button>' +
                 '<button class="btn" type="button" id="d-mail">Email the proof</button>' +
                 '<button class="btn" type="button" id="d-pdf">Proof PDF</button>' +
                 '<button class="btn pri" type="button" id="save"' + (TR.st.dirty ? '' : ' disabled') + '>Save</button>' +
@@ -271,9 +276,9 @@ var TR = {
         TR.$('d-rel').addEventListener('change', function () { w.release = this.value; TR.touch(); });
         TR.$('d-close').addEventListener('change', function () { w.close = this.value; TR.touch(); });
         TR.$('d-who').addEventListener('input', function () { w.assignee = this.value; TR.touch(); });
-        TR.$('d-link').addEventListener('click', function () { TR.showLink(false); });
         TR.$('d-mail').addEventListener('click', function () { TR.emailProof(this); });
         TR.$('detail').querySelectorAll('[data-open]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); TR.open(a.dataset.open); }; });
+        var nx = TR.$('next-go'); if (nx) nx.onclick = function () { TR.st.tab = nx.dataset.tab; TR.renderDetail(); };
         TR.$('d-status').addEventListener('change', function () { TR.save({ status: this.value }); });
         TR.$('save').addEventListener('click', function () { TR.save(); });
         TR.$('d-pdf').addEventListener('click', function () { TR.proofPdf(this); });
@@ -283,6 +288,31 @@ var TR = {
         ({ products: TR.paneProducts, logos: TR.paneLogos, build: TR.paneBuild, orig: TR.paneOrig })[TR.st.tab]();
     },
 
+
+    // ONE line that says what to do next, so anyone can pick a request up
+    // without knowing the process. Worked out from the request itself.
+    nextStep: function (r) {
+        var w = r.work || {}, items = w.items || [];
+        if (r.live && r.live.at) return { done: true, text: 'Live' + (r.live.collection && r.live.collection.handle ? '' : '.'), href: r.live.collection && r.live.collection.handle ? TR.STORE_URL + r.live.collection.handle : null };
+        if (!items.length) return { text: 'Add products', tab: 'products' };
+        var bad = items.some(function (it) {
+            var p = TR.st.P[it.style]; if (!p) return true;
+            return !it.colors.length || TR.unknownColors(it, p).length || !(it.sizes || TR.U.sizesFor(p, TR.st.CAT[p.s])).length || !(it.price > 0);
+        });
+        if (TR.st.D && bad) return { text: 'Finish the products: every one needs colours, sizes and a price', tab: 'products' };
+        if (TR.st.D && !w.noCodes && TR.codeProblems().length) return { text: 'Add the logo codes', tab: 'logos' };
+        var approved = r.approval && r.approval.state === 'approved' && !r.approval.stale;
+        if (r.build && r.build.at) return { text: 'Go live once the customer has approved', tab: 'build' };
+        if (approved) return { text: 'Create the drafts', tab: 'build' };
+        if (r.status === 'waiting') return { text: 'Waiting on the customer to approve the proof. When they say yes, create the drafts', tab: 'build' };
+        return { text: 'Send the proof with Email the proof (top right)', tab: null };
+    },
+
+    nextHtml: function (r) {
+        var n = TR.nextStep(r);
+        if (n.done) return '<div class="nextstep"><b>Live.</b>' + (n.href ? ' <a target="_blank" rel="noopener" href="' + TR.esc(n.href) + '">Open the store</a>' : '') + '</div>';
+        return '<div class="nextstep">Next: ' + (n.tab ? '<button type="button" id="next-go" data-tab="' + n.tab + '">' + TR.esc(n.text) + '</button>' : '<b>' + TR.esc(n.text) + '</b>') + '</div>';
+    },
 
     names: function () {
         var seen = {}, out = [];
@@ -429,6 +459,13 @@ var TR = {
         }));
     },
 
+    // Every box lookup goes through the style's saved template (Placements
+    // screen) so the preview, mockups, PDF and build agree.
+    tplOf: function (p) { return (TR.st.TPL || {})[p && p.s] || null; },
+    boxFor: function (it, p, color) { return TR.U.boxFor(it, p, color, TR.tplOf(p)); },
+    loc2: function (it, p) { return TR.U.loc2(it, p, TR.tplOf(p)); },
+    styleBox: function (it, p) { return TR.U.templateBox(TR.tplOf(p), p, it.placement) || TR.U.defaultBox(p, it.placement); },
+
     hexOf: function (p, color) { var c = p.c[TR.colorIdx(p, color)]; return c ? c[5] : '#888888'; },
 
     // Which logo goes on this colour: the customer's per colour pick, the
@@ -459,7 +496,7 @@ var TR = {
     // The back, for a back or back neck second logo. Null when the colour has
     // no back photo, or the catalog marks it as one that takes no back logo.
     backHtml: function (it, p, colorName) {
-        var l = TR.U.loc2(it, p), c = p.c[TR.colorIdx(p, colorName)];
+        var l = TR.loc2(it, p), c = p.c[TR.colorIdx(p, colorName)];
         if (!l || l.side !== 'b' || !c || !c[6]) return null;
         var src = c[7] ? null : TR.logoUrl(TR.logoOf(it, p, colorName, 'x'));
         return '<span class="mk"><img class="g" crossorigin="anonymous" alt="' + TR.esc(p.n + ' in ' + c[0] + ', back') + '" src="' + TR.esc(c[6]) + '">' + (src ? TR.lbHtml(l.box, src, null) : '') + '</span>';
@@ -467,9 +504,9 @@ var TR = {
 
     // The front preview of one colour, with everything that prints on it.
     frontOf: function (it, p, colorName, id, boxOverride) {
-        var l = TR.U.loc2(it, p);
+        var l = TR.loc2(it, p);
         var extra = l && l.side === 'f' ? { box: l.box, src: TR.logoUrl(TR.logoOf(it, p, colorName, 'x')) } : null;
-        return TR.mkHtml(p, colorName, boxOverride || TR.U.boxFor(it, p, colorName), TR.logoUrl(TR.logoOf(it, p, colorName, 'f')), id, extra);
+        return TR.mkHtml(p, colorName, boxOverride || TR.boxFor(it, p, colorName), TR.logoUrl(TR.logoOf(it, p, colorName, 'f')), id, extra);
     },
 
     // colorIdx falls back to the first colour, which is right for a preview
@@ -544,7 +581,7 @@ var TR = {
             (p.loc && Object.keys(p.loc).length ? '<div class="bar"><span class="where">Second logo</span><select id="l2-' + i + '" aria-label="Second logo location"><option value="">None</option>' +
                 Object.keys(p.loc).map(function (k) { return '<option' + (k === it.second_logo ? ' selected' : '') + '>' + TR.esc(k) + '</option>'; }).join('') + '</select>' +
                 (it.second_logo && slots.length > 1 ? TR.logoSelect('lx-' + i, it.logo2, 'Second logo') : '') +
-                '<span class="sub">A second logo adds $3 to the price; changing it here does not reprice.</span></div>' : '') +
+                '<span class="sub">+$3 per item, not repriced automatically</span></div>' : '') +
             (it.logoBy && Object.keys(it.logoBy).length ? '<p class="sub" style="margin:6px 0 0">The customer picked which logo goes on each colour. Choosing a logo above replaces their picks.</p>' : '') +
             '</div></div>';
     },
@@ -708,7 +745,7 @@ var TR = {
     openPlacement: function (i) {
         var it = TR.st.rec.work.items[i], p = TR.st.P[it.style];
         var colors = it.colors.length ? it.colors : [p.c[0][0]];
-        var pe = { i: i, color: colors[0], box: TR.box5(TR.U.boxFor(it, p, colors[0]) || [0.3, 0.25, 0.4, 0.3]), scope: it.boxes && it.boxes[colors[0]] ? 'one' : 'all' };
+        var pe = { i: i, color: colors[0], box: TR.box5(TR.boxFor(it, p, colors[0]) || [0.3, 0.25, 0.4, 0.3]), scope: it.boxes && it.boxes[colors[0]] ? 'one' : 'all' };
         TR.st.pe = pe;
         var el = TR.$('pe');
         el.classList.remove('hidden');
@@ -726,7 +763,7 @@ var TR = {
                 '<input type="text" id="pe-words" list="pl-words" value="' + TR.esc(it.placement || '') + '" placeholder="e.g. Left chest" style="width:100%">' +
                 '<label class="f" style="margin-top:12px">Apply to</label><select id="pe-scope" style="width:100%"><option value="all"' + (pe.scope === 'all' ? ' selected' : '') + '>Every colour of this product</option><option value="one"' + (pe.scope === 'one' ? ' selected' : '') + '>This colour only</option></select>' +
                 '<div class="readout" id="pe-read"></div>' +
-                '<div class="row2"><button class="btn" type="button" id="pe-reset">Catalog default</button></div>' +
+                '<div class="row2"><button class="btn" type="button" id="pe-reset">Style default</button></div>' +
                 '<div class="row2"><button class="btn" type="button" id="pe-cancel">Cancel</button><button class="btn pri" type="button" id="pe-save">Use this placement</button></div>' +
                 (src ? '' : '<p class="msg warn">This logo cannot be drawn here (a PDF or AI file, or missing), so the box is shown empty. Replace it on the Logos tab with a PNG to see it.</p>') +
                 '</div></div>';
@@ -734,14 +771,14 @@ var TR = {
             TR.$('pe-cols').querySelectorAll('button').forEach(function (b) {
                 b.onclick = function () {
                     pe.color = b.dataset.c;
-                    pe.box = TR.box5(TR.U.boxFor(it, p, pe.color) || pe.box);
+                    pe.box = TR.box5(TR.boxFor(it, p, pe.color) || pe.box);
                     TR.$('pe-tilt').value = pe.box[4];
                     TR.$('pe-cols').querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
                     TR.drawPlacement();
                 };
             });
             TR.$('pe-scope').onchange = function () { pe.scope = this.value; };
-            TR.$('pe-reset').onclick = function () { pe.box = TR.box5(TR.U.defaultBox(p, it.placement) || pe.box); TR.$('pe-tilt').value = pe.box[4]; TR.drawPlacement(); };
+            TR.$('pe-reset').onclick = function () { pe.box = TR.box5(TR.styleBox(it, p) || pe.box); TR.$('pe-tilt').value = pe.box[4]; TR.drawPlacement(); };
             // Tilt turns the box about its centre, the same rotation the
             // preview (CSS) and the mockup (canvas) both apply.
             TR.$('pe-tilt').oninput = function () { pe.box[4] = Number(this.value) || 0; TR.drawPlacement(); };
@@ -773,13 +810,23 @@ var TR = {
         pe.src = TR.logoUrl(TR.logoOf(it, p, pe.color, 'f'));
         stage.innerHTML = TR.mkHtml(p, pe.color, pe.box, pe.src, 'pe-lb');
         TR.readout();
-        var lb = TR.$('pe-lb'), handle = TR.$('pe-lb-h'), mk = stage.querySelector('.mk');
+        TR.wireBoxEditor({ stage: stage, id: 'pe-lb', get: function () { return pe.box; }, set: function (b) { pe.box = b; }, moved: TR.readout, redraw: TR.drawPlacement, tilt: TR.$('pe-tilt') });
+    },
+
+    // ONE box editor, used by a store's "Move logo" and by the Placements
+    // screen: drag the box to move it, drag the corner to size it, arrow keys
+    // nudge by half a percent (shift sizes), [ and ] tilt by a degree.
+    // opts: stage, id (the .lb element id), get() and set(box), moved() after
+    // every change, redraw() for a full redraw, tilt (the range input).
+    wireBoxEditor: function (o) {
+        var lb = TR.$(o.id), handle = TR.$(o.id + '-h'), mk = o.stage.querySelector('.mk');
+        if (!lb || !handle || !mk) return;
         var start = null;
         var down = function (mode) {
             return function (e) {
                 e.preventDefault(); e.stopPropagation();
                 var r = mk.getBoundingClientRect();
-                start = { mode: mode, x: e.clientX, y: e.clientY, box: pe.box.slice(), W: r.width, H: r.height };
+                start = { mode: mode, x: e.clientX, y: e.clientY, box: o.get().slice(), W: r.width, H: r.height };
                 (e.target.setPointerCapture ? e.target : lb).setPointerCapture(e.pointerId);
             };
         };
@@ -793,29 +840,29 @@ var TR = {
                 b[2] = Math.min(Math.max(0.03, b[2] + dx), 1 - b[0]);
                 b[3] = Math.min(Math.max(0.03, b[3] + dy), 1 - b[1]);
             }
-            pe.box = b;
+            o.set(b);
             lb.style.left = b[0] * 100 + '%'; lb.style.top = b[1] * 100 + '%'; lb.style.width = b[2] * 100 + '%'; lb.style.height = b[3] * 100 + '%';
-            TR.readout();
+            if (o.moved) o.moved();
         };
         var up = function () { start = null; };
         lb.addEventListener('pointerdown', down('move'));
         handle.addEventListener('pointerdown', down('size'));
         [lb, handle].forEach(function (x) { x.addEventListener('pointermove', move); x.addEventListener('pointerup', up); x.addEventListener('pointercancel', up); });
-        // Arrow keys nudge by half a percent, for the last bit of alignment.
         lb.tabIndex = 0;
         lb.setAttribute('aria-label', 'Logo position. Arrow keys move it, shift and arrow keys resize it, [ and ] tilt it.');
         lb.addEventListener('keydown', function (e) {
+            var b = o.get().slice();
             if (e.key === '[' || e.key === ']') {
                 e.preventDefault();
-                pe.box[4] = Math.max(-45, Math.min(45, (pe.box[4] || 0) + (e.key === ']' ? 1 : -1)));
-                TR.$('pe-tilt').value = pe.box[4]; TR.drawPlacement(); TR.$('pe-lb').focus(); return;
+                b[4] = Math.max(-45, Math.min(45, (b[4] || 0) + (e.key === ']' ? 1 : -1)));
+                o.set(b); if (o.tilt) o.tilt.value = b[4]; o.redraw(); TR.$(o.id).focus(); return;
             }
             var k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!k) return;
             e.preventDefault();
-            var b = pe.box.slice(), s = 0.005;
-            if (e.shiftKey) { b[2] = Math.max(0.03, b[2] + k[0] * s); b[3] = Math.max(0.03, b[3] + k[1] * s); }
-            else { b[0] = Math.max(0, Math.min(1 - b[2], b[0] + k[0] * s)); b[1] = Math.max(0, Math.min(1 - b[3], b[1] + k[1] * s)); }
-            pe.box = b; TR.drawPlacement(); TR.$('pe-lb').focus();
+            var st = 0.005;
+            if (e.shiftKey) { b[2] = Math.max(0.03, b[2] + k[0] * st); b[3] = Math.max(0.03, b[3] + k[1] * st); }
+            else { b[0] = Math.max(0, Math.min(1 - b[2], b[0] + k[0] * st)); b[1] = Math.max(0, Math.min(1 - b[3], b[1] + k[1] * st)); }
+            o.set(b); o.redraw(); TR.$(o.id).focus();
         });
     },
 
@@ -840,7 +887,7 @@ var TR = {
                 (L.url ? '<a class="btn" style="text-decoration:none;display:inline-flex;align-items:center" target="_blank" rel="noopener" href="' + TR.esc(L.url) + '">Open file</a>' : '') + '</div></div>';
         }).join('') + '</div>' : '<p class="empty">The customer did not upload a logo.' + (TR.st.rec.req.logos ? ' They said: ' + TR.esc(TR.st.rec.req.logos) : '') + '</p>') +
             '<div class="bar" style="margin-top:14px;display:flex;gap:8px;align-items:center"><label class="btn" style="display:inline-flex;align-items:center">Add another logo<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="__new" class="hidden"></label><span class="sub">A replaced logo keeps the original in the history, and every preview and mockup switches to the new file.</span></div>' +
-            (slots.length ? '<h3 style="margin:22px 0 6px;font-size:15px">Print files</h3><p class="sub" style="max-width:720px">Each logo at print size for every place it is used on this store: 300 dpi transparent PNGs named <b>CODE (FC).png</b> and so on, the Logo Master Folder convention. Codes come from that folder: the store\'s first letter and the next free number, a different code for each artwork.</p>' +
+            (slots.length ? '<h3 style="margin:22px 0 6px;font-size:15px">Print files</h3><p class="sub" style="max-width:720px">300 dpi PNGs for every place each logo prints, named like <b>D055 (FC).png</b>, ready for the Logo Master Folder.</p>' +
                 '<div class="bar" style="display:flex;gap:8px;align-items:center"><button class="btn pri" type="button" id="pf-go">Download print files</button><span class="sub" id="pf-msg"></span></div>' : '');
         slots.forEach(function (k) { TR.checkLogo(k); });
         pane.querySelectorAll('[data-code]').forEach(function (inp) {
@@ -871,7 +918,7 @@ var TR = {
         var add = function (k, pl) { if (k) { need[k] = need[k] || {}; need[k][pl] = 1; } };
         w.items.forEach(function (it) {
             var p = TR.st.P[it.style]; if (!p) return;
-            var cat = TR.st.CAT[p.s], pl = TR.U.plCode(it.placement, cat), l2 = TR.U.loc2(it, p);
+            var cat = TR.st.CAT[p.s], pl = TR.U.plCode(it.placement, cat), l2 = TR.loc2(it, p);
             it.colors.forEach(function (n) {
                 add(TR.logoOf(it, p, n, 'f'), pl);
                 if (l2) add(TR.logoOf(it, p, n, 'x'), TR.U.plCode(l2.name, cat));
@@ -951,12 +998,14 @@ var TR = {
         var r = TR.st.rec;
         TR.$('pane').innerHTML =
             '<label class="f" for="d-notes">Staff notes</label><textarea id="d-notes" style="width:100%;min-height:90px">' + TR.esc(r.notes || '') + '</textarea>' +
+            '<h3 style="margin:18px 0 6px;font-size:15px">Customer approval link <span class="sub">(optional)</span></h3><p class="sub" style="margin:0 0 6px">A private page where the customer can see the store and press Approve. Email the proof is the usual way.</p><button class="btn" type="button" id="d-link">Make the link</button>' +
             '<h3 style="margin:18px 0 6px;font-size:15px">History</h3><ul class="log">' + (r.log || []).slice().reverse().map(function (l) { return '<li>' + new Date(l.at).toLocaleString() + ': ' + TR.esc(l.what) + '</li>'; }).join('') + '</ul>' +
             '<h3 style="margin:18px 0 6px;font-size:15px">What the customer sent</h3><pre class="orig">' + TR.esc(r.text || JSON.stringify(r.req, null, 2)) + '</pre>' +
             // Out of the header on purpose: a permanent delete should not sit
             // one click from Save. Archive (the status) is the everyday way out.
             '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line)"><button class="btn danger" type="button" id="del">Delete this request</button> <span class="sub">Permanent. To just clear it from the inbox, set the status to Archived.</span></div>';
         TR.$('d-notes').addEventListener('input', function () { r.notes = this.value; TR.touch(); });
+        TR.$('d-link').addEventListener('click', function () { TR.showLink(false); });
         TR.armDelete(TR.$('del'));
     },
 
@@ -986,7 +1035,7 @@ var TR = {
             var p = TR.st.P[it.style]; if (!p) return;
             it.colors.forEach(function (n) {
                 var k = TR.logoOf(it, p, n, 'f'); if (k) need[k] = 1;
-                if (TR.U.loc2(it, p)) { var x = TR.logoOf(it, p, n, 'x'); if (x) need[x] = 1; }
+                if (TR.loc2(it, p)) { var x = TR.logoOf(it, p, n, 'x'); if (x) need[x] = 1; }
             });
         });
         return Object.keys(need).filter(function (k) { return logos[k] && !logos[k].code; }).map(function (k) { return logos[k].label || k; });
@@ -1019,12 +1068,15 @@ var TR = {
             (r.build.collection && r.build.collection.handle ? ', collection <a target="_blank" rel="noopener" href="' + TR.ADMIN + '/collections/' + TR.gidNum(r.build.collection.id) + '">' + TR.esc(r.build.collection.handle) + '</a>' : '') + '. Building again only adds products whose handles are still free.</div>' : '';
         pane.innerHTML = prev +
             (upd ? '<div class="msg">This adds to the existing store <b>' + TR.esc(r.req.store && r.req.store.name) + '</b>. New products take that store\'s tag and naming, styles it already carries are skipped, and no collection is created.</div>'
-                : '<div class="kv"><label class="f" for="b-tag">Collection tag</label><div><input type="text" id="b-tag" value="' + TR.esc(w.tag || '') + '" style="width:100%"><div class="sub">Every product gets this tag, and the new smart collection, named for the team, is TAG equals this. The team slug, the same tag the back office automation uses.</div></div></div>') +
+                : '') +
             '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-search"' + (w.searchable ? ' checked' : '') + '> Keep in site search</label>' +
-            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-nocodes"' + (w.noCodes ? ' checked' : '') + '> Build without logo codes: colour names read "Jet Black w/ Full Chest Logo" instead of "Jet Black (D055 (FC))". Off by default, because the codes are how the decorator matches print files.</label>' +
+            '<details class="more"' + (w.noCodes ? ' open' : '') + '><summary>More options</summary>' +
+                (upd ? '' : '<div class="kv"><label class="f" for="b-tag">Collection tag</label><div><input type="text" id="b-tag" value="' + TR.esc(w.tag || '') + '" style="width:100%"><div class="sub">The store\'s collection shows every product with this tag.</div></div></div>') +
+                '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-nocodes"' + (w.noCodes ? ' checked' : '') + '> Build without logo codes (colour names read "Jet Black w/ Full Chest Logo")</label>' +
+            '</details>' +
             (problems.length ? '<div class="msg bad"><b>Fix these first:</b><br>' + problems.map(TR.esc).join('<br>') + '</div>' : '') +
             (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(w.logos[k].label || k); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
-            '<p class="sub">Builds every product as a <b>draft</b>: Color then Size options with sizes spelled out, colours named by logo code ("Jet Black (D055 (FC))"), a front mockup per colour and a back one where there is a back logo' + (upd ? '' : ', plus an <b>unpublished</b> collection') + '. Nothing appears on the site until someone publishes it. Mockups use the 420 px catalog photos, so swap in proper ones before going live.</p>' +
+            '<p class="sub">Creates every product as a <b>draft</b>' + (upd ? '' : ' plus an unpublished collection') + ', with a mockup per colour. Nothing is seen by customers until you press Go live below.</p>' +
             '<div style="display:flex;gap:8px;margin:12px 0"><button class="btn" type="button" id="b-plan"' + (problems.length ? ' disabled' : '') + '>Check the plan</button><button class="btn pri" type="button" id="b-go" disabled>Create drafts</button></div>' +
             '<div id="b-out"></div>' + TR.liveHtml();
         var bt = TR.$('b-tag'); if (bt) bt.addEventListener('input', function () { w.tag = this.value; TR.touch(); });
@@ -1160,7 +1212,7 @@ var TR = {
     // true, the back with a back or back neck logo.
     mockupCanvas: function (it, colorName, S, back) {
         var p = TR.st.P[it.style], c = p.c[TR.colorIdx(p, colorName)];
-        var PAD = Math.round(S / 20), l2 = TR.U.loc2(it, p), L = TR.st.L || {};
+        var PAD = Math.round(S / 20), l2 = TR.loc2(it, p), L = TR.st.L || {};
         return TR.loadImg(back ? c[6] : c[2]).then(function (g) {
             var cv = document.createElement('canvas'); cv.width = S; cv.height = S;
             var x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
@@ -1172,7 +1224,7 @@ var TR = {
             if (back) {
                 if (l2 && l2.side === 'b' && !c[7]) TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'x')], l2.box, gx, gy, gw, gh, nw, nh);
             } else {
-                if (!c[4]) TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'f')], TR.U.boxFor(it, p, colorName), gx, gy, gw, gh, nw, nh);
+                if (!c[4]) TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'f')], TR.boxFor(it, p, colorName), gx, gy, gw, gh, nw, nh);
                 if (l2 && l2.side === 'f') TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'x')], l2.box, gx, gy, gw, gh, nw, nh);
             }
             return cv;
@@ -1182,7 +1234,7 @@ var TR = {
     // Does this colour get a back mockup? Only with a back side second logo
     // and a back photo.
     hasBack: function (it, p, colorName) {
-        var l2 = TR.U.loc2(it, p), c = p.c[TR.colorIdx(p, colorName)];
+        var l2 = TR.loc2(it, p), c = p.c[TR.colorIdx(p, colorName)];
         return !!(l2 && l2.side === 'b' && c && c[6]);
     },
 
@@ -1406,6 +1458,131 @@ var TR = {
         a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
         a.download = 'team-store-sales-from-' + R.since + '.csv';
         document.body.appendChild(a); a.click(); a.remove();
+    },
+
+    // ---------- placements: the default logo box per style ----------
+    // The back office placement tool, inside this page. A style's saved
+    // boxes are what every new preview, mockup, proof and build starts from;
+    // a store can still move its own logo on top. Seeded 2026-11-05 with the
+    // 67 templates set in that tool, converted from its trimmed photos to
+    // these catalog photos through each garment's outline.
+    ZONES: { fc: 'Full chest', lc: 'Left chest', pb: 'Front', bk: 'Back' },
+
+    // A plain sample logo to place against: round (a crest) or wide (a
+    // wordmark), the two shapes the placement tool tests with.
+    sampleLogo: function (wide) {
+        var svg = wide
+            ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100"><rect width="300" height="100" rx="8" fill="#e0542a" fill-opacity=".85"/><text x="150" y="66" font-family="Arial" font-weight="700" font-size="48" fill="#fff" text-anchor="middle">TEAM</text></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#e0542a" fill-opacity=".85"/><text x="50" y="60" font-family="Arial" font-weight="700" font-size="28" fill="#fff" text-anchor="middle">TEAM</text></svg>';
+        return 'data:image/svg+xml,' + encodeURIComponent(svg);
+    },
+
+    showPlacements: function () {
+        if (TR.st.dirty && !window.confirm('You have unsaved changes on this request. Leave them?')) return;
+        TR.st.dirty = false; TR.st.rec = null; TR.st.view = 'place';
+        history.replaceState(null, '', location.pathname);
+        TR.st.pl = TR.st.pl || { q: '', filter: 'all', style: null, zone: 'fc', color: null, wide: false };
+        TR.renderList(); TR.renderPlacements();
+    },
+
+    plZones: function (p) {
+        var z = p.ch ? ['fc', 'lc'] : ['pb'];
+        if (p.loc && p.loc.Back && p.c.some(function (c) { return c[6]; })) z.push('bk');
+        return z;
+    },
+
+    // The box shown for a zone: the saved one, else the catalog's.
+    plBox: function (p, zone) {
+        var t = TR.tplOf(p) || {};
+        if (t[zone]) return t[zone].slice();
+        if (zone === 'fc') return (p.fcb || p.pb || [0.3, 0.25, 0.4, 0.3]).slice();
+        if (zone === 'lc') return (p.lcb || [0.55, 0.22, 0.13, 0.13]).slice();
+        if (zone === 'bk') return (p.loc && p.loc.Back ? p.loc.Back[1] : [0.3, 0.15, 0.4, 0.32]).slice();
+        return (p.pb || p.fcb || [0.3, 0.25, 0.4, 0.3]).slice();
+    },
+
+    renderPlacements: function () {
+        var S = TR.st.pl, el = TR.$('detail');
+        if (!TR.st.D) { el.innerHTML = '<p class="empty">Loading the product catalog...</p>'; return; }
+        var TPL = TR.st.TPL || {}, q = S.q.toLowerCase();
+        var styles = Object.keys(TR.st.P).map(function (k) { return TR.st.P[k]; }).filter(function (p) {
+            if (S.filter === 'set' && !TPL[p.s]) return false;
+            if (S.filter === 'unset' && TPL[p.s]) return false;
+            return !q || (p.n + ' ' + p.s).toLowerCase().indexOf(q) >= 0;
+        }).sort(function (a, b) { return (TR.st.CAT[a.s] + a.n).localeCompare(TR.st.CAT[b.s] + b.n); });
+        var setCount = Object.keys(TPL).filter(function (k) { return TR.st.P[k]; }).length;
+        if (!S.style || !TR.st.P[S.style]) S.style = styles[0] && styles[0].s;
+        var p = TR.st.P[S.style];
+        var list = '<div class="pl-list">' + (styles.length ? styles.map(function (x) {
+            var t = TPL[x.s];
+            return '<button type="button" class="pl-row' + (x.s === S.style ? ' on' : '') + '" data-s="' + TR.esc(x.s) + '"><span><b>' + TR.esc(x.n) + '</b><span class="sub">' + TR.esc(x.s) + ' · ' + TR.esc(TR.st.CAT[x.s]) + '</span></span>' +
+                (t ? '<span class="tag ' + (t.from === 'dan' ? '' : 'approved') + '">' + (t.from === 'dan' ? 'set, from Dan' : 'set') + '</span>' : '') + '</button>';
+        }).join('') : '<p class="empty">No style matches.</p>') + '</div>';
+        var ed = '';
+        if (p) {
+            var zones = TR.plZones(p);
+            if (zones.indexOf(S.zone) < 0) S.zone = zones[0];
+            var cols = p.c.filter(function (c) { return !c[4] && (S.zone === 'bk' ? c[6] : c[2]); });
+            if (!S.color || !cols.some(function (c) { return c[0] === S.color; })) S.color = cols[0] && cols[0][0];
+            if (!S.box || S.boxFor !== p.s + '|' + S.zone) { S.box = TR.box5(TR.plBox(p, S.zone)); S.boxFor = p.s + '|' + S.zone; S.dirty = false; }
+            var t = TPL[p.s];
+            ed = '<div class="pl-ed"><h3 style="margin:0 0 2px">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + '</span></h3>' +
+                '<p class="sub" style="margin:0 0 10px">' + (t ? 'Saved ' + (t.from === 'dan' ? 'from the placement tool' : 'here') + (t.at ? ', ' + TR.ago(t.at) : '') + '.' : 'Using the catalog\'s box. Save to set this style\'s default.') + '</p>' +
+                '<div class="chips" role="group" aria-label="Where">' + zones.map(function (z) { return '<button type="button" class="chip' + (z === S.zone ? ' on' : '') + '" data-z="' + z + '">' + TR.ZONES[z] + (t && t[z] ? '' : ' (catalog)') + '</button>'; }).join('') + '</div>' +
+                '<div class="pl-grid"><div class="stage" id="pl-stage"></div><div>' +
+                    '<label class="f">Preview colour</label><select id="pl-col" style="width:100%">' + cols.map(function (c) { return '<option' + (c[0] === S.color ? ' selected' : '') + '>' + TR.esc(c[0]) + '</option>'; }).join('') + '</select>' +
+                    '<label class="f" style="margin-top:12px">Sample logo</label><div class="chips"><button type="button" class="chip' + (S.wide ? '' : ' on') + '" data-w="0">Round</button><button type="button" class="chip' + (S.wide ? ' on' : '') + '" data-w="1">Wide</button></div>' +
+                    '<label class="f" style="margin-top:12px" for="pl-tilt">Tilt <span id="pl-tilt-v">' + (S.box[4] || 0) + '°</span></label><input type="range" id="pl-tilt" min="-45" max="45" step="1" value="' + (S.box[4] || 0) + '" style="width:100%">' +
+                    '<p class="sub" style="margin:12px 0">Drag the box to move it and the blue corner to size it. Applies to every new mockup, proof and build for this style; a store can still move its own logo.</p>' +
+                    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" type="button" id="pl-save">Save for this style</button>' + (t ? '<button class="btn quiet" type="button" id="pl-reset">Back to catalog</button>' : '') + '</div>' +
+                    '<p class="sub" id="pl-msg" style="margin-top:8px"></p>' +
+                '</div></div></div>';
+        }
+        el.innerHTML = '<div class="calhead"><h2 style="min-width:0">Logo placements</h2><span class="sp"></span><span class="sub">' + setCount + ' of ' + Object.keys(TR.st.P).length + ' styles set</span></div>' +
+            '<div class="pl-wrap"><div><div class="toolbar" style="margin-top:0"><input type="search" id="pl-q" placeholder="Find a style" value="' + TR.esc(S.q) + '" aria-label="Find a style">' +
+            '<select id="pl-f" aria-label="Show"><option value="all"' + (S.filter === 'all' ? ' selected' : '') + '>All styles</option><option value="set"' + (S.filter === 'set' ? ' selected' : '') + '>Set</option><option value="unset"' + (S.filter === 'unset' ? ' selected' : '') + '>Not set</option></select></div>' + list + '</div>' + ed + '</div>';
+        TR.wirePlacements();
+    },
+
+    drawPl: function () {
+        var S = TR.st.pl, p = TR.st.P[S.style], stage = TR.$('pl-stage'); if (!p || !stage) return;
+        var c = p.c.filter(function (x) { return x[0] === S.color; })[0] || p.c[0], src = S.zone === 'bk' ? c[6] : c[2];
+        stage.innerHTML = '<span class="mk"><img class="g" alt="' + TR.esc(p.n + ' in ' + c[0]) + '" src="' + TR.esc(src) + '">' + TR.lbHtml(S.box, TR.sampleLogo(S.wide), 'pl-lb') + '</span>';
+        var tv = function () { var v = TR.$('pl-tilt-v'); if (v) v.textContent = (S.box[4] || 0) + '°'; };
+        TR.wireBoxEditor({ stage: stage, id: 'pl-lb', get: function () { return S.box; }, set: function (b) { S.box = b; S.dirty = true; }, moved: tv, redraw: function () { TR.drawPl(); tv(); }, tilt: TR.$('pl-tilt') });
+    },
+
+    wirePlacements: function () {
+        var S = TR.st.pl, el = TR.$('detail');
+        var qq = TR.$('pl-q');
+        qq.oninput = function () { S.q = this.value; var pos = this.selectionStart; TR.renderPlacements(); var n = TR.$('pl-q'); n.focus(); n.setSelectionRange(pos, pos); };
+        TR.$('pl-f').onchange = function () { S.filter = this.value; TR.renderPlacements(); };
+        var leave = function (fn) { return function () { if (S.dirty && !window.confirm('Leave this box without saving?')) return; S.dirty = false; fn.apply(this, arguments); }; };
+        el.querySelectorAll('.pl-row').forEach(function (b) { b.onclick = leave(function () { S.style = b.dataset.s; S.box = null; TR.renderPlacements(); }); });
+        el.querySelectorAll('[data-z]').forEach(function (b) { b.onclick = leave(function () { S.zone = b.dataset.z; S.box = null; TR.renderPlacements(); }); });
+        el.querySelectorAll('[data-w]').forEach(function (b) { b.onclick = function () { S.wide = b.dataset.w === '1'; TR.renderPlacements(); }; });
+        var col = TR.$('pl-col'); if (!col) return;
+        col.onchange = function () { S.color = this.value; TR.drawPl(); };
+        TR.$('pl-tilt').oninput = function () { S.box[4] = Number(this.value) || 0; S.dirty = true; TR.drawPl(); TR.$('pl-tilt-v').textContent = S.box[4] + '°'; };
+        TR.drawPl();
+        var msg = TR.$('pl-msg');
+        TR.$('pl-save').onclick = function () {
+            var t = TR.tplOf(TR.st.P[S.style]) || {}, boxes = {};
+            ['fc', 'lc', 'pb', 'bk'].forEach(function (z) { if (t[z]) boxes[z] = t[z]; });
+            var b = S.box.slice(0, 4).map(function (v) { return Math.round(v * 10000) / 10000; }); if (S.box[4]) b.push(S.box[4]);
+            boxes[S.zone] = b;
+            TR.api('/team-requests/placements/save', { body: { style: S.style, boxes: boxes } }).then(function (j) {
+                if (j.__status !== 200) { msg.textContent = j.error || j.reason || ('HTTP ' + j.__status); return; }
+                TR.st.TPL = j.placements; S.dirty = false; TR.renderPlacements(); TR.$('pl-msg').textContent = 'Saved. New mockups, proofs and builds for this style use it.';
+            });
+        };
+        var rs = TR.$('pl-reset');
+        if (rs) rs.onclick = function () {
+            TR.api('/team-requests/placements/save', { body: { style: S.style, reset: true } }).then(function (j) {
+                if (j.__status !== 200) { msg.textContent = j.error || ('HTTP ' + j.__status); return; }
+                TR.st.TPL = j.placements; S.box = null; S.dirty = false; TR.renderPlacements(); TR.$('pl-msg').textContent = 'Back to the catalog\'s boxes.';
+            });
+        };
     },
 
     // ---------- release calendar ----------

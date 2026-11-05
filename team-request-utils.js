@@ -83,9 +83,22 @@ var TeamReqUtils = {
         return p.pb || null;
     },
 
-    boxFor: function (item, p, color) {
+    // Where the logo goes, most specific first: a staff box for this store
+    // and colour, a staff box for this store, the STYLE's saved template
+    // (the placement screen, seeded from the back office placement tool),
+    // then the catalog's own box.
+    boxFor: function (item, p, color, tpl) {
         var b = item && item.boxes || {};
-        return b[color] || b['*'] || this.defaultBox(p, item && item.placement);
+        return b[color] || b['*'] || this.templateBox(tpl, p, item && item.placement) || this.defaultBox(p, item && item.placement);
+    },
+
+    // tpl = { fc, lc, pb, bk }, each [x, y, w, h, tilt?] in fractions of the
+    // catalog photo. A style with a chest choice uses fc or lc; anything else
+    // (hats, bags, bottoms) uses pb, the one front box.
+    templateBox: function (tpl, p, placement) {
+        if (!tpl || !p) return null;
+        if (p.ch) return /left/i.test(placement || '') ? tpl.lc || null : tpl.fc || null;
+        return tpl.pb || tpl.fc || null;
     },
 
     // object-fit: contain, object-position: top center, inside the box. This is
@@ -143,9 +156,12 @@ var TeamReqUtils = {
     // The second logo the customer added (back, back neck or sleeve), from
     // the catalog's own locations: side 'f' prints on the front photo, 'b' on
     // the back photo.
-    loc2: function (item, p) {
+    loc2: function (item, p, tpl) {
         var name = item && item.second_logo, l = name && p && p.loc && p.loc[name];
-        return l ? { name: name, side: l[0], box: l[1] } : null;
+        if (!l) return null;
+        // A style's saved back box beats the catalog's generic one.
+        var box = name === 'Back' && tpl && tpl.bk ? tpl.bk : l[1];
+        return { name: name, side: l[0], box: box };
     },
 
     // How well a logo shows on a garment colour, 0 to 1: the mean colour

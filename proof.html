@@ -59,7 +59,7 @@ h2 { font-size: 24px; margin: 38px 0 4px; }
 </head>
 <body>
 <div id="root"><p class="msg">Loading your store...</p></div>
-<script src="team-request-utils.js?v=2"></script>
+<script src="team-request-utils.js?v=3"></script>
 <script>
 (function () {
   var WORKER = (function () { try { return localStorage.getItem('rhWorkerUrl') || 'https://runhouse-inventory-worker.ryan-486.workers.dev'; } catch (e) { return 'https://runhouse-inventory-worker.ryan-486.workers.dev'; } })();
@@ -102,8 +102,8 @@ h2 { font-size: 24px; margin: 38px 0 4px; }
     var url = function (it, n, c, which) { var k = U.resolveLogo(it, n, which, LG, c[5]); return k && LG[k] ? LG[k].url : null; };
     var mk = function (it, p, n) {
       var c = p.c.filter(function (x) { return x[0] === n; })[0]; if (!c) return '';
-      var l2 = U.loc2(it, p);
-      var front = '<span class="mk"><img class="g" alt="' + esc(p.n + ' in ' + n) + '" src="' + esc(c[2]) + '">' + (c[4] ? '' : lb(U.boxFor(it, p, n), url(it, n, c, 'f'))) + (l2 && l2.side === 'f' ? lb(l2.box, url(it, n, c, 'x')) : '') + '</span>';
+      var tpl = (v.templates || {})[p.s] || null, l2 = U.loc2(it, p, tpl);
+      var front = '<span class="mk"><img class="g" alt="' + esc(p.n + ' in ' + n) + '" src="' + esc(c[2]) + '">' + (c[4] ? '' : lb(U.boxFor(it, p, n, tpl), url(it, n, c, 'f'))) + (l2 && l2.side === 'f' ? lb(l2.box, url(it, n, c, 'x')) : '') + '</span>';
       var tiles = '<div class="tile"><figure>' + front + '<figcaption>' + esc(n) + '</figcaption></figure></div>';
       if (l2 && l2.side === 'b' && c[6]) tiles += '<div class="tile"><figure><span class="mk"><img class="g" alt="' + esc(p.n + ' in ' + n + ', back') + '" src="' + esc(c[6]) + '">' + (c[7] ? '' : lb(l2.box, url(it, n, c, 'x'))) + '</span><figcaption>' + esc(n) + ', back</figcaption></figure></div>';
       return tiles;

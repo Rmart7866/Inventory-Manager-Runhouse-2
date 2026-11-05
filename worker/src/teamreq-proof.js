@@ -15,7 +15,7 @@
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 
-import { readRec, writeRec, log, LOGO_PREFIX } from './teamreq.js';
+import { readRec, writeRec, log, LOGO_PREFIX, PLACE_KEY } from './teamreq.js';
 
 const RATE_PER_HOUR = 30;
 
@@ -110,7 +110,13 @@ export async function handlePublicProof(request, env, path) {
 
   if (path === '/team-requests/proof' && request.method === 'GET') {
     const rec = await authed(env, url.searchParams.get('id'), url.searchParams.get('t'));
-    return rec ? out(proofView(rec), 200, request, env) : nf();
+    if (!rec) return nf();
+    // The style templates for THIS request's styles only, so the customer
+    // sees boxes exactly where the staff page puts them.
+    const all = (await env.CATALOG.get(PLACE_KEY, 'json')) || {}, view = proofView(rec), templates = {};
+    for (const it of view.items) if (all[it.style]) templates[it.style] = { fc: all[it.style].fc, lc: all[it.style].lc, pb: all[it.style].pb, bk: all[it.style].bk };
+    view.templates = templates;
+    return out(view, 200, request, env);
   }
 
   if (path === '/team-requests/proof-logo' && request.method === 'GET') {

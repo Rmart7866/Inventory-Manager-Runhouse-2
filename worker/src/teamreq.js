@@ -39,6 +39,15 @@ const STATUSES = ['new', 'progress', 'waiting', 'done', 'archived'];
 // that file is public on the CDN and this repo is public, so cost lives here,
 // behind the write secret, and nowhere a customer can reach.
 const COSTS_KEY = 'treqcosts';
+// Logo placement templates per style: { STYLE: { fc, lc, pb, bk, from, at } },
+// each box [x, y, w, h, tilt?] in fractions of the catalog photo. Seeded
+// from the back office placement tool, edited on the Placements screen.
+export const PLACE_KEY = 'treqplace';
+
+function okBox(b) {
+  return Array.isArray(b) && (b.length === 4 || b.length === 5) && b.every((v) => typeof v === 'number' && Number.isFinite(v)) &&
+    b[0] >= 0 && b[1] >= 0 && b[2] > 0 && b[3] > 0 && b[0] + b[2] <= 1.001 && b[1] + b[3] <= 1.001 && (b.length === 4 || Math.abs(b[4]) <= 45);
+}
 
 async function rememberCosts(env, rec) {
   const items = ((rec.work && rec.work.items) || []).filter((it) => it.cost > 0 && it.style);
@@ -348,6 +357,7 @@ export async function handleStaff(request, env, which) {
   const url = new URL(request.url);
   if (which === 'list') return { body: { requests: await listRequests(env) } };
   if (which === 'costs') return { body: { costs: (await env.CATALOG.get(COSTS_KEY, 'json')) || {} } };
+  if (which === 'placements') return { body: { placements: (await env.CATALOG.get(PLACE_KEY, 'json')) || {} } };
 
   if (which === 'one') {
     const rec = await readRec(env, url.searchParams.get('id'));
@@ -388,6 +398,26 @@ export async function handleStaff(request, env, which) {
   let b;
   try { b = await request.json(); } catch { b = null; }
   if (!b) return { status: 400, body: { error: 'Expected JSON' } };
+
+  if (which === 'placement-save') {
+    const style = String(b.style || '').trim().toUpperCase().slice(0, 30);
+    if (!style) return { status: 400, body: { error: 'Which style?' } };
+    const all = (await env.CATALOG.get(PLACE_KEY, 'json')) || {};
+    if (b.reset) { delete all[style]; }
+    else {
+      const t = { from: 'staff', at: new Date().toISOString() };
+      for (const k of ['fc', 'lc', 'pb', 'bk']) {
+        if (b.boxes && b.boxes[k] != null) {
+          if (!okBox(b.boxes[k])) return { status: 400, body: { error: 'The ' + k + ' box is not a valid box' } };
+          t[k] = b.boxes[k].map((v) => Math.round(v * 10000) / 10000);
+        }
+      }
+      all[style] = t;
+    }
+    await env.CATALOG.put(PLACE_KEY, JSON.stringify(all));
+    return { body: { ok: true, placements: all } };
+  }
+
   const rec = await readRec(env, b.id);
   if (!rec) return { status: 404, body: { error: 'Not found' } };
 
