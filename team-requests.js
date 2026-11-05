@@ -1026,7 +1026,7 @@ var TR = {
             (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(w.logos[k].label || k); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
             '<p class="sub">Builds every product as a <b>draft</b>: Color then Size options with sizes spelled out, colours named by logo code ("Jet Black (D055 (FC))"), a front mockup per colour and a back one where there is a back logo' + (upd ? '' : ', plus an <b>unpublished</b> collection') + '. Nothing appears on the site until someone publishes it. Mockups use the 420 px catalog photos, so swap in proper ones before going live.</p>' +
             '<div style="display:flex;gap:8px;margin:12px 0"><button class="btn" type="button" id="b-plan"' + (problems.length ? ' disabled' : '') + '>Check the plan</button><button class="btn pri" type="button" id="b-go" disabled>Create drafts</button></div>' +
-            '<div id="b-out"></div>';
+            '<div id="b-out"></div>' + TR.liveHtml();
         var bt = TR.$('b-tag'); if (bt) bt.addEventListener('input', function () { w.tag = this.value; TR.touch(); });
         TR.$('b-search').addEventListener('change', function () { w.searchable = this.checked; TR.touch(); });
         // Redraw so the code requirement appears or disappears at once.
@@ -1034,6 +1034,61 @@ var TR = {
         TR.$('b-plan').onclick = TR.dryRun;
         TR.$('b-go').onclick = TR.build;
         if (TR.st.plan) TR.showPlan(TR.st.plan);
+        TR.wireLive();
+    },
+
+    // ---------- go live ----------
+    // Publishes ONE store: only the drafts this request built, draft to
+    // active, on the channels live team stores use, and the collection onto
+    // the Team Stores page. Only after staff tick that the customer approved,
+    // see a dry run, and confirm twice. The Worker enforces all of it again.
+    STORE_URL: 'https://therunhouse.com/collections/',
+
+    liveHtml: function () {
+        var r = TR.st.rec, built = (r.build && r.build.products) || [];
+        if (!built.length) return '';
+        var done = r.live && r.live.at;
+        return '<div class="golive"><h3>Go live</h3>' +
+            (done ? '<div class="msg ok">Went live ' + TR.ago(r.live.at) + ': ' + (r.live.products || []).length + ' products' + (r.live.collection && r.live.collection.handle ? ', <a target="_blank" rel="noopener" href="' + TR.STORE_URL + TR.esc(r.live.collection.handle) + '">open the store</a>' : '') + '.</div>' : '') +
+            '<p class="sub" style="max-width:760px">Publishes this request\'s ' + built.length + ' draft product' + (built.length === 1 ? '' : 's') + (r.req && r.req.mode === 'update' ? ' into the existing store' : ' and its collection, and puts the store on the Team Stores page') + '. Nothing else on the site is touched: products built by hand or by the back office automation, and anything archived, are left alone.</p>' +
+            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="gl-ok"> The customer approved this store.</label>' +
+            '<div style="display:flex;gap:8px;margin:8px 0"><button class="btn" type="button" id="gl-check" disabled>Check what goes live</button><button class="btn pri" type="button" id="gl-go" disabled>Go live</button></div><div id="gl-out"></div></div>';
+    },
+
+    wireLive: function () {
+        var ok = TR.$('gl-ok'); if (!ok) return;
+        var chk = TR.$('gl-check'), go = TR.$('gl-go'), out = TR.$('gl-out'), plan = null, armed = false;
+        ok.onchange = function () { chk.disabled = !ok.checked; go.disabled = true; plan = null; out.innerHTML = ''; };
+        chk.onclick = function () {
+            if (TR.st.dirty) { TR.flash('Save your changes first.', 'warn'); return; }
+            out.innerHTML = '<p class="sub">Reading the store from Shopify...</p>';
+            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: true } }).then(function (j) {
+                if (j.__status !== 200) { out.innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; return; }
+                plan = j.plan;
+                var nothing = !plan.activate.length && !plan.collection;
+                out.innerHTML = '<table class="plan"><tbody>' +
+                    plan.activate.map(function (p) { return '<tr><td>' + TR.esc(p.title) + '</td><td>Draft to <b>active</b></td></tr>'; }).join('') +
+                    plan.already.map(function (t) { return '<tr><td>' + TR.esc(t) + '</td><td class="sub">Already active, left alone</td></tr>'; }).join('') +
+                    plan.archived.map(function (t) { return '<tr><td>' + TR.esc(t) + '</td><td style="color:var(--warn)">Archived, left alone</td></tr>'; }).join('') +
+                    (plan.collection ? '<tr><td><b>' + TR.esc(plan.collection.title) + '</b> (collection)</td><td>Published, and ' + (plan.collection.directory ? 'already' : 'added') + ' on the Team Stores page</td></tr>' : '') +
+                    '</tbody></table>' +
+                    (plan.missing ? '<p class="msg warn">' + plan.missing + ' product' + (plan.missing === 1 ? ' was' : 's were') + ' deleted in Shopify since the build and will be skipped.</p>' : '') +
+                    '<p class="sub">On these channels: ' + plan.channels.map(TR.esc).join(', ') + '.</p>' +
+                    (nothing ? '<p class="msg">Nothing left to publish.</p>' : '');
+                go.disabled = nothing;
+            });
+        };
+        go.onclick = function () {
+            if (!plan || !ok.checked) return;
+            if (!armed) { armed = true; go.textContent = 'Click again to publish to customers'; go.classList.add('arm'); setTimeout(function () { armed = false; go.textContent = 'Go live'; go.classList.remove('arm'); }, 5000); return; }
+            go.disabled = true; chk.disabled = true; go.textContent = 'Publishing...';
+            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: false, approved: true } }).then(function (j) {
+                if (j.__status !== 200) { out.innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; go.textContent = 'Go live'; return; }
+                TR.st.rec = j.rec; TR.loadList(); TR.renderDetail();
+                var bad = j.results.filter(function (x) { return !x.ok; }).concat(j.collection && !j.collection.ok ? [j.collection] : []);
+                TR.$('gl-out').innerHTML = (bad.length ? '<div class="msg warn">Some items did not publish:<br>' + bad.map(function (x) { return TR.esc(x.title) + ': ' + TR.esc((x.errors || []).join('; ')); }).join('<br>') + '</div>' : '<div class="msg ok">Live. ' + (j.collection ? '<a target="_blank" rel="noopener" href="' + TR.STORE_URL + TR.esc(j.collection.handle) + '">Open the store</a> and send the link to the customer.' : 'The new products are in the existing store.') + '</div>');
+            });
+        };
     },
 
     gidNum: function (gid) { return String(gid || '').split('/').pop(); },

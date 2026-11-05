@@ -37,6 +37,7 @@ import { handleIntake, handleStaff } from './teamreq.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
 import { handleSalesRun, handleSalesStatus, handleSalesFund } from './teamreq-sales.js';
+import { handleGoLive } from './teamreq-live.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
   readApparel, readApparelMeta, writeApparel,
@@ -494,6 +495,9 @@ export default {
       '/team-requests/logo': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       // A real Shopify write: create-only, draft-only, collection unpublished.
       '/team-requests/build': { handler: teamReqRoute(handleBuild), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // Publishes ONE store: only this request's own drafts, draft to active,
+      // after staff confirm the customer approved. See teamreq-live.js.
+      '/team-requests/golive': { handler: teamReqRoute(handleGoLive), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
     };
     const route = routes[url.pathname];
     if (!route) return json({ error: 'Not found' }, 404, request, env);
