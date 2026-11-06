@@ -22,6 +22,7 @@
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 
+import { makeSizeAccumulator } from './size-coverage.js';
 import { parseProduct, brandFor } from './parsers.js';
 import { widthClass } from './group.js';
 import { groupTagFor } from './tag-groups.js';
@@ -230,6 +231,9 @@ function articleCodesOf(product) {
 // The on-hand map doubles as the presence set: a Needham level, even at 0, puts
 // the handle in the map.
 function makeBulkAssembler(needhamLocationId) {
+  // Shoe size coverage per shop rides on the same pass (size-coverage.js).
+  // Needham is skipped: its numbers are supplier stock, not a shelf.
+  const sizeAcc = makeSizeAccumulator([needhamLocationId]);
   const productsById = new Map();  // kept product id -> node (footwear AND apparel)
   const variantInfo = new Map();   // kept variant id -> { productId, sku, size }
   // needham (null when scoping off): per-handle on-hand total and per-size detail.
@@ -271,6 +275,7 @@ function makeBulkAssembler(needhamLocationId) {
       // Total on-hand across EVERY location, so the Library can tell what has no
       // stock anywhere. Summed regardless of Needham scoping.
       p._total = (p._total || 0) + qty;
+      if (p._kind === 'footwear') sizeAcc.onLevel(p, vi.size, o.location && o.location.id, qty);
       if (!needham) return;
       if (!o.location || o.location.id !== needhamLocationId) return; // Needham-only below
       needham.onHand.set(p.handle, (needham.onHand.get(p.handle) || 0) + qty);
@@ -303,6 +308,7 @@ function makeBulkAssembler(needhamLocationId) {
       raw: all.filter((p) => p._kind === 'footwear'),
       apparelRaw: all.filter((p) => p._kind === 'apparel'),
       needham,
+      sizes: sizeAcc.result(),
     };
   };
   return { onObject, result };
@@ -336,17 +342,18 @@ export async function buildCatalog(client, opts = {}) {
   const activeOnly = !!opts.activeOnly;
   const needhamLocationId = opts.needhamLocationId || null;
 
-  let raw, apparelRaw = [], needham;
+  let raw, apparelRaw = [], needham, sizes = null;
   if (opts.limit) {
     raw = await fetchAll(client, opts.limit, activeOnly);
     needham = null; // bulk is overkill for a truncated dev peek
   } else {
-    ({ raw, apparelRaw, needham } = await fetchCatalogViaBulk(client, activeOnly, needhamLocationId));
+    ({ raw, apparelRaw, needham, sizes } = await fetchCatalogViaBulk(client, activeOnly, needhamLocationId));
   }
   const meta = { activeOnly, needhamLocationId, shop: client.SHOP };
   return {
     footwear: buildCatalogFrom(raw, needham, meta),
     apparel: buildApparelFrom(apparelRaw, needham, meta),
+    sizes,
   };
 }
 

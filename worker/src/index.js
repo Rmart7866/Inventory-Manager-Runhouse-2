@@ -37,6 +37,7 @@ import { handleIntake, handleStaff, handlePublicPlacements, intakeCors } from '.
 import { handleSupplier, handlePhoto, handleStockPublic, refreshAvailability } from './sanmar.js';
 import { handleStores } from './teamreq-stores.js';
 import { handleOrderLookup } from './orders-lookup.js';
+import { writeSizeCoverage, handleSizes } from './size-coverage.js';
 import { handleResetOptions, handleResetCollections, handleResetScan, handleResetApply, handleResetHistory, handleResetUndo } from './inventory-reset.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
@@ -102,7 +103,7 @@ function rawCatalog(body, request, env, cacheState) {
 // in place and the tool carries on exactly as before with a stale apparel copy.
 async function rebuild(env, scope) {
   const client = createShopifyClient(env);
-  const { footwear, apparel } = await buildCatalog(client, {
+  const { footwear, apparel, sizes } = await buildCatalog(client, {
     activeOnly: scope === 'active',
     needhamLocationId: env.NEEDHAM_LOCATION_ID || null,
   });
@@ -112,6 +113,14 @@ async function rebuild(env, scope) {
     apparelMeta = await writeApparel(env, scope, apparel);
   } catch (err) {
     console.error('apparel write failed, footwear catalog is unaffected:', err?.stack || String(err));
+  }
+  // Shoe size coverage per shop, last and on its own, so it can never
+  // disturb the two catalogs above.
+  try {
+    const sm = await writeSizeCoverage(env, client, sizes);
+    if (sm) console.log('size coverage written', JSON.stringify(sm));
+  } catch (err) {
+    console.error('size coverage write failed, catalogs are unaffected:', err?.stack || String(err));
   }
   return { payload: footwear, meta, apparelMeta };
 }
@@ -510,6 +519,8 @@ export default {
       // carry forWrite too. See inventory-reset.js for the three guards.
       // Order lookup for phone calls, read only. Behind the write secret
       // because an order carries a customer's name, email and address.
+      // Shoe size coverage per shop, from the nightly catalog rebuild.
+      '/sizes': { handler: teamReqRoute(handleSizes), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/orders/lookup': { handler: teamReqRoute(handleOrderLookup), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/options': { handler: teamReqRoute(handleResetOptions), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/collections': { handler: teamReqRoute(handleResetCollections), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
