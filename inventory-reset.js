@@ -24,7 +24,7 @@ var IR = {
             if (j.__status === 401 || j.__status === 403) return IR.gate('That write secret was not accepted.');
             if (j.__status !== 200) return IR.gate('The Worker answered ' + j.__status + ': ' + (j.error || ''));
             IR.$('gate').classList.add('hidden'); IR.$('app').classList.remove('hidden');
-            IR.st.opts = j; IR.drawLocs(); IR.wire(); IR.history();
+            IR.st.opts = j; IR.drawLocs(); IR.wire(); IR.drawPresets(); IR.history();
         }).catch(function (e) { IR.gate('Could not reach the Worker: ' + e.message); });
     },
 
@@ -73,8 +73,21 @@ var IR = {
         return draw;
     },
 
+    // The buttons come from the Worker, so the page and the search it runs
+    // can never disagree about what "Socks" means. A button replaces the
+    // other filters, so "all socks" never quietly becomes "socks from one brand".
     drawPresets: function () {
-        document.querySelectorAll('[data-preset]').forEach(function (b) { b.classList.toggle('on', IR.st.preset === b.dataset.preset); });
+        var el = IR.$('presets'); if (!el) return;
+        el.innerHTML = (IR.st.opts.presets || []).map(function (p) {
+            return '<button type="button" class="chip big' + (IR.st.preset === p.key ? ' on' : '') + '" data-preset="' + IR.esc(p.key) + '">' + IR.esc(p.label) + '</button>';
+        }).join('');
+        el.querySelectorAll('[data-preset]').forEach(function (b) {
+            b.onclick = function () {
+                IR.st.preset = IR.st.preset === b.dataset.preset ? null : b.dataset.preset;
+                if (IR.st.preset) { IR.st.vendors = []; IR.st.types = []; IR.st.tags = []; IR.st.cols = []; IR.drawVendors(); IR.drawTypes(); IR.drawCols(); IR.drawTags(); }
+                IR.drawPresets(); IR.reset();
+            };
+        });
     },
 
     wire: function () {
@@ -84,27 +97,33 @@ var IR = {
         IR.drawCols = IR.picker('f-col', 'l-col', 'p-col', 'cols', function (q, show) {
             IR.api('/inventory-reset/collections?q=' + encodeURIComponent(q)).then(function (j) { show(j.collections || []); });
         });
-        var drawTags = function () {
+        var drawTags = IR.drawTags = function () {
             IR.$('p-tag').innerHTML = IR.st.tags.map(function (v, i) { return '<button type="button" class="chip on" data-i="' + i + '">' + IR.esc(v) + '<span class="x">×</span></button>'; }).join('');
             IR.$('p-tag').querySelectorAll('[data-i]').forEach(function (b) { b.onclick = function () { IR.st.tags.splice(+b.dataset.i, 1); IR.reset(); drawTags(); }; });
         };
         var addTag = function () { var v = IR.$('f-tag').value.trim(); if (v && IR.st.tags.indexOf(v) < 0) { IR.st.tags.push(v); IR.st.preset = null; IR.drawPresets(); } IR.$('f-tag').value = ''; IR.reset(); drawTags(); };
         IR.$('tag-add').onclick = addTag;
         IR.$('f-tag').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addTag(); } });
-        // A shoe button replaces the other filters, so "all men's shoes"
-        // means exactly that and never "men's shoes from one brand" by accident.
-        document.querySelectorAll('[data-preset]').forEach(function (b) {
-            b.onclick = function () {
-                IR.st.preset = IR.st.preset === b.dataset.preset ? null : b.dataset.preset;
-                if (IR.st.preset) { IR.st.vendors = []; IR.st.types = []; IR.st.tags = []; IR.st.cols = []; IR.drawVendors(); IR.drawTypes(); IR.drawCols(); drawTags(); }
-                IR.drawPresets(); IR.reset();
-            };
-        });
         IR.$('find').onclick = IR.scan;
         IR.$('stop').onclick = function () { IR.st.stop = true; };
         IR.$('all').onchange = function () { var on = this.checked; IR.st.rows.forEach(function (r) { if (!r.committed) r.pick = on; }); IR.drawRows(); };
         IR.$('confirm-in').addEventListener('input', IR.armGo);
-        IR.$('go').onclick = IR.apply;
+        IR.$('checked-ok').addEventListener('change', IR.armGo);
+        // The last of the three checks: the first press arms the button and
+        // says exactly what will happen, a second press within six seconds does it.
+        var armed = null;
+        IR.$('go').onclick = function () {
+            if (!armed) {
+                var pick = IR.st.rows.filter(function (r) { return r.pick; });
+                var units = pick.reduce(function (a, r) { return a + Math.max(0, r.onHand); }, 0);
+                IR.$('go').textContent = 'Sure? Set ' + pick.length + ' items to 0 at ' + IR.st.loc.name + ' (' + units + ' units). Press again';
+                IR.$('go').classList.add('armed');
+                armed = setTimeout(function () { armed = null; IR.$('go').classList.remove('armed'); IR.armGo(); }, 6000);
+                return;
+            }
+            clearTimeout(armed); armed = null; IR.$('go').classList.remove('armed');
+            IR.apply();
+        };
     },
 
     filters: function () {
@@ -113,7 +132,7 @@ var IR = {
 
     describe: function () {
         var f = IR.filters(), bits = [];
-        if (f.preset) bits.push(f.preset === 'mens' ? "all men's shoes" : "all women's shoes");
+        if (f.preset) { var p = (IR.st.opts.presets || []).filter(function (x) { return x.key === f.preset; })[0]; bits.push((p ? p.label : f.preset).toLowerCase()); }
         if (f.vendors.length) bits.push('brand ' + f.vendors.join(' or '));
         if (f.types.length) bits.push('type ' + f.types.join(' or '));
         if (f.tags.length) bits.push('tag ' + f.tags.join(' or '));
@@ -124,7 +143,7 @@ var IR = {
     // Anything changed: the old results no longer describe the choice.
     reset: function () {
         IR.st.rows = []; IR.st.stop = true;
-        IR.$('review').classList.add('hidden'); IR.$('confirm').classList.add('hidden'); IR.$('result').innerHTML = ''; IR.$('prog').textContent = '';
+        IR.$('review').classList.add('hidden'); IR.$('confirm').classList.add('hidden'); IR.$('result').innerHTML = ''; IR.$('prog').textContent = ''; IR.$('checked-ok').checked = false; IR.$('confirm-in').value = '';
         IR.$('bar').classList.add('hidden');
     },
 
@@ -183,7 +202,7 @@ var IR = {
 
     armGo: function () {
         var loc = IR.st.loc, n = IR.st.rows.filter(function (r) { return r.pick; }).length;
-        var ok = loc && IR.$('confirm-in').value.trim().toLowerCase() === loc.name.toLowerCase() && n > 0;
+        var ok = loc && IR.$('checked-ok').checked && IR.$('confirm-in').value.trim().toLowerCase() === loc.name.toLowerCase() && n > 0;
         IR.$('go').disabled = !ok;
         IR.$('go').textContent = loc ? 'Reset ' + n + ' items to 0 at ' + loc.name : 'Reset';
     },
@@ -200,7 +219,7 @@ var IR = {
             } else {
                 html = '<div class="msg bad">' + IR.esc(j.error || ('HTTP ' + j.__status)) + (j.id && j.written ? ' <button class="btn" type="button" data-undo="' + IR.esc(j.id) + '">Undo the ' + j.written + ' that were written</button>' : '') + '</div>';
             }
-            IR.st.rows = []; IR.$('review').classList.add('hidden'); IR.$('confirm-in').value = '';
+            IR.st.rows = []; IR.$('review').classList.add('hidden'); IR.$('confirm-in').value = ''; IR.$('checked-ok').checked = false;
             IR.$('result').innerHTML = html; IR.$('confirm').classList.remove('hidden'); IR.$('go').disabled = true; IR.$('go').textContent = 'Reset';
             IR.wireUndo(IR.$('result')); IR.history();
         });

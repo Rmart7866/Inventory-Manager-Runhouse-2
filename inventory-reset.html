@@ -45,6 +45,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 22px 24px 90px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.pri { background: var(--accent); border-color: var(--accent); color: #0b1220; font-weight: 600; }
 .btn.danger { background: var(--bad); border-color: var(--bad); color: #1a0509; font-weight: 700; }
+.btn.danger.armed { outline: 3px solid var(--warn); outline-offset: 2px; }
 input[type=text], input[type=search], input[type=password] { background: var(--bg); border: 1px solid var(--line-2); padding: 7px 10px; min-width: 0; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 10px; }
@@ -82,19 +83,16 @@ tr.skip td { color: var(--muted-2); }
 <main id="app" class="hidden">
   <div class="step">
     <h2><span class="n">1</span>Where</h2>
-    <div class="sub">One location at a time. Scituate is not offered.</div>
+    <div class="sub">One location at a time: Needham, Warehouse, Walpole or Falmouth.</div>
     <div class="chips" id="locs"></div>
     <div id="loc-note"></div>
   </div>
 
   <div class="step">
     <h2><span class="n">2</span>What</h2>
-    <div class="sub">Use a shoe button, or pick any mix of brand, type, tag and collection. Inside one box any of them matches; across boxes all must match.</div>
-    <div class="chips">
-      <button type="button" class="chip big" data-preset="mens">All men's shoes</button>
-      <button type="button" class="chip big" data-preset="womens">All women's shoes</button>
-    </div>
-    <div class="sub" id="preset-note">The shoe buttons are the product types "Men's Shoes" and "Women's Shoes". Unisex and Kids' shoes are separate types: add them under Product type to include them.</div>
+    <div class="sub">Use one button, or pick any mix of brand, type, tag and collection below. Inside one box any of them matches; across boxes all must match.</div>
+    <div class="chips" id="presets"></div>
+    <div class="sub" id="preset-note">Buttons use the store's own product types. Shoes are "Men's Shoes" and "Women's Shoes" (Unisex and Kids' shoes are separate types: add them under Product type). Socks include anything tagged sock or socks. Apparel is clothing, without socks, hats, gloves or the Compression type. Nutrition is "Nutrition" and "Energy Chews".</div>
     <div class="grid">
       <div class="rel"><label class="f" for="f-vendor">Brand</label><input type="search" id="f-vendor" placeholder="Type a brand" style="width:100%" autocomplete="off"><div class="list hidden" id="l-vendor"></div><div class="picked" id="p-vendor"></div></div>
       <div class="rel"><label class="f" for="f-type">Product type</label><input type="search" id="f-type" placeholder="Type a product type" style="width:100%" autocomplete="off"><div class="list hidden" id="l-type"></div><div class="picked" id="p-type"></div></div>
@@ -113,7 +111,8 @@ tr.skip td { color: var(--muted-2); }
 
   <div class="step hidden" id="confirm">
     <h2><span class="n">4</span>Reset</h2>
-    <div class="sub">Sets on hand to 0 for the ticked items. Type the location's name to confirm. Every reset can be undone below.</div>
+    <div class="sub">Sets on hand to 0 for the ticked items. Three checks before anything changes: tick the box, type the location's name, then press Reset twice. Every reset can be undone below.</div>
+    <label class="row" style="margin-top:10px;gap:8px"><input type="checkbox" id="checked-ok"> I have checked the list above, and these counts should be 0.</label>
     <div class="row" style="margin-top:10px"><input type="text" id="confirm-in" autocomplete="off" style="width:220px"><button class="btn danger" type="button" id="go" disabled>Reset</button></div>
     <div id="result"></div>
   </div>
@@ -125,6 +124,6 @@ tr.skip td { color: var(--muted-2); }
 </main>
 
 <script src="catalog-client.js?v=23"></script>
-<script src="inventory-reset.js?v=1"></script>
+<script src="inventory-reset.js?v=2"></script>
 </body>
 </html>

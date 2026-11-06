@@ -13,21 +13,41 @@
 //   3. The location is an id the server resolves and checks, never a name
 //      match on the client's say so, and staff must type its name to write.
 //
-// Scituate is excluded by owner decision (it is closed, and it deliberately
-// holds the re:do returns line item, see CLAUDE.md). Every reset is stored,
-// so it can be undone from the page.
+// Only four locations, by owner decision 2026-11-06: an ALLOWLIST, so a
+// location added to Shopify later is not resettable until someone adds it
+// here on purpose. Scituate in particular stays out (closed, and it holds
+// the re:do returns line item, see CLAUDE.md). Every reset is stored, so it
+// can be undone from the page.
 
 import { createShopifyClient } from './shopify.js';
 
-const EXCLUDED = ['Scituate'];
+export const ALLOWED = ['Needham', 'Warehouse', 'Walpole', 'Falmouth'];
 const LOG_PREFIX = 'invreset:';
-const PRESETS = { mens: ["Men's Shoes"], womens: ["Women's Shoes"] };
+// The one click buttons, each a fixed search in the store's OWN product
+// types and tags, measured 2026-11-06. A button replaces the other filters.
+const T = (xs) => '(' + xs.map((x) => 'product_type:"' + x + '"').join(' OR ') + ')';
+export const APPAREL_TYPES = ['T-Shirts', 'T-Shirt', 'Hoodies', 'Jackets', 'Jacket', 'Tanks', 'Shorts', 'Long Sleeves', 'Pants', 'Pant', 'Half-Zips',
+  'Crewnecks', 'Sweatshirts', 'Sweatshirt', 'Sports Bras', 'Bra', 'Tights/Leggings', 'Legging', 'Matching Sets', 'Full Zips', 'Vests',
+  'Short Sleeve', 'Uniforms', 'Skirts & Dresses', 'Jumpsuits & Rompers', 'Sweatpants', 'shirt', 'Skorts', 'Active Dress', 'Sweater', 'Clothing', 'Singlets'];
+export const PRESETS = {
+  mens: { label: "All men's shoes", q: 'product_type:"Men\'s Shoes"' }, // 2,728
+  womens: { label: "All women's shoes", q: 'product_type:"Women\'s Shoes"' }, // 2,791
+  // The type alone is 189; the store's Socks collection keys on the sock
+  // and socks TAGS (compression socks, untyped Collective socks), 413. Two
+  // garments carry a sock tag by mistake, so those types are excluded.
+  socks: { label: 'Socks', q: '(product_type:"Socks" OR tag:"sock" OR tag:"socks") AND -product_type:"Hoodies" AND -product_type:"Crewnecks"' },
+  insoles: { label: 'Insoles', q: 'product_type:"Insoles & Inserts"' }, // 50
+  // Garments only: socks, headwear, gloves and sunglasses are not apparel
+  // here, and Compression is left out because it holds socks and sleeves.
+  apparel: { label: 'Apparel', q: T(APPAREL_TYPES) }, // about 6,900
+  nutrition: { label: 'Nutrition', q: T(['Nutrition', 'Energy Chews']) }, // 76
+};
 
 async function readJson(request) { try { return await request.json(); } catch (e) { return {}; } }
 
 async function allowedLocations(client) {
   const r = await client.graphql('{ locations(first: 50){ nodes{ id name isActive } } }');
-  return r.data.locations.nodes.filter((l) => l.isActive && !EXCLUDED.includes(l.name))
+  return r.data.locations.nodes.filter((l) => l.isActive && ALLOWED.includes(l.name))
     .map((l) => ({ id: l.id, name: l.name, dropship: l.name === 'Needham' }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -37,10 +57,12 @@ async function allowedLocations(client) {
 // never be "everything at a location" by accident.
 export function buildQuery(f) {
   const q = (v) => '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
-  const types = [...(f.types || []), ...((f.preset && PRESETS[f.preset]) || [])];
+  // A button is its own fixed search and ignores everything else, so "all
+  // socks" can never quietly become "socks from one brand".
+  if (f.preset) return PRESETS[f.preset] ? PRESETS[f.preset].q : null;
   const groups = [
     (f.vendors || []).map((v) => 'vendor:' + q(v)),
-    types.map((v) => 'product_type:' + q(v)),
+    (f.types || []).map((v) => 'product_type:' + q(v)),
     (f.tags || []).map((v) => 'tag:' + q(v)),
     (f.collections || []).map((c) => 'collection_id:' + String(c).split('/').pop().replace(/\D/g, '')),
   ].filter((g) => g.length);
@@ -61,7 +83,8 @@ export async function handleResetOptions(request, env) {
     client.graphql('{ shop{ productVendors(first: 250){ edges{ node } } productTypes(first: 250){ edges{ node } } } }'),
   ]);
   return { body: {
-    locations: locs, excluded: EXCLUDED,
+    locations: locs, allowed: ALLOWED,
+    presets: Object.entries(PRESETS).map(([k, p]) => ({ key: k, label: p.label })),
     vendors: shop.data.shop.productVendors.edges.map((e) => e.node).sort((a, b) => a.localeCompare(b)),
     types: shop.data.shop.productTypes.edges.map((e) => e.node).filter(Boolean).sort((a, b) => a.localeCompare(b)),
   } };

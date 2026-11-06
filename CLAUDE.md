@@ -203,11 +203,19 @@ owner directed run) and the INVENTORY RESET page (`inventory-reset.html`,
 `worker/src/inventory-reset.js`, built 2026-11-06 on owner request).**
 Everything else in `tools/` is Needham scoped for the reason directly below.
 The reset page sets on hand to 0 for a slice of ONE location, picked by
-brand, product type, tag or collection, or the "All men's shoes" / "All
-women's shoes" buttons, which are the product types "Men's Shoes" and
-"Women's Shoes" (2,728 and 2,791 products; Unisex and Kids' shoes are
-separate types and deliberately not included). Scituate is never offered, by
-owner decision. It carries the three guards below, enforced again in the
+brand, product type, tag or collection, or one of six buttons, each a FIXED
+search in the store's own types (`PRESETS` in inventory-reset.js, counts
+2026-11-06): All men's shoes 2,728 and All women's shoes 2,791 (the "Men's
+Shoes" / "Women's Shoes" types; Unisex and Kids' are separate and left out),
+Socks 410 (the type plus the sock/socks TAGS the Socks collection uses, minus
+two garments mis-tagged sock), Insoles 50, Apparel 6,896 (clothing types
+only; socks, headwear, gloves and the Compression type, which holds socks
+and sleeves, are not apparel) and Nutrition 76. A button ignores every other
+filter, on the server too. Locations are an ALLOWLIST by owner decision:
+Needham, Warehouse, Walpole, Falmouth. Scituate, the Run Bus and the event
+locations are never offered, and a location added to Shopify later is not
+resettable until it is added here. Three checks before a write: a "checked
+the list" tick, the location name typed, and Reset pressed twice. It carries the three guards below, enforced again in the
 Worker rather than trusted from the page, except that committed stock is
 SKIPPED and listed rather than aborting the run, so one promised order
 does not block a whole brand. A filter is required, so it can never be

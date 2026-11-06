@@ -9,6 +9,10 @@ console.log('\nThe search');
 check('one group needs no brackets', buildQuery({ vendors: ['Feetures'] }) === 'vendor:"Feetures"');
 check('OR inside a group, AND across groups', buildQuery({ vendors: ['Hoka', 'On Running'], tags: ['clearance'] }) === '(vendor:"Hoka" OR vendor:"On Running") AND tag:"clearance"');
 check('the men\'s shoes button is the Men\'s Shoes type, apostrophe and all', buildQuery({ preset: 'mens' }) === 'product_type:"Men\'s Shoes"');
+check('a button ignores any other filter sent with it', buildQuery({ preset: 'insoles', vendors: ['Hoka'] }) === 'product_type:"Insoles & Inserts"');
+check('socks use the store\'s sock tags too, but never a hoodie', /tag:"socks"/.test(buildQuery({ preset: 'socks' })) && /-product_type:"Hoodies"/.test(buildQuery({ preset: 'socks' })));
+check('apparel is garments, not socks or the compression type', /"Hoodies"/.test(buildQuery({ preset: 'apparel' })) && !/Socks|Compression/.test(buildQuery({ preset: 'apparel' })));
+check('an unknown button is refused', buildQuery({ preset: 'everything' }) === null);
 check('a quote in a value cannot break out of the search', buildQuery({ tags: ['a" OR vendor:"x'] }) === 'tag:"a\\" OR vendor:\\"x"');
 check('a collection is its numeric id', buildQuery({ collections: ['gid://shopify/Collection/123'] }) === 'collection_id:123');
 check('no filter at all is refused, never "everything here"', buildQuery({}) === null && buildQuery({ vendors: [] }) === null);
@@ -18,6 +22,7 @@ const LOCS = [
   { id: 'gid://shopify/Location/1', name: 'Walpole', isActive: true },
   { id: 'gid://shopify/Location/2', name: 'Scituate', isActive: true },
   { id: 'gid://shopify/Location/3', name: 'Needham', isActive: true },
+  { id: 'gid://shopify/Location/4', name: 'Run Bus', isActive: true },
 ];
 const LEVEL = { 'gid://shopify/InventoryItem/11': { on_hand: 5, committed: 0 }, 'gid://shopify/InventoryItem/12': { on_hand: 3, committed: 2 }, 'gid://shopify/InventoryItem/13': { on_hand: 0, committed: 0 } };
 const writes = [];
@@ -46,7 +51,8 @@ const post = (body) => new Request('https://w/x', { method: 'POST', body: JSON.s
 
 console.log('\nLocations');
 let r = await handleResetOptions(new Request('https://w/x'), env);
-check('Scituate is never offered', !r.body.locations.some((l) => l.name === 'Scituate') && r.body.locations.length === 2);
+check('only the allowed locations are offered, never Scituate or the Run Bus', !r.body.locations.some((l) => l.name === 'Scituate' || l.name === 'Run Bus') && r.body.locations.length === 2);
+check('the page is told the buttons', r.body.presets.map((p) => p.key).join() === 'mens,womens,socks,insoles,apparel,nutrition');
 check('Needham is offered, marked as the dropship location', r.body.locations.find((l) => l.name === 'Needham').dropship === true);
 r = await handleResetScan(post({ locationId: 'gid://shopify/Location/2', filters: { vendors: ['Feetures'] } }), env);
 check('a scan at Scituate is refused, whatever the page sends', r.status === 400);
