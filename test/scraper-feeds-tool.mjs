@@ -14,7 +14,7 @@
 // the CSV is built by `UnifiedCSVManager.convertToInventoryCSV` out of
 // scrapers/asics/background.js, which is the converter that writes the file
 // staff actually import, and it is read by asics-converter.js, which is the
-// file index.html loads. Nothing in between is simulated except Papa.parse.
+// file inventory.html loads. Nothing in between is simulated except Papa.parse.
 //
 // Run: node test/scraper-feeds-tool.mjs
 //
@@ -80,7 +80,7 @@ typeof scraper.convertToInventoryCSV === 'function'
   ? ok('scrapers/asics/background.js gives its CSV converter')
   : bad('the scraper side did not load');
 tool && typeof tool.convert === 'function'
-  ? ok('asics-converter.js gives the tool side, the one index.html loads')
+  ? ok('asics-converter.js gives the tool side, the one inventory.html loads')
   : bad('the tool side did not load, check the global name', Object.keys(tool || {}));
 
 // A run shaped like the real one: footwear to Needham, both singlet styles to

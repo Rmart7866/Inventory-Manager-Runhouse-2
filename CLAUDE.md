@@ -2,7 +2,7 @@
 
 A browser tool that turns supplier B2B files into Shopify updates for a dropship
 shoe business, plus a Cloudflare Worker that holds the Shopify Admin credential
-server side. No build step, no framework, no bundler: `index.html` loads a dozen
+server side. No build step, no framework, no bundler: `inventory.html` loads a dozen
 plain JS files in order and every module is a global object.
 
     Staff open the tool (GitHub Pages, public, no secrets)
@@ -18,7 +18,8 @@ rule exists. Match that when you edit.
 
 | Path | What it is |
 |---|---|
-| `index.html` | The whole UI: inline CSS (light base + a dark theme override), brand cards, password gate, script tags with `?v=` cache busters |
+| `index.html` | The staff HOME page: links to every tool, plus a live catalog age and open request count when this browser holds what that tool needs. No secrets, no gate |
+| `inventory.html` | The inventory manager, the whole UI (it was `index.html` until 2026-11-06): inline CSS (light base + a dark theme override), brand cards, password gate, script tags with `?v=` cache busters |
 | `main.js` | `BrandConverter`, the controller. Dropzones, scan, `convertBrand()`, the download buttons, `writeAllInventory()` |
 | `*-converter.js` | One per brand: saucony, hoka, brooks, asics, puma, on, newbalance, merrell, altra. Parse the supplier file, emit inventory rows and a new-product CSV |
 | `catalog-client.js` | Reads `GET /catalog` from the Worker, builds the known sets, and is the client for every write route |
@@ -38,7 +39,7 @@ rule exists. Match that when you edit.
 | `scrapers/` | The Chrome extensions that pull each supplier's B2B portal. See `scrapers/README.md` |
 | `test/` | Node tests for front-end modules that decide inventory numbers |
 
-Not loaded by `index.html`, effectively dead: `tracking-integration.js`,
+Not loaded by `inventory.html`, effectively dead: `tracking-integration.js`,
 `JsBarcode.all.min.js`. The loose `.xlsx`, `.csv` and `*-rollback-*.json` files in
 the repo root are gitignored run artifacts and supplier data.
 
@@ -184,8 +185,9 @@ paged dev path. That is how `createdAt` was lost for a month.
 - The frontend is served by **GitHub Pages from `origin/api-integration`**, not
   `main` (`main` is about 110 commits behind). A change is live only once pushed
   to that branch.
-- **Bump the `?v=N` on any JS file you edit, in `index.html`.** Returning
-  browsers hold the old file otherwise. Pages also caches `index.html` for about
+- **Bump the `?v=N` on any JS file you edit, in the page that loads it**
+  (`inventory.html`, `team-requests.html`, ...). Returning browsers hold the
+  old file otherwise. Pages also caches the HTML for about
   10 minutes; open the site with any extra query (`?fresh=25`) to bypass it.
 - The Worker deploys separately with wrangler and does not care about git.
 
@@ -235,7 +237,7 @@ create route in bearer mode. Its safety comes from downstream guards, see below.
   every destructive route (`/inventory`, `/tags/*`, `/product/update|prices|media`).
 - `ADMIN_TOKEN` gates the expensive `?fresh=1` rebuild and never reaches the browser.
 
-The page password in `index.html` and the Firebase config are likewise public by
+The page password in `inventory.html` and the Firebase config are likewise public by
 construction. Treat them as speed bumps, not as authentication.
 
 **A created shoe carries a product CATEGORY, and that is load bearing.**
@@ -948,7 +950,7 @@ a browser global and the other an ES module, and `test/asics-headless.mjs`
 fails if they disagree, the same guard `worker/test/brand-registry.mjs` gives
 the two brand tables.
 
-`b2b-links.js` was also the ONE script tag in `index.html` carrying no `?v=`
+`b2b-links.js` was also the ONE script tag in `inventory.html` carrying no `?v=`
 cache buster, so a returning browser would have kept the old copy and gone on
 emitting bare urls with nothing to show for the fix. It is `?v=2` now.
 
@@ -1033,7 +1035,7 @@ Location.**
 `test/scraper-feeds-tool.mjs` pins the whole chain by running BOTH REAL SIDES
 against each other: the CSV is built by `UnifiedCSVManager.convertToInventoryCSV`
 out of `scrapers/asics/background.js`, the converter that writes the file staff
-import, and read by `asics-converter.js`, the file `index.html` loads. It
+import, and read by `asics-converter.js`, the file `inventory.html` loads. It
 asserts the tool still scans and converts it, that Warehouse survives the trip,
 that the SKU and the uncapped 302 survive, that `allFeedSkus` covers the whole
 feed so nothing reads as removed, and that the Needham-only filter holds. It

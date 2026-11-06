@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        /* Same palette as the main tool (index.html), so the two read as one app. */
+        /* Same palette as the main tool (inventory.html), so the two read as one app. */
         :root {
             --bg: #0d1117; --surface: #161d29; --surface-2: #1b2331;
             --line: rgba(255,255,255,0.09); --line-2: rgba(255,255,255,0.16);
@@ -229,7 +229,7 @@
     <div id="app">
         <div class="container">
             <div class="topbar">
-                <a class="back" href="index.html">&larr; Inventory Manager</a>
+                <a class="back" href="inventory.html">&larr; Inventory Manager</a>
                 <span class="badge">Apparel &middot; early</span>
             </div>
 
@@ -321,7 +321,7 @@
     <script src="catalog-client.js?v=23"></script>
     <script src="on-apparel-converter.js?v=4"></script>
     <script>
-        // Shares the session unlock with index.html, so unlocking one unlocks both.
+        // Shares the session unlock with inventory.html, so unlocking one unlocks both.
         var CORRECT_PASSWORD = "runhouse15west";
         function checkPassword() {
             var input = document.getElementById('password-input');

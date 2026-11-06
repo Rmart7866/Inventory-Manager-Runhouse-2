@@ -17,7 +17,7 @@
 // corners, zinc dark #18181b / blue accent #2563eb.
 
 var CatalogUI = {
-    // Match the tool's dark/blocky theme (index.html CSS vars). Solid, opaque
+    // Match the tool's dark/blocky theme (inventory.html CSS vars). Solid, opaque
     // surfaces with explicit light text so nothing inherits the page's light
     // --text onto a light card and vanish.
     SURFACE: '#0b1220',   // opaque card

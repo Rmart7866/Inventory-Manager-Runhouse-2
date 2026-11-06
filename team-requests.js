@@ -90,8 +90,10 @@ var TR = {
             TR.loadCatalog();
             TR.api('/team-requests/costs').then(function (c) { TR.st.costs = (c && c.costs) || {}; });
             TR.api('/team-requests/placements').then(function (c) { TR.st.TPL = (c && c.placements) || {}; if (TR.st.rec) TR.renderDetail(); TR.renderPlacements(); });
+            // ?tab= opens a tab straight from the staff home page.
             var h = location.hash.replace('#', '');
-            if (h) TR.open(h);
+            var tab = { stores: TR.showStores, sales: TR.showSales, cal: TR.showCalendar, place: TR.showPlacements }[new URLSearchParams(location.search).get('tab')];
+            if (h) TR.open(h); else if (tab) tab();
         }).catch(function (e) { TR.showGate('Could not reach the Worker: ' + e.message); });
     },
 
