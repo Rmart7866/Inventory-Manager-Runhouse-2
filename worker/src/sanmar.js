@@ -70,11 +70,101 @@ const unxml = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').repla
 
 export const hasLogin = (env, sup) => !!(env[SUPPLIERS[sup].user] && env[SUPPLIERS[sup].pass]);
 
+// A DEPLOYED Worker sends fetch() to a non standard HTTPS port on 443
+// instead, silently, while `wrangler dev` and node honour the port. SanMar's
+// services listen on 8080 ONLY (443 refuses the connection), so on
+// 2026-11-06 every call passed locally and every production call failed.
+// Cloudflare's sockets API does reach any port, so in a Worker a URL with a
+// non standard port goes over a raw TLS socket with HTTP/1.1 written by
+// hand. Node, and so the tests, keep plain fetch, which honours the port.
+const IN_WORKER = typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers';
+export const needsSocket = (url, inWorker = IN_WORKER) => {
+  const u = new URL(url);
+  return inWorker && u.protocol === 'https:' && !!u.port && u.port !== '443';
+};
+
+const enc = new TextEncoder();
+const join = (parts) => { const n = parts.reduce((a, p) => a + p.length, 0), out = new Uint8Array(n); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out; };
+
+// Pure: one raw HTTP/1.1 response into { status, headers, body }. Exported
+// for the test, which is the only place a chunked reply is easy to make.
+export function parseHttp(bytes) {
+  let i = 0;
+  while (i + 3 < bytes.length && !(bytes[i] === 13 && bytes[i + 1] === 10 && bytes[i + 2] === 13 && bytes[i + 3] === 10)) i++;
+  if (i + 3 >= bytes.length) throw new Error('No HTTP header in the reply');
+  const head = new TextDecoder().decode(bytes.subarray(0, i)).split('\r\n');
+  const status = Number((head[0].match(/^HTTP\/\d\.\d (\d{3})/) || [])[1]);
+  if (!status) throw new Error('Not an HTTP reply: ' + head[0].slice(0, 60));
+  const headers = {};
+  for (const l of head.slice(1)) { const k = l.indexOf(':'); if (k > 0) headers[l.slice(0, k).trim().toLowerCase()] = l.slice(k + 1).trim(); }
+  let body = bytes.subarray(i + 4);
+  if (/chunked/i.test(headers['transfer-encoding'] || '')) {
+    const parts = []; let p = 0;
+    for (;;) {
+      let e = p; while (e + 1 < body.length && !(body[e] === 13 && body[e + 1] === 10)) e++;
+      if (e + 1 >= body.length) throw new Error('Incomplete reply: the chunked body was cut off');
+      const size = parseInt(new TextDecoder().decode(body.subarray(p, e)).split(';')[0], 16);
+      if (!Number.isFinite(size)) throw new Error('Incomplete reply: a bad chunk size');
+      if (!size) break;
+      if (e + 2 + size > body.length) throw new Error('Incomplete reply: the chunked body was cut off');
+      parts.push(body.subarray(e + 2, e + 2 + size));
+      p = e + 2 + size + 2;
+    }
+    body = join(parts);
+  } else if (headers['content-length']) {
+    const n = Number(headers['content-length']);
+    if (body.length < n) throw new Error('Incomplete reply: ' + body.length + ' of ' + n + ' bytes');
+    body = body.subarray(0, n);
+  }
+  return { status, headers, body };
+}
+
+async function socketFetch(url, init) {
+  const { connect } = await import('cloudflare:sockets');
+  const u = new URL(url);
+  const sock = connect({ hostname: u.hostname, port: Number(u.port) }, { secureTransport: 'on' });
+  const body = enc.encode(init.body || '');
+  const hdr = { Host: u.host, Connection: 'close', 'Content-Length': String(body.length), 'User-Agent': 'The Run House staff tool', ...(init.headers || {}) };
+  let head = (init.method || 'GET') + ' ' + u.pathname + u.search + ' HTTP/1.1\r\n';
+  for (const [k, v] of Object.entries(hdr)) head += k + ': ' + v + '\r\n';
+  try { await sock.opened; } catch (e) { throw new Error(u.hostname + ':' + u.port + ' would not connect: ' + String(e.message || e)); }
+  const w = sock.writable.getWriter();
+  await w.write(enc.encode(head + '\r\n'));
+  if (body.length) await w.write(body);
+  w.releaseLock();
+  const reader = sock.readable.getReader(), parts = [];
+  let total = 0;
+  const deadline = Date.now() + 45000;
+  for (;;) {
+    const left = deadline - Date.now();
+    if (left <= 0) throw new Error('Timed out reading ' + u.hostname);
+    let r;
+    try {
+      r = await Promise.race([reader.read(), new Promise((res) => setTimeout(() => res({ timeout: true }), left))]);
+    } catch (e) {
+      // Some servers drop the TLS connection without a closing handshake
+      // once they have sent everything, which the runtime reports as "Network
+      // connection lost". Data already received is the reply; parseHttp
+      // below still refuses one that is not complete.
+      if (total) break;
+      throw new Error(u.hostname + ' connection failed: ' + String(e.message || e));
+    }
+    if (r.timeout) throw new Error('Timed out reading ' + u.hostname);
+    if (r.done) break;
+    parts.push(r.value); total += r.value.length;
+    if (total > 25e6) throw new Error('Reply too large from ' + u.hostname);
+  }
+  try { await sock.close(); } catch (e) { /* already closed by the server */ }
+  const res = parseHttp(join(parts));
+  return new Response(res.body, { status: res.status, headers: { 'Content-Type': res.headers['content-type'] || 'text/xml' } });
+}
+
 async function soap(env, cfg, url, ns, req, version, extra, action) {
   const body = '<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="' + ns + '" xmlns:shar="' + ns + 'SharedObjects/"><soapenv:Header/><soapenv:Body><ns:' + req + '>' +
     '<shar:wsVersion>' + version + '</shar:wsVersion><shar:id>' + esc(env[cfg.user]) + '</shar:id><shar:password>' + esc(env[cfg.pass]) + '</shar:password>' + extra +
     '</ns:' + req + '></soapenv:Body></soapenv:Envelope>';
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: action }, body });
+  const init = { method: 'POST', headers: { 'Content-Type': 'text/xml; charset=utf-8', SOAPAction: action }, body };
+  const r = needsSocket(url) ? await socketFetch(url, init) : await fetch(url, init);
   const x = await r.text();
   const fault = tags(x, 'faultstring')[0];
   if (!r.ok || fault) throw new Error(cfg.name + ' ' + r.status + (fault ? ': ' + fault : ''));
@@ -230,15 +320,19 @@ export async function refreshAvailability(env, catalogUrl, { batch = 20 } = {}) 
   // Stalest first, never-seen first of all.
   all.sort((a, b) => String((snap.styles[a[0]] || {}).at || '').localeCompare(String((snap.styles[b[0]] || {}).at || '')));
   let done = 0, failed = 0;
+  const errors = [];
   for (const [s, sup] of all.slice(0, batch)) {
     try {
       const d = await supplierFor(env, s, sup, { write: false });
-      if (d.error) { failed++; continue; } // keep the previous entry: stale beats absent
+      if (d.error) { failed++; if (errors.length < 3) errors.push(s + ': ' + d.error); continue; } // keep the previous entry: stale beats absent
       snap.styles[s] = { at: d.at, av: availOf(d) };
       done++;
-    } catch (e) { failed++; }
+    } catch (e) { failed++; if (errors.length < 3) errors.push(s + ': ' + String(e.message || e).slice(0, 200)); }
   }
   snap.at = new Date().toISOString();
+  // What went wrong last time, so a sweep that refreshes nothing says why
+  // rather than quietly serving older data.
+  snap.last = { done, failed, errors };
   await env.CATALOG.put(AVAIL_KEY, JSON.stringify(snap));
   return { done, failed, of: all.length };
 }

@@ -1,7 +1,7 @@
 // SanMar supplier data: the colour join, sizes, flats only, the photo pass
 // through allowlist. Hand written replies in SanMar's real shapes, so no
 // supplier data sits in this public repo.
-import { parseSupplier, colorKey, sizeKey, handlePhoto, handleSupplier, stateOf, availOf, supplierOfStyle, refreshAvailability, handleStockPublic } from '../src/sanmar.js';
+import { parseSupplier, colorKey, sizeKey, handlePhoto, handleSupplier, stateOf, availOf, supplierOfStyle, refreshAvailability, handleStockPublic, needsSocket, parseHttp } from '../src/sanmar.js';
 
 let failures = 0;
 const check = (name, ok) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name); if (!ok) failures++; };
@@ -113,6 +113,22 @@ const pub = await handleStockPublic(new Request('https://w/team-requests/stock/p
 const pj = await pub.json();
 check('the public route serves the snapshot, boxes of colour keys only', pub.status === 200 && pj.styles.OLD1.black === 'out' && !('at' in pj.styles.OLD1));
 check('and cannot be written to', (await handleStockPublic(new Request('https://w/x', { method: 'POST' }), { CATALOG: KV }, {})).status === 405);
+
+console.log('\nThe port 8080 transport');
+check('a deployed Worker uses the socket for SanMar\'s 8080', needsSocket('https://ws.sanmar.com:8080/promostandards/x', true));
+check('but not for a standard port (Charles River, photos)', !needsSocket('https://ordertrax.essent.com/sites/x', true) && !needsSocket('https://cdnm.sanmar.com:443/x', true));
+check('and never in node, where fetch honours the port', !needsSocket('https://ws.sanmar.com:8080/x', false));
+const raw = (s) => new TextEncoder().encode(s);
+let h = parseHttp(raw('HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: 5\r\n\r\nhello trailing'));
+check('a Content-Length reply is cut to its length', h.status === 200 && new TextDecoder().decode(h.body) === 'hello');
+h = parseHttp(raw('HTTP/1.1 500 Internal Server Error\r\nTransfer-Encoding: chunked\r\n\r\n4\r\n<fau\r\n6\r\nlt>ok<\r\n0\r\n\r\n'));
+check('a chunked reply is put back together, and a 500 SOAP fault keeps its status', h.status === 500 && new TextDecoder().decode(h.body) === '<fault>ok<');
+let threw = false; try { parseHttp(raw('garbage with no header end')); } catch (e) { threw = true; }
+check('a reply with no header is an error, not an empty success', threw);
+threw = false; try { parseHttp(raw('HTTP/1.1 200 OK\r\nContent-Length: 50\r\n\r\nonly part')); } catch (e) { threw = /Incomplete/.test(e.message); }
+check('a reply cut off mid way is an error, never a short success', threw);
+threw = false; try { parseHttp(raw('HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n40\r\nonly part')); } catch (e) { threw = /Incomplete/.test(e.message); }
+check('and so is a chunked one missing its end', threw);
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);
