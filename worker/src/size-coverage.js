@@ -32,6 +32,21 @@ export function genderOf(productType) {
   return null;
 }
 
+// The model a style belongs to, across its colourways, and its width, from
+// the store's own cw-group tag ("cw-group:<model>--<width class>"), the same
+// tag the collection grid groups swatches on, carried by about 98% of active
+// shoes. A shoe without one falls back to its title before " - ", which is
+// where the colour starts. Pure.
+export function modelOf(p) {
+  const tag = (p.tags || []).find((t) => /^cw-group:/i.test(t));
+  if (tag) {
+    const body = tag.slice(9), cut = body.lastIndexOf('--');
+    return cut > 0 ? { m: body.slice(0, cut), w: body.slice(cut + 2) } : { m: body, w: '' };
+  }
+  const base = String(p.title || '').split(' - ')[0].trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return { m: base, w: '' };
+}
+
 // Fed one inventory level at a time by the catalog assembler. Pure.
 export function makeSizeAccumulator(skipLocationIds = []) {
   const skip = new Set(skipLocationIds.filter(Boolean));
@@ -42,7 +57,8 @@ export function makeSizeAccumulator(skipLocationIds = []) {
     const g = genderOf(p.productType), size = normSize(rawSize);
     if (!g || !size || !(qty > 0)) return; // only what is on a shelf
     let byG = data.get(locationId); if (!byG) data.set(locationId, (byG = { men: new Map(), women: new Map() }));
-    let st = byG[g].get(p.handle); if (!st) byG[g].set(p.handle, (st = { t: p.title, img: p.image || '', sizes: new Map() }));
+    let st = byG[g].get(p.handle);
+    if (!st) { const mw = modelOf(p); byG[g].set(p.handle, (st = { t: p.title, img: p.image || '', v: p.vendor || '', m: mw.m, w: mw.w, sizes: new Map() })); }
     st.sizes.set(size, (st.sizes.get(size) || 0) + qty);
   };
   const result = () => {
@@ -58,7 +74,9 @@ export function makeSizeAccumulator(skipLocationIds = []) {
             sizes[sz] = sizes[sz] || { units: 0, styles: 0 };
             sizes[sz].units += u; sizes[sz].styles += 1;
           }
-          styles.push({ h, t: st.t, img: st.img, s: inStock });
+          // v brand, m model across colourways, w width class: the page groups
+          // and filters on these without another request.
+          styles.push({ h, t: st.t, img: st.img, v: st.v, m: st.m, w: st.w, s: inStock });
         }
         styles.sort((a, b) => a.t.localeCompare(b.t));
         out[loc][g] = { carried: styles.length, sizes, styles };

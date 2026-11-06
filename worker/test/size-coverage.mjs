@@ -1,6 +1,6 @@
 // Shoe size coverage: sizes, genders, the Needham skip, and that the real
 // catalog assembler feeds it from the bulk file it already reads.
-import { normSize, genderOf, makeSizeAccumulator } from '../src/size-coverage.js';
+import { normSize, genderOf, makeSizeAccumulator, modelOf } from '../src/size-coverage.js';
 import { assembleBulkObjects } from '../src/catalog.js';
 
 let failures = 0;
@@ -11,9 +11,12 @@ check('"9.0" and "9" are one size, halves kept', normSize('9.0') === '9' && norm
 check('a width or a word is not a shoe size', normSize('D') === null && normSize('One Size') === null && normSize('') === null);
 check('only men\'s and women\'s shoes count', genderOf("Men's Shoes") === 'men' && genderOf("Women's Shoes") === 'women' && genderOf('Unisex Shoes') === null && genderOf("Kids' Shoes") === null);
 
+check('the model and width come from the cw-group tag', JSON.stringify(modelOf({ tags: ['hoka', 'cw-group:hoka-womens-clifton-10--wide'] })) === '{"m":"hoka-womens-clifton-10","w":"wide"}');
+check('without one, the title before the colour', modelOf({ title: "Brooks Women's Ghost 16 - Black/White", tags: [] }).m === 'brooks-women-s-ghost-16');
+
 console.log('\nCounting');
 const acc = makeSizeAccumulator(['NEEDHAM']);
-const W = { handle: 'w-ghost', title: 'Ghost 16', productType: "Women's Shoes", image: '' };
+const W = { handle: 'w-ghost', title: 'Ghost 16', productType: "Women's Shoes", image: '', vendor: 'Brooks', tags: ['cw-group:brooks-womens-ghost-16--standard'] };
 const W2 = { handle: 'w-clifton', title: 'Clifton 10', productType: "Women's Shoes", image: '' };
 acc.onLevel(W, '8', 'FAL', 2); acc.onLevel(W, '8.0', 'FAL', 1); acc.onLevel(W, '9', 'FAL', 1);
 acc.onLevel(W2, '9', 'FAL', 3); acc.onLevel(W2, '8', 'FAL', 0); acc.onLevel(W2, '7', 'FAL', -2);
@@ -24,6 +27,8 @@ check('a size at zero or below zero is not on the shelf', !r.FAL.women.sizes['7'
 check('styles carried is the styles with anything on that shelf', r.FAL.women.carried === 2);
 check('each style lists its sizes in stock, for "which styles miss an 8"', JSON.stringify(r.FAL.women.styles.find((s) => s.h === 'w-clifton').s) === '{"9":3}');
 check('Needham, the dropship location, is left out', !r.NEEDHAM);
+const ghost = r.FAL.women.styles.find((x) => x.h === 'w-ghost');
+check('each style carries its brand, model and width for the page', ghost.v === 'Brooks' && ghost.m === 'brooks-womens-ghost-16' && ghost.w === 'standard');
 
 console.log('\nThe catalog assembler feeds it');
 const out = assembleBulkObjects([
