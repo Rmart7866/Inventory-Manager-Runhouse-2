@@ -43,6 +43,28 @@ export const PRESETS = {
   nutrition: { label: 'Nutrition', q: T(['Nutrition', 'Energy Chews']) }, // 76
 };
 
+// Every product tag, for the Tag box: 4,202 of them on 2026-11-06, 17 pages
+// of the top level productTags query in 4 seconds. Shop.productTags cannot
+// page past 250, which is why it is not used. Kept a day under its own key,
+// OUTSIDE the invreset: prefix, so it can never appear as a reset in history.
+const TAGS_KEY = 'invtags';
+async function allTags(env, client) {
+  const hit = await env.CATALOG.get(TAGS_KEY, 'json');
+  if (hit && Date.now() - new Date(hit.at).getTime() < 24 * 3600 * 1000) return hit.tags;
+  const tags = [];
+  let cursor = null;
+  for (let i = 0; i < 60; i++) {
+    const r = await client.graphql('query($c:String){ productTags(first: 250, after:$c){ pageInfo{ hasNextPage endCursor } edges{ node } } }', { c: cursor });
+    const t = r.data.productTags;
+    for (const e of t.edges) if (e.node) tags.push(e.node);
+    if (!t.pageInfo.hasNextPage) break;
+    cursor = t.pageInfo.endCursor;
+  }
+  tags.sort((a, b) => a.localeCompare(b));
+  await env.CATALOG.put(TAGS_KEY, JSON.stringify({ at: new Date().toISOString(), tags }));
+  return tags;
+}
+
 async function readJson(request) { try { return await request.json(); } catch (e) { return {}; } }
 
 async function allowedLocations(client) {
@@ -78,15 +100,17 @@ const q2 = (l) => {
 // GET /inventory-reset/options: locations, brands and product types.
 export async function handleResetOptions(request, env) {
   const client = createShopifyClient(env);
-  const [locs, shop] = await Promise.all([
+  const [locs, shop, tags] = await Promise.all([
     allowedLocations(client),
     client.graphql('{ shop{ productVendors(first: 250){ edges{ node } } productTypes(first: 250){ edges{ node } } } }'),
+    allTags(env, client),
   ]);
   return { body: {
     locations: locs, allowed: ALLOWED,
     presets: Object.entries(PRESETS).map(([k, p]) => ({ key: k, label: p.label })),
     vendors: shop.data.shop.productVendors.edges.map((e) => e.node).sort((a, b) => a.localeCompare(b)),
     types: shop.data.shop.productTypes.edges.map((e) => e.node).filter(Boolean).sort((a, b) => a.localeCompare(b)),
+    tags,
   } };
 }
 
@@ -112,7 +136,7 @@ export async function handleResetScan(request, env) {
   const loc = locs.find((l) => l.id === b.locationId);
   if (!loc) return { status: 400, body: { error: 'That location cannot be reset here.' } };
   const page = await client.graphql(`query($q:String,$c:String,$loc:ID!){ products(first:25, after:$c, query:$q){ pageInfo{ hasNextPage endCursor }
-    nodes{ id title handle vendor productType status variants(first:100){ nodes{ id title sku
+    nodes{ id title handle vendor productType status featuredImage{ url(transform:{ maxWidth: 160 }) } variants(first:100){ nodes{ id title sku
       inventoryItem{ id tracked inventoryLevel(locationId:$loc){ quantities(names:["on_hand","committed"]){ name quantity } } } } } } } }`,
   { q: query, c: b.cursor || null, loc: loc.id });
   let total = null;
@@ -124,7 +148,7 @@ export async function handleResetScan(request, env) {
       if (!lvl) continue; // not stocked at this location at all
       const { onHand, committed } = q2(lvl);
       if (!onHand && !committed) continue; // already empty
-      rows.push({ item: v.inventoryItem.id, product: p.title, handle: p.handle, vendor: p.vendor, type: p.productType, status: p.status,
+      rows.push({ item: v.inventoryItem.id, product: p.title, handle: p.handle, image: p.featuredImage ? p.featuredImage.url : null, vendor: p.vendor, type: p.productType, status: p.status,
         variant: v.title, sku: v.sku || '', tracked: v.inventoryItem.tracked, onHand, committed });
     }
   }

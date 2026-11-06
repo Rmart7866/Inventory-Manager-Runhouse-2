@@ -26,12 +26,14 @@ const LOCS = [
 ];
 const LEVEL = { 'gid://shopify/InventoryItem/11': { on_hand: 5, committed: 0 }, 'gid://shopify/InventoryItem/12': { on_hand: 3, committed: 2 }, 'gid://shopify/InventoryItem/13': { on_hand: 0, committed: 0 } };
 const writes = [];
+let tagCalls = 0;
 const qty = (it) => ['on_hand', 'committed'].map((n) => ({ name: n, quantity: LEVEL[it][n] }));
 globalThis.fetch = async (url, init) => {
   const { query, variables } = JSON.parse(init.body);
   const ok = (data) => new Response(JSON.stringify({ data }));
   if (/locations\(/.test(query)) return ok({ locations: { nodes: LOCS } });
   if (/productVendors/.test(query)) return ok({ shop: { productVendors: { edges: [{ node: 'Hoka' }] }, productTypes: { edges: [{ node: "Men's Shoes" }] } } });
+  if (/productTags\(first/.test(query)) { tagCalls++; return ok({ productTags: variables.c ? { pageInfo: { hasNextPage: false, endCursor: null }, edges: [{ node: 'zebra' }] } : { pageInfo: { hasNextPage: true, endCursor: 'p2' }, edges: [{ node: 'clearance' }, { node: 'Walpole XC' }] } }); }
   if (/productsCount/.test(query)) return ok({ productsCount: { count: 1 } });
   if (/products\(first:25/.test(query)) return ok({ products: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'p1', title: 'Sock', handle: 'sock', vendor: 'Feetures', productType: 'Socks', status: 'ACTIVE', variants: { nodes:
     Object.keys(LEVEL).map((it, i) => ({ id: 'v' + i, title: 'M', sku: 'S' + i, inventoryItem: { id: it, tracked: true, inventoryLevel: { quantities: qty(it) } } })) } }] } });
@@ -53,6 +55,10 @@ console.log('\nLocations');
 let r = await handleResetOptions(new Request('https://w/x'), env);
 check('only the allowed locations are offered, never Scituate or the Run Bus', !r.body.locations.some((l) => l.name === 'Scituate' || l.name === 'Run Bus') && r.body.locations.length === 2);
 check('the page is told the buttons', r.body.presets.map((p) => p.key).join() === 'mens,womens,socks,insoles,apparel,nutrition');
+check('every tag, across pages, sorted, for the Tag box', JSON.stringify(r.body.tags) === '["clearance","Walpole XC","zebra"]' && tagCalls === 2);
+await handleResetOptions(new Request('https://w/x'), env);
+check('the tag list is kept a day, not fetched every time', tagCalls === 2);
+check('and kept OUTSIDE the reset history prefix', Object.keys(kv).every((k) => !k.startsWith('invreset:')));
 check('Needham is offered, marked as the dropship location', r.body.locations.find((l) => l.name === 'Needham').dropship === true);
 r = await handleResetScan(post({ locationId: 'gid://shopify/Location/2', filters: { vendors: ['Feetures'] } }), env);
 check('a scan at Scituate is refused, whatever the page sends', r.status === 400);

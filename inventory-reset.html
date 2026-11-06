@@ -8,9 +8,9 @@
   Set a slice of stock at ONE location to zero: by brand, product type, tag
   or collection, or every men's or women's shoe. The Worker does every read
   and write (worker/src/inventory-reset.js) and enforces the guards again:
-  Scituate is never offered, committed stock is skipped, a count that moved
-  since the preview is refused, and the location name must be typed. Every
-  reset can be undone from this page.
+  only the four allowed locations, committed stock is skipped, a count that
+  moved since the preview is refused, and the location name must be typed.
+  Every reset can be undone from this page.
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -53,11 +53,29 @@ input[type=text], input[type=search], input[type=password] { background: var(--b
 .picked { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; min-height: 8px; }
 .msg { padding: 10px 12px; border: 1px solid var(--line-2); margin: 10px 0; font-size: 14px; }
 .msg.warn { border-color: var(--warn); color: var(--warn); } .msg.bad { border-color: var(--bad); color: var(--bad); } .msg.ok { border-color: var(--ok); color: var(--ok); }
-.results { max-height: 420px; overflow: auto; border: 1px solid var(--line); margin-top: 10px; }
-.list { position: absolute; z-index: 4; background: var(--surface-2); border: 1px solid var(--line-2); max-height: 240px; overflow: auto; min-width: 240px; }
-.list button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 6px 10px; cursor: pointer; }
-.list button:hover { background: var(--surface); }
-.rel { position: relative; }
+/* search and select boxes */
+.cb { position: relative; }
+.cb-box { display: flex; }
+.cb-box input { flex: 1; width: 100%; }
+.cb-open { background: var(--surface-2); border: 1px solid var(--line-2); border-left: 0; padding: 0 10px; cursor: pointer; color: var(--muted); }
+.list { position: absolute; left: 0; right: 0; z-index: 6; background: var(--surface-2); border: 1px solid var(--line-2); max-height: 300px; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.list button { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; padding: 7px 10px; cursor: pointer; }
+.list button:hover, .list button.hi { background: var(--surface); }
+.list button.on { color: var(--accent); }
+.list .tick { width: 14px; flex: none; }
+.list .note { padding: 7px 10px; color: var(--muted-2); font-size: 13px; }
+/* the preview */
+.results { max-height: 640px; overflow: auto; border: 1px solid var(--line); margin-top: 6px; }
+.prod { border-bottom: 1px solid var(--line); padding: 10px 12px; }
+.prod.off { opacity: .5; }
+.ph { display: grid; grid-template-columns: auto 56px minmax(0,1fr) auto; gap: 12px; align-items: center; cursor: pointer; }
+.ph img, .ph .noimg { width: 56px; height: 56px; object-fit: contain; background: #fff; }
+.ph .noimg { display: grid; place-items: center; font-size: 11px; color: #666; }
+.ph .pt b { display: block; } .ph .pu { text-align: right; font-weight: 600; } .ph .pu .sub { display: block; font-weight: 400; }
+.vars { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0 84px; }
+.var { display: inline-flex; gap: 5px; align-items: center; background: var(--surface-2); border: 1px solid var(--line); padding: 3px 8px; font-size: 13.5px; cursor: pointer; }
+.var.skip { opacity: .6; cursor: not-allowed; } .var.neg b { color: var(--warn); }
+@media (max-width: 640px) { .vars { margin-left: 0; } .ph { grid-template-columns: auto 44px minmax(0,1fr); } .ph .pu { grid-column: 3; text-align: left; } .ph img, .ph .noimg { width: 44px; height: 44px; } }
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; font-size: 13px; color: var(--muted); font-weight: 600; padding: 7px 10px; border-bottom: 1px solid var(--line-2); position: sticky; top: 0; background: var(--surface); }
 td { padding: 7px 10px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
@@ -80,6 +98,8 @@ tr.skip td { color: var(--muted-2); }
   <div class="err" id="gate-err"></div>
 </section>
 
+<p id="loading" class="hidden" style="text-align:center;margin-top:60px;color:var(--muted-2)">Loading brands, types and tags...</p>
+
 <main id="app" class="hidden">
   <div class="step">
     <h2><span class="n">1</span>Where</h2>
@@ -93,11 +113,12 @@ tr.skip td { color: var(--muted-2); }
     <div class="sub">Use one button, or pick any mix of brand, type, tag and collection below. Inside one box any of them matches; across boxes all must match.</div>
     <div class="chips" id="presets"></div>
     <div class="sub" id="preset-note">Buttons use the store's own product types. Shoes are "Men's Shoes" and "Women's Shoes" (Unisex and Kids' shoes are separate types: add them under Product type). Socks include anything tagged sock or socks. Apparel is clothing, without socks, hats, gloves or the Compression type. Nutrition is "Nutrition" and "Energy Chews".</div>
+    <div class="sub" style="margin-top:12px">Or pick from these. Any ONE box is enough on its own, for example just a brand. Click a box to see everything in it, type to narrow it, click to tick.</div>
     <div class="grid">
-      <div class="rel"><label class="f" for="f-vendor">Brand</label><input type="search" id="f-vendor" placeholder="Type a brand" style="width:100%" autocomplete="off"><div class="list hidden" id="l-vendor"></div><div class="picked" id="p-vendor"></div></div>
-      <div class="rel"><label class="f" for="f-type">Product type</label><input type="search" id="f-type" placeholder="Type a product type" style="width:100%" autocomplete="off"><div class="list hidden" id="l-type"></div><div class="picked" id="p-type"></div></div>
-      <div class="rel"><label class="f" for="f-tag">Tag</label><div class="row"><input type="text" id="f-tag" placeholder="Exact tag" style="flex:1" autocomplete="off"><button class="btn" type="button" id="tag-add">Add</button></div><div class="picked" id="p-tag"></div></div>
-      <div class="rel"><label class="f" for="f-col">Collection</label><input type="search" id="f-col" placeholder="Search collections" style="width:100%" autocomplete="off"><div class="list hidden" id="l-col"></div><div class="picked" id="p-col"></div></div>
+      <div class="cb" id="cb-vendor"><label class="f" for="f-vendor">Brand</label><div class="cb-box"><input type="search" id="f-vendor" placeholder="Search or pick a brand" autocomplete="off" role="combobox" aria-expanded="false"><button type="button" class="cb-open" tabindex="-1" aria-label="Show all brands">▾</button></div><div class="list hidden" role="listbox"></div><div class="picked"></div></div>
+      <div class="cb" id="cb-type"><label class="f" for="f-type">Product type</label><div class="cb-box"><input type="search" id="f-type" placeholder="Search or pick a type" autocomplete="off" role="combobox" aria-expanded="false"><button type="button" class="cb-open" tabindex="-1" aria-label="Show all types">▾</button></div><div class="list hidden" role="listbox"></div><div class="picked"></div></div>
+      <div class="cb" id="cb-tag"><label class="f" for="f-tag">Tag</label><div class="cb-box"><input type="search" id="f-tag" placeholder="Search or pick a tag" autocomplete="off" role="combobox" aria-expanded="false"><button type="button" class="cb-open" tabindex="-1" aria-label="Show all tags">▾</button></div><div class="list hidden" role="listbox"></div><div class="picked"></div></div>
+      <div class="cb" id="cb-col"><label class="f" for="f-col">Collection</label><div class="cb-box"><input type="search" id="f-col" placeholder="Search collections" autocomplete="off" role="combobox" aria-expanded="false"><button type="button" class="cb-open" tabindex="-1" aria-label="Search collections">▾</button></div><div class="list hidden" role="listbox"></div><div class="picked"></div></div>
     </div>
     <div class="row" style="margin-top:14px"><button class="btn pri" type="button" id="find">Find the stock</button><button class="btn hidden" type="button" id="stop">Stop</button><span class="sub" id="prog"></span></div>
     <div class="bar hidden" id="bar"><i></i></div>
@@ -106,7 +127,8 @@ tr.skip td { color: var(--muted-2); }
   <div class="step hidden" id="review">
     <h2><span class="n">3</span>Check</h2>
     <div id="summary"></div>
-    <div class="results"><table><thead><tr><th style="width:34px"><input type="checkbox" id="all" checked aria-label="Select all"></th><th>Product</th><th>Variant</th><th>SKU</th><th class="num">On hand</th><th class="num">Committed</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <label class="row sub" style="gap:8px;margin:6px 0"><input type="checkbox" id="all" checked> Tick or untick everything</label>
+    <div class="results" id="rows"></div>
   </div>
 
   <div class="step hidden" id="confirm">
@@ -124,6 +146,6 @@ tr.skip td { color: var(--muted-2); }
 </main>
 
 <script src="catalog-client.js?v=23"></script>
-<script src="inventory-reset.js?v=2"></script>
+<script src="inventory-reset.js?v=4"></script>
 </body>
 </html>
