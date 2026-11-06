@@ -315,8 +315,16 @@ export function supplierOfStyle(p) {
 
 export async function refreshAvailability(env, catalogUrl, { batch = 20 } = {}) {
   const snap = (await env.CATALOG.get(AVAIL_KEY, 'json')) || { styles: {} };
-  const D = await (await fetch(catalogUrl)).json();
-  const all = D.cats.flatMap((c) => c.p).map((p) => [p.s, supplierOfStyle(p)]).filter(([, sup]) => sup && hasLogin(env, sup));
+  const res = await fetch(catalogUrl);
+  const D = await res.json();
+  const styles = D.cats.flatMap((c) => c.p).map((p) => [p.s, supplierOfStyle(p)]);
+  const all = styles.filter(([, sup]) => sup && hasLogin(env, sup));
+  // Why a sweep found nothing to do, without ever recording a secret: how
+  // the catalog read, which supplier each style mapped to, and whether each
+  // login is PRESENT (true or false only).
+  const by = {};
+  for (const [, sup] of styles) by[sup || 'none'] = (by[sup || 'none'] || 0) + 1;
+  const seen = { catalogStatus: res.status, styles: styles.length, bySupplier: by, logins: { sanmar: hasLogin(env, 'sanmar'), cra: hasLogin(env, 'cra') } };
   // Stalest first, never-seen first of all.
   all.sort((a, b) => String((snap.styles[a[0]] || {}).at || '').localeCompare(String((snap.styles[b[0]] || {}).at || '')));
   let done = 0, failed = 0;
@@ -332,7 +340,7 @@ export async function refreshAvailability(env, catalogUrl, { batch = 20 } = {}) 
   snap.at = new Date().toISOString();
   // What went wrong last time, so a sweep that refreshes nothing says why
   // rather than quietly serving older data.
-  snap.last = { done, failed, errors };
+  snap.last = { done, failed, errors, of: all.length, seen };
   await env.CATALOG.put(AVAIL_KEY, JSON.stringify(snap));
   return { done, failed, of: all.length };
 }

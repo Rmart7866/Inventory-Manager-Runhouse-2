@@ -19,7 +19,7 @@
     "test:width": "node test/width-class.mjs",
     "test:brands": "node test/brand-registry.mjs",
     "test:weight": "node test/create-weight.mjs",
-    "test": "node test/auth.mjs && node test/needham.mjs && node test/known-set.mjs && node test/apparel-catalog.mjs && node test/apparel-modelkey.mjs && node test/apparel-category.mjs && node test/sales.mjs && node test/meta.mjs && node test/inventory-activate.mjs && node test/bulk-fields.mjs && node test/width-class.mjs && node test/brand-registry.mjs && node test/create-weight.mjs && node test/team-requests.mjs && node test/team-sales.mjs && node test/team-golive.mjs && node test/sanmar.mjs && node test/team-stores.mjs && node test/parity.mjs",
+    "test": "node test/auth.mjs && node test/needham.mjs && node test/known-set.mjs && node test/apparel-catalog.mjs && node test/apparel-modelkey.mjs && node test/apparel-category.mjs && node test/sales.mjs && node test/meta.mjs && node test/inventory-activate.mjs && node test/bulk-fields.mjs && node test/width-class.mjs && node test/brand-registry.mjs && node test/create-weight.mjs && node test/team-requests.mjs && node test/team-sales.mjs && node test/team-golive.mjs && node test/sanmar.mjs && node test/team-stores.mjs && node test/inventory-reset.mjs && node test/parity.mjs",
     "test:teamreq": "node test/team-requests.mjs",
     "test:teamsales": "node test/team-sales.mjs",
     "test:golive": "node test/team-golive.mjs"

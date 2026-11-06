@@ -198,9 +198,27 @@ blocks `*.xlsx`, `*.csv`, `*.local`, `.dev.vars`, and the per-run rollback files
 Never commit those. `barcode-data.js` is committed on purpose because it is
 barcodes only, no pricing.
 
-**THE ONE TOOL THAT WRITES TO A PHYSICAL STORE IS `zero-falmouth-feetures.mjs`,
-and it is owner directed.** Everything else in `tools/` is Needham scoped for
-the reason directly below. This one sets the FALMOUTH on-hand to 0 on all 25
+**TWO THINGS WRITE TO A PHYSICAL STORE: `zero-falmouth-feetures.mjs` (one
+owner directed run) and the INVENTORY RESET page (`inventory-reset.html`,
+`worker/src/inventory-reset.js`, built 2026-11-06 on owner request).**
+Everything else in `tools/` is Needham scoped for the reason directly below.
+The reset page sets on hand to 0 for a slice of ONE location, picked by
+brand, product type, tag or collection, or the "All men's shoes" / "All
+women's shoes" buttons, which are the product types "Men's Shoes" and
+"Women's Shoes" (2,728 and 2,791 products; Unisex and Kids' shoes are
+separate types and deliberately not included). Scituate is never offered, by
+owner decision. It carries the three guards below, enforced again in the
+Worker rather than trusted from the page, except that committed stock is
+SKIPPED and listed rather than aborting the run, so one promised order
+does not block a whole brand. A filter is required, so it can never be
+"everything at a location". Every reset is stored under `invreset:` and can
+be undone from the page, comparing against the 0 it wrote. It reads through
+product SEARCH, not the location's levels: every location holds 20,000+
+levels, almost all zero, while all men's shoes is 2,728 products, about a
+minute. Measured 2026-11-06 at Walpole: 918 men's shoe items, 228 of them
+BELOW zero, so the page reports shelf units and below zero items apart.
+
+The Falmouth script, for the record: it sets the FALMOUTH on-hand to 0 on all 25
 Feetures products, which is real counted sock stock in a shop, so it is not
 part of any routine and nothing calls it. Run 2026-11-04 on owner request: 114
 levels written, 64 carrying 300 units cleared and 50 sitting NEGATIVE at -127
