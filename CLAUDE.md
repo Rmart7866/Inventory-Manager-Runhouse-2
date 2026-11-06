@@ -1740,8 +1740,24 @@ to the contact form email only if that save fails. Staff work them in
   the login in the Worker secrets `SANMAR_USER` / `SANMAR_PASSWORD`.
   Inventory is version 2.0.0; Media Content must be **1.1.0**, because 1.0.0
   is refused as "Not Supported". Cached 30 minutes per style, and a failure
-  is never cached. Charles River (16 styles) is not covered and says "not
-  checked".
+  is never cached. **Charles River** (16 styles) speaks the same two
+  services through Essent (addresses from the public PromoStandards
+  directory, company code `Charles`), so `SUPPLIERS` in `sanmar.js` holds
+  both and one parser serves them. It needs its own `CRA_USER` /
+  `CRA_PASSWORD`; until they are set its styles say "not checked". Its site
+  says PromoStandards access is arranged through the sales rep, and its web
+  pages show stock only when logged in, so do not scrape them.
+  - **The customer builder greys out a colour that is OUT** (and marks a
+    low one), from `GET /team-requests/stock/public`. It cannot ask the
+    suppliers live: every product card shows its colours on load, and 161
+    styles live takes about two minutes. So the Worker's 15 minute tick
+    refreshes the 20 stalest styles into ONE snapshot, `supplier:avail`
+    (full pass about two hours, one KV write per sweep, a failed style keeps
+    its previous entry), and the builder reads that, 7 KB. Tapping an out
+    colour says so and adds nothing; `bestIn`, which bundles and team colour
+    suggestions use, skips out colours. A colour already picked can still be
+    removed. Measured 2026-11-06 over every catalog style: 144 of 145 swept,
+    301 colour keys out and 21 low.
   - **The colour join is the careful part.** SanMar abbreviates ("Ath
     Maroon", "HtKllyGrn") where the catalog spells out, so names alone match
     about 62%. The photo FILENAMES spell it out

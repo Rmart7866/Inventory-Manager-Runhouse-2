@@ -206,6 +206,12 @@
 #trh-sb .have{position:absolute;top:8px;left:8px;background:var(--navy);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;letter-spacing:.04em;text-transform:uppercase;z-index:2}
 #trh-sb .hv{font-size:12px;color:var(--navy);margin:-2px 0 6px}
 #trh-sb .sw button.got{opacity:.3;cursor:not-allowed}
+/* out of stock at the supplier: greyed with a strike, so it reads differently from "already in your store" */
+#trh-sb .sw button.oos{opacity:.4;cursor:not-allowed}
+#trh-sb .sw button.oos:not(.rec):before,#trh-sb .sw button.rec.oos i:before{content:"";position:absolute;inset:0;border-radius:50%;background:linear-gradient(to top right,transparent calc(50% - 1px),#b91c1c calc(50% - 1px),#b91c1c calc(50% + 1px),transparent calc(50% + 1px))}
+#trh-sb .sw button.rec.oos i{position:relative}
+#trh-sb .sw button.rec.oos em{font-style:normal;color:#b91c1c;font-weight:600}
+#trh-sb .sw button.lowst:not(.rec){box-shadow:0 0 0 2px #fff,0 0 0 3px #d97706}
 #trh-sb .grid2>*{min-width:0}
 #trh-sb .sug{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
 #trh-sb .sug h4{margin:0 0 2px;color:var(--navy);font-size:15px}

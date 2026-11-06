@@ -33,11 +33,11 @@ import { dropshipSales } from './sales.js';
 import { applyTagChanges, applyMetafields } from './tags.js';
 import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from './product-edit.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
-import { handleIntake, handleStaff, handlePublicPlacements } from './teamreq.js';
-import { handleSupplier, handlePhoto } from './sanmar.js';
+import { handleIntake, handleStaff, handlePublicPlacements, intakeCors } from './teamreq.js';
+import { handleSupplier, handlePhoto, handleStockPublic, refreshAvailability } from './sanmar.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
-import { handleSalesRun, handleSalesStatus, handleSalesFund } from './teamreq-sales.js';
+import { handleSalesRun, handleSalesStatus, handleSalesFund, BUILDER_CATALOG } from './teamreq-sales.js';
 import { handleGoLive } from './teamreq-live.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -436,6 +436,9 @@ export default {
     // Public because an <img> cannot send a token; it serves SanMar's own
     // public image library and nothing else. See sanmar.js.
     if (url.pathname === '/team-requests/photo') return handlePhoto(request);
+    // Which colours are out or low at the supplier, for the customer builder
+    // to grey out. Read only, one KV read, filled by the 15 minute sweep.
+    if (url.pathname === '/team-requests/stock/public') return handleStockPublic(request, env, intakeCors(request, env));
 
     // CUSTOMER PROOF LINK, also before auth: the customer holds a per-request
     // token, not our token. It can read one request's proof (an allowlisted
@@ -558,6 +561,13 @@ export default {
   //   - the frequent one rebuilds only if a refresh was requested (the button),
   //     so it is a cheap flag check that does nothing most of the time.
   async scheduled(event, env, ctx) {
+    // Supplier availability for the customer builder: the 20 stalest styles
+    // every 15 minutes, separate from the catalog build and never blocking it.
+    if (event.cron === '*/5 * * * *' && new Date(event.scheduledTime).getUTCMinutes() % 15 === 0) {
+      ctx.waitUntil(refreshAvailability(env, BUILDER_CATALOG)
+        .then((r) => console.log('supplier availability', JSON.stringify(r)))
+        .catch((e) => console.error('supplier availability FAILED', e && e.stack || String(e))));
+    }
     ctx.waitUntil(
       (async () => {
         const scope = 'all';

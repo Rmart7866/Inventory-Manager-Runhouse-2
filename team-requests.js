@@ -411,7 +411,7 @@ var TR = {
         });
         if (TR.st.D && bad) return { text: 'Finish the products: every one needs colours, sizes and a price', tab: 'products' };
         if (TR.st.D && !w.noCodes && TR.codeProblems().length) return { text: 'Add the logo codes', tab: 'logos' };
-        if (TR.st.D && !w.lowStockOk && !(r.build && r.build.at) && TR.stockProblems().length) return { text: 'Some colours are low at SanMar: swap them, or build anyway', tab: 'products' };
+        if (TR.st.D && !w.lowStockOk && !(r.build && r.build.at) && TR.stockProblems().length) return { text: 'Some colours are low at the supplier: swap them, or build anyway', tab: 'products' };
         var approved = r.approval && r.approval.state === 'approved' && !r.approval.stale;
         if (r.build && r.build.at) return { text: 'Go live once the customer has approved', tab: 'build' };
         if (approved) return { text: 'Create the drafts', tab: 'build' };
@@ -588,17 +588,27 @@ var TR = {
     styleBox: function (it, p) { return TR.U.templateBox(TR.tplOf(p), p, it.placement) || TR.U.defaultBox(p, it.placement); },
 
     // ---------- supplier stock and photos (SanMar) ----------
-    // SanMar styles only: their swatches are on SanMar's CDN. The other 16
-    // catalog styles are Charles River and say "not checked", never "out".
-    isSanMar: function (p) { return !!p && p.c.some(function (c) { return /cdnm\.sanmar\.com\/swatch/.test(c[1] || ''); }); },
+    // Which supplier a style comes from: where its swatches are hosted. 145
+    // catalog styles are SanMar's, 16 Charles River's. The Worker says "login
+    // not set" for a supplier it cannot reach, which reads as not checked,
+    // never as out.
+    supOf: function (p) {
+        if (!p) return null;
+        if (p.c.some(function (c) { return /cdnm\.sanmar\.com/.test(c[1] || ''); })) return 'sanmar';
+        if (p.c.some(function (c) { return /charlesriverapparel\.com/.test(c[1] || ''); })) return 'cra';
+        return null;
+    },
+    SUP_NAME: { sanmar: 'SanMar', cra: 'Charles River' },
+    supName: function (p) { return TR.SUP_NAME[TR.supOf(p)] || 'the supplier'; },
 
     // Once per style per page load; the Worker caches for 30 minutes.
     loadSupplier: function (styles) {
         var S = TR.st.SUP, L = TR.st.SUPL;
-        var want = (styles || []).filter(function (s, i, a) { return a.indexOf(s) === i && TR.isSanMar(TR.st.P[s]) && !S[s] && !L[s]; });
+        var want = (styles || []).filter(function (s, i, a) { return a.indexOf(s) === i && TR.supOf(TR.st.P[s]) && !S[s] && !L[s]; });
         if (!want.length) return;
         want.forEach(function (s) { L[s] = 1; });
-        TR.api('/team-requests/supplier?styles=' + encodeURIComponent(want.join(','))).then(function (j) {
+        var by = function (k) { return want.filter(function (s) { return TR.supOf(TR.st.P[s]) === k; }).join(','); };
+        TR.api('/team-requests/supplier?styles=' + encodeURIComponent(by('sanmar')) + '&cra=' + encodeURIComponent(by('cra'))).then(function (j) {
             want.forEach(function (s) { delete L[s]; S[s] = (j.styles && j.styles[s]) || { error: j.error || ('HTTP ' + j.__status) }; });
             TR.paintStock();
         }).catch(function (e) { want.forEach(function (s) { delete L[s]; S[s] = { error: e.message }; }); TR.paintStock(); });
@@ -615,24 +625,25 @@ var TR = {
         var sup = TR.st.SUP[p.s];
         if (!sup || sup.error) return { cls: '', title: '' };
         var sizes = TR.itemSizes(it, p), s = TR.U.stockOf(sup, n, sizes);
-        if (s.state === 'unknown') return { cls: '', title: 'No SanMar data for this colour. ' };
+        if (s.state === 'unknown') return { cls: '', title: 'No ' + TR.supName(p) + ' data for this colour. ' };
         var list = sizes.filter(function (z) { return s.q[z] != null; }).map(function (z) { return z + ' ' + s.q[z]; }).join(', ');
-        return { cls: s.state === 'ok' ? '' : 'st-' + s.state, title: 'SanMar stock: ' + list + '. ' };
+        return { cls: s.state === 'ok' ? '' : 'st-' + s.state, title: TR.supName(p) + ' stock: ' + list + '. ' };
     },
 
     stockHtml: function (it, p) {
-        if (!TR.isSanMar(p)) return '<span class="sub">Stock not checked: not a SanMar style.</span>';
+        var nm = TR.supName(p);
+        if (!TR.supOf(p)) return '<span class="sub">Stock not checked for this style.</span>';
         var sup = TR.st.SUP[p.s];
-        if (!sup) return '<span class="sub">Checking SanMar stock...</span>';
-        if (sup.error) return '<span class="sub">SanMar stock unavailable right now (' + TR.esc(sup.error) + ').</span>';
+        if (!sup) return '<span class="sub">Checking ' + nm + ' stock...</span>';
+        if (sup.error) return '<span class="sub">' + nm + ' stock not checked (' + TR.esc(sup.error) + ').</span>';
         var sizes = TR.itemSizes(it, p), bad = [], unk = [];
         it.colors.forEach(function (n) {
             var s = TR.U.stockOf(sup, n, sizes);
             if (s.state === 'unknown') unk.push(n);
             else if (s.state !== 'ok') bad.push('<b class="st-' + s.state + '">' + TR.esc(n) + (s.state === 'out' ? ' out' : ' low') + '</b> (' + s.short.map(function (z) { return TR.esc(z[0]) + ' ' + z[1]; }).join(', ') + ')');
         });
-        return 'SanMar stock, checked ' + TR.ago(sup.at) + ': ' + (bad.length ? bad.join(' · ') : !it.colors.length ? 'no colours yet' : unk.length === it.colors.length ? 'nothing to compare' : unk.length ? 'the others are in stock in the core sizes' : 'every colour in stock in the core sizes') +
-            (unk.length ? '. <span class="sub">No SanMar data for ' + TR.esc(unk.join(', ')) + '.</span>' : '');
+        return nm + ' stock, checked ' + TR.ago(sup.at) + ': ' + (bad.length ? bad.join(' · ') : !it.colors.length ? 'no colours yet' : unk.length === it.colors.length ? 'nothing to compare' : unk.length ? 'the others are in stock in the core sizes' : 'every colour in stock in the core sizes') +
+            (unk.length ? '. <span class="sub">No ' + nm + ' data for ' + TR.esc(unk.join(', ')) + '.</span>' : '');
     },
 
     stockProblems: function () {
@@ -643,7 +654,7 @@ var TR = {
             var sizes = TR.itemSizes(it, p);
             it.colors.forEach(function (n) {
                 var s = TR.U.stockOf(sup, n, sizes);
-                if (s.state === 'out' || s.state === 'low') out.push(p.n + ' in ' + n + ' is ' + (s.state === 'out' ? 'out of stock' : 'low') + ' at SanMar (' + s.short.map(function (z) { return z[0] + ' ' + z[1]; }).join(', ') + ')');
+                if (s.state === 'out' || s.state === 'low') out.push(p.n + ' in ' + n + ' is ' + (s.state === 'out' ? 'out of stock' : 'low') + ' at ' + TR.supName(p) + ' (' + s.short.map(function (z) { return z[0] + ' ' + z[1]; }).join(', ') + ')');
             });
         });
         return out;
@@ -1309,7 +1320,7 @@ var TR = {
         // (Charles River, or SanMar not answering) never blocks: an outage at
         // SanMar must not stop every store.
         var stock = TR.stockProblems(), checking = TR.stockChecking();
-        if (checking) problems.push('Checking SanMar stock, one moment.');
+        if (checking) problems.push('Checking supplier stock, one moment.');
         if (stock.length && !w.lowStockOk) stock.forEach(function (t) { problems.push(t + '. Remove the colour on the Products tab, or tick Build with low-stock colours below.'); });
         var upd = r.req && r.req.mode === 'update';
         // Kept in site search unless staff untick it for this store.

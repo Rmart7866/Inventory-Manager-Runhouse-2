@@ -34,7 +34,7 @@ import { isBuildLocked } from './store.js';
 
 // The builder's catalog, which carries the list of team stores. If the
 // builder's CURL constant moves to a new hashed filename, move this too.
-const BUILDER_CATALOG = 'https://cdn.shopify.com/s/files/1/0631/6877/4399/files/trh-builder-catalog-be7a99fd83.json';
+export const BUILDER_CATALOG = 'https://cdn.shopify.com/s/files/1/0631/6877/4399/files/trh-builder-catalog-be7a99fd83.json';
 const RUN_KEY = 'treqsales:run';
 const RESULT_KEY = 'treqsales:result';
 const FUND_KEY = 'treqfund';

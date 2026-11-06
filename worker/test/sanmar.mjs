@@ -1,7 +1,7 @@
 // SanMar supplier data: the colour join, sizes, flats only, the photo pass
 // through allowlist. Hand written replies in SanMar's real shapes, so no
 // supplier data sits in this public repo.
-import { parseSupplier, colorKey, sizeKey, handlePhoto, handleSupplier } from '../src/sanmar.js';
+import { parseSupplier, colorKey, sizeKey, handlePhoto, handleSupplier, stateOf, availOf, supplierOfStyle, refreshAvailability, handleStockPublic } from '../src/sanmar.js';
 
 let failures = 0;
 const check = (name, ok) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name); if (!ok) failures++; };
@@ -80,6 +80,39 @@ r = await handlePhoto(new Request('https://w/team-requests/photo?u=' + encodeURI
 check('and a path that climbs out', r.status === 400 || r.status === 502);
 const s = await handleSupplier(new Request('https://w/team-requests/supplier?styles=PC380'), { CATALOG: {} });
 check('no SanMar login on the Worker says so, rather than failing quietly', s.status === 503);
+
+console.log('\nAvailability for the customer builder');
+check('a core size at zero is out', stateOf({ S: 10, M: 0, L: 50, XL: 50 }) === 'out');
+check('under 24 is low', stateOf({ S: 30, M: 23, L: 50, XL: 50 }) === 'low');
+check('a thin 5XL does not count', stateOf({ S: 30, M: 30, L: 30, XL: 30, '5XL': 0 }) === 'ok');
+check('one size goods are judged on their one size', stateOf({ 'One Size': 0 }) === 'out');
+check('availability is keyed by the join key, ok colours left out', JSON.stringify(availOf({ alias: { athleticmaroon: 'Ath Maroon', black: 'Black' }, colors: { 'Ath Maroon': { q: { M: 0 } }, Black: { q: { M: 400 } } } })) === '{"athleticmaroon":"out"}');
+check('a style\'s supplier comes from its swatch host', supplierOfStyle({ c: [['Black', '^port_black.gif']] }) === 'sanmar' && supplierOfStyle({ c: [['Black', '`5726010_1.png']] }) === 'cra' && supplierOfStyle({ c: [['Black', '~x.png']] }) === null);
+check('Charles River replies with xmlns on every tag still parse', parseSupplier('<Inventory xmlns="x"><PartInventoryArray xmlns="y"><PartInventory xmlns="z"><partColor>Black</partColor><labelSize>M</labelSize><quantityAvailable><Quantity><uom>EA</uom><value>12</value></Quantity></quantityAvailable></PartInventory></PartInventoryArray></Inventory>', '<x/>', 'cra').colors.Black.q.M === 12);
+
+// The sweep: stalest first, a failure keeps the old entry, one KV write
+const kv = {}, puts = [];
+const KV = { get: async (k) => (k in kv ? JSON.parse(kv[k]) : null), put: async (k, v) => { kv[k] = v; puts.push(k); } };
+kv['supplier:avail'] = JSON.stringify({ styles: { OLD1: { at: '2026-01-01T00:00:00Z', av: { black: 'out' } }, NEW1: { at: '2026-11-06T00:00:00Z', av: {} } } });
+const realFetch = globalThis.fetch;
+const seen = [];
+globalThis.fetch = async (u, o) => {
+  if (String(u).includes('catalog')) return new Response(JSON.stringify({ cats: [{ p: [{ s: 'NEW1', c: [['Black', '^a.gif']] }, { s: 'OLD1', c: [['Black', '^b.gif']] }, { s: 'CRA1', c: [['Black', '`c.png']] }] }] }));
+  const style = (o.body.match(/<shar:productId>([^<]+)</) || [])[1]; seen.push(style);
+  if (style === 'OLD1') throw new Error('SanMar is down');
+  return new Response(String(u).includes('Inventory') ? '<x>' + part('Black', 'M', 0) + '</x>' : '<x/>');
+};
+const res = await refreshAvailability({ CATALOG: KV, SANMAR_USER: 'u', SANMAR_PASSWORD: 'p' }, 'https://cdn/catalog.json', { batch: 1 });
+globalThis.fetch = realFetch;
+const snap = JSON.parse(kv['supplier:avail']);
+check('the sweep takes the stalest style first', seen[0] === 'OLD1');
+check('a failed style keeps its previous entry, stale beats absent', snap.styles.OLD1.av.black === 'out' && res.failed === 1);
+check('a supplier with no login is skipped, not failed', res.of === 2);
+check('one KV write per sweep, not one per style', puts.length === 1);
+const pub = await handleStockPublic(new Request('https://w/team-requests/stock/public'), { CATALOG: KV }, { 'Access-Control-Allow-Origin': 'https://therunhouse.com' });
+const pj = await pub.json();
+check('the public route serves the snapshot, boxes of colour keys only', pub.status === 200 && pj.styles.OLD1.black === 'out' && !('at' in pj.styles.OLD1));
+check('and cannot be written to', (await handleStockPublic(new Request('https://w/x', { method: 'POST' }), { CATALOG: KV }, {})).status === 405);
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);
