@@ -36,6 +36,7 @@ import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from '.
 import { handleIntake, handleStaff, handlePublicPlacements, intakeCors } from './teamreq.js';
 import { handleSupplier, handlePhoto, handleStockPublic, refreshAvailability } from './sanmar.js';
 import { handleStores } from './teamreq-stores.js';
+import { handleOrderLookup } from './orders-lookup.js';
 import { handleResetOptions, handleResetCollections, handleResetScan, handleResetApply, handleResetHistory, handleResetUndo } from './inventory-reset.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
@@ -507,6 +508,9 @@ export default {
       // Inventory reset at ONE physical or dropship location, Scituate
       // excluded. Reads and writes both behind the write secret; the writes
       // carry forWrite too. See inventory-reset.js for the three guards.
+      // Order lookup for phone calls, read only. Behind the write secret
+      // because an order carries a customer's name, email and address.
+      '/orders/lookup': { handler: teamReqRoute(handleOrderLookup), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/options': { handler: teamReqRoute(handleResetOptions), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/collections': { handler: teamReqRoute(handleResetCollections), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/scan': { handler: teamReqRoute(handleResetScan), forWrite: false, needsWriteSecret: true, methods: ['POST'] },

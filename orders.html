@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order Lookup</title>
+<!--
+  Find an online order while a customer is on the phone: by order number,
+  email or name. Read only; the Worker does the search
+  (worker/src/orders-lookup.js). Behind the write secret, because an order
+  carries the customer's name, email and address.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d1117; --surface: #161d29; --surface-2: #1b2331;
+  --line: rgba(255,255,255,.09); --line-2: rgba(255,255,255,.16);
+  --text: #eef2f8; --muted: #c2ccd9; --muted-2: #a6b1c0;
+  --accent: #4c9bff; --ok: #3ddc97; --bad: #ff7a90; --warn: #f2c14e;
+}
+* { box-sizing: border-box; border-radius: 0; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+button, input { font: inherit; color: inherit; }
+a { color: var(--accent); }
+.hidden { display: none !important; }
+header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+header h1 { margin: 0; font-size: 18px; }
+header .sp { flex: 1; }
+header a { color: var(--muted); font-size: 14px; }
+main { max-width: 980px; margin: 0 auto; padding: 22px 24px 90px; }
+.sub { color: var(--muted-2); font-size: 13.5px; }
+.btn { background: var(--surface-2); border: 1px solid var(--line-2); padding: 8px 14px; cursor: pointer; }
+.btn.pri { background: var(--accent); border-color: var(--accent); color: #0b1220; font-weight: 600; }
+.search { display: flex; gap: 8px; }
+.search input { flex: 1; background: var(--bg); border: 1px solid var(--line-2); padding: 12px 14px; font-size: 17px; }
+.msg { padding: 10px 12px; border: 1px solid var(--line-2); margin: 12px 0; font-size: 14px; }
+.msg.bad { border-color: var(--bad); color: var(--bad); }
+.order { background: var(--surface); border: 1px solid var(--line); margin-top: 12px; }
+.oh { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 16px; padding: 12px 16px; cursor: pointer; }
+.oh:hover { background: var(--surface-2); }
+.oh .no { font-size: 18px; font-weight: 700; }
+.oh .who { color: var(--muted); }
+.oh .right { text-align: right; }
+.pill { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 1px 8px; border: 1px solid currentColor; margin-left: 6px; white-space: nowrap; }
+.pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); } .pill.muted { color: var(--muted-2); }
+.ob { border-top: 1px solid var(--line); padding: 12px 16px 16px; display: grid; grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); gap: 18px; }
+.ob h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.item { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.item img, .item .noimg { width: 48px; height: 48px; object-fit: contain; background: #fff; }
+.item .q { font-weight: 700; }
+.kv div { margin-bottom: 8px; }
+.copy { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0 0 0 6px; font-size: 13px; }
+.track a { font-weight: 600; }
+#gate { max-width: 460px; margin: 60px auto; background: var(--surface); border: 1px solid var(--line); padding: 20px; }
+#gate .err { color: var(--bad); margin-top: 8px; }
+@media (max-width: 720px) { .ob { grid-template-columns: 1fr; } main { padding: 16px 16px 80px; } header { padding: 12px 16px; } }
+</style>
+</head>
+<body>
+<header><h1>Order lookup</h1><span class="sp"></span><a href="index.html">Home</a></header>
+
+<section id="gate" class="hidden">
+  <h2 style="margin-top:0">Write secret needed</h2>
+  <p>Orders carry customers' names, emails and addresses, so this page needs the same write secret as the other staff tools. Paste it once and this browser keeps it.</p>
+  <form id="gate-form" style="display:flex;gap:8px"><input type="password" id="gate-in" autocomplete="off" placeholder="Write secret" style="flex:1;background:var(--bg);border:1px solid var(--line-2);padding:8px 10px"><button class="btn pri" type="submit">Unlock</button></form>
+  <div class="err" id="gate-err"></div>
+</section>
+
+<main id="app" class="hidden">
+  <form class="search" id="f"><input type="search" id="q" placeholder="Order number, email or name" autocomplete="off" aria-label="Order number, email or name" autofocus><button class="btn pri" type="submit">Find</button></form>
+  <div class="sub" style="margin-top:6px">For example 92972, #92972, coach@school.org, or Smith. Shows the 20 most recent matches.</div>
+  <div id="out"></div>
+</main>
+
+<script src="catalog-client.js?v=23"></script>
+<script src="orders.js?v=1"></script>
+</body>
+</html>
