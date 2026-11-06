@@ -53,7 +53,7 @@ const ORDERS_QUERY = (since) => `{
 }`;
 
 // Every team store: the builder's list plus any collection this tool built.
-async function storeHandles(env) {
+export async function storeHandles(env) {
   const out = new Map();
   try {
     const D = await (await fetch(BUILDER_CATALOG)).json();

@@ -313,6 +313,12 @@ body.full #detail { max-width: none; }
 .chip.st-low { border-color: var(--warn); box-shadow: inset 0 -2px 0 var(--warn); }
 .chip.st-out { border-color: var(--bad); box-shadow: inset 0 -2px 0 var(--bad); }
 .chip.st-out:not(.on) { opacity: .6; }
+/* team stores */
+.stotable th:nth-child(1) { width: 30%; } .stotable th:nth-child(2) { width: 20%; } .stotable th:nth-child(3) { width: 9%; }
+.stotable th:nth-child(4) { width: 15%; } .stotable th:nth-child(5) { width: 12%; } .stotable th:nth-child(6) { width: 14%; }
+.stotable tbody tr { cursor: default; }
+.stolinks a { white-space: nowrap; }
+@media (max-width: 900px) { .stotable th:nth-child(1) { width: 45%; } .stotable th:nth-child(2) { width: 30%; } .stotable th:nth-child(6) { width: 25%; } }
 .pz-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
 .pz-head h2 { margin: 0; font-size: 22px; }
 .pz { display: grid; grid-template-columns: 290px minmax(0, 1fr) 310px; gap: 20px; align-items: start; }
@@ -367,6 +373,7 @@ body.full #detail { max-width: none; }
   <h1><button type="button" id="home-h" class="homeh">Team store requests</button></h1>
   <nav class="toptabs" id="toptabs" aria-label="Pages">
     <button type="button" id="home-tab" data-v="home">Requests</button>
+    <button type="button" id="stores-open" data-v="stores">Team stores</button>
     <button type="button" id="cal-open" data-v="cal">Calendar</button>
     <button type="button" id="sales-open" data-v="sales">Store sales</button>
     <button type="button" id="place-open" data-v="place">Placements</button>
@@ -407,6 +414,6 @@ body.full #detail { max-width: none; }
 
 <script src="catalog-client.js?v=23"></script>
 <script src="team-request-utils.js?v=5"></script>
-<script src="team-requests.js?v=18"></script>
+<script src="team-requests.js?v=19"></script>
 </body>
 </html>

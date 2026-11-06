@@ -35,6 +35,7 @@ import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import { handleIntake, handleStaff, handlePublicPlacements, intakeCors } from './teamreq.js';
 import { handleSupplier, handlePhoto, handleStockPublic, refreshAvailability } from './sanmar.js';
+import { handleStores } from './teamreq-stores.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
 import { handleSalesRun, handleSalesStatus, handleSalesFund, BUILDER_CATALOG } from './teamreq-sales.js';
@@ -499,6 +500,9 @@ export default {
       // SanMar stock and photo links per style, read only. Behind the write
       // secret like every other request route; the login is a Worker secret.
       '/team-requests/supplier': { handler: teamReqRoute(handleSupplier), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      // Every team store with the facts that explain whether customers can
+      // find it. Read only; cached, ?fresh=1 rebuilds. See teamreq-stores.js.
+      '/team-requests/stores': { handler: teamReqRoute(handleStores), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/placements/save': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'placement-save')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/proof-link': { handler: teamReqRoute(handleProofLink), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       // Team store sales: READS orders through a bulk job, revenue behind the

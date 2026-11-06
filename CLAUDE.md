@@ -1789,6 +1789,14 @@ to the contact form email only if that save fails. Staff work them in
     failed" while the same file, read literally, worked. Production is
     unaffected: `wrangler secret put` stores exactly what is typed. Locally,
     test `sanmar.js` from node with the value read literally.
+- **The Team stores tab lists every store and says why one is hidden**
+  (`worker/src/teamreq-stores.js`, `GET /team-requests/stores`, cached, a
+  refresh is about 6 seconds). No single source is complete: the site's
+  Team Stores page listed 378 on 2026-11-06 (read off its `ts-card` links,
+  never its menu links, which are brands), the builder catalog 476. All 98
+  not listed had the `custom.team_store` directory toggle off, and the
+  biggest of those by sales are race merch (the LA Marathon gear store,
+  $75k), which may be deliberate. The tab shows the fact, it does not judge.
 - **The page is meant to be picked up cold.** Each request shows one "Next:"
   line worked out from its state, the list refreshes itself every minute, and
   rarely used settings (collection tag, build without codes, the approval link)

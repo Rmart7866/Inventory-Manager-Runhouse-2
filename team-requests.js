@@ -57,6 +57,7 @@ var TR = {
         TR.$('home-back').addEventListener('click', function () { TR.home(); });
         TR.$('home-h').addEventListener('click', function () { TR.home(); });
         TR.$('home-tab').addEventListener('click', function () { TR.home(); });
+        TR.$('stores-open').addEventListener('click', TR.showStores);
         TR.$('me').value = TR.myName();
         TR.$('me').addEventListener('change', function () { try { localStorage.setItem('rhStaffName', this.value.trim()); } catch (e) { /* private mode */ } TR.renderList(); });
         // The list refreshes itself: every minute, and when you come back to
@@ -194,7 +195,7 @@ var TR = {
 
     renderList: function () {
         var f = TR.st.filter, q = TR.st.q, me = TR.myName().trim().toLowerCase();
-        var home = TR.isHome(), v = TR.st.rec ? 'home' : ({ cal: 'cal', sales: 'sales', place: 'place' }[TR.st.view] || 'home');
+        var home = TR.isHome(), v = TR.st.rec ? 'home' : ({ cal: 'cal', sales: 'sales', place: 'place', stores: 'stores' }[TR.st.view] || 'home');
         document.body.classList.toggle('home', home);
         document.body.classList.toggle('full', v !== 'home');
         document.querySelectorAll('#toptabs [data-v]').forEach(function (b) { b.setAttribute('aria-current', String(b.dataset.v === v)); });
@@ -1725,6 +1726,104 @@ var TR = {
         a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
         a.download = 'team-store-sales-from-' + R.since + '.csv';
         document.body.appendChild(a); a.click(); a.remove();
+    },
+
+    // ---------- all team stores ----------
+    // Every team store with the facts that say whether a customer can find
+    // it. The Worker merges the site's Team Stores page, the builder catalog
+    // and stores built here, then looks each up in Shopify (worker/src/
+    // teamreq-stores.js). Sales are the last Store sales run, not a new one.
+    showStores: function () {
+        if (TR.st.dirty && !window.confirm('You have unsaved changes on this request. Leave them?')) return;
+        TR.st.dirty = false; TR.st.rec = null; TR.st.view = 'stores';
+        history.replaceState(null, '', location.pathname);
+        TR.st.sto = TR.st.sto || { q: '', f: 'all', sort: 'name', data: null, loading: false };
+        TR.renderList();
+        if (TR.st.sto.data) TR.renderStores(); else TR.loadStores(false);
+        window.scrollTo(0, 0);
+    },
+
+    loadStores: function (fresh) {
+        var S = TR.st.sto; if (S.loading) return;
+        S.loading = true; S.err = null;
+        if (!S.data) TR.$('detail').innerHTML = '<p class="empty">Gathering every team store from the site and from Shopify. This takes a few seconds...</p>';
+        else TR.renderStores();
+        TR.api('/team-requests/stores' + (fresh ? '?fresh=1' : '')).then(function (j) {
+            S.loading = false;
+            if (j.__status !== 200) { S.err = j.error || ('HTTP ' + j.__status); if (!S.data) { TR.$('detail').innerHTML = '<p class="msg bad">' + TR.esc(S.err) + '</p>'; return; } }
+            else { S.data = j; S.err = j.error || null; }
+            if (TR.st.view === 'stores') TR.renderStores();
+        });
+    },
+
+    STORE_FILTERS: {
+        all: { label: 'All', test: function () { return true; } },
+        site: { label: 'On the site', test: function (s) { return s.onSite === true; } },
+        hidden: { label: 'Not on the site', test: function (s) { return s.onSite === false; } },
+        built: { label: 'Built here', test: function (s) { return !!s.req; } },
+        empty: { label: 'No products', test: function (s) { return !s.missing && !s.products; } },
+    },
+
+    renderStores: function () {
+        var S = TR.st.sto, d = S.data, el = TR.$('detail');
+        if (!d || TR.st.view !== 'stores') return;
+        var q = S.q.toLowerCase(), all = d.stores || [];
+        var rows = all.filter(function (s) {
+            if (!TR.STORE_FILTERS[S.f].test(s)) return false;
+            return !q || (s.n + ' ' + s.h + ' ' + (s.tags || []).join(' ')).toLowerCase().indexOf(q) >= 0;
+        });
+        var by = {
+            name: function (a, b) { return a.n.localeCompare(b.n); },
+            updated: function (a, b) { return String(b.updated).localeCompare(String(a.updated)); },
+            products: function (a, b) { return (b.products || 0) - (a.products || 0); },
+            sales: function (a, b) { return ((b.sales && b.sales.revenue) || 0) - ((a.sales && a.sales.revenue) || 0); },
+        };
+        rows.sort(by[S.sort] || by.name);
+        var n = function (k) { return all.filter(TR.STORE_FILTERS[k].test).length; };
+        var siteN = n('site'), hidN = n('hidden');
+        var head = '<div class="calhead"><h2 style="min-width:0">Team stores</h2><span class="sub">' +
+            (d.siteOk ? siteN + ' on the site, ' + hidN + ' not' : 'The site\'s Team Stores page could not be read, so "on the site" is unknown') +
+            '. Checked ' + TR.ago(d.at) + '.</span><span class="sp"></span>' +
+            '<button class="btn" type="button" id="sto-refresh"' + (S.loading ? ' disabled' : '') + '>' + (S.loading ? 'Checking...' : 'Refresh') + '</button></div>' +
+            (S.err ? '<p class="msg warn">' + TR.esc(S.err) + '</p>' : '');
+        var tools = '<div class="toolbar"><input type="search" id="sto-q" placeholder="Search name, handle or tag" value="' + TR.esc(S.q) + '" aria-label="Search stores" style="max-width:360px;flex:1">' +
+            '<div class="chips" role="group" aria-label="Show">' + Object.keys(TR.STORE_FILTERS).map(function (k) {
+                return '<button type="button" class="chip' + (S.f === k ? ' on' : '') + '" data-sf="' + k + '">' + TR.STORE_FILTERS[k].label + ' <span class="sub">' + n(k) + '</span></button>';
+            }).join('') + '</div>' +
+            '<label class="sub" style="display:flex;gap:6px;align-items:center">Sort <select id="sto-sort">' + [['name', 'Name'], ['updated', 'Recently changed'], ['products', 'Most products'], ['sales', 'Most sales']].map(function (o) {
+                return '<option value="' + o[0] + '"' + (S.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+            }).join('') + '</select></label></div>';
+        var salesNote = d.salesSince ? 'Sales since ' + TR.fmtDate(d.salesSince) + ', from the last Store sales run' + (d.salesAt ? ' (' + TR.ago(d.salesAt) + ')' : '') + '.' : 'No Store sales run yet, so no sales figures. Run one on the Store sales tab.';
+        var MAX = 300, shown = rows.slice(0, MAX);
+        var table = '<table class="rtable stotable"><thead><tr><th>Store</th><th>On the site</th><th class="opt">Products</th><th class="opt">Sales</th><th class="opt">Last changed</th><th>Open</th></tr></thead><tbody>' +
+            shown.map(function (s) {
+                var site = s.onSite === true ? '<span class="tag approved">Listed</span>'
+                    : s.onSite === false ? '<span class="tag dup">Not listed</span><div class="te">' + TR.esc(s.why || '') + '</div>'
+                    : '<span class="sub">Unknown</span>';
+                var sales = s.sales && s.sales.orders ? TR.money(s.sales.revenue) + '<div class="te">' + s.sales.orders + (s.sales.orders === 1 ? ' order' : ' orders') + (s.sales.last ? ', last ' + TR.esc(TR.fmtDate(s.sales.last)) : '') + '</div>' : '<span class="sub">' + (d.salesSince ? 'None' : '') + '</span>';
+                var links = (s.missing ? '' : '<a target="_blank" rel="noopener" href="' + TR.esc(TR.STORE_URL + s.h) + '">Store</a>') +
+                    (s.id ? ' · <a target="_blank" rel="noopener" href="' + TR.esc(TR.ADMIN + '/collections/' + TR.gidNum(s.id)) + '">Shopify</a>' : '') +
+                    (s.req ? ' · <a href="#' + TR.esc(s.req.id) + '" data-open="' + TR.esc(s.req.id) + '">Request</a>' : '');
+                return '<tr><td><div class="tn">' + TR.esc(s.n) + '</div><div class="te">' + TR.esc(s.h) + (s.tags && s.tags.length ? ' · tag ' + TR.esc(s.tags.join(', ')) : '') + '</div></td>' +
+                    '<td>' + site + '</td><td class="opt">' + (s.missing ? '<span class="sub">-</span>' : s.products) + '</td><td class="opt">' + sales + '</td>' +
+                    '<td class="opt dim">' + (s.updated ? TR.esc(TR.ago(s.updated)) : '') + '</td><td class="stolinks">' + links + '</td></tr>';
+            }).join('') + '</tbody></table>';
+        var old = window.scrollY;
+        el.innerHTML = head + tools + '<p class="sub" style="margin:4px 0 8px">' + rows.length + (rows.length === 1 ? ' store' : ' stores') + '. ' + salesNote + '</p>' +
+            (rows.length ? table : '<p class="empty">No store matches.</p>') +
+            (rows.length > MAX ? '<p class="sub">Showing the first ' + MAX + '. Search or filter to narrow it.</p>' : '');
+        window.scrollTo(0, old);
+        TR.wireStores();
+    },
+
+    wireStores: function () {
+        var S = TR.st.sto, el = TR.$('detail');
+        var qq = TR.$('sto-q');
+        qq.oninput = function () { S.q = this.value; var pos = this.selectionStart; TR.renderStores(); var n = TR.$('sto-q'); n.focus(); n.setSelectionRange(pos, pos); };
+        el.querySelectorAll('[data-sf]').forEach(function (b) { b.onclick = function () { S.f = b.dataset.sf; TR.renderStores(); }; });
+        TR.$('sto-sort').onchange = function () { S.sort = this.value; TR.renderStores(); };
+        TR.$('sto-refresh').onclick = function () { TR.loadStores(true); };
+        el.querySelectorAll('[data-open]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); TR.open(a.dataset.open); }; });
     },
 
     // ---------- placements: where a logo prints on each style ----------
