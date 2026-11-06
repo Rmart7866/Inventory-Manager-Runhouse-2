@@ -95,5 +95,19 @@ eq('a changed back neck box is used', U.loc2({ second_logo: 'Back neck' }, tee3,
 eq('a changed sleeve box is used, on the front', U.loc2({ second_logo: 'Sleeve' }, tee3, { sl: [0.8, 0.2, 0.1, 0.1, 10] }).box, [0.8, 0.2, 0.1, 0.1, 10]);
 eq('a back box change does not move the back neck', U.loc2({ second_logo: 'Back neck' }, tee3, { bk: [0.3, 0.1, 0.4, 0.3] }).box, [0.43, 0.06, 0.14, 0.07]);
 
+console.log('\nSupplier stock');
+const sup = { at: 'x', alias: { athleticmaroon: 'Ath Maroon', black: 'Black', red: 'Red', onesize: 'Hat' },
+  colors: { 'Ath Maroon': { q: { S: 3632, M: 3233, L: 5046, XL: 3704, '2XL': 1624, '5XL': 2 } }, Black: { q: { S: 40, M: 0, L: 12, XL: 900 } }, Red: { q: { S: 30, M: 20, L: 30, XL: 30 } } } };
+const ladder = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
+eq('our long name reaches SanMar\'s short one', U.stockOf(sup, 'Athletic Maroon', ladder).state, 'ok');
+eq('a thin 5XL does not flag a whole colour', U.stockOf(sup, 'Athletic Maroon', ladder).short, []);
+eq('a core size at zero is out, and says which', U.stockOf(sup, 'Black', ladder).short, [['M', 0], ['L', 12]]);
+eq('out beats low', U.stockOf(sup, 'Black', ladder).state, 'out');
+eq('under the threshold is low', U.stockOf(sup, 'Red', ladder).state, 'low');
+eq('no data is unknown, never out', U.stockOf(sup, 'Electric Purple', ladder).state, 'unknown');
+eq('one size goods are judged on their one size', U.stockOf({ alias: { navy: 'Navy' }, colors: { Navy: { q: { 'One Size': 3 } } } }, 'Navy', ['One Size']).state, 'low');
+eq('youth with no adult core sizes uses its own', U.stockOf({ alias: { navy: 'Navy' }, colors: { Navy: { q: { '2T': 0, '3T': 50 } } } }, 'Navy', ['2T', '3T']).state, 'out');
+eq('heathered matches the heather key', U.colorKey('Heathered Navy'), 'heathernavy');
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

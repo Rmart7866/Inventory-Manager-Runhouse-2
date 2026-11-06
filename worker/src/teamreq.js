@@ -345,6 +345,9 @@ export function applyPatch(rec, patch) {
     if (typeof w.searchable === 'boolean') cur.searchable = w.searchable;
     // Logo codes are required by default; staff may waive them per store.
     if (typeof w.noCodes === 'boolean') cur.noCodes = w.noCodes;
+    // Staff ticked "Build with low-stock colours": kept as the record that
+    // the store was built knowing a colour was short at the supplier.
+    if (typeof w.lowStockOk === 'boolean') cur.lowStockOk = w.lowStockOk;
     if (w.logos && typeof w.logos === 'object') cur.logos = w.logos;
     if (Array.isArray(w.items)) {
       const before = JSON.stringify((cur.items || []).map(itemSig));

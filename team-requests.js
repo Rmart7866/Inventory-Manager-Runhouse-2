@@ -17,7 +17,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 var TR = {
-    st: { list: [], rec: null, dirty: false, filter: 'open', q: '', tab: 'products', D: null, P: {}, CAT: {}, logoSrc: {}, plan: null, busy: false, costs: {} },
+    st: { list: [], rec: null, dirty: false, filter: 'open', q: '', tab: 'products', D: null, P: {}, CAT: {}, logoSrc: {}, plan: null, busy: false, costs: {}, SUP: {}, SUPL: {} },
     PROOF_PAGE: 'https://rmart7866.github.io/Inventory-Manager-Runhouse-2/proof.html',
     APPROVAL: { approved: 'Customer approved', changes: 'Customer asked for changes', stale: 'Changed since the customer answered' },
     U: TeamReqUtils,
@@ -342,6 +342,7 @@ var TR = {
 
     renderDetail: function () {
         var r = TR.st.rec; if (!r) return;
+        TR.loadSupplier(((r.work && r.work.items) || []).map(function (it) { return it.style; }));
         var q = r.req || {}, w = r.work || {}, c = q.contact || {};
         // Only what changes how staff handle the request is a flag. The rest
         // is one quiet line of facts.
@@ -410,6 +411,7 @@ var TR = {
         });
         if (TR.st.D && bad) return { text: 'Finish the products: every one needs colours, sizes and a price', tab: 'products' };
         if (TR.st.D && !w.noCodes && TR.codeProblems().length) return { text: 'Add the logo codes', tab: 'logos' };
+        if (TR.st.D && !w.lowStockOk && !(r.build && r.build.at) && TR.stockProblems().length) return { text: 'Some colours are low at SanMar: swap them, or build anyway', tab: 'products' };
         var approved = r.approval && r.approval.state === 'approved' && !r.approval.stale;
         if (r.build && r.build.at) return { text: 'Go live once the customer has approved', tab: 'build' };
         if (approved) return { text: 'Create the drafts', tab: 'build' };
@@ -585,6 +587,129 @@ var TR = {
     loc2: function (it, p) { return TR.U.loc2(it, p, TR.tplOf(p)); },
     styleBox: function (it, p) { return TR.U.templateBox(TR.tplOf(p), p, it.placement) || TR.U.defaultBox(p, it.placement); },
 
+    // ---------- supplier stock and photos (SanMar) ----------
+    // SanMar styles only: their swatches are on SanMar's CDN. The other 16
+    // catalog styles are Charles River and say "not checked", never "out".
+    isSanMar: function (p) { return !!p && p.c.some(function (c) { return /cdnm\.sanmar\.com\/swatch/.test(c[1] || ''); }); },
+
+    // Once per style per page load; the Worker caches for 30 minutes.
+    loadSupplier: function (styles) {
+        var S = TR.st.SUP, L = TR.st.SUPL;
+        var want = (styles || []).filter(function (s, i, a) { return a.indexOf(s) === i && TR.isSanMar(TR.st.P[s]) && !S[s] && !L[s]; });
+        if (!want.length) return;
+        want.forEach(function (s) { L[s] = 1; });
+        TR.api('/team-requests/supplier?styles=' + encodeURIComponent(want.join(','))).then(function (j) {
+            want.forEach(function (s) { delete L[s]; S[s] = (j.styles && j.styles[s]) || { error: j.error || ('HTTP ' + j.__status) }; });
+            TR.paintStock();
+        }).catch(function (e) { want.forEach(function (s) { delete L[s]; S[s] = { error: e.message }; }); TR.paintStock(); });
+    },
+
+    stockChecking: function () {
+        return ((TR.st.rec && TR.st.rec.work.items) || []).some(function (it) { return TR.st.SUPL[it.style]; });
+    },
+
+    itemSizes: function (it, p) { return it.sizes && it.sizes.length ? it.sizes : TR.U.sizesFor(p, TR.st.CAT[p.s]); },
+
+    // A chip's class and tooltip for one colour.
+    stockState: function (it, p, n) {
+        var sup = TR.st.SUP[p.s];
+        if (!sup || sup.error) return { cls: '', title: '' };
+        var sizes = TR.itemSizes(it, p), s = TR.U.stockOf(sup, n, sizes);
+        if (s.state === 'unknown') return { cls: '', title: 'No SanMar data for this colour. ' };
+        var list = sizes.filter(function (z) { return s.q[z] != null; }).map(function (z) { return z + ' ' + s.q[z]; }).join(', ');
+        return { cls: s.state === 'ok' ? '' : 'st-' + s.state, title: 'SanMar stock: ' + list + '. ' };
+    },
+
+    stockHtml: function (it, p) {
+        if (!TR.isSanMar(p)) return '<span class="sub">Stock not checked: not a SanMar style.</span>';
+        var sup = TR.st.SUP[p.s];
+        if (!sup) return '<span class="sub">Checking SanMar stock...</span>';
+        if (sup.error) return '<span class="sub">SanMar stock unavailable right now (' + TR.esc(sup.error) + ').</span>';
+        var sizes = TR.itemSizes(it, p), bad = [], unk = [];
+        it.colors.forEach(function (n) {
+            var s = TR.U.stockOf(sup, n, sizes);
+            if (s.state === 'unknown') unk.push(n);
+            else if (s.state !== 'ok') bad.push('<b class="st-' + s.state + '">' + TR.esc(n) + (s.state === 'out' ? ' out' : ' low') + '</b> (' + s.short.map(function (z) { return TR.esc(z[0]) + ' ' + z[1]; }).join(', ') + ')');
+        });
+        return 'SanMar stock, checked ' + TR.ago(sup.at) + ': ' + (bad.length ? bad.join(' · ') : !it.colors.length ? 'no colours yet' : unk.length === it.colors.length ? 'nothing to compare' : unk.length ? 'the others are in stock in the core sizes' : 'every colour in stock in the core sizes') +
+            (unk.length ? '. <span class="sub">No SanMar data for ' + TR.esc(unk.join(', ')) + '.</span>' : '');
+    },
+
+    stockProblems: function () {
+        var out = [];
+        ((TR.st.rec && TR.st.rec.work.items) || []).forEach(function (it) {
+            var p = TR.st.P[it.style], sup = p && TR.st.SUP[p.s];
+            if (!sup || sup.error) return;
+            var sizes = TR.itemSizes(it, p);
+            it.colors.forEach(function (n) {
+                var s = TR.U.stockOf(sup, n, sizes);
+                if (s.state === 'out' || s.state === 'low') out.push(p.n + ' in ' + n + ' is ' + (s.state === 'out' ? 'out of stock' : 'low') + ' at SanMar (' + s.short.map(function (z) { return z[0] + ' ' + z[1]; }).join(', ') + ')');
+            });
+        });
+        return out;
+    },
+
+    // Supplier data arrives after the request is drawn. Update the stock
+    // lines and chips IN PLACE, so it never steals focus from a field being
+    // typed in; the Build tab is redrawn because its gate depends on it.
+    paintStock: function () {
+        var r = TR.st.rec; if (!r) return;
+        if (TR.st.tab === 'build') {
+            var a = document.activeElement;
+            if (!(a && a.id === 'b-tag')) TR.paneBuild();
+            return;
+        }
+        (r.work.items || []).forEach(function (it, i) {
+            var p = TR.st.P[it.style], el = TR.$('stock-' + i); if (!p || !el) return;
+            el.innerHTML = TR.stockHtml(it, p);
+            var card = el.closest('.item'); if (!card) return;
+            card.querySelectorAll('.chip.on[data-col]').forEach(function (b) {
+                var st = TR.stockState(it, p, b.dataset.col);
+                b.classList.remove('st-low', 'st-out'); if (st.cls) b.classList.add(st.cls);
+                b.title = (TR.hasColor(p, b.dataset.col) ? '' : 'Not a colour of this product. ') + st.title + 'Click to remove';
+            });
+        });
+        var nx = document.querySelector('.nextstep'); if (nx) nx.outerHTML = TR.nextHtml(r);
+        var go = TR.$('next-go'); if (go) go.onclick = function () { TR.st.tab = go.dataset.tab; TR.renderDetail(); };
+    },
+
+    // SanMar's own photo of this colour, about three times sharper, for the
+    // mockups. Used ONLY when it is the same shot as our catalog photo, because
+    // Dan's boxes were measured on that one. Measured 2026-11-06 over 22
+    // colours on 13 styles: our 420 px photos are shrunken copies of these,
+    // trimmed shapes within 0.1%, outlines overlapping 99.1 to 100%. Any other
+    // answer, or any failure, falls back to the catalog photo.
+    photoUrl: function (u) { return CatalogClient._writeBase() + '/team-requests/photo?u=' + encodeURIComponent(u); },
+
+    // The garment's own box, render_mockups.py's rule: R+G+B under 735.
+    trimImg: function (img) {
+        var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        var x = cv.getContext('2d'); x.drawImage(img, 0, 0);
+        var d = x.getImageData(0, 0, w, h).data, x0 = w, y0 = h, x1 = -1, y1 = -1;
+        for (var y = 0; y < h; y++) {
+            for (var i = 0; i < w; i++) {
+                var k = (y * w + i) * 4;
+                if (d[k] + d[k + 1] + d[k + 2] < 735) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+            }
+        }
+        if (x1 < 0) return cv;
+        var o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+        o.getContext('2d').drawImage(cv, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+        return o;
+    },
+
+    hiRes: function (p, colorName, back) {
+        var rec = TR.U.supplierColor(TR.st.SUP[p.s], colorName), url = rec && (back ? rec.b : rec.f);
+        var c = p.c[TR.colorIdx(p, colorName)], cat = c && (back ? c[6] : c[2]);
+        if (!url || !cat) return Promise.resolve(null);
+        return Promise.all([TR.loadImg(TR.photoUrl(url)), TR.loadImg(cat)]).then(function (a) {
+            var hi = TR.trimImg(a[0]), lo = TR.trimImg(a[1]);
+            var r1 = hi.width / hi.height, r2 = lo.width / lo.height;
+            return Math.abs(r1 - r2) / r2 <= 0.015 ? hi : null;
+        }).catch(function () { return null; });
+    },
+
     hexOf: function (p, color) { var c = p.c[TR.colorIdx(p, color)]; return c ? c[5] : '#888888'; },
 
     // Which logo goes on this colour: the customer's per colour pick, the
@@ -682,9 +807,9 @@ var TR = {
             '<div><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' +
             '<div class="grid">' +
                 '<div class="wide"><label class="f">Colours</label><div class="chips">' + it.colors.map(function (n) {
-                    var known = TR.hasColor(p, n), c = known ? p.c[TR.colorIdx(p, n)] : null;
-                    return '<button type="button" class="chip on' + (known ? '' : ' unk') + '" data-col="' + TR.esc(n) + '" title="' + (known ? 'Click to remove' : 'Not a colour of this product. Click to remove') + '"><i style="background:' + (c ? c[5] : 'transparent') + '"></i>' + TR.esc(n) + ' ×</button>';
-                }).join('') + '<button type="button" class="chip" data-more="1">+ colour</button></div><div class="allcols hidden" id="allcols-' + i + '"></div></div>' +
+                    var known = TR.hasColor(p, n), c = known ? p.c[TR.colorIdx(p, n)] : null, st = TR.stockState(it, p, n);
+                    return '<button type="button" class="chip on' + (known ? '' : ' unk') + (st.cls ? ' ' + st.cls : '') + '" data-col="' + TR.esc(n) + '" title="' + TR.esc((known ? '' : 'Not a colour of this product. ') + st.title + 'Click to remove') + '"><i style="background:' + (c ? c[5] : 'transparent') + '"></i>' + TR.esc(n) + ' ×</button>';
+                }).join('') + '<button type="button" class="chip" data-more="1">+ colour</button></div><div class="stockline" id="stock-' + i + '">' + TR.stockHtml(it, p) + '</div><div class="allcols hidden" id="allcols-' + i + '"></div></div>' +
                 '<div><label class="f" for="sz-' + i + '">Sizes</label><input type="text" id="sz-' + i + '" value="' + TR.esc(it.sizes.join(', ')) + '" style="width:100%"></div>' +
                 '<div><label class="f" for="pr-' + i + '">Price</label><input type="number" min="0" step="0.01" id="pr-' + i + '" value="' + (it.price || '') + '" style="width:100%"></div>' +
                 '<div><label class="f" for="co-' + i + '">Our cost</label><input type="number" min="0" step="0.01" id="co-' + i + '" value="' + (it.cost || '') + '" placeholder="' + (TR.st.costs[it.style] ? TR.st.costs[it.style] : '') + '" style="width:100%"></div>' +
@@ -746,8 +871,8 @@ var TR = {
             var box = TR.$('allcols-' + i);
             if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
             box.innerHTML = '<div class="chips">' + p.c.filter(function (c) { return !c[4]; }).map(function (c) {
-                var on = it.colors.indexOf(c[0]) >= 0;
-                return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-add="' + TR.esc(c[0]) + '"><i style="background:' + c[5] + '"></i>' + TR.esc(c[0]) + '</button>';
+                var on = it.colors.indexOf(c[0]) >= 0, st = TR.stockState(it, p, c[0]);
+                return '<button type="button" class="chip' + (on ? ' on' : '') + (st.cls ? ' ' + st.cls : '') + '" title="' + TR.esc(st.title) + '" data-add="' + TR.esc(c[0]) + '"><i style="background:' + c[5] + '"></i>' + TR.esc(c[0]) + '</button>';
             }).join('') + '</div>';
             box.classList.remove('hidden');
             box.querySelectorAll('[data-add]').forEach(function (b) {
@@ -1179,6 +1304,13 @@ var TR = {
         // Codes are required unless staff tick "Build without logo codes" for
         // this store, in which case colour names fall back to "w/ Full Chest Logo".
         if (!w.noCodes) TR.codeProblems().forEach(function (l) { problems.push(l + ' needs its Logo Master Folder code (Logos tab), which goes in every colour name. Or tick Build without logo codes below.'); });
+        // Supplier stock. A colour CONFIRMED low or out blocks the build until
+        // staff remove it or tick that they are building it anyway. No data
+        // (Charles River, or SanMar not answering) never blocks: an outage at
+        // SanMar must not stop every store.
+        var stock = TR.stockProblems(), checking = TR.stockChecking();
+        if (checking) problems.push('Checking SanMar stock, one moment.');
+        if (stock.length && !w.lowStockOk) stock.forEach(function (t) { problems.push(t + '. Remove the colour on the Products tab, or tick Build with low-stock colours below.'); });
         var upd = r.req && r.req.mode === 'update';
         // Kept in site search unless staff untick it for this store.
         if (typeof w.searchable !== 'boolean') w.searchable = true;
@@ -1193,6 +1325,8 @@ var TR = {
                 (upd ? '' : '<div class="kv"><label class="f" for="b-tag">Collection tag</label><div><input type="text" id="b-tag" value="' + TR.esc(w.tag || '') + '" style="width:100%"><div class="sub">The store\'s collection shows every product with this tag.</div></div></div>') +
                 '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-nocodes"' + (w.noCodes ? ' checked' : '') + '> Build without logo codes (colour names read "Jet Black w/ Full Chest Logo")</label>' +
             '</details>' +
+            (stock.length || w.lowStockOk ? '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-lowstock"' + (w.lowStockOk ? ' checked' : '') + '> Build with low-stock colours</label>' : '') +
+            (stock.length && w.lowStockOk ? '<div class="msg warn"><b>Building with low stock:</b><br>' + stock.map(TR.esc).join('<br>') + '</div>' : '') +
             (problems.length ? '<div class="msg bad"><b>Fix these first:</b><br>' + problems.map(TR.esc).join('<br>') + '</div>' : '') +
             (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(w.logos[k].label || k); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
             '<p class="sub">Creates every product as a <b>draft</b>' + (upd ? '' : ' plus an unpublished collection') + ', with a mockup per colour. Nothing is seen by customers until you press Go live below.</p>' +
@@ -1202,6 +1336,7 @@ var TR = {
         TR.$('b-search').addEventListener('change', function () { w.searchable = this.checked; TR.touch(); });
         // Redraw so the code requirement appears or disappears at once.
         TR.$('b-nocodes').addEventListener('change', function () { w.noCodes = this.checked; TR.touch(); TR.paneBuild(); });
+        var ls = TR.$('b-lowstock'); if (ls) ls.addEventListener('change', function () { w.lowStockOk = this.checked; TR.touch(); TR.paneBuild(); });
         TR.$('b-plan').onclick = TR.dryRun;
         TR.$('b-go').onclick = TR.build;
         if (TR.st.plan) TR.showPlan(TR.st.plan);
@@ -1310,7 +1445,9 @@ var TR = {
     // One drawing, two uses: the PNG uploaded to Shopify and the JPEG in the
     // proof PDF, so the customer approves exactly what gets built.
     mockup: function (it, colorName, back) {
-        return TR.mockupCanvas(it, colorName, 1200, back).then(function (cv) {
+        // 1600: SanMar's flats are about 1000 to 1500 px once trimmed, so this
+        // is close to their own resolution rather than a blown up 420.
+        return TR.mockupCanvas(it, colorName, 1600, back).then(function (cv) {
             return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/png'); });
         });
     },
@@ -1332,14 +1469,14 @@ var TR = {
     mockupCanvas: function (it, colorName, S, back) {
         var p = TR.st.P[it.style], c = p.c[TR.colorIdx(p, colorName)];
         var PAD = Math.round(S / 20), l2 = TR.loc2(it, p), L = TR.st.L || {};
-        return TR.loadImg(back ? c[6] : c[2]).then(function (g) {
+        return TR.hiRes(p, colorName, back).then(function (h) { return h || TR.loadImg(back ? c[6] : c[2]); }).then(function (g) {
+            var nw = g.naturalWidth || g.width, nh = g.naturalHeight || g.height;
             var cv = document.createElement('canvas'); cv.width = S; cv.height = S;
             var x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, S, S);
             x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
-            var sc = Math.min((S - 2 * PAD) / g.naturalWidth, (S - 2 * PAD) / g.naturalHeight);
-            var gw = g.naturalWidth * sc, gh = g.naturalHeight * sc, gx = (S - gw) / 2, gy = (S - gh) / 2;
+            var sc = Math.min((S - 2 * PAD) / nw, (S - 2 * PAD) / nh);
+            var gw = nw * sc, gh = nh * sc, gx = (S - gw) / 2, gy = (S - gh) / 2;
             x.drawImage(g, gx, gy, gw, gh);
-            var nw = g.naturalWidth, nh = g.naturalHeight;
             if (back) {
                 if (l2 && l2.side === 'b' && !c[7]) TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'x')], l2.box, gx, gy, gw, gh, nw, nh);
             } else {

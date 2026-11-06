@@ -1735,6 +1735,44 @@ to the contact form email only if that save fails. Staff work them in
   identical untouched default (0.32, 0.24, 0.36, 0.3) and ST350's back box is
   a 12% wide sliver. It was seeded over the catalog on 2026-11-05, pulled
   every mockup off his numbers, and was removed the same day.
+- **SanMar stock and sharp photos come from SanMar's PromoStandards web
+  services** (`worker/src/sanmar.js`, `GET /team-requests/supplier`), with
+  the login in the Worker secrets `SANMAR_USER` / `SANMAR_PASSWORD`.
+  Inventory is version 2.0.0; Media Content must be **1.1.0**, because 1.0.0
+  is refused as "Not Supported". Cached 30 minutes per style, and a failure
+  is never cached. Charles River (16 styles) is not covered and says "not
+  checked".
+  - **The colour join is the careful part.** SanMar abbreviates ("Ath
+    Maroon", "HtKllyGrn") where the catalog spells out, so names alone match
+    about 62%. The photo FILENAMES spell it out
+    (`PC380_athleticmaroon_flat_front.jpg`), so their second segment is a
+    second key, but only when it names ONE colour: "black" also appears in
+    Black/Gold's files, and borrowing a neighbour's stock is worse than none.
+    One garment listed twice (same front photo, each listing holding part of
+    the size run) is MERGED. Measured 2026-11-06 over all 145 SanMar styles:
+    2,071 of 2,107 colours joined, 98.3%; the rest say "no SanMar data",
+    never "out".
+  - **The gate.** A colour OUT in a core size (S to XL, or every size when
+    there are none) or under 24 blocks the build until it is removed or
+    "Build with low-stock colours" is ticked (saved as `work.lowStockOk`). No
+    data never blocks, so a SanMar outage cannot stop every store. On the day
+    it was written, 124 catalog colours were out in a core size.
+  - **Mockups use SanMar's flat, about three times sharper, ONLY when it is
+    the same shot** as the 420 px catalog photo the placement boxes were
+    measured on: both are trimmed and their shapes must agree within 1.5%.
+    Measured on 22 colours over 13 styles they agree within 0.1% and the
+    outlines overlap 99.1 to 100%, because the catalog photos ARE shrunken
+    copies of these. Form shots (`_form_front`, SanMar's women's styles)
+    count; model and prop shots never do. SanMar's CDN sends no CORS header,
+    so `/team-requests/photo` passes its `imglib/mresjpg` library through
+    and nothing else.
+  - **`.dev.vars` CANNOT HOLD A PASSWORD WITH A `$` IN IT.** Wrangler reads it
+    like a shell env file and expands `$word` as a variable EVEN INSIDE
+    SINGLE QUOTES, with no escape that survives, so the local Worker got a
+    6 character password and SanMar answered "Authentication Credentials
+    failed" while the same file, read literally, worked. Production is
+    unaffected: `wrangler secret put` stores exactly what is typed. Locally,
+    test `sanmar.js` from node with the value read literally.
 - **The page is meant to be picked up cold.** Each request shows one "Next:"
   line worked out from its state, the list refreshes itself every minute, and
   rarely used settings (collection tag, build without codes, the approval link)

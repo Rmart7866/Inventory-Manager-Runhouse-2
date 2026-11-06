@@ -150,6 +150,42 @@ var TeamReqUtils = {
     // left chest size, which is the closest thing that runbook defines.
     PRINT_IN: { FC: [10, 10], BK: [10, 10], LC: [3.5, 3.5], BN: [2, 2], HAT: [4, 2], SL: [3.5, 3.5], LL: [3.5, 3.5] },
 
+    // ---------- supplier stock (SanMar, worker/src/sanmar.js) ----------
+    // The join key the Worker builds its alias table on. "Heathered Navy"
+    // here is "heathernavy" in SanMar's photo filenames.
+    colorKey: function (s) { return String(s || '').toLowerCase().replace(/heathered/g, 'heather').replace(/[^a-z0-9]/g, ''); },
+
+    supplierColor: function (sup, name) {
+        if (!sup || !sup.alias || !sup.colors) return null;
+        var c = sup.alias[this.colorKey(name)];
+        return c && sup.colors[c] ? sup.colors[c] : null;
+    },
+
+    // Under this many in a core size reads as low. A team store sells a
+    // handful to a few dozen of a size; SanMar usually holds thousands.
+    LOW_STOCK: 24,
+    CORE_SIZES: ['S', 'M', 'L', 'XL'],
+
+    // A colour's stock in the sizes this store sells, judged on the CORE
+    // sizes (S to XL) where it sells them and on every size otherwise, so a
+    // thin 5XL never flags a whole colour. out: a core size at 0. low: one
+    // under LOW_STOCK. unknown: the supplier has no data for this colour,
+    // which is NOT the same as out and must never be reported as it.
+    stockOf: function (sup, name, sizes) {
+        var rec = this.supplierColor(sup, name);
+        if (!rec) return { state: 'unknown', short: [], q: null };
+        var core = (sizes || []).filter(function (s) { return this.CORE_SIZES.indexOf(s) >= 0; }, this);
+        if (!core.length) core = sizes || [];
+        var short = [], state = 'ok', L = this.LOW_STOCK;
+        core.forEach(function (s) {
+            var q = rec.q[s];
+            if (q == null) return; // a size the supplier does not list for this colour
+            if (q === 0) { state = 'out'; short.push([s, 0]); }
+            else if (q < L) { if (state !== 'out') state = 'low'; short.push([s, q]); }
+        });
+        return { state: state, short: short, q: rec.q };
+    },
+
     // "Jet Black (D055 (FC))": the colour, the code of the logo printed on it,
     // and where. Never the builder's "Main logo" label.
     codeLabel: function (color, code, pl) { return String(color) + ' (' + code + ' (' + pl + '))'; },

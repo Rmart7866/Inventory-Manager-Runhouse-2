@@ -307,6 +307,12 @@ body.full #side { display: none; }
 body.full #detail { max-width: none; }
 
 /* placements */
+/* supplier stock */
+.stockline { font-size: 13.5px; color: var(--muted); margin-top: 6px; }
+.stockline b.st-low { color: var(--warn); } .stockline b.st-out { color: var(--bad); }
+.chip.st-low { border-color: var(--warn); box-shadow: inset 0 -2px 0 var(--warn); }
+.chip.st-out { border-color: var(--bad); box-shadow: inset 0 -2px 0 var(--bad); }
+.chip.st-out:not(.on) { opacity: .6; }
 .pz-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
 .pz-head h2 { margin: 0; font-size: 22px; }
 .pz { display: grid; grid-template-columns: 290px minmax(0, 1fr) 310px; gap: 20px; align-items: start; }
@@ -400,7 +406,7 @@ body.full #detail { max-width: none; }
 <div id="pe" class="hidden" role="dialog" aria-modal="true" aria-labelledby="pe-h"></div>
 
 <script src="catalog-client.js?v=23"></script>
-<script src="team-request-utils.js?v=4"></script>
-<script src="team-requests.js?v=16"></script>
+<script src="team-request-utils.js?v=5"></script>
+<script src="team-requests.js?v=17"></script>
 </body>
 </html>

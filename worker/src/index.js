@@ -34,6 +34,7 @@ import { applyTagChanges, applyMetafields } from './tags.js';
 import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from './product-edit.js';
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import { handleIntake, handleStaff, handlePublicPlacements } from './teamreq.js';
+import { handleSupplier, handlePhoto } from './sanmar.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
 import { handleSalesRun, handleSalesStatus, handleSalesFund } from './teamreq-sales.js';
@@ -431,6 +432,10 @@ export default {
     // Where staff moved a logo for a whole style, for the customer builder.
     // Read only and boxes only, so it needs no token. See teamreq.js.
     if (url.pathname === '/team-requests/placements/public') return handlePublicPlacements(request, env);
+    // A SanMar product photo passed through so a mockup canvas can use it.
+    // Public because an <img> cannot send a token; it serves SanMar's own
+    // public image library and nothing else. See sanmar.js.
+    if (url.pathname === '/team-requests/photo') return handlePhoto(request);
 
     // CUSTOMER PROOF LINK, also before auth: the customer holds a per-request
     // token, not our token. It can read one request's proof (an allowlisted
@@ -488,6 +493,9 @@ export default {
       '/team-requests/logo-file': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo-get')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/costs': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'costs')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/placements': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'placements')), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      // SanMar stock and photo links per style, read only. Behind the write
+      // secret like every other request route; the login is a Worker secret.
+      '/team-requests/supplier': { handler: teamReqRoute(handleSupplier), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/placements/save': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'placement-save')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/proof-link': { handler: teamReqRoute(handleProofLink), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       // Team store sales: READS orders through a bulk job, revenue behind the
