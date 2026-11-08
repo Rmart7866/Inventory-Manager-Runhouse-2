@@ -40,6 +40,9 @@ import { createShopifyClient } from './shopify.js';
 const EVENT = 'trk:'; // trk:<inverted time>-<msg id>, newest first in a list
 const SEEN = 'trkmsg:'; // trkmsg:<mailbox message id>, so a message is handled once
 const SEEN_TTL = 120 * 86400;
+// Each email's record is kept six months (owner decision 2026-11-08), long
+// enough to judge the dry run and look back at a dispute, then cleans itself up.
+const EVENT_TTL = 183 * 86400;
 
 async function readJson(request) { try { return await request.json(); } catch (e) { return {}; } }
 
@@ -180,7 +183,7 @@ async function plan(env, client, parsed) {
 
 async function save(env, ev) {
   const short = ev.groups.reduce((a, g) => a + g.lines.reduce((b, l) => b + l.qty, 0), 0);
-  await env.CATALOG.put(EVENT + ev.key, JSON.stringify(ev), { metadata: {
+  await env.CATALOG.put(EVENT + ev.key, JSON.stringify(ev), { expirationTtl: EVENT_TTL, metadata: {
     at: ev.at, st: ev.status, b: ev.parsed.brand || '', po: ev.parsed.pos.map((p) => p.order + '_' + p.last).join(' ').slice(0, 60),
     o: ev.order ? ev.order.name : '', i: ev.order ? String(ev.order.id).split('/').pop() : '', t: ev.parsed.tracking.map((t) => t.company + ' ' + t.number).join(', ').slice(0, 160),
     n: short, r: String(ev.reason || ev.error || '').slice(0, 300),
