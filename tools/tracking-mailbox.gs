@@ -16,7 +16,8 @@
 //   4. Run setup() once and approve the Gmail and external request access.
 //      It installs the 10 minute trigger. Run it again any time; it never
 //      installs two.
-//   5. Run run() once by hand and check View > Logs.
+//   5. Run run() once by hand and check View > Logs. To test on the last
+//      week of mail instead, run backfill() once.
 //
 // The Worker skips a message it has already seen, so running more often or
 // by hand never sends a tracking twice.
@@ -32,7 +33,12 @@ var PO_RE = /(^|[^0-9A-Za-z])\d{4,7}_[A-Za-z]/;
 // number(s):" label, which is how Brooks writes it without naming a carrier.
 var TRK_RE = /\b1Z[0-9A-Z]{16}\b|(^|\D)9[2-5]\d{18,20}(\D|$)|fedex|tracking\s*(numbers?|no\.?|#)?\s*[:#]?\s*\d{12}/i;
 
-function run() {
+// run(): the last 2 days, what the 10 minute trigger calls.
+// backfill(): the last 7, once by hand, to test on recent mail.
+function run() { sendRecent_(2, 3); }
+function backfill() { sendRecent_(7, 8); }
+
+function sendRecent_(days, maxAge) {
   var secret = PropertiesService.getScriptProperties().getProperty('WRITE_SECRET');
   if (!secret) throw new Error('Set WRITE_SECRET in Project Settings > Script Properties first.');
   var props = PropertiesService.getScriptProperties();
@@ -40,13 +46,13 @@ function run() {
   var seen = {};
   done.forEach(function (id) { seen[id] = true; });
   var label = GmailApp.getUserLabelByName(LABEL) || GmailApp.createLabel(LABEL);
-  var threads = GmailApp.search(QUERY, 0, 60);
+  var threads = GmailApp.search(QUERY.replace('newer_than:2d', 'newer_than:' + days + 'd'), 0, 100);
   var sent = 0, results = [];
   threads.forEach(function (thread) {
     thread.getMessages().forEach(function (m) {
       var id = m.getId();
       if (seen[id]) return;
-      if (Date.now() - m.getDate().getTime() > 3 * 86400000) return;
+      if (Date.now() - m.getDate().getTime() > maxAge * 86400000) return;
       var subject = m.getSubject() || '', body = m.getPlainBody() || '';
       var text = subject + '\n' + body;
       if (!PO_RE.test(text) || !TRK_RE.test(text)) return; // not a shipping email, never sent
