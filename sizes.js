@@ -145,6 +145,14 @@ var SZ = {
         }).join('') + '</div>' +
             (SZ.st.view === 'brands' ? '' : '<label class="sub">Brand <select id="f-brand"><option value="">All brands</option>' + brands.map(function (k) { return '<option value="' + SZ.esc(k) + '"' + (SZ.st.brand === k ? ' selected' : '') + '>' + SZ.esc(names[k]) + '</option>'; }).join('') + '</select></label>') +
             '<label class="sub">Width <select id="f-width"><option value="">All</option><option value="standard"' + (SZ.st.width === 'standard' ? ' selected' : '') + '>Standard</option><option value="wide"' + (SZ.st.width === 'wide' ? ' selected' : '') + '>Wide</option></select></label></div>';
+        // Size data built before brand, model and width were recorded (they
+        // arrived 2026-11-08) has none of them; say so rather than show every
+        // shoe as one "Unknown" brand. The next catalog refresh fills them in.
+        var detailed = all.some(function (x) { return 'm' in x; });
+        if (!detailed && SZ.st.view !== 'sizes') {
+            SZ.$('out').innerHTML = bar + '<div class="msg">Brand and model details arrive with the next catalog refresh: tonight\'s automatic one, or sooner with Refresh in the inventory tool. The Sizes view works now.</div>';
+            SZ.wire(loc); return;
+        }
         var body = ['women', 'men'].map(function (gender) {
             if (SZ.st.view === 'brands') return SZ.brandsCard(loc, gender);
             var g = SZ.agg(SZ.filtered(loc[gender]));
