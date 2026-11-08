@@ -21,9 +21,9 @@
 //   - a tracking number already on the order is a no-op, so a resent email
 //     or a re-run does nothing.
 //
-// TRACKING_MODE. "dry" (the default) only records what it WOULD write; "live"
-// writes ready ones as they arrive. A staff member can press Apply on one
-// ready item in either mode. Writing needs the app scope
+// TRACKING_MODE. "dry" (the default) only records what it WOULD write and
+// sends nothing at all, not even by hand; "live" writes ready ones as they
+// arrive, and a staff member can press Add tracking on one held item. Writing needs the app scope
 // write_merchant_managed_fulfillment_orders; without it Shopify refuses and
 // the refusal is recorded on the item.
 //
@@ -36,6 +36,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import { createShopifyClient } from './shopify.js';
+import { aiReview } from './tracking-ai.js';
 
 const EVENT = 'trk:'; // trk:<inverted time>-<msg id>, newest first in a list
 const SEEN = 'trkmsg:'; // trkmsg:<mailbox message id>, so a message is handled once
@@ -175,7 +176,7 @@ async function writeTracking(client, plan, tracking) {
 async function plan(env, client, parsed) {
   const order = parsed.pos.length === 1 ? await findOrder(client, parsed.pos[0].order) : null;
   const d = decide(parsed, order, env.NEEDHAM_LOCATION_ID);
-  return { d, order: order ? { id: order.id, name: order.name } : null };
+  return { d, full: order, order: order ? { id: order.id, name: order.name } : null };
 }
 
 async function save(env, ev) {
@@ -184,6 +185,10 @@ async function save(env, ev) {
     at: ev.at, st: ev.status, b: ev.parsed.brand || '', po: ev.parsed.pos.map((p) => p.order + '_' + p.last).join(' ').slice(0, 60),
     o: ev.order ? ev.order.name : '', i: ev.order ? String(ev.order.id).split('/').pop() : '', t: ev.parsed.tracking.map((t) => t.company + ' ' + t.number).join(', ').slice(0, 160),
     n: short, r: String(ev.reason || ev.error || '').slice(0, 300),
+    // a: the AI second opinion, g: what staff actually did (reconcileTracking).
+    a: ev.ai ? (ev.ai.error ? 'error' : ev.ai.agree ? 'agree' : 'differs') : '',
+    ar: ev.ai ? String(ev.ai.error || (ev.ai.diffs || []).join(' | ') || ev.ai.verdict_reason || '').slice(0, 260) : '',
+    g: ev.truth ? ev.truth.r : '', gr: ev.truth ? String(ev.truth.note || '').slice(0, 160) : '',
   } });
 }
 
@@ -200,13 +205,16 @@ export async function handleTrackingIngest(request, env) {
     return { body: { status: 'ignored' } };
   }
   const client = createShopifyClient(env);
-  const { d, order } = await plan(env, client, parsed);
+  const { d, order, full } = await plan(env, client, parsed);
   const live = env.TRACKING_MODE === 'live';
   const ev = {
     key: String(9e15 - Date.now()).padStart(16, '0') + '-' + msgId, msg: msgId, at: new Date().toISOString(),
     from: String(b.from || '').slice(0, 120), subject: String(b.subject || '').slice(0, 200),
     parsed, order, status: d.status, reason: d.reason, groups: d.groups, mode: live ? 'live' : 'dry',
   };
+  // The AI second opinion (tracking-ai.js), before any write and never
+  // changing it. Skipped when no ANTHROPIC_API_KEY is set.
+  ev.ai = await aiReview(env, { from: b.from, subject: b.subject, body: b.body }, full, d, parsed);
   if (d.status === 'ready' && live) {
     const w = await writeTracking(client, d, parsed.tracking);
     ev.status = w.ok ? 'written' : 'error'; ev.error = w.error || ''; ev.fulfillment = w.id || '';
@@ -228,9 +236,12 @@ export async function handleTrackingLog(request, env) {
   return { body: { mode: env.TRACKING_MODE === 'live' ? 'live' : 'dry', events: out.slice(0, 150) } };
 }
 
-// POST /tracking/apply { key }  (staff, write secret): write ONE item now,
-// whatever the mode, after planning it again against the order as it is now.
+// POST /tracking/apply { key }  (staff, write secret): write ONE item now, in
+// live mode only, after planning it again against the order as it is now.
 export async function handleTrackingApply(request, env) {
+  // The dry run sends nothing, by owner decision 2026-11-08: not even one
+  // item by hand. Live mode is the only way a tracking reaches a customer.
+  if (env.TRACKING_MODE !== 'live') return { status: 409, body: { error: 'Dry run: tracking is not sent. Switch TRACKING_MODE to live first.' } };
   const b = await readJson(request);
   const ev = await env.CATALOG.get(EVENT + String(b.key || ''), 'json');
   if (!ev) return { status: 404, body: { error: 'Not found' } };
@@ -244,4 +255,61 @@ export async function handleTrackingApply(request, env) {
   ev.by = String(b.by || '').slice(0, 40); ev.appliedAt = new Date().toISOString();
   await save(env, ev);
   return w.ok ? { body: { status: 'written' } } : { status: 502, body: { error: w.error } };
+}
+
+// WHAT STAFF ACTUALLY DID, the ground truth for the dry run. Every 15 minutes
+// (index.js scheduled) up to 15 unreconciled items from the last 21 days are
+// compared with the order as it stands now:
+//   match         the order carries this tracking on exactly the lines planned
+//   other-items   this tracking, but on different lines than planned
+//   other-tracking the planned lines shipped with a different number
+//   added-anyway  sent to review, but staff added this tracking after all
+//   left-alone    sent to review and staff did not use this tracking
+// An order not yet shipped stays unreconciled and is checked again later.
+const TRUTH_Q = `query($id: ID!){ order(id: $id){ fulfillments{ trackingInfo{ number }
+  fulfillmentLineItems(first: 50){ nodes{ quantity lineItem{ id vendor } } } } } }`;
+
+export function truthOf(ev, order) {
+  const want = new Set(ev.parsed.tracking.map((t) => t.number.toUpperCase()));
+  const fs = (order && order.fulfillments) || [];
+  const withOurs = fs.filter((f) => (f.trackingInfo || []).some((t) => want.has(String(t.number || '').toUpperCase())));
+  const plannedVendors = new Set((ev.groups || []).flatMap((g) => g.lines.map((l) => vendorKey(l.vendor))));
+  if (ev.status === 'review') {
+    if (withOurs.length) return { r: 'added-anyway', note: 'Staff added this tracking after it was sent to review' };
+    const elapsed = Date.now() - Date.parse(ev.at);
+    return elapsed > 7 * 86400e3 ? { r: 'left-alone', note: 'Not used on the order within 7 days' } : null;
+  }
+  if (withOurs.length) {
+    const got = new Set(withOurs.flatMap((f) => f.fulfillmentLineItems.nodes.map((n) => vendorKey(n.lineItem.vendor))));
+    const same = got.size === plannedVendors.size && [...got].every((v) => plannedVendors.has(v));
+    return same ? { r: 'match', note: 'Staff used this tracking on the same items' } : { r: 'other-items', note: 'Staff used this tracking on ' + [...got].join(', ') };
+  }
+  const shippedPlanned = fs.some((f) => f.fulfillmentLineItems.nodes.some((n) => plannedVendors.has(vendorKey(n.lineItem.vendor))));
+  if (shippedPlanned) return { r: 'other-tracking', note: 'Those items shipped with a different tracking number' };
+  return null;
+}
+
+export async function reconcileTracking(env) {
+  const client = createShopifyClient(env);
+  const since = Date.now() - 21 * 86400e3;
+  let done = 0, cursor;
+  do {
+    const p = await env.CATALOG.list({ prefix: EVENT, cursor, limit: 200 });
+    for (const k of p.keys) {
+      const m = k.metadata || {};
+      if (done >= 15) break;
+      if (Date.parse(m.at) < since) { cursor = null; break; }
+      if (m.g || !m.i || !['ready', 'review'].includes(m.st)) continue;
+      const ev = await env.CATALOG.get(k.name, 'json');
+      if (!ev || !ev.order) continue;
+      const r = await client.graphql(TRUTH_Q, { id: ev.order.id });
+      const t = truthOf(ev, r.data.order);
+      done++;
+      if (!t) continue;
+      ev.truth = { ...t, at: new Date().toISOString() };
+      await save(env, ev);
+    }
+    cursor = done >= 15 || p.list_complete ? null : p.cursor;
+  } while (cursor);
+  return done;
 }

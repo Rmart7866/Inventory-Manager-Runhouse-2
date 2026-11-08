@@ -39,7 +39,7 @@ import { handleStores } from './teamreq-stores.js';
 import { handleOrderLookup } from './orders-lookup.js';
 import { writeSizeCoverage, handleSizes } from './size-coverage.js';
 import { writeSizeSales } from './size-sales.js';
-import { handleTrackingIngest, handleTrackingLog, handleTrackingApply } from './tracking.js';
+import { handleTrackingIngest, handleTrackingLog, handleTrackingApply, reconcileTracking } from './tracking.js';
 import { handleResetOptions, handleResetCollections, handleResetScan, handleResetApply, handleResetHistory, handleResetUndo } from './inventory-reset.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
@@ -613,6 +613,10 @@ export default {
       ctx.waitUntil(refreshAvailability(env, BUILDER_CATALOG)
         .then((r) => console.log('supplier availability', JSON.stringify(r)))
         .catch((e) => console.error('supplier availability FAILED', e && e.stack || String(e))));
+      // Tracking dry run: compare recent items with what staff actually did.
+      ctx.waitUntil(reconcileTracking(env)
+        .then((n) => { if (n) console.log('tracking reconciled', n); })
+        .catch((e) => console.error('tracking reconcile FAILED', e && e.stack || String(e))));
     }
     ctx.waitUntil(
       (async () => {
