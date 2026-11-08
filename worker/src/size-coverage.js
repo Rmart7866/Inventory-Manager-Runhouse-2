@@ -104,6 +104,10 @@ export async function writeSizeCoverage(env, client, sizes) {
 // GET /sizes  (staff, write secret): the last stored coverage.
 export async function handleSizes(request, env) {
   const hit = await env.CATALOG.get(SIZES_KEY, 'json');
-  if (!hit) return { status: 404, body: { error: 'No size data yet. It is built with the nightly catalog refresh, or press Refresh in the inventory tool.' } };
-  return { body: hit };
+  if (!hit) return { status: 404, body: { error: 'No size data yet. It is built with the nightly catalog refresh, or press Refresh above.' } };
+  // Sales for sell through (size-sales.js) ride along when they exist. The
+  // key is named here rather than imported, so this file stays free of the
+  // bulk machinery.
+  const sales = await env.CATALOG.get('sizesales', 'json');
+  return { body: sales ? { ...hit, sales } : hit };
 }

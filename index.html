@@ -37,6 +37,10 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px 28px 80px; }
 .card span { color: var(--muted); font-size: 14px; }
 .card em { font-style: normal; font-size: 13.5px; color: var(--accent); margin-top: auto; padding-top: 6px; min-height: 1.4em; }
 .card em.warn { color: var(--warn); }
+.refresh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 12px 0 0; font-size: 13.5px; color: var(--muted, #a6b1c0); }
+.refresh button { font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid rgba(255,255,255,.18); padding: 6px 14px; cursor: pointer; }
+.refresh button:disabled { opacity: .55; cursor: default; }
+.refresh .warn { color: var(--warn); }
 .card.big { grid-column: span 2; border-left: 3px solid var(--accent); }
 .card.big b { font-size: 18px; }
 @media (max-width: 560px) { header, main { padding-left: 16px; padding-right: 16px; } .card.big { grid-column: auto; } }
@@ -63,6 +67,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px 28px 80px; }
       <a class="card big" href="inventory.html"><b>Inventory manager</b><span>Drop a supplier file on a brand, check it, write the stock to Shopify, create new products.</span><em id="n-cat"></em></a>
       <a class="card" href="apparel.html"><b>ON apparel</b><span>ON apparel stock, on its own page.</span><em></em></a>
     </div>
+    <p class="refresh"><button type="button" id="refresh">Refresh store data now</button><span id="rstat">Rebuilds the catalog, shoe sizes and shoe sales from Shopify. It also runs by itself every night.</span></p>
   </section>
   <section class="group" aria-labelledby="g-ops">
     <h2 id="g-ops">Store operations</h2>
@@ -72,7 +77,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px 28px 80px; }
            answers 401, checked 2026-11-06), so the link is safe in this
            public repo. If its sharing is ever set to "anyone with the link",
            move it out of here. -->
-      <a class="card" href="sizes.html"><b>Shoe sizes</b><span>Which sizes are thin at each shop, and which styles are missing them.</span><em></em></a>
+      <a class="card" href="sizes.html"><b>Shoe sizes</b><span>Which sizes are thin at each shop, wide coverage, and how fast each model sells.</span><em></em></a>
       <a class="card big" href="orders.html"><b>Order lookup</b><span>A customer on the phone? Find their order by number, email or name: items, status, where it ships from and tracking.</span><em></em></a>
       <a class="card" href="inventory-reset.html"><b>Inventory reset</b><span>Set a brand, type, tag, collection, or all men's or women's shoes to 0 at one location. Can be undone.</span><em></em></a>
       <a class="card" href="https://docs.google.com/spreadsheets/d/1j7Lu8pMma9Ct9Ictk_KUtkiGbSqTlnrg-HpoK-kxwEM/edit?gid=25156754#gid=25156754" target="_blank" rel="noopener"><b>Online order sheet</b><span>The shared Google Sheet for online orders. Opens in a new tab.</span><em></em></a>
@@ -80,6 +85,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px 28px 80px; }
   </section>
 </main>
 <script src="catalog-client.js?v=23"></script>
+<script src="refresh-button.js?v=1"></script>
 <script>
 (function () {
     var ago = function (sec) {
@@ -87,6 +93,11 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px 28px 80px; }
         if (sec < 86400) return Math.round(sec / 3600) + ' h ago';
         return Math.round(sec / 86400) + ' days ago';
     };
+    var say = function (t, bad) { var el = document.getElementById('rstat'); el.textContent = t; el.className = bad ? 'warn' : ''; };
+    RefreshButton.wire(document.getElementById('refresh'), say, function () {
+        var el = document.getElementById('n-cat'); el.textContent = 'Shopify catalog refreshed just now'; el.className = '';
+        say('Done. The catalog and shoe sizes are fresh; shoe sales follow about 2 minutes later.');
+    });
     // Catalog age: the read token is public by construction (catalog-client.js).
     fetch(CatalogClient.WORKER_URL + '/catalog/status', { headers: { Authorization: 'Bearer ' + CatalogClient.CATALOG_TOKEN } })
         .then(function (r) { return r.json(); })

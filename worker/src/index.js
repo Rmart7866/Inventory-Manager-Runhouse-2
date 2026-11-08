@@ -38,6 +38,7 @@ import { handleSupplier, handlePhoto, handleStockPublic, refreshAvailability } f
 import { handleStores } from './teamreq-stores.js';
 import { handleOrderLookup } from './orders-lookup.js';
 import { writeSizeCoverage, handleSizes } from './size-coverage.js';
+import { writeSizeSales } from './size-sales.js';
 import { handleResetOptions, handleResetCollections, handleResetScan, handleResetApply, handleResetHistory, handleResetUndo } from './inventory-reset.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
@@ -121,6 +122,15 @@ async function rebuild(env, scope) {
     if (sm) console.log('size coverage written', JSON.stringify(sm));
   } catch (err) {
     console.error('size coverage write failed, catalogs are unaffected:', err?.stack || String(err));
+  }
+  // Shoe sales per shop for sell through. A second bulk query, run only now
+  // that the catalog's has finished (one bulk query per app at a time), and
+  // in its own try: a failure keeps the previous sales numbers.
+  try {
+    const ss = await writeSizeSales(env, client, env.NEEDHAM_LOCATION_ID || null);
+    console.log('size sales written', JSON.stringify(ss));
+  } catch (err) {
+    console.error('size sales failed, catalogs and coverage are unaffected:', err?.stack || String(err));
   }
   return { payload: footwear, meta, apparelMeta };
 }

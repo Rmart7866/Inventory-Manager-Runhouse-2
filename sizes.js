@@ -2,7 +2,9 @@
 // (worker/src/size-coverage.js): per shop and gender, every style on the
 // shelf with its brand (v), model across colourways (m), width (w) and the
 // sizes it has in stock (s). Every view here is worked out from that list,
-// so filtering by brand or width needs no other request.
+// so filtering by brand or width needs no other request. Shoe SALES per shop
+// (worker/src/size-sales.js) ride along as data.sales when the rebuild has
+// produced them, for the Sell-through view and the wide demand line.
 var SZ = {
     st: { data: null, loc: null, view: 'sizes', brand: '', width: '', sel: null, open: {} },
     $: function (id) { return document.getElementById(id); },
@@ -17,10 +19,18 @@ var SZ = {
     init: function () {
         SZ.$('gate-form').addEventListener('submit', function (e) { e.preventDefault(); CatalogClient.setWriteSecret(SZ.$('gate-in').value); SZ.start(); });
         window.addEventListener('scroll', function () { SZ.$('tip').classList.add('hidden'); }, { passive: true });
+        var say = function (t, bad) { var el = SZ.$('rstat'); el.textContent = t; el.className = 'sub' + (bad ? ' warnt' : ''); };
+        // The shelf numbers land with the catalog; sales come from a second
+        // bulk query about 2 minutes later, so load again once more for them.
+        RefreshButton.wire(SZ.$('refresh'), say, function () {
+            SZ.start(true); say('Shelf numbers are fresh. Sales follow in about 2 minutes and load here by themselves.');
+            setTimeout(function () { SZ.start(true); say('Shelf numbers and sales are fresh.'); }, 150000);
+        });
         SZ.start();
     },
 
-    start: function () {
+    // keep: a reload after Refresh, so the shop, view and filters stay put.
+    start: function (keep) {
         if (!CatalogClient.hasWriteSecret()) return SZ.gate('');
         fetch(CatalogClient._writeBase() + '/sizes', { headers: { Authorization: 'Bearer ' + CatalogClient.CATALOG_TOKEN, 'X-Write-Secret': CatalogClient.writeSecret() } })
             .then(function (r) { return r.json().then(function (j) { j.__status = r.status; return j; }); })
@@ -30,8 +40,9 @@ var SZ = {
                 if (j.__status !== 200) { SZ.$('out').innerHTML = '<div class="msg">' + SZ.esc(j.error || ('HTTP ' + j.__status)) + '</div>'; return; }
                 SZ.st.data = j;
                 SZ.st.locs = j.locations.filter(function (l) { return l.men.carried + l.women.carried > 0; });
-                SZ.st.loc = SZ.st.locs[0] && SZ.st.locs[0].id;
-                SZ.$('asof').textContent = 'Shoes on the shelf at each shop, from the catalog built ' + SZ.ago(j.at) + '. Men\'s and women\'s shoes; unisex and kids\' shoes are left out.';
+                var still = keep && SZ.st.locs.some(function (l) { return l.id === SZ.st.loc; });
+                if (!still) SZ.st.loc = SZ.st.locs[0] && SZ.st.locs[0].id;
+                SZ.$('asof').textContent = 'Shoes on the shelf at each shop, from the catalog built ' + SZ.ago(j.at) + (j.sales ? ', sales counted ' + SZ.ago(j.sales.at) : '') + '. Men\'s and women\'s shoes; unisex and kids\' shoes are left out.';
                 SZ.draw();
             }).catch(function (e) { SZ.gate('Could not reach the Worker: ' + e.message); });
     },
@@ -139,22 +150,34 @@ var SZ = {
         SZ.st.names = SZ.brandNames(all);
         var names = SZ.st.names;
         var brands = Object.keys(names).sort(function (a, b) { return names[a].localeCompare(names[b]); });
-        var views = [['sizes', 'Sizes'], ['brands', 'Brands'], ['models', 'Models']];
+        var views = [['sizes', 'Sizes'], ['brands', 'Brands'], ['models', 'Models'], ['wide', 'Wide'], ['sell', 'Sell-through']];
         var bar = '<div class="views"><div class="seg" role="tablist" aria-label="View">' + views.map(function (v) {
             return '<button type="button" role="tab" aria-selected="' + (SZ.st.view === v[0]) + '" data-view="' + v[0] + '">' + v[1] + '</button>';
         }).join('') + '</div>' +
             (SZ.st.view === 'brands' ? '' : '<label class="sub">Brand <select id="f-brand"><option value="">All brands</option>' + brands.map(function (k) { return '<option value="' + SZ.esc(k) + '"' + (SZ.st.brand === k ? ' selected' : '') + '>' + SZ.esc(names[k]) + '</option>'; }).join('') + '</select></label>') +
-            '<label class="sub">Width <select id="f-width"><option value="">All</option><option value="standard"' + (SZ.st.width === 'standard' ? ' selected' : '') + '>Standard</option><option value="wide"' + (SZ.st.width === 'wide' ? ' selected' : '') + '>Wide</option></select></label></div>';
+            (SZ.st.view === 'wide' ? '' : '<label class="sub">Width <select id="f-width"><option value="">All</option><option value="standard"' + (SZ.st.width === 'standard' ? ' selected' : '') + '>Standard</option><option value="wide"' + (SZ.st.width === 'wide' ? ' selected' : '') + '>Wide</option></select></label>') + '</div>';
         // Size data built before brand, model and width were recorded (they
         // arrived 2026-11-08) has none of them; say so rather than show every
         // shoe as one "Unknown" brand. The next catalog refresh fills them in.
         var detailed = all.some(function (x) { return 'm' in x; });
         if (!detailed && SZ.st.view !== 'sizes') {
-            SZ.$('out').innerHTML = bar + '<div class="msg">Brand and model details arrive with the next catalog refresh: tonight\'s automatic one, or sooner with Refresh in the inventory tool. The Sizes view works now.</div>';
+            SZ.$('out').innerHTML = bar + '<div class="msg">Brand and model details arrive with the next catalog refresh: tonight\'s automatic one, or sooner with Refresh now above. The Sizes view works now.</div>';
+            SZ.wire(loc); return;
+        }
+        if (SZ.st.view === 'sell' && !SZ.st.data.sales) {
+            SZ.$('out').innerHTML = bar + '<div class="msg">Sales numbers arrive with the next catalog refresh: tonight\'s automatic one, or sooner with Refresh now above.</div>';
             SZ.wire(loc); return;
         }
         var body = ['women', 'men'].map(function (gender) {
             if (SZ.st.view === 'brands') return SZ.brandsCard(loc, gender);
+            if (SZ.st.view === 'sell') return SZ.sellCard(loc, gender);
+            if (SZ.st.view === 'wide') {
+                // The wide view is the Sizes chart with the width pinned to
+                // wide, under a card that compares wide with standard.
+                var keepW = SZ.st.width; SZ.st.width = 'wide';
+                var html = SZ.wideCard(loc, gender) + SZ.sizesCard(loc, gender, SZ.agg(SZ.filtered(loc[gender])));
+                SZ.st.width = keepW; return html;
+            }
             var g = SZ.agg(SZ.filtered(loc[gender]));
             if (SZ.st.view === 'models') return SZ.modelsCard(loc, gender, g);
             return SZ.sizesCard(loc, gender, g);
@@ -264,6 +287,133 @@ var SZ = {
             (ms.length > shown.length ? '<button class="chip" type="button" data-allmodels="' + gender + '" style="margin-top:10px">Show all ' + ms.length + ' models</button>' : '') + '</div>';
     },
 
+    // ---------- sales ----------
+    salesFor: function (locId, gender) {
+        var s = SZ.st.data.sales, b = s && s.byLoc && s.byLoc[locId];
+        return (b && b[gender]) || [];
+    },
+    sum: function (list, f) { return list.reduce(function (a, x) { return a + f(x); }, 0); },
+    pairs: function (x) { var n = 0; Object.keys(x.s).forEach(function (k) { n += x.s[k]; }); return n; },
+    isWide: function (x) { return /wide/.test(x.w || ''); },
+    modelName: function (names, fallback) { return Object.keys(names).sort(function (a, b) { return names[b] - names[a]; })[0] || fallback; },
+
+    // Per model at this shop: pairs on the shelf now and pairs sold in the
+    // last 30 and 90 days, colourways rolled up, the page's filters applied.
+    sellRows: function (loc, gender) {
+        var b = SZ.st.brand, keep = function (x) { return (!b || SZ.brandKey(x.v) === b) && SZ.widthOk(x); };
+        var by = {}, order = [];
+        var get = function (x) {
+            var k = x.m || x.h;
+            if (!by[k]) { by[k] = { key: k, v: x.v, img: x.img, names: {}, ways: 0, on: 0, onSz: {}, d30: 0, d90: 0, soldSz: {} }; order.push(by[k]); }
+            var m = by[k]; if (!m.img && x.img) m.img = x.img;
+            var nm = String(x.t || '').split(' - ')[0].trim(); m.names[nm] = (m.names[nm] || 0) + 1;
+            return m;
+        };
+        loc[gender].styles.filter(keep).forEach(function (x) { var m = get(x); m.ways++; Object.keys(x.s).forEach(function (z) { m.on += x.s[z]; m.onSz[z] = (m.onSz[z] || 0) + x.s[z]; }); });
+        SZ.salesFor(loc.id, gender).filter(keep).forEach(function (r) { var m = get(r); m.d30 += r.d30; m.d90 += r.d90; Object.keys(r.sz).forEach(function (z) { m.soldSz[z] = (m.soldSz[z] || 0) + r.sz[z]; }); });
+        order.forEach(function (m) {
+            m.name = SZ.modelName(m.names, m.key);
+            m.st = m.d90 + m.on ? m.d90 / (m.d90 + m.on) : 0;
+            var weekly = m.d90 / (90 / 7);
+            m.weeks = weekly ? m.on / weekly : null;
+        });
+        return order;
+    },
+
+    weeksTxt: function (m) {
+        if (!m.d90) return '<span class="sub">No sales</span>';
+        if (!m.on) return '<span class="warnt">▲ Sold out</span>';
+        var w = m.weeks < 10 ? (Math.round(m.weeks * 10) / 10) : Math.round(m.weeks);
+        return m.weeks < 4 ? '<span class="warnt">▲ ' + w + ' wk</span>' : w + ' wk';
+    },
+
+    sellCard: function (loc, gender) {
+        var label = SZ.LABEL[gender], rows = SZ.sellRows(loc, gender);
+        var title = '<h2>' + label + ' sell-through at ' + SZ.esc(loc.name) + SZ.filterNote() + '</h2>';
+        var selling = rows.filter(function (m) { return m.d90 > 0; }).sort(function (a, b) { return b.d90 - a.d90 || b.d30 - a.d30; });
+        var idle = rows.filter(function (m) { return !m.d90 && m.on > 0; }).sort(function (a, b) { return b.on - a.on; });
+        if (!selling.length && !idle.length) return '<div class="card">' + title + '<p class="sub">No sales and nothing on the shelf.</p></div>';
+        var sold = SZ.sum(selling, function (m) { return m.d90; }), sold30 = SZ.sum(selling, function (m) { return m.d30; }), on = SZ.sum(rows, function (m) { return m.on; });
+        var low = selling.filter(function (m) { return m.on && m.weeks < 4; }).length, out = selling.filter(function (m) { return !m.on; }).length;
+        var callout = '<b>' + sold + ' pairs sold</b> in 90 days (' + sold30 + ' in the last 30) against ' + on + ' on the shelf now: ' + Math.round(sold / Math.max(1, sold + on) * 100) + '% sell-through. ' +
+            (low ? '<span class="warnt">' + low + ' selling model' + (low === 1 ? '' : 's') + ' under 4 weeks of stock.</span> ' : '') +
+            (out ? out + ' sold here and now have none on the shelf. ' : '') +
+            (idle.length ? idle.length + ' model' + (idle.length === 1 ? '' : 's') + ' on the shelf with no sales in 90 days.' : '');
+        var MAX = 30, k = 'sell|' + gender, shown = selling.slice(0, SZ.st.open[k] ? selling.length : MAX);
+        var sizes = SZ.coreSizes(gender);
+        var row = function (m) {
+            var key = 'sell|' + gender + '|' + m.key, open = !!SZ.st.open[key], pct = Math.round(m.st * 100);
+            return '<tr class="click" data-model="' + SZ.esc(key) + '" tabindex="0"><td><div class="mrow">' + (m.img ? '<img src="' + SZ.esc(m.img) + '" alt="" loading="lazy">' : '<span class="noimg"></span>') +
+                '<span><b>' + SZ.esc(m.name) + '</b><span class="sub">' + SZ.esc(m.v) + '</span></span></div></td>' +
+                '<td class="num">' + m.d30 + '</td><td class="num">' + m.d90 + '</td><td class="num">' + m.on + '</td>' +
+                '<td class="metercol"><span class="meter" aria-hidden="true"><i style="width:' + pct + '%"></i></span> ' + pct + '%</td><td class="num wk">' + SZ.weeksTxt(m) + '</td></tr>' +
+                (open ? '<tr class="ways"><td colspan="6"><table class="nums" aria-label="' + SZ.esc(m.name) + ' by size"><thead><tr><th>Size</th>' + sizes.map(function (z) { return '<th>' + z + '</th>'; }).join('') + '</tr></thead><tbody>' +
+                    '<tr><td>Sold, 90 days</td>' + sizes.map(function (z) { return '<td>' + (m.soldSz[z] || '') + '</td>'; }).join('') + '</tr>' +
+                    '<tr><td>On the shelf</td>' + sizes.map(function (z) { var gap = m.soldSz[z] && !m.onSz[z]; return '<td' + (gap ? ' class="thin"' : '') + '>' + (m.onSz[z] || (gap ? '0' : '')) + '</td>'; }).join('') + '</tr>' +
+                    '</tbody></table><p class="sub" style="margin:6px 0 0">Sizes ' + sizes[0] + ' to ' + sizes[sizes.length - 1] + '. Amber: sold here in 90 days and none on the shelf now.</p></td></tr>' : '');
+        };
+        return '<div class="card">' + title +
+            '<div class="sub">Pairs sold here in the last 30 and 90 days, in the shop and shipped from it, against pairs on the shelf now, colourways rolled up. Sell-through is sold ÷ (sold + on the shelf). Weeks left is the shelf at the last 90 days\' pace. Click a model to see it by size.</div>' +
+            '<div class="callout">' + callout + '</div>' +
+            (selling.length ? '<table class="list"><thead><tr><th>Model</th><th class="num">Sold 30d</th><th class="num">Sold 90d</th><th class="num">On shelf</th><th class="metercol">Sell-through</th><th class="num wk">Weeks left</th></tr></thead><tbody>' +
+                shown.map(row).join('') + '</tbody></table>' +
+                (selling.length > shown.length ? '<button class="chip" type="button" data-allsell="' + gender + '" style="margin-top:10px">Show all ' + selling.length + ' selling models</button>' : '') : '') +
+            (idle.length ? '<details style="margin-top:12px"><summary class="sub" style="cursor:pointer">On the shelf with no sales here in 90 days (' + idle.length + ' models, ' + SZ.sum(idle, function (m) { return m.on; }) + ' pairs)</summary>' +
+                '<table class="list"><tbody>' + idle.map(function (m) {
+                    return '<tr><td><div class="mrow">' + (m.img ? '<img src="' + SZ.esc(m.img) + '" alt="" loading="lazy">' : '<span class="noimg"></span>') + '<span><b>' + SZ.esc(m.name) + '</b><span class="sub">' + SZ.esc(m.v) + '</span></span></div></td>' +
+                        '<td class="num">' + m.ways + ' col.</td><td class="num">' + m.on + ' pairs</td></tr>';
+                }).join('') + '</tbody></table></details>' : '') + '</div>';
+    },
+
+    // Wide against standard at this shop: how much of the shelf is wide, how
+    // much of what sells is wide, and the models carried here in standard
+    // whose wide is not on this shelf (but sold here, or sits at another shop).
+    wideCard: function (loc, gender) {
+        var label = SZ.LABEL[gender], b = SZ.st.brand, keepB = function (x) { return !b || SZ.brandKey(x.v) === b; };
+        var styles = loc[gender].styles.filter(keepB), wide = styles.filter(SZ.isWide);
+        var units = SZ.sum(styles, SZ.pairs), wUnits = SZ.sum(wide, SZ.pairs);
+        var sales = SZ.salesFor(loc.id, gender).filter(keepB), soldAll = SZ.sum(sales, function (r) { return r.d90; }), soldW = SZ.sum(sales.filter(SZ.isWide), function (r) { return r.d90; });
+        var shelfPct = units ? Math.round(wUnits / units * 100) : 0, soldPct = soldAll ? Math.round(soldW / soldAll * 100) : 0;
+        var title = '<h2>' + label + ' wide at ' + SZ.esc(loc.name) + (b ? ' (' + SZ.esc(SZ.st.names[b] || b) + ')' : '') + '</h2>';
+        if (!styles.length) return '<div class="card">' + title + '<p class="sub">None on the shelf.</p></div>';
+        var callout = '<b>' + wide.length + ' of ' + styles.length + ' styles</b> here are wide, ' + wUnits + ' of ' + units + ' pairs (' + shelfPct + '%). ' +
+            (soldAll ? 'Wide was ' + soldPct + '% of the ' + soldAll + ' pairs sold here in 90 days (' + soldW + ' pairs). ' +
+                (soldPct >= shelfPct + 5 ? '<span class="warnt">▲ Wide sells a bigger share than it holds on the shelf.</span>' : '') : '');
+        // Models here in standard, and no wide of them on this shelf.
+        var by = {}, order = [];
+        styles.forEach(function (x) {
+            var k = x.m || x.h;
+            if (!by[k]) { by[k] = { key: k, v: x.v, img: x.img, names: {}, std: 0, wide: 0 }; order.push(by[k]); }
+            var m = by[k]; var nm = String(x.t || '').split(' - ')[0].trim(); m.names[nm] = (m.names[nm] || 0) + 1;
+            if (SZ.isWide(x)) m.wide += SZ.pairs(x); else m.std += SZ.pairs(x);
+        });
+        var gaps = order.filter(function (m) { return m.std && !m.wide; });
+        gaps.forEach(function (m) {
+            m.name = SZ.modelName(m.names, m.key);
+            m.soldW = SZ.sum(sales.filter(function (r) { return SZ.isWide(r) && (r.m || r.h) === m.key; }), function (r) { return r.d90; });
+            m.where = [];
+            SZ.st.locs.forEach(function (l) {
+                if (l.id === loc.id) return;
+                var n = SZ.sum(l[gender].styles.filter(function (x) { return SZ.isWide(x) && (x.m || x.h) === m.key; }), SZ.pairs);
+                if (n) m.where.push(l.name + ' has ' + n);
+            });
+        });
+        var shown = gaps.filter(function (m) { return m.soldW || m.where.length; }).sort(function (a, b) { return b.soldW - a.soldW || b.std - a.std; });
+        var rest = gaps.length - shown.length;
+        return '<div class="card">' + title +
+            '<div class="sub">Wide and extra wide together, against standard width. The chart below is sizes on the shelf in wide only.</div>' +
+            '<div class="callout">' + callout + '</div>' +
+            (shown.length ? '<h3 style="font-size:15px;margin:10px 0 0">Carried here in standard, no wide on this shelf (' + shown.length + ')</h3>' +
+                '<p class="sub" style="margin:2px 0 0">Models whose wide sold here in the last 90 days, or sits at another shop. Most sold first.</p>' +
+                '<table class="list"><thead><tr><th>Model</th><th class="num">Standard pairs</th><th class="num">Wide sold 90d</th><th>Wide at other shops</th></tr></thead><tbody>' +
+                shown.map(function (m) {
+                    return '<tr><td><div class="mrow">' + (m.img ? '<img src="' + SZ.esc(m.img) + '" alt="" loading="lazy">' : '<span class="noimg"></span>') + '<span><b>' + SZ.esc(m.name) + '</b><span class="sub">' + SZ.esc(m.v) + '</span></span></div></td>' +
+                        '<td class="num">' + m.std + '</td><td class="num">' + (m.soldW ? '<span class="warnt">' + m.soldW + '</span>' : '0') + '</td>' +
+                        '<td>' + (m.where.length ? '<span class="elsewhere">' + SZ.esc(m.where.join(', ')) + '</span>' : '<span class="sub">None</span>') + '</td></tr>';
+                }).join('') + '</tbody></table>' : '<p class="sub">Every model carried here in standard either has a wide here too, or has no wide at any shop and none sold here.</p>') +
+            (rest > 0 ? '<p class="sub" style="margin:8px 0 0">' + rest + ' more model' + (rest === 1 ? '' : 's') + ' here in standard only, with no wide at any shop and no wide sold here.</p>' : '') + '</div>';
+    },
+
     // The styles missing this size, the ones most likely sold through first:
     // those that still have a size either side of it.
     detail: function (loc, gender, g, s) {
@@ -300,6 +450,7 @@ var SZ = {
             var go = function () { SZ.st.open[r.dataset.model] = !SZ.st.open[r.dataset.model]; SZ.draw(); };
             r.onclick = go; key(r, go);
         });
+        out.querySelectorAll('[data-allsell]').forEach(function (b) { b.onclick = function () { SZ.st.open['sell|' + b.dataset.allsell] = true; SZ.draw(); }; });
         out.querySelectorAll('[data-allmodels]').forEach(function (b) { b.onclick = function () { SZ.st.open['all|' + b.dataset.allmodels] = true; SZ.draw(); }; });
         out.querySelectorAll('.bar').forEach(function (b) {
             var show = function () {
