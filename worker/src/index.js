@@ -39,6 +39,7 @@ import { handleStores } from './teamreq-stores.js';
 import { handleOrderLookup } from './orders-lookup.js';
 import { writeSizeCoverage, handleSizes } from './size-coverage.js';
 import { writeSizeSales } from './size-sales.js';
+import { handleTrackingIngest, handleTrackingLog, handleTrackingApply } from './tracking.js';
 import { handleResetOptions, handleResetCollections, handleResetScan, handleResetApply, handleResetHistory, handleResetUndo } from './inventory-reset.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
@@ -531,6 +532,12 @@ export default {
       // because an order carries a customer's name, email and address.
       // Shoe size coverage per shop, from the nightly catalog rebuild.
       '/sizes': { handler: teamReqRoute(handleSizes), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      // Supplier shipping emails to tracking (tracking.js). Ingest is called by
+      // the Apps Script in the needham@ mailbox and can write a fulfillment, so
+      // it carries the same write gate and write secret as every other write.
+      '/tracking/ingest': { handler: teamReqRoute(handleTrackingIngest), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      '/tracking/log': { handler: teamReqRoute(handleTrackingLog), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/tracking/apply': { handler: teamReqRoute(handleTrackingApply), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/orders/lookup': { handler: teamReqRoute(handleOrderLookup), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/options': { handler: teamReqRoute(handleResetOptions), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/collections': { handler: teamReqRoute(handleResetCollections), forWrite: false, needsWriteSecret: true, methods: ['GET'] },

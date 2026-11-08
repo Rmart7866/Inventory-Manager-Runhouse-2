@@ -71,6 +71,10 @@ AUTH_MODE = "bearer"
 # "Needham" and on_hand reads return real quantities. Leave EMPTY to disable
 # scoping (no location field in the query, needham flag null, client warns OFF).
 NEEDHAM_LOCATION_ID = "gid://shopify/Location/77957136639"
+# Supplier shipping emails to tracking (src/tracking.js). "dry" records what it
+# WOULD write and writes nothing; "live" adds tracking to ready orders as the
+# emails arrive, which emails the customer. Switching is an owner decision.
+TRACKING_MODE = "dry"
 
 # Locations a newly created product is activated at (comma separated GIDs). Real
 # quantity is written only at Needham; the others are activated at 0, so the
