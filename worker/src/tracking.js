@@ -210,8 +210,12 @@ export async function handleTrackingIngest(request, env) {
   const b = await readJson(request);
   const msgId = String(b.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
   if (!msgId) return { status: 400, body: { error: 'id required' } };
+  // A message is handled once. The exception is one that went to a person or
+  // was ignored: sent again (backfill), it is read again, so a reader fix
+  // reaches mail already looked at. It keeps its one record. Anything matched
+  // or written is never redone.
   const prior = await env.CATALOG.get(SEEN + msgId, 'json');
-  if (prior) return { body: { ...prior, duplicate: true } };
+  if (prior && !['review', 'ignored'].includes(prior.status)) return { body: { ...prior, duplicate: true } };
   const parsed = parseShipEmail({ from: b.from, subject: String(b.subject || '').slice(0, 500), body: String(b.body || '').slice(0, 40000) });
   if (!parsed.pos.length && !parsed.tracking.length) {
     await env.CATALOG.put(SEEN + msgId, JSON.stringify({ status: 'ignored' }), { expirationTtl: SEEN_TTL });
@@ -221,7 +225,7 @@ export async function handleTrackingIngest(request, env) {
   const { d, order } = await plan(env, client, parsed);
   const live = env.TRACKING_MODE === 'live';
   const ev = {
-    key: String(9e15 - Date.now()).padStart(16, '0') + '-' + msgId, msg: msgId, at: new Date().toISOString(),
+    key: (prior && prior.key) || String(9e15 - Date.now()).padStart(16, '0') + '-' + msgId, msg: msgId, at: new Date().toISOString(),
     from: String(b.from || '').slice(0, 120), subject: String(b.subject || '').slice(0, 200),
     parsed, order, status: d.status, reason: d.reason, groups: d.groups, mode: live ? 'live' : 'dry',
   };
