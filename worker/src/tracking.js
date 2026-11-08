@@ -36,7 +36,6 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import { createShopifyClient } from './shopify.js';
-import { aiReview } from './tracking-ai.js';
 
 const EVENT = 'trk:'; // trk:<inverted time>-<msg id>, newest first in a list
 const SEEN = 'trkmsg:'; // trkmsg:<mailbox message id>, so a message is handled once
@@ -176,7 +175,7 @@ async function writeTracking(client, plan, tracking) {
 async function plan(env, client, parsed) {
   const order = parsed.pos.length === 1 ? await findOrder(client, parsed.pos[0].order) : null;
   const d = decide(parsed, order, env.NEEDHAM_LOCATION_ID);
-  return { d, full: order, order: order ? { id: order.id, name: order.name } : null };
+  return { d, order: order ? { id: order.id, name: order.name } : null };
 }
 
 async function save(env, ev) {
@@ -185,9 +184,7 @@ async function save(env, ev) {
     at: ev.at, st: ev.status, b: ev.parsed.brand || '', po: ev.parsed.pos.map((p) => p.order + '_' + p.last).join(' ').slice(0, 60),
     o: ev.order ? ev.order.name : '', i: ev.order ? String(ev.order.id).split('/').pop() : '', t: ev.parsed.tracking.map((t) => t.company + ' ' + t.number).join(', ').slice(0, 160),
     n: short, r: String(ev.reason || ev.error || '').slice(0, 300),
-    // a: the AI second opinion, g: what staff actually did (reconcileTracking).
-    a: ev.ai ? (ev.ai.error ? 'error' : ev.ai.agree ? 'agree' : 'differs') : '',
-    ar: ev.ai ? String(ev.ai.error || (ev.ai.diffs || []).join(' | ') || ev.ai.verdict_reason || '').slice(0, 260) : '',
+    // g: what staff actually did (reconcileTracking).
     g: ev.truth ? ev.truth.r : '', gr: ev.truth ? String(ev.truth.note || '').slice(0, 160) : '',
   } });
 }
@@ -205,16 +202,13 @@ export async function handleTrackingIngest(request, env) {
     return { body: { status: 'ignored' } };
   }
   const client = createShopifyClient(env);
-  const { d, order, full } = await plan(env, client, parsed);
+  const { d, order } = await plan(env, client, parsed);
   const live = env.TRACKING_MODE === 'live';
   const ev = {
     key: String(9e15 - Date.now()).padStart(16, '0') + '-' + msgId, msg: msgId, at: new Date().toISOString(),
     from: String(b.from || '').slice(0, 120), subject: String(b.subject || '').slice(0, 200),
     parsed, order, status: d.status, reason: d.reason, groups: d.groups, mode: live ? 'live' : 'dry',
   };
-  // The AI second opinion (tracking-ai.js), before any write and never
-  // changing it. Skipped when no ANTHROPIC_API_KEY is set.
-  ev.ai = await aiReview(env, { from: b.from, subject: b.subject, body: b.body }, full, d, parsed);
   if (d.status === 'ready' && live) {
     const w = await writeTracking(client, d, parsed.tracking);
     ev.status = w.ok ? 'written' : 'error'; ev.error = w.error || ''; ev.fulfillment = w.id || '';

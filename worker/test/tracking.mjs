@@ -1,6 +1,6 @@
 // Supplier shipping emails to tracking: what is read out of an email, and
 // every reason an email is sent to review instead of written.
-import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender } from '../src/tracking.js';
+import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender, truthOf } from '../src/tracking.js';
 
 let failures = 0;
 const check = (name, ok) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name); if (!ok) failures++; };
@@ -42,6 +42,16 @@ check('a closed fulfillment order is not reopened', decide(hoka, ord({ fulfillme
 const anon = parseShipEmail({ from: 'ship@wolverine.com', body: '93307_Smith 1Z999AA10123456784' });
 check('unknown sender, one brand open: ships it', decide(anon, ord({ fulfillmentOrders: [FO('FO1', NEEDHAM, [L('s', 'Saucony', 2)])] }), NEEDHAM).status === 'ready');
 check('unknown sender, two brands open: review', decide(anon, mixed, NEEDHAM).status === 'review');
+
+console.log('\nWhat staff actually did');
+const ev = { at: new Date().toISOString(), status: 'ready', parsed: hoka, groups: d1.groups };
+const F = (num, vendor) => ({ trackingInfo: [{ number: num }], fulfillmentLineItems: { nodes: [{ quantity: 1, lineItem: { id: 'x', vendor } }] } });
+check('same tracking on the same brand: match', truthOf(ev, { fulfillments: [F('1Z999AA10123456784', 'HOKA')] }).r === 'match');
+check('same tracking on another brand: other-items', truthOf(ev, { fulfillments: [F('1Z999AA10123456784', 'Brooks')] }).r === 'other-items');
+check('the planned brand shipped with another number: other-tracking', truthOf(ev, { fulfillments: [F('1Z000', 'HOKA')] }).r === 'other-tracking');
+check('not shipped yet: ask again later', truthOf(ev, { fulfillments: [] }) === null);
+check('review, then staff used it: added-anyway', truthOf({ ...ev, status: 'review' }, { fulfillments: [F('1Z999AA10123456784', 'HOKA')] }).r === 'added-anyway');
+check('review and untouched for a week: left-alone', truthOf({ ...ev, status: 'review', at: new Date(Date.now() - 8 * 86400e3).toISOString() }, { fulfillments: [] }).r === 'left-alone');
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

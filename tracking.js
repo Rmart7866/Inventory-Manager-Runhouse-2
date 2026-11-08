@@ -9,7 +9,7 @@ var TK = {
     esc: function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); },
     H: function () { return { Authorization: 'Bearer ' + CatalogClient.CATALOG_TOKEN, 'X-Write-Secret': CatalogClient.writeSecret(), 'Content-Type': 'application/json' }; },
     LABEL: { review: 'Needs a person', ready: 'Would add', written: 'Added', already: 'Already on order', error: 'Failed' },
-    FILTERS: [['attention', 'Needs attention'], ['ai', 'AI differs'], ['ready', 'Would add'], ['written', 'Added'], ['all', 'All']],
+    FILTERS: [['attention', 'Needs attention'], ['wrong', 'Differs from staff'], ['ready', 'Would add'], ['written', 'Added'], ['all', 'All']],
     // What staff did, from the Worker's reconcile, and whether the rules were right.
     TRUTH: {
         'match': ['Staff did the same', true], 'left-alone': ['Staff did not use it', true],
@@ -17,18 +17,15 @@ var TK = {
         'added-anyway': ['Staff added it anyway', false],
     },
 
-    // The dry run's scorecard: how often the AI agreed with the rules, and how
-    // often the rules matched what staff then did by hand.
+    // The dry run's scorecard: how often the rules matched what staff then did
+    // by hand.
     summary: function (ev) {
-        var ai = ev.filter(function (e) { return e.a === 'agree' || e.a === 'differs'; });
-        var agree = ai.filter(function (e) { return e.a === 'agree'; }).length;
         var known = ev.filter(function (e) { return TK.TRUTH[e.g]; });
         var right = known.filter(function (e) { return TK.TRUTH[e.g][1]; }).length;
         var pct = function (a, b) { return b ? Math.round(a / b * 100) + '%' : 'n/a'; };
         var tile = function (big, label, sub) { return '<div class="tile"><b>' + big + '</b><span>' + label + '</span><em>' + sub + '</em></div>'; };
         return '<div class="tiles">' +
             tile(ev.length, 'shipping emails read', ev.filter(function (e) { return e.st === 'ready' || e.st === 'written'; }).length + ' clean matches, ' + ev.filter(function (e) { return e.st === 'review' || e.st === 'error'; }).length + ' for a person') +
-            tile(pct(agree, ai.length), 'AI agreed with the rules', ai.length ? agree + ' of ' + ai.length + ' checked' : 'no AI checks yet') +
             tile(pct(right, known.length), 'rules matched what staff did', known.length ? right + ' of ' + known.length + ' known so far' : 'known once staff ship by hand') +
             '</div>';
     },
@@ -62,7 +59,7 @@ var TK = {
         var j = TK.st.data, ev = j.events;
         TK.$('banner').innerHTML = j.mode === 'live'
             ? '<div class="banner live"><b>Live.</b> When a shipping email matches an order cleanly, the tracking is added and Shopify emails the customer. Anything unclear waits here for a person.</div>'
-            : '<div class="banner"><b>Dry run.</b> Nothing is added to Shopify and no customer is emailed. Every shipping email is read, matched to its order and checked two ways: the AI reads the email independently, and once staff ship the order by hand the page compares what they did with what this would have done.</div>';
+            : '<div class="banner"><b>Dry run.</b> Nothing is added to Shopify and no customer is emailed. Every shipping email is read and matched to its order, and once staff ship that order by hand this page compares what they did with what this would have done.</div>';
         var count = function (f) { return ev.filter(function (e) { return TK.match(e, f); }).length; };
         TK.$('filters').innerHTML = TK.FILTERS.map(function (f) {
             return '<button type="button" class="chip' + (TK.st.filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' + f[1] + ' (' + count(f[0]) + ')</button>';
@@ -92,16 +89,13 @@ var TK = {
 
     checks: function (e) {
         var out = [];
-        if (e.a === 'agree') out.push('<span class="ok">✓ AI agrees</span>');
-        else if (e.a === 'differs') out.push('<span class="warn">▲ AI differs</span><div class="why">' + TK.esc(e.ar) + '</div>');
-        else if (e.a === 'error') out.push('<span class="why">' + TK.esc(e.ar) + '</span>');
         if (TK.TRUTH[e.g]) out.push('<div class="' + (TK.TRUTH[e.g][1] ? 'ok' : 'warn') + '">' + (TK.TRUTH[e.g][1] ? '✓ ' : '▲ ') + TK.esc(TK.TRUTH[e.g][0]) + '</div>');
         return out.join('') || '<span class="why">Waiting</span>';
     },
 
     match: function (e, f) {
         if (f === 'all') return true;
-        if (f === 'ai') return e.a === 'differs' || (TK.TRUTH[e.g] && !TK.TRUTH[e.g][1]);
+        if (f === 'wrong') return !!(TK.TRUTH[e.g] && !TK.TRUTH[e.g][1]);
         if (f === 'attention') return e.st === 'review' || e.st === 'error';
         return e.st === f;
     },
