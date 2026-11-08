@@ -167,7 +167,9 @@ const blob = JSON.stringify(view);
 check('the proof carries NO email', !/coach@example\.com/.test(blob));
 check('no cost', !/"cost"|11\.5/.test(blob));
 check('no staff notes, history or original submission', !/"notes"|"log"|"req"|"text"/.test(blob));
-r = await call('/team-requests/proof?id=' + id + '&t=' + tok.slice(0, -1) + 'x', { headers: PAGES });
+// Always a DIFFERENT last character: swapping in a fixed 'x' left the token
+// unchanged whenever it already ended in x, about one run in 64.
+r = await call('/team-requests/proof?id=' + id + '&t=' + tok.slice(0, -1) + (tok.slice(-1) === 'x' ? 'y' : 'x'), { headers: PAGES });
 check('a wrong token gets nothing', r.status === 404);
 r = await call('/team-requests/proof?id=' + id, { headers: PAGES });
 check('no token gets nothing', r.status === 404);
