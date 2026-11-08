@@ -15,7 +15,11 @@ check('USPS by its 22 digit shape', parseShipEmail({ body: 'PO 93307_Smith track
 check('FedEx from a fedex.com link', parseShipEmail({ body: '93307_Smith https://www.fedex.com/fedextrack/?trknbr=771234567890' }).tracking[0].number === '771234567890');
 const upc = parseShipEmail({ body: 'PO 93307_Smith Item UPC 195719632110 qty 1. Tracking: 1Z999AA10123456784' });
 check('a 12 digit UPC is NOT read as FedEx tracking', upc.tracking.length === 1 && upc.tracking[0].company === 'UPS');
-check('FedEx digits only when FedEx is named and they follow "tracking"', parseShipEmail({ body: '93307_Smith shipped via FedEx. Tracking number: 771234567890' }).tracking[0].company === 'FedEx');
+check('FedEx digits right after "Tracking number:"', parseShipEmail({ body: '93307_Smith shipped via FedEx. Tracking number: 771234567890' }).tracking[0].company === 'FedEx');
+const brooks = parseShipEmail({ from: 'Brooks <orders@brooksrunning.com>', subject: 'Your order 92264_Smith is shipped.', body: 'Your order has been shipped.\nShip to:\n12 Main St\nTracking numbers:\n771234567890\n771234567891\nSHIPPED:\nGhost 16 UPC 195719632110' });
+check('Brooks: bare numbers under "Tracking numbers:", carrier never named', brooks.brand === 'brooks' && brooks.tracking.map((t) => t.number).join() === '771234567890,771234567891' && brooks.tracking[0].company === 'FedEx');
+check('and the UPC further down is still not tracking', !brooks.tracking.some((t) => t.number === '195719632110'));
+check('a Brooks email with only Brooks\' own order number has no PO', parseShipEmail({ subject: 'Your order BROOKS00DRP3048424 is shipped.', body: 'Tracking numbers:\n771234567890' }).pos.length === 0);
 check('the same tracking twice is one', parseShipEmail({ body: '93307_Smith 1Z999AA10123456784 1z999aa10123456784' }).tracking.length === 1);
 
 console.log('\nNames and brands');

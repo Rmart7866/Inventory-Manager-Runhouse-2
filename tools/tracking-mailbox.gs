@@ -28,7 +28,9 @@ var CATALOG_TOKEN = 'rh-cat-9b327c9736d5d17e2794c2c3df934b36'; // public by cons
 var LABEL = 'RH tracking';
 var QUERY = 'newer_than:2d -in:sent -in:drafts (tracking OR shipped OR shipment OR "has shipped" OR "ship confirmation")';
 var PO_RE = /(^|[^0-9A-Za-z])\d{4,7}_[A-Za-z]/;
-var TRK_RE = /\b1Z[0-9A-Z]{16}\b|(^|\D)9[2-5]\d{18,20}(\D|$)|fedex/i;
+// UPS, USPS, the word FedEx, or a 12/15 digit number under a "Tracking
+// number(s):" label, which is how Brooks writes it without naming a carrier.
+var TRK_RE = /\b1Z[0-9A-Z]{16}\b|(^|\D)9[2-5]\d{18,20}(\D|$)|fedex|tracking\s*(numbers?|no\.?|#)?\s*[:#]?\s*\d{12}/i;
 
 function run() {
   var secret = PropertiesService.getScriptProperties().getProperty('WRITE_SECRET');

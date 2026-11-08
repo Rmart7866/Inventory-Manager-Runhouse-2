@@ -29,9 +29,17 @@
 //
 // FedEx numbers are plain 12 or 15 digit strings, the same shape as a UPC
 // barcode, which shoe emails can carry. So a FedEx number is only taken from
-// a fedex.com tracking link, or when the email names FedEx AND the number
-// sits right after the word "tracking". A UPC read as tracking would mark an
-// order shipped with a number that tracks nothing.
+// a fedex.com tracking link or right after a "Tracking number(s):" label. A
+// UPC read as tracking would mark an order shipped with a number that tracks
+// nothing.
+//
+// WHO SENDS THESE, read off needham@ 2026-11-08 over 90 days: only HOKA
+// (deckersb2b.deckers.com, "Your Hoka B2B order# <PO> is on its way!", FedEx)
+// and Brooks (brooksrunning.com, "Your order <PO> is shipped.", a bare FedEx
+// number under "Tracking numbers:"). Some Brooks emails carry Brooks' own
+// BROOKS00DRP number instead of our PO; those go to a person. Some HOKA POs
+// carry a FIRST name ("92803_Linda"); the name check sends those to a person
+// too, rather than guess.
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 
@@ -80,8 +88,13 @@ export function parseShipEmail({ from = '', subject = '', body = '' }) {
   for (const m of text.matchAll(/\b1Z[0-9A-Z]{16}\b/gi)) add(m[0], 'UPS');
   for (const m of text.matchAll(/(?<!\d)(9[2-5]\d{18,20})(?!\d)/g)) add(m[1], 'USPS');
   for (const m of text.matchAll(/fedex\.com\/[^\s"'<>]*?(?:trknbr|tracknumbers|tracknum)=(\d{12,22})/gi)) add(m[1], 'FedEx');
-  if (/fedex/i.test(text)) {
-    for (const m of text.matchAll(/track(?:ing)?\s*(?:number|no\.?|#)?\s*[:#]?\s*(\d{12}|\d{15})(?!\d)/gi)) add(m[1], 'FedEx');
+  // A bare 12 or 15 digit number right after a "Tracking number(s):" label.
+  // Brooks writes exactly that, as a link through SendGrid, and never names
+  // the carrier (read off real emails 2026-11-08); 12 and 15 digits are
+  // FedEx's lengths. Anchored on the label, so a UPC elsewhere in the email
+  // is still never taken.
+  for (const m of text.matchAll(/track(?:ing)?\s*(?:numbers?|no\.?|#)?\s*[:#]?\s*((?:\d{12}|\d{15})(?:[\s,]+(?:\d{12}|\d{15}))*)(?!\d)/gi)) {
+    for (const n of m[1].split(/[\s,]+/)) add(n, 'FedEx');
   }
   return { brand: brandOfSender(from), pos: [...pos.values()], tracking: [...trk.values()] };
 }
