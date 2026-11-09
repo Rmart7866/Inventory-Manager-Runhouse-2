@@ -4,6 +4,7 @@
   "version": "1.0.5",
   "description": "Sets up a supplier cart for a dropship order (items, ship-to address, PO) from the Late orders page. Never submits an order.",
   "permissions": ["storage"],
+  "host_permissions": ["https://hokaus.deckersb2b.deckers.com/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
