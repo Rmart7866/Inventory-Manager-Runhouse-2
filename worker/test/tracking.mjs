@@ -26,6 +26,12 @@ console.log('\nNames and brands');
 const ord = (o) => ({ id: 'gid://shopify/Order/1', name: '#93307', cancelledAt: null, shippingAddress: { lastName: 'Smith' }, billingAddress: { lastName: 'Smith' }, fulfillments: [], fulfillmentOrders: [], ...o });
 check('last name: case and punctuation do not matter', lastNameMatches('smith', ord({})) && lastNameMatches("O'Brien", ord({ shippingAddress: { lastName: 'OBrien' } })));
 check('a truncated name matches, a short one does not', lastNameMatches('Vandenb', ord({ shippingAddress: { lastName: 'Vandenberg' } })) && !lastNameMatches('Li', ord({ shippingAddress: { lastName: 'Lin' }, billingAddress: null })));
+check('capitals never matter', lastNameMatches('JENKINS', ord({ shippingAddress: { lastName: 'Jenkins' } })));
+check('two word last name: either word, or both run together', ['Martinez', 'GARCIA', 'GarciaMartinez'].every((p) => lastNameMatches(p, ord({ shippingAddress: { lastName: 'Garcia Martinez' }, billingAddress: null }))));
+check('hyphenated too', lastNameMatches('Jones', ord({ shippingAddress: { lastName: 'Smith-Jones' }, billingAddress: null })));
+check('but a word of a ONE word name is not enough, nor a 2 letter word', !lastNameMatches('Mart', ord({ shippingAddress: { lastName: 'Garcia Martinez' }, billingAddress: null })) && !lastNameMatches('De', ord({ shippingAddress: { lastName: 'De Vries' }, billingAddress: null })));
+check('accents ignored, and an accented PO is read whole', lastNameMatches('Pena', ord({ shippingAddress: { lastName: 'Peña' } })) && parseShipEmail({ body: '93307_Peña 1Z999AA10123456784' }).pos[0].last === 'Peña');
+check('an in-store sale with no name says so, not "does not match"', /no name on it/.test(decide(hoka, ord({ shippingAddress: null, billingAddress: null, sourceName: 'pos', fulfillmentOrders: [] }), NEEDHAM).reason));
 check('vendor spellings agree', vendorKey('On Running') === 'on' && vendorKey('ON Running') === 'on' && vendorKey('HOKA ONE ONE') === 'hoka');
 
 console.log('\nDeciding');

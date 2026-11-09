@@ -96,7 +96,7 @@ export function brandOfSender(from) {
 export function parseShipEmail({ from = '', subject = '', body = '' }) {
   const text = subject + '\n' + body;
   const pos = new Map();
-  for (const m of text.matchAll(/(?<![\dA-Za-z])(\d{4,7})_([A-Za-z][A-Za-z'\-]*)/g)) {
+  for (const m of text.matchAll(/(?<![\dA-Za-z])(\d{4,7})_(\p{L}[\p{L}'\-]*)/gu)) {
     pos.set(m[1] + '_' + m[2].toLowerCase(), { order: m[1], last: m[2] });
   }
   const trk = new Map();
@@ -115,10 +115,18 @@ export function parseShipEmail({ from = '', subject = '', body = '' }) {
   return { brand: brandOfSender(from), pos: [...pos.values()], tracking: [...trk.values()] };
 }
 
-const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+// Case, punctuation, spaces and accents never matter: "JENKINS", "O'Brien"
+// and "Peña" compare as jenkins, obrien and pena.
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
 
-// Last names agree: equal, or one is the other cut short (a supplier's PO
-// field can truncate), but only from 4 letters up so "Li" never matches "Lin".
+// Last names agree when, ignoring case and punctuation:
+//   - they are equal ("GarciaMartinez" and "Garcia Martinez" included);
+//   - one is the other cut short (a supplier's PO field can truncate), from 4
+//     letters up so "Li" never matches "Lin";
+//   - the PO is ONE WORD of a two word last name, from 3 letters up: staff
+//     write "Martinez" for "Garcia Martinez" as often as "Garcia". Seen on a
+//     real HOKA order 2026-11-09. The order number has to match as well, so
+//     this cannot reach a stranger's order.
 export function lastNameMatches(poLast, order) {
   const p = norm(poLast);
   if (p.length < 2) return false;
@@ -126,9 +134,15 @@ export function lastNameMatches(poLast, order) {
     const n = norm(a && a.lastName);
     if (!n) return false;
     if (n === p) return true;
-    return p.length >= 4 && n.length >= 4 && (n.startsWith(p) || p.startsWith(n));
+    if (p.length >= 4 && n.length >= 4 && (n.startsWith(p) || p.startsWith(n))) return true;
+    const words = String(a.lastName).split(/[\s\-]+/).map(norm).filter((w) => w.length >= 3);
+    return words.length > 1 && words.includes(p);
   });
 }
+
+// An in-store (POS) sale carries no address, and the app cannot read the
+// customer, so there is no name to check the PO against.
+const hasName = (o) => [o.shippingAddress, o.billingAddress].some((a) => a && norm(a.lastName));
 
 // What to do with one parsed email and its order. Pure, so the test drives
 // every refusal. Returns { status: 'ready' | 'already' | 'review', reason, groups }.
@@ -139,6 +153,7 @@ export function decide(parsed, order, needhamId) {
   const po = parsed.pos[0];
   if (!order) return review('No order #' + po.order);
   if (order.cancelledAt) return review('Order ' + order.name + ' is cancelled');
+  if (!hasName(order)) return review(order.name + ' has no name on it (an in-store sale, ' + (order.sourceName || 'no address') + '), so the PO name cannot be checked');
   if (!lastNameMatches(po.last, order)) return review('PO name "' + po.last + '" does not match the name on order ' + order.name);
   const onOrder = new Set();
   for (const f of order.fulfillments || []) for (const t of f.trackingInfo || []) if (t.number) onOrder.add(String(t.number).toUpperCase());
@@ -168,7 +183,7 @@ export function decide(parsed, order, needhamId) {
   return { status: 'ready', reason: '', groups };
 }
 
-const ORDER_Q = `query($q:String){ orders(first: 5, query:$q){ nodes{ id name cancelledAt
+const ORDER_Q = `query($q:String){ orders(first: 5, query:$q){ nodes{ id name cancelledAt sourceName
   shippingAddress{ lastName } billingAddress{ lastName }
   fulfillments{ trackingInfo{ number } }
   fulfillmentOrders(first: 20){ nodes{ id status assignedLocation{ location{ id } }

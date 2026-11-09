@@ -75,7 +75,7 @@ var TK = {
         if (!rows.length) { TK.$('out').innerHTML = '<div class="msg">Nothing here.</div>'; return; }
         TK.$('out').innerHTML = err + '<table><thead><tr><th>Received</th><th>Status</th><th>PO</th><th>Order</th><th>Brand</th><th>Tracking</th><th>Checks</th><th></th></tr></thead><tbody>' +
             rows.map(function (e) {
-                var canApply = j.mode === 'live' && (!(j.live || []).length || (j.live || []).indexOf(e.b) >= 0) && (e.st === 'ready' || e.st === 'error');
+                var canApply = j.mode === 'live' && (!(j.live || []).length || (j.live || []).indexOf(e.b) >= 0) && (e.st === 'ready' || e.st === 'error' || e.st === 'review');
                 var armed = TK.st.arm === e.key;
                 return '<tr><td style="white-space:nowrap">' + TK.esc(TK.when(e.at)) + '</td>' +
                     '<td><span class="st ' + TK.esc(e.st) + '">' + TK.esc(TK.LABEL[e.st] || e.st) + '</span>' + (e.r ? '<div class="why">' + TK.esc(e.r) + '</div>' : '') +
@@ -85,7 +85,7 @@ var TK = {
                     '<td>' + TK.esc((e.b || '').toUpperCase() || '?') + '</td>' +
                     '<td class="trk">' + TK.esc(e.t) + '</td>' +
                     '<td class="checks">' + TK.checks(e) + '</td>' +
-                    '<td>' + (canApply ? '<button type="button" class="chip' + (armed ? ' arm' : '') + '" data-apply="' + TK.esc(e.key) + '">' + (armed ? 'Sure? Emails the customer' : 'Add tracking') + '</button>' : '') + '</td></tr>';
+                    '<td>' + (canApply ? '<button type="button" class="chip' + (armed ? ' arm' : '') + '" data-apply="' + TK.esc(e.key) + '">' + (armed ? (e.st === 'review' ? 'Sure? Adds it if it now matches' : 'Sure? Emails the customer') : (e.st === 'review' ? 'Check again' : 'Add tracking')) + '</button>' : '') + '</td></tr>';
             }).join('') + '</tbody></table>';
         TK.$('out').querySelectorAll('[data-apply]').forEach(function (b) { b.onclick = function () { TK.apply(b); }; });
     },
