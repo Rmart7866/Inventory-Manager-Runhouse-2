@@ -331,7 +331,7 @@ async function plan(env, client, parsed, opts = {}) {
     opts = { ...opts, nameFound: await nameFoundBySearch(client, order, parsed.pos[0].order, parsed.pos[0].last) };
   }
   const d = decide(parsed, order, env.NEEDHAM_LOCATION_ID, opts);
-  return { d, order: order ? { id: order.id, name: order.name } : null };
+  return { d, order: order ? { id: order.id, name: order.name, country: (order.shippingAddress && order.shippingAddress.countryCodeV2) || '' } : null };
 }
 
 async function save(env, ev) {
@@ -342,6 +342,8 @@ async function save(env, ev) {
     n: short, r: String(ev.reason || ev.error || '').slice(0, 300), ov: ev.status === 'review' && ev.canOverride ? 1 : 0,
     // g: what staff actually did (reconcileTracking).
     g: ev.truth ? ev.truth.r : '', gr: ev.truth ? String(ev.truth.note || '').slice(0, 160) : '',
+    // The international tracker: destination, and where the shoe is.
+    c: (ev.order && ev.order.country) || '', x: ev.intl ? ev.intl.state : '', xb: ev.intl ? String(ev.intl.by || '').slice(0, 40) : '', xa: ev.intl ? ev.intl.at : '',
   } });
 }
 
@@ -423,12 +425,12 @@ export async function handleTrackingApply(request, env) {
 //   added-anyway  sent to review, but staff added this tracking after all
 //   left-alone    sent to review and staff did not use this tracking
 // An order not yet shipped stays unreconciled and is checked again later.
-const TRUTH_Q = `query($id: ID!){ order(id: $id){ fulfillments{ trackingInfo{ number }
+const TRUTH_Q = `query($id: ID!){ order(id: $id){ fulfillments{ status trackingInfo{ number }
   fulfillmentLineItems(first: 50){ nodes{ quantity lineItem{ id vendor } } } } } }`;
 
 export function truthOf(ev, order) {
   const want = new Set(ev.parsed.tracking.map((t) => t.number.toUpperCase()));
-  const fs = (order && order.fulfillments) || [];
+  const fs = ((order && order.fulfillments) || []).filter((f) => f.status !== 'CANCELLED');
   const withOurs = fs.filter((f) => (f.trackingInfo || []).some((t) => want.has(String(t.number || '').toUpperCase())));
   const plannedVendors = new Set((ev.groups || []).flatMap((g) => g.lines.map((l) => vendorKey(l.vendor))));
   if (ev.status === 'review') {
@@ -446,16 +448,55 @@ export function truthOf(ev, order) {
   return null;
 }
 
+// THE INTERNATIONAL TRACKER (owner idea, 2026-11-09). An order shipping
+// abroad comes to the store first, so its supplier tracking is the store's
+// inbound shipment: kept for staff, never put on the order. Three states:
+//   on the way   the email arrived (the default)
+//   store        staff pressed Received (POST /tracking/intl)
+//   shipped      the order now has a live fulfillment that is NOT carrying
+//                the supplier's number, i.e. staff shipped it abroad
+export function shippedAbroad(ev, order) {
+  const supplier = new Set(ev.parsed.tracking.map((t) => t.number.toUpperCase()));
+  return ((order && order.fulfillments) || []).some((f) => f.status !== 'CANCELLED' && !(f.trackingInfo || []).some((t) => supplier.has(String(t.number || '').toUpperCase())));
+}
+
+// POST /tracking/intl { key, received: true|false, by }  (staff, write secret)
+export async function handleTrackingIntl(request, env) {
+  const b = await readJson(request);
+  const ev = await env.CATALOG.get(EVENT + String(b.key || ''), 'json');
+  if (!ev) return { status: 404, body: { error: 'Not found' } };
+  if (ev.status !== 'skip') return { status: 409, body: { error: 'Not an international order' } };
+  if (ev.intl && ev.intl.state === 'shipped') return { status: 409, body: { error: 'Already shipped abroad' } };
+  ev.intl = b.received === false ? null : { state: 'store', by: String(b.by || '').slice(0, 40), at: new Date().toISOString() };
+  await save(env, ev);
+  return { body: { state: ev.intl ? ev.intl.state : 'on the way' } };
+}
+
 export async function reconcileTracking(env) {
   const client = createShopifyClient(env);
   const since = Date.now() - 21 * 86400e3;
+  // International orders can sit at the store for weeks, so they are
+  // followed for 120 days, not 21.
+  const sinceIntl = Date.now() - 120 * 86400e3;
   let done = 0, cursor;
   do {
     const p = await env.CATALOG.list({ prefix: EVENT, cursor, limit: 200 });
     for (const k of p.keys) {
       const m = k.metadata || {};
       if (done >= 15) break;
-      if (Date.parse(m.at) < since) { cursor = null; break; }
+      if (Date.parse(m.at) < sinceIntl) { cursor = null; break; }
+      if (m.st === 'skip' && m.i && m.x !== 'shipped') {
+        const ev = await env.CATALOG.get(k.name, 'json');
+        if (!ev || !ev.order) continue;
+        const r = await client.graphql(TRUTH_Q, { id: ev.order.id });
+        done++;
+        if (shippedAbroad(ev, r.data.order)) {
+          ev.intl = { state: 'shipped', by: (ev.intl && ev.intl.by) || '', at: new Date().toISOString() };
+          await save(env, ev);
+        }
+        continue;
+      }
+      if (Date.parse(m.at) < since) continue;
       if (m.g || !m.i || !['ready', 'review'].includes(m.st)) continue;
       const ev = await env.CATALOG.get(k.name, 'json');
       if (!ev || !ev.order) continue;

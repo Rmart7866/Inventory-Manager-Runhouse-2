@@ -63,7 +63,7 @@ var TK = {
             : j.mode === 'live'
             ? '<div class="banner live"><b>Live.</b> When a shipping email matches an order cleanly, the tracking is added and Shopify emails the customer. Anything unclear waits here for a person.</div>'
             : '<div class="banner"><b>Dry run.</b> Nothing is added to Shopify and no customer is emailed. Every shipping email is read and matched to its order, and once staff ship that order by hand this page compares what they did with what this would have done.</div>';
-        var count = function (f) { return ev.filter(function (e) { return TK.match(e, f); }).length; };
+        var count = function (f) { return ev.filter(function (e) { return TK.match(e, f) && (f !== 'skip' || e.x !== 'shipped'); }).length; };
         TK.$('filters').innerHTML = TK.FILTERS.map(function (f) {
             return '<button type="button" class="chip' + (TK.st.filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' + f[1] + ' (' + count(f[0]) + ')</button>';
         }).join('');
@@ -73,6 +73,7 @@ var TK = {
         var err = TK.st.err ? '<div class="msg" style="border-color:var(--warn);color:var(--warn)">' + TK.esc(TK.st.err) + '</div>' : '';
         if (!ev.length) { TK.$('out').innerHTML = '<div class="msg">No shipping emails yet. They appear here within 10 minutes of reaching needham@therunhouse.com, once the mailbox script is set up (tools/tracking-mailbox.gs).</div>'; return; }
         if (!rows.length) { TK.$('out').innerHTML = '<div class="msg">Nothing here.</div>'; return; }
+        if (TK.st.filter === 'skip') { TK.$('out').innerHTML = TK.intlTable(rows); TK.wireIntl(); return; }
         TK.$('out').innerHTML = err + '<table><thead><tr><th>Received</th><th>Status</th><th>PO</th><th>Order</th><th>Brand</th><th>Tracking</th><th>Checks</th><th></th></tr></thead><tbody>' +
             rows.map(function (e) {
                 var canApply = j.mode === 'live' && (!(j.live || []).length || (j.live || []).indexOf(e.b) >= 0) && (e.st === 'ready' || e.st === 'error' || e.st === 'review');
@@ -94,6 +95,58 @@ var TK = {
         var out = [];
         if (TK.TRUTH[e.g]) out.push('<div class="' + (TK.TRUTH[e.g][1] ? 'ok' : 'warn') + '">' + (TK.TRUTH[e.g][1] ? '✓ ' : '▲ ') + TK.esc(TK.TRUTH[e.g][0]) + '</div>');
         return out.join('') || '<span class="why">Waiting</span>';
+    },
+
+    // ---------- the international tracker ----------
+    // An order shipping abroad comes to the store first; the supplier's
+    // tracking is the inbound leg, kept here for staff and never put on the
+    // order. On the way, then Received (a staff press), then Shipped abroad
+    // (seen by the Worker once the order is fulfilled with other tracking).
+    trackLink: function (t) {
+        var m = /^(\S+)\s+(\S+)$/.exec(String(t).trim());
+        if (!m) return TK.esc(t);
+        var c = m[1].toLowerCase(), n = encodeURIComponent(m[2]);
+        var url = c === 'fedex' ? 'https://www.fedex.com/fedextrack/?trknbr=' + n : c === 'ups' ? 'https://www.ups.com/track?tracknum=' + n : c === 'usps' ? 'https://tools.usps.com/go/TrackConfirmAction?tLabels=' + n : '';
+        return url ? '<a href="' + url + '" target="_blank" rel="noopener">' + TK.esc(m[1] + ' ' + m[2]) + '</a>' : TK.esc(t);
+    },
+    countryOf: function (e) { return e.c || ((/ships to ([A-Z]{2})/.exec(e.r || '') || [])[1]) || '?'; },
+    intlState: function (e) {
+        if (e.x === 'shipped') return '<span class="st written">Shipped abroad</span><div class="why">' + TK.esc(TK.when(e.xa)) + '</div>';
+        if (e.x === 'store') return '<span class="st ready">At the store</span><div class="why">Received ' + TK.esc(TK.when(e.xa)) + (e.xb ? ' by ' + TK.esc(e.xb) : '') + '</div>';
+        return '<span class="st review">On the way to the store</span>';
+    },
+    intlTable: function (rows) {
+        var order = { '': 0, store: 1, shipped: 2 };
+        rows = rows.slice().sort(function (a, b) { return (order[a.x || ''] - order[b.x || '']) || String(b.at).localeCompare(String(a.at)); });
+        return '<p class="sub" style="margin:0 0 10px">International orders come to the store first. The supplier\'s tracking below is that inbound leg: it is never put on the customer\'s order. Press Received when the box arrives; it moves to Shipped abroad by itself once the order is fulfilled in Shopify with the international shipment.</p>' +
+            '<table><thead><tr><th>Email</th><th>Order</th><th>Ships to</th><th>Brand</th><th>Inbound tracking</th><th>Where it is</th><th></th></tr></thead><tbody>' +
+            rows.map(function (e) {
+                var btn = e.x === 'shipped' ? '' : e.x === 'store'
+                    ? '<button type="button" class="chip" data-recv="' + TK.esc(e.key) + '" data-to="0">Undo received</button>'
+                    : '<button type="button" class="chip" data-recv="' + TK.esc(e.key) + '" data-to="1">Received</button>';
+                return '<tr><td style="white-space:nowrap">' + TK.esc(TK.when(e.at)) + '</td>' +
+                    '<td>' + (e.i ? '<a href="https://admin.shopify.com/store/therunhouse/orders/' + TK.esc(e.i) + '" target="_blank" rel="noopener">' + TK.esc(e.o) + '</a>' : TK.esc(e.o || '')) + '</td>' +
+                    '<td>' + TK.esc(TK.countryOf(e)) + '</td><td>' + TK.esc((e.b || '').toUpperCase() || '?') + '</td>' +
+                    '<td class="trk">' + String(e.t || '').split(/,\s*/).filter(Boolean).map(TK.trackLink).join('<br>') + '</td>' +
+                    '<td>' + TK.intlState(e) + '</td><td>' + btn + '</td></tr>';
+            }).join('') + '</tbody></table>';
+    },
+    wireIntl: function () {
+        TK.$('out').querySelectorAll('[data-recv]').forEach(function (b) {
+            b.onclick = function () {
+                b.disabled = true;
+                fetch(CatalogClient._writeBase() + '/tracking/intl', { method: 'POST', headers: TK.H(), body: JSON.stringify({ key: b.dataset.recv, received: b.dataset.to === '1' }) })
+                    .then(function (r) { return r.json(); })
+                    .then(function (j) {
+                        // The list behind the page catches up within a minute;
+                        // show the new state now rather than waiting for it.
+                        var e = TK.st.data.events.filter(function (x) { return x.key === b.dataset.recv; })[0];
+                        if (e && !j.error) { e.x = b.dataset.to === '1' ? 'store' : ''; e.xa = new Date().toISOString(); }
+                        TK.st.err = j.error ? 'Not saved: ' + j.error : ''; TK.draw();
+                    })
+                    .catch(function (err) { b.disabled = false; b.textContent = 'Failed: ' + err.message; });
+            };
+        });
     },
 
     match: function (e, f) {

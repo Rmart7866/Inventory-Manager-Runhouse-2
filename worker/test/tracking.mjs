@@ -1,6 +1,6 @@
 // Supplier shipping emails to tracking: what is read out of an email, and
 // every reason an email is sent to review instead of written.
-import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender, truthOf, isLive, brandOfTitle, emailHasName, nameInItems } from '../src/tracking.js';
+import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender, truthOf, isLive, brandOfTitle, emailHasName, nameInItems, shippedAbroad } from '../src/tracking.js';
 
 let failures = 0;
 const check = (name, ok) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name); if (!ok) failures++; };
@@ -57,6 +57,12 @@ console.log('\nInternational orders');
 const intl = decide(hoka, ord({ shippingAddress: { lastName: 'Smith', countryCodeV2: 'MX' }, fulfillmentOrders: mixed.fulfillmentOrders }), NEEDHAM);
 check('an order shipping abroad is never given the supplier tracking, even when everything else matches', intl.status === 'skip' && /MX/.test(intl.reason) && !intl.groups.length);
 check('a US order still goes through', decide(hoka, ord({ shippingAddress: { lastName: 'Smith', countryCodeV2: 'US' }, fulfillmentOrders: mixed.fulfillmentOrders }), NEEDHAM).status === 'ready');
+
+const iev = { parsed: hoka };
+check('tracker: no fulfillment yet is not shipped', !shippedAbroad(iev, { fulfillments: [] }));
+check('tracker: a fulfillment carrying the SUPPLIER number is not the shipment abroad', !shippedAbroad(iev, { fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: '1Z999AA10123456784' }] }] }));
+check('tracker: a cancelled fulfillment does not count', !shippedAbroad(iev, { fulfillments: [{ status: 'CANCELLED', trackingInfo: [{ number: 'CP123456789US' }] }] }));
+check('tracker: a live fulfillment with other tracking is the shipment abroad', shippedAbroad(iev, { fulfillments: [{ status: 'SUCCESS', trackingInfo: [{ number: 'CP123456789US' }] }] }));
 
 console.log('\nIn-store special orders');
 const POS = (o) => ord({ sourceName: 'pos', shippingAddress: null, billingAddress: null, email: 'jsmith77@example.com', fulfillmentOrders: [], ...o });

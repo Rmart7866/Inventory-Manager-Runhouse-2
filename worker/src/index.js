@@ -39,7 +39,7 @@ import { handleStores } from './teamreq-stores.js';
 import { handleOrderLookup } from './orders-lookup.js';
 import { writeSizeCoverage, handleSizes } from './size-coverage.js';
 import { writeSizeSales } from './size-sales.js';
-import { handleTrackingIngest, handleTrackingLog, handleTrackingApply, reconcileTracking } from './tracking.js';
+import { handleTrackingIngest, handleTrackingLog, handleTrackingApply, handleTrackingIntl, reconcileTracking } from './tracking.js';
 import { handleResetOptions, handleResetCollections, handleResetScan, handleResetApply, handleResetHistory, handleResetUndo } from './inventory-reset.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
@@ -538,6 +538,9 @@ export default {
       '/tracking/ingest': { handler: teamReqRoute(handleTrackingIngest), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/tracking/log': { handler: teamReqRoute(handleTrackingLog), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/tracking/apply': { handler: teamReqRoute(handleTrackingApply), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // The international tracker's Received button. Writes the tool's own
+      // log only, never Shopify.
+      '/tracking/intl': { handler: teamReqRoute(handleTrackingIntl), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/orders/lookup': { handler: teamReqRoute(handleOrderLookup), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/options': { handler: teamReqRoute(handleResetOptions), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/collections': { handler: teamReqRoute(handleResetCollections), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
