@@ -109,7 +109,22 @@
     return { want: units, got: c ? c.units : 0 };
   }
 
-  async function address(a) {
+  // TYPING, not setting. HOKA only enables the address Save once it sees real
+  // typing: a value set straight onto the field fills it but leaves Save grey
+  // (real run 2026-11-09, the owner had to type a key). execCommand
+  // ('insertText') goes through the browser's own editing path, which the
+  // page treats as typing; the value setter stays as a fallback.
+  function typeInto(el, v) {
+    const text = v == null ? '' : String(v);
+    el.focus();
+    if (el.select) el.select();
+    const ok = text ? document.execCommand('insertText', false, text) : document.execCommand('delete');
+    if (!ok || el.value !== text) setVal(el, text);
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.blur();
+  }
+
+  async function address(a, onSaving) {
     const sw = await waitFor(() => [...document.querySelectorAll('.el-switch')].find((s) => /One-time Deliver To/i.test(s.parentElement.innerText)), 10000, 'the drop-ship switch');
     if (!sw.classList.contains('is-checked')) safeClick(sw, 'the drop-ship switch');
     // HOKA may ask for its B2B2C terms first. A PERSON agrees, or cancels.
@@ -124,7 +139,7 @@
     const field = (n) => document.querySelector('input[name="districtInfo.' + n + '"]');
     await waitFor(() => visible(field('firstName')), 5000, 'the drop-ship form');
     const filled = { firstName: a.firstName, lastName: a.lastName, phone: a.phone, street1: a.street1, street2: a.street2, city: a.city, zip: a.zip };
-    for (const [k, v] of Object.entries(filled)) { const f = field(k); if (f) setVal(f, v); }
+    for (const [k, v] of Object.entries(filled)) { const f = field(k); if (f) typeInto(f, v); }
     const pick = async (label, text) => {
       const item = [...document.querySelectorAll('.el-form-item')].find((fi) => visible(fi) && new RegExp('^\\s*' + label + ':?', 'i').test(fi.innerText));
       const inp = item && item.querySelector('.el-select input');
@@ -140,8 +155,26 @@
     if (!stateName) throw new Error('Unknown state "' + a.state + '"');
     await pick('State', stateName);
     await sleep(500);
-    safeClick(document.querySelector('button[btn-id="clickSubmitOrderSetting"]'), 'the address Save button');
-    const mb = await waitFor(() => [...document.querySelectorAll('.el-message-box')].find((m) => visible(m) && /drop ship/i.test(m.innerText)), 8000, 'HOKA to ask about saving the drop ship address');
+    const saveBtn = document.querySelector('button[btn-id="clickSubmitOrderSetting"]');
+    if (!saveBtn) throw new Error('Could not find the address Save button');
+    const enabled = () => !saveBtn.disabled && !saveBtn.classList.contains('is-disabled');
+    const prompt = () => [...document.querySelectorAll('.el-message-box')].find((m) => visible(m) && /drop ship/i.test(m.innerText));
+    let ready = await waitFor(enabled, 4000, 'Save').catch(() => false);
+    if (!ready) {
+      // The nudge the owner did by hand: type a space and take it back out.
+      const f = field('firstName');
+      f.focus(); document.execCommand('insertText', false, ' '); document.execCommand('delete'); f.blur();
+      ready = await waitFor(enabled, 3000, 'Save').catch(() => false);
+    }
+    if (ready) {
+      safeClick(saveBtn, 'the address Save button');
+    } else {
+      banner(['✓ The drop-ship address is filled in.', '<b>Your turn:</b> HOKA has not enabled <b>Save</b>. Click into any address field, type a space and delete it, then press <b>Save</b>. The prep carries on with the PO after that.'], 'bad');
+    }
+    const mb = await waitFor(prompt, ready ? 8000 : 5 * 60 * 1000, 'the drop ship address to be saved');
+    // Recorded BEFORE confirming: HOKA may reload the page on save, and the
+    // reloaded cart must go on to the PO, not fill the address again.
+    if (onSaving) await onSaving();
     safeClick([...mb.querySelectorAll('button')].find((b) => /confirm/i.test(b.innerText)), 'Confirm on the drop ship question');
     await waitFor(() => !visible(mb), 8000, 'the address to save');
   }
@@ -152,8 +185,12 @@
   }
 
   async function po(value) {
-    const inp = await waitFor(() => { const i = document.querySelector('input[name="form.PurchaseOrderOfAsap"]'); return visible(i) ? i : null; }, 10000, 'the PO box');
-    setVal(inp, value);
+    // The PO only takes once the address is saved (owner, 2026-11-09), and it
+    // is typed like the address, not set.
+    const inp = await waitFor(() => { const i = document.querySelector('input[name="form.PurchaseOrderOfAsap"]'); return visible(i) && !i.disabled && !i.readOnly ? i : null; }, 15000, 'the PO box');
+    typeInto(inp, value);
+    await sleep(300);
+    if (inp.value !== value) throw new Error('The PO did not take; type ' + value + ' into Purchase Order # by hand');
   }
 
   // RESUMABLE. Agreeing to HOKA's B2B2C terms RELOADS the cart page (seen on
@@ -182,10 +219,15 @@
         job.done.push('Items: ' + u.got + ' of ' + u.want + ' pair' + (u.want === 1 ? '' : 's') + ' in the cart');
         job.step = 'items'; await save(job);
       }
+      if (job.step === 'saving') {
+        // The page reloaded while the address was being saved: it is saved.
+        job.done.push('Drop-ship address: ' + job.address.firstName + ' ' + job.address.lastName + ', ' + job.address.city + ' ' + job.address.state);
+        job.step = 'address'; await save(job);
+      }
       if (job.step === 'items') {
         if (job.address) {
           show('Filling the drop-ship address...');
-          await address(job.address);
+          await address(job.address, async () => { job.step = 'saving'; await save(job); });
           job.done.push('Drop-ship address: ' + job.address.firstName + ' ' + job.address.lastName + ', ' + job.address.city + ' ' + job.address.state);
         } else {
           job.done.push(job.international ? 'International order: no drop-ship address, so HOKA ships to the store' : 'No address on the order: drop-ship address left off');
