@@ -32,7 +32,7 @@
   const ME = Math.random().toString(36).slice(2);
   const save = (job) => chrome.storage.local.set({ rhPrepJob: job });
   const text = () => document.body.innerText || '';
-  const where = () => /re-order\/product-selection/.test(location.pathname) ? 'select' : /re-order\/matrix/.test(location.pathname) ? 'matrix' : /\/edit\/draft\/submit/.test(location.pathname) ? 'checkout' : 'other';
+  const where = () => /re-order\/product-selection/.test(location.pathname) ? 'select' : /\/matrix\/?$/.test(location.pathname) ? 'matrix' : /\/edit\/draft\/submit/.test(location.pathname) ? 'checkout' : 'other';
 
   const modelOf = P.onModel, articleOf = P.onArticle, sizeOf = P.onSize;
 
@@ -96,6 +96,14 @@
   async function fillMatrix(job) {
     await waitFor(() => document.querySelectorAll('input[type=number]').length > 0, 25000, 'the quantity grid to load');
     await sleep(800);
+    // ON may REOPEN an open draft instead of starting a new re-order: a run on
+    // 2026-11-09 landed on /orders/<id>/edit/draft/matrix with the previous
+    // order's pair still in it. Typing this order's pairs there would put two
+    // customers into one supplier order, so a grid holding anything other
+    // than exactly this order's own pairs is refused, like HOKA's cart.
+    const ours = new Map(job.lines.map((l) => [boxFor(l), l.qty]).filter(([el]) => el));
+    const foreign = [...document.querySelectorAll('input[type=number]')].filter((i) => +i.value > 0 && ours.get(i) !== +i.value);
+    if (foreign.length) throw new Error('This ON draft already holds ' + foreign.length + ' other size(s), probably an earlier order. Submit or delete that draft in My orders first, then press Prep again');
     const missing = [];
     for (const l of job.lines) {
       const el = boxFor(l);
