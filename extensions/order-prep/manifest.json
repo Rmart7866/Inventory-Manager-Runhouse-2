@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Run House Order Prep",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Sets up a supplier cart for a dropship order (items, ship-to address, PO) from the Late orders page. Never submits an order.",
   "permissions": ["storage"],
   "background": { "service_worker": "background.js" },
