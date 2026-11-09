@@ -82,6 +82,23 @@
     box.querySelector('button').onclick = () => box.remove();
   }
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // "1171926-BSSM-08.5B" -> "1171926-BSSM", the style-colour code HOKA's cart shows.
+  const styleOf = (sku) => { const m = /^(\d{6,8}-[A-Z0-9]{2,6})-/i.exec(String(sku || '')); return m ? m[1].toUpperCase() : ''; };
+  // A question in the banner with one button. Resolves true on the button,
+  // false on Close or after 5 minutes. The PERSON presses it, not the prep.
+  function ask(lines, label) {
+    banner(lines, 'bad');
+    return new Promise((resolve) => {
+      const yes = document.createElement('button');
+      yes.type = 'button'; yes.textContent = label;
+      yes.style.cssText = 'margin:8px 8px 0 0;background:#4c9bff;border:0;color:#0b1220;font-weight:700;padding:5px 12px;cursor:pointer';
+      const close = box.querySelector('button');
+      box.insertBefore(yes, close);
+      const t = setTimeout(() => resolve(false), 5 * 60 * 1000);
+      yes.onclick = () => { clearTimeout(t); resolve(true); };
+      close.onclick = () => { clearTimeout(t); box.remove(); box = null; resolve(false); };
+    });
+  }
 
   // ---------- steps ----------
   async function upload(job) {
@@ -207,12 +224,28 @@
     try {
       show(job.step && job.step !== 'start' ? 'Carrying on after the page reloaded...' : 'Waiting for the cart to load...');
       await waitFor(() => /ORDER SETTING/i.test(pageText()) && (cartEmpty() || cartCounts()), 30000, 'the cart to load');
-      if (!job.step || job.step === 'start') {
-        if (!cartEmpty()) {
-          clearInterval(beat); await chrome.storage.local.remove('rhPrepJob');
-          banner(['<b>Nothing was done.</b> The HOKA cart already has items, so ' + esc(job.po) + ' was not added, to keep two orders from mixing.', 'Save or clear that cart yourself, then press Prep in HOKA again.'], 'bad');
-          return;
+      if ((!job.step || job.step === 'start') && !cartEmpty()) {
+        // Items already in the cart. Often they ARE this order's, left by an
+        // earlier run that stopped after the upload (owner, 2026-11-09), so
+        // that is recognised: the same style-colour codes, product count and
+        // pair count. Anything else is shown to a person, who carries on or
+        // stops; the prep never mixes two orders on its own.
+        const c = cartCounts();
+        const styles = [...new Set(job.lines.map((l) => styleOf(l.sku)).filter(Boolean))];
+        const want = job.lines.reduce((a, l) => a + l.qty, 0);
+        const ours = c && styles.length && c.units === want && c.products === styles.length && styles.every((s) => pageText().includes(s));
+        if (ours) {
+          job.done.push('Items: already in the cart from the last run (' + want + ' pair' + (want === 1 ? '' : 's') + ')');
+          job.step = 'items'; await save(job);
+        } else {
+          const go = await ask(['The HOKA cart already has <b>' + (c ? c.products + ' product' + (c.products === 1 ? '' : 's') + ', ' + c.units + ' pair' + (c.units === 1 ? '' : 's') : 'items') + '</b>.',
+            'If those are <b>' + esc(job.po) + '</b>\'s shoes, carry on and the prep fills the address and PO. If they belong to another order, close this and save or clear that cart first.'], 'Carry on with what is in the cart');
+          if (!go) { clearInterval(beat); await chrome.storage.local.remove('rhPrepJob'); banner(['Stopped. Nothing was changed for ' + esc(job.po) + '.'], 'bad'); return; }
+          job.done.push('Items: kept what was in the cart (checked by a person)');
+          job.step = 'items'; await save(job);
         }
+      }
+      if (!job.step || job.step === 'start') {
         show('Adding ' + job.lines.length + ' item' + (job.lines.length === 1 ? '' : 's') + ' by UPC...');
         const u = await upload(job);
         job.short = u.got < u.want ? { got: u.got, want: u.want } : null;

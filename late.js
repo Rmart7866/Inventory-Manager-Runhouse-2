@@ -177,7 +177,7 @@ var LO = {
                 };
                 window.postMessage({ source: 'rh-staff', type: 'order-prep', job: {
                     supplier: 'hoka', po: p.po, name: p.name, international: p.international, address: p.address,
-                    lines: lines.map(function (l) { return { upc: l.upc, qty: l.qty, title: l.title, variant: l.variant }; }),
+                    lines: lines.map(function (l) { return { upc: l.upc, qty: l.qty, sku: l.sku, title: l.title, variant: l.variant }; }),
                 } }, location.origin);
             })
             .catch(function (e) { restore(); LO.toast('Could not prepare: ' + e.message); });
