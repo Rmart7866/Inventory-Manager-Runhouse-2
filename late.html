@@ -53,6 +53,10 @@ select, .tile select { background: var(--surface-2); border: 1px solid var(--lin
 .items { margin: 4px 0 0; padding: 0; list-style: none; font-size: 14px; }
 .items li { color: var(--muted); }
 .info { margin-top: 6px; font-size: 13.5px; }
+.mark { font-size: 12px; font-weight: 700; padding: 1px 7px; border: 1px solid currentColor; white-space: nowrap; }
+.mark.ok { color: var(--ok); }
+.mark.no { color: var(--muted-2); font-weight: 600; }
+.mark.intl { color: var(--warn); }
 .info .held { color: var(--warn); }
 .info .seen { color: var(--ok); }
 .note { margin-top: 6px; font-size: 13.5px; background: var(--surface-2); padding: 6px 8px; border-left: 2px solid var(--accent); }
@@ -100,6 +104,6 @@ select, .tile select { background: var(--surface-2); border: 1px solid var(--lin
 <div class="toast hidden" id="toast" role="status"></div>
 
 <script src="catalog-client.js?v=23"></script>
-<script src="late.js?v=4"></script>
+<script src="late.js?v=5"></script>
 </body>
 </html>

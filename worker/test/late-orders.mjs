@@ -1,5 +1,5 @@
 // Late orders: only lines still open at Needham count as waiting on a supplier.
-import { openNeedhamLines, shapePrep } from '../src/late-orders.js';
+import { openNeedhamLines, shapePrep, orderedMarker } from '../src/late-orders.js';
 
 let failures = 0;
 const check = (name, ok) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name); if (!ok) failures++; };
@@ -18,6 +18,13 @@ check('an open Needham line with something left to ship', rows.some((r) => r.ven
 check('a line already shipped in full does not', !rows.some((r) => r.vendor === 'Brooks'));
 check('a shop line is not a supplier wait', rows.filter((r) => r.vendor === 'HOKA').length === 1);
 check('a closed fulfillment order does not, an in progress one does', !rows.some((r) => r.vendor === 'ASICS') && rows.some((r) => r.vendor === 'ON Running' && r.qty === 2));
+
+console.log('\nAlready ordered: the PO posted as a timeline comment');
+const C = (text, at = '2026-11-09T10:00:00Z') => ({ __typename: 'CommentEvent', createdAt: at, rawMessage: text });
+check('a comment holding this order\'s PO marks it ordered', orderedMarker('#93307', [C('93307_Smith')]).text === '93307_Smith');
+check('upper case and extra words are fine', !!orderedMarker('#93307', [C('ordered HOKA 93307_SMITH thx')]));
+check('another order\'s PO does not count, nor a longer number', !orderedMarker('#93307', [C('93308_Smith'), C('193307_Smith')]));
+check('a comment without the PO does not count, nor a non comment event', !orderedMarker('#93307', [C('called customer'), { __typename: 'BasicEvent', message: '93307_Smith' }]));
 
 console.log('\nOrder prep for a supplier cart');
 const PL = (vendor, qty, upc) => ({ remainingQuantity: qty, lineItem: { vendor, title: vendor + ' shoe', variantTitle: '9', sku: 'S-' + vendor, variant: { barcode: upc } } });

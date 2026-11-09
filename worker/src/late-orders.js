@@ -40,7 +40,26 @@ const Q = `query($c:String, $q:String){ orders(first: 50, after:$c, sortKey: CRE
   nodes{ id name createdAt test
     shippingAddress{ lastName countryCodeV2 } billingAddress{ lastName }
     fulfillmentOrders(first: 10){ nodes{ status assignedLocation{ location{ id } }
-      lineItems(first: 30){ nodes{ remainingQuantity lineItem{ vendor title variantTitle } } } } } } } }`;
+      lineItems(first: 30){ nodes{ remainingQuantity lineItem{ vendor title variantTitle } } } } }
+    events(first: 20, sortKey: CREATED_AT, reverse: true){ nodes{ __typename createdAt ... on CommentEvent { rawMessage } } } } } }`;
+
+// ALREADY ORDERED WITH THE SUPPLIER. Staff mark it by posting the PO as a
+// timeline COMMENT on the order (owner, 2026-11-09), e.g. "93307_Smith".
+// Read off the live store: 5 of 16 recent dropship orders carried exactly
+// that, and the order NOTE field is not used for it (1 note in 54). The
+// comment's author needs read_users, which this app does not have and does
+// not need. The newest 20 events are read, newest first. Pure.
+export function orderedMarker(name, events) {
+  const num = String(name || '').replace(/^#/, '');
+  if (!num) return null;
+  const re = new RegExp('(^|[^0-9])' + num + '_', 'i');
+  for (const e of events || []) {
+    if (e.__typename !== 'CommentEvent') continue;
+    const text = String(e.rawMessage || '');
+    if (re.test(text)) return { at: e.createdAt, text: text.trim().slice(0, 80) };
+  }
+  return null;
+}
 
 // GET /orders/late  (staff, write secret)
 export async function handleLateOrders(request, env) {
@@ -64,6 +83,7 @@ export async function handleLateOrders(request, env) {
         po: num + (last ? '_' + last.replace(/\s+/g, '') : ''),
         country: (o.shippingAddress && o.shippingAddress.countryCodeV2) || '',
         brands: [...new Set(items.map((i) => i.vendor).filter(Boolean))], items,
+        ordered: orderedMarker(o.name, o.events && o.events.nodes),
       });
     }
     cursor = r.data.orders.pageInfo.hasNextPage ? r.data.orders.pageInfo.endCursor : null;

@@ -66,7 +66,8 @@ var LO = {
 
     shown: function () {
         return LO.st.rows.filter(function (r) {
-            return (LO.st.filter === 'all' || LO.isLate(r)) && (!LO.st.brand || r.brands.some(function (b) { return LO.key(b) === LO.st.brand; }));
+            var pass = LO.st.filter === 'all' || (LO.st.filter === 'notordered' ? !r.ordered : LO.isLate(r));
+            return pass && (!LO.st.brand || r.brands.some(function (b) { return LO.key(b) === LO.st.brand; }));
         });
     },
 
@@ -75,7 +76,8 @@ var LO = {
         LO.$('n-late').textContent = late.length;
         LO.$('n-all').textContent = rows.length;
         LO.$('asof').textContent = 'Updated ' + new Date(LO.st.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-        LO.$('filters').innerHTML = [['late', 'Late (' + late.length + ')'], ['all', 'All waiting (' + rows.length + ')']].map(function (f) {
+        var notOrdered = rows.filter(function (r) { return !r.ordered; });
+        LO.$('filters').innerHTML = [['late', 'Late (' + late.length + ')'], ['notordered', 'Not ordered yet (' + notOrdered.length + ')'], ['all', 'All waiting (' + rows.length + ')']].map(function (f) {
             return '<button type="button" class="chip' + (LO.st.filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' + f[1] + '</button>';
         }).join('');
         LO.$('filters').querySelectorAll('[data-f]').forEach(function (b) { b.onclick = function () { LO.st.filter = b.dataset.f; LO.draw(); }; });
@@ -109,7 +111,9 @@ var LO = {
               '<div class="head"><a href="https://admin.shopify.com/store/therunhouse/orders/' + LO.esc(r.id) + '" target="_blank" rel="noopener"><b>' + LO.esc(r.name) + '</b></a>' +
                 '<span class="brand">' + LO.esc(LO.brandOf(r)) + '</span>' +
                 '<span class="po">PO ' + LO.esc(r.po) + '</span> <button type="button" class="chip small" data-copy="' + LO.esc(r.po) + '">Copy</button>' +
-                '<span class="sub">ordered ' + LO.esc(LO.when(r.at)) + (r.country && r.country !== 'US' ? ', ships to ' + LO.esc(r.country) : '') + '</span></div>' +
+                '<span class="sub">ordered ' + LO.esc(LO.when(r.at)) + '</span>' +
+                (r.ordered ? '<span class="mark ok" title="' + LO.esc('Comment: ' + r.ordered.text) + '">✓ Ordered with supplier ' + LO.esc(LO.when(r.ordered.at)) + '</span>' : '<span class="mark no">Not ordered yet</span>') +
+                (r.country && r.country !== 'US' ? '<span class="mark intl" title="International orders ship to the store first">International · ' + LO.esc(r.country) + '</span>' : '') + '</div>' +
               '<ul class="items">' + r.items.map(function (i) { return '<li>' + LO.esc(i.title) + (i.variant ? ' / ' + LO.esc(i.variant) : '') + (i.qty > 1 ? ' ×' + i.qty : '') + '</li>'; }).join('') + '</ul>' +
               '<div class="info">' + mail + '</div>' +
               (c ? '<div class="note">' + LO.esc(c.note) + '<div class="who">' + LO.esc(c.by || 'Someone') + ', ' + LO.esc(LO.when(c.at)) + (c.n > 1 ? ' · ' + c.n + ' notes' : '') + '</div></div>' : '') +
@@ -160,6 +164,12 @@ var LO = {
     },
     prep: function (b) {
         if (!LO.st.prepExt) { LO.toast('Install the Run House Order Prep extension first (extensions/order-prep in the repo).'); return; }
+        var row = LO.st.rows.filter(function (x) { return x.id === b.dataset.prep; })[0];
+        if (row && row.ordered && b.dataset.armed !== '1') {
+            b.dataset.armed = '1'; b.textContent = 'Already ordered. Prep again?';
+            LO.toast('This order already has its PO in a comment, so it was ordered. Press again only to order it a second time.');
+            return;
+        }
         b.disabled = true; var label = b.textContent; b.textContent = 'Preparing...';
         var restore = function () { b.disabled = false; b.textContent = label; };
         fetch(CatalogClient._writeBase() + '/orders/prep?id=' + encodeURIComponent(b.dataset.prep), { headers: LO.H() })
