@@ -1,7 +1,21 @@
 # Run House Order Prep
 
-Sets up a supplier cart for one dropship order, from the **Late orders** page,
-and stops before anything is ordered. HOKA only for now.
+Sets up a supplier order for one dropship order, from the **Late orders** page,
+and stops before anything is ordered. **HOKA** and **ON**.
+
+## ON (Prep in ON)
+
+The path staff use: Start a re-order, then a One time address.
+
+1. opens ON's re-order product selection and ticks each model on the order;
+2. Continue, then types each pair into its box on the quantity grid (by the
+   barcode when ours is ON's EAN, otherwise by article code and size from the SKU);
+   a size with no box is out of stock and is listed, not guessed;
+3. Continue, and Continue on "some items have no quantities" (only the empty colours go);
+   **ON saves a draft here**, in My orders;
+4. checkout: types the PO into PO Name (ON allows 20 characters), picks One time address,
+   fills it and saves the address (an international order keeps the Default address);
+5. **stops**: a person presses Submit order.
 
 Pressing **Prep in HOKA** on an order:
 
@@ -32,3 +46,4 @@ You must already be logged in to HOKA's B2B site in the same Chrome.
 
     node extensions/order-prep/test/xlsx.mjs           # the spreadsheet opens, UPCs stay text
     node extensions/order-prep/test/never-submits.mjs  # every click goes through the guard
+    node extensions/order-prep/test/on.mjs             # ON: our line to ON's grid, and the guard

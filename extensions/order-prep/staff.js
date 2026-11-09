@@ -12,10 +12,12 @@
   // least one line with a UPC and a whole quantity.
   function valid(job) {
     if (!job || typeof job !== 'object') return false;
-    if (job.supplier !== 'hoka') return false;
+    if (job.supplier !== 'hoka' && job.supplier !== 'on') return false;
     if (typeof job.po !== 'string' || !job.po) return false;
     if (!Array.isArray(job.lines) || !job.lines.length) return false;
-    return job.lines.every((l) => /^\d{8,14}$/.test(String(l.upc || '')) && Number.isInteger(l.qty) && l.qty > 0 && l.qty < 50);
+    // HOKA finds a shoe by UPC; ON by its EAN, or by article code and size.
+    const findable = (l) => job.supplier === 'hoka' ? /^\d{8,14}$/.test(String(l.upc || '')) : (/^\d{13}$/.test(String(l.upc || '')) || /^ON-[0-9A-Z]{11}-/i.test(String(l.sku || '')));
+    return job.lines.every((l) => findable(l) && Number.isInteger(l.qty) && l.qty > 0 && l.qty < 50);
   }
 
   window.addEventListener('message', (e) => {
@@ -25,7 +27,7 @@
     if (m.type === 'ping') return hello();
     if (m.type !== 'order-prep') return;
     if (!valid(m.job)) {
-      window.postMessage({ source: 'rh-order-prep', type: 'ack', ok: false, error: 'That order cannot be prepped: a line has no UPC.' }, location.origin);
+      window.postMessage({ source: 'rh-order-prep', type: 'ack', ok: false, error: 'That order cannot be prepped: a line cannot be matched to the supplier.' }, location.origin);
       return;
     }
     chrome.storage.local.set({ rhPrepJob: { ...m.job, state: 'pending', at: Date.now() } }, () => {

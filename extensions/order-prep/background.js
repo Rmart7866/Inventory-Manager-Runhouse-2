@@ -7,6 +7,8 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 const CARTS = {
   hoka: { url: 'https://hokaus.deckersb2b.deckers.com/order-center/#/orderCenter/shoppingCar', match: 'https://hokaus.deckersb2b.deckers.com/*' },
+  // ON has no cart: a dropship order starts as a re-order (owner, 2026-11-09).
+  on: { url: 'https://backstage.on-running.com/orders/create/re-order/product-selection', match: 'https://backstage.on-running.com/*' },
 };
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {

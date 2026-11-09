@@ -122,7 +122,9 @@ var LO = {
                 '<div class="btns"><button type="button" class="chip on" id="note-save">Save note</button><button type="button" class="chip" id="note-cancel">Cancel</button></div></div>' : '') +
             '</div>' +
             '<div class="act">' + (open ? '' : '<button type="button" class="chip" data-note="' + LO.esc(r.id) + '">Add note</button>') +
-              (r.brands.some(function (b) { return LO.key(b) === 'hoka'; }) ? '<button type="button" class="chip" style="margin-top:6px;display:block" data-prep="' + LO.esc(r.id) + '" title="Opens HOKA\'s cart with these HOKA items, the ship-to address and the PO filled in. You check it and press Submit yourself.">Prep in HOKA</button>' : '') + '</div>' +
+              LO.SUPPLIERS.filter(function (s) { return r.brands.some(function (b) { return s.is(LO.key(b)); }); }).map(function (s) {
+                  return '<button type="button" class="chip" style="margin-top:6px;display:block" data-prep="' + LO.esc(r.id) + '" data-supplier="' + s.key + '" title="Opens ' + s.name + ' with this order\'s ' + s.name + ' items, the ship-to address and the PO filled in. You check it and submit it yourself.">Prep in ' + s.name + '</button>';
+              }).join('') + '</div>' +
         '</div>';
     },
 
@@ -153,7 +155,14 @@ var LO = {
             .catch(function (e) { btn.disabled = false; btn.textContent = 'Save note'; LO.toast('Not saved: ' + e.message); });
     },
 
-    // ---------- Prep in HOKA ----------
+    // ---------- Prep in HOKA / ON ----------
+    // Which order lines each supplier takes, and how each finds a shoe: HOKA
+    // by UPC (its spreadsheet upload), ON by its EAN or by article code and
+    // size from our SKU (its quantity grid).
+    SUPPLIERS: [
+        { key: 'hoka', name: 'HOKA', is: function (k) { return k === 'hoka'; }, findable: function (l) { return /^\d{8,14}$/.test(l.upc); }, why: 'has no UPC in Shopify' },
+        { key: 'on', name: 'ON', is: function (k) { return k === 'on running' || k === 'on'; }, findable: function (l) { return /^\d{13}$/.test(l.upc) || /^ON-[0-9A-Z]{11}-/i.test(l.sku || ''); }, why: 'has neither an ON barcode nor an ON SKU in Shopify' },
+    ],
     // Hands one order to the Run House Order Prep extension, which opens
     // HOKA's cart and fills items, address and PO, then stops for a person to
     // submit. Only the order's HOKA lines are sent.
@@ -176,17 +185,18 @@ var LO = {
             .then(function (r) { return r.json(); })
             .then(function (p) {
                 if (p.error) { restore(); LO.toast(p.error); return; }
-                var lines = p.lines.filter(function (l) { return LO.key(l.vendor) === 'hoka'; });
-                var noUpc = lines.filter(function (l) { return !/^\d{8,14}$/.test(l.upc); });
-                if (!lines.length) { restore(); LO.toast('No open HOKA items on ' + p.name); return; }
-                if (noUpc.length) { restore(); LO.toast(noUpc[0].title + ' has no UPC in Shopify, so it cannot be uploaded. Add it by hand.'); return; }
+                var sup = LO.SUPPLIERS.filter(function (s) { return s.key === (b.dataset.supplier || 'hoka'); })[0];
+                var lines = p.lines.filter(function (l) { return sup.is(LO.key(l.vendor)); });
+                var noUpc = lines.filter(function (l) { return !sup.findable(l); });
+                if (!lines.length) { restore(); LO.toast('No open ' + sup.name + ' items on ' + p.name); return; }
+                if (noUpc.length) { restore(); LO.toast(noUpc[0].title + ' ' + sup.why + ', so it cannot be prepped. Add it by hand.'); return; }
                 var timer = setTimeout(function () { LO._ack = null; restore(); LO.toast('The extension did not answer. Reload this page and try again.'); }, 4000);
                 LO._ack = function (a) {
                     clearTimeout(timer); LO._ack = null; restore();
-                    LO.toast(a.ok ? 'Opening HOKA for ' + p.po + '. Check the cart, then submit it yourself.' : (a.error || 'The extension refused that order.'));
+                    LO.toast(a.ok ? 'Opening ' + sup.name + ' for ' + p.po + '. Check it, then submit it yourself.' : (a.error || 'The extension refused that order.'));
                 };
                 window.postMessage({ source: 'rh-staff', type: 'order-prep', job: {
-                    supplier: 'hoka', po: p.po, name: p.name, international: p.international, address: p.address,
+                    supplier: sup.key, po: p.po, name: p.name, international: p.international, address: p.address,
                     lines: lines.map(function (l) { return { upc: l.upc, qty: l.qty, sku: l.sku, title: l.title, variant: l.variant }; }),
                 } }, location.origin);
             })
