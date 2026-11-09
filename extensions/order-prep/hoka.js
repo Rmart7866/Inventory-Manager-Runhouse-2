@@ -26,7 +26,10 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 (function () {
   const MAX_AGE = 15 * 60 * 1000;
-  const FORBIDDEN = /submit|save as draft|clear all|place order/i;
+  // "I agree" too: switching on the drop-ship address can bring up HOKA's
+  // B2B2C Terms and Conditions (seen 2026-11-09), and agreeing to terms is a
+  // person's decision, never the system's.
+  const FORBIDDEN = /submit|save as draft|clear all|place order|\bagree\b/i;
   const STATES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'Washington DC', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -44,7 +47,8 @@
     if (!el) throw new Error('Could not find ' + what);
     const text = (el.innerText || el.textContent || el.value || '').trim();
     if (FORBIDDEN.test(text)) throw new Error('Refused to press "' + text + '": order prep never submits');
-    el.click();
+    // An SVG icon has no .click(); a real click event reaches the same handler.
+    if (typeof el.click === 'function') el.click(); else el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
   }
   function setVal(el, v) {
     const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
@@ -80,8 +84,11 @@
   // ---------- steps ----------
   async function upload(job) {
     const units = job.lines.reduce((a, l) => a + l.qty, 0);
-    const nav = await waitFor(() => [...document.querySelectorAll('div,span,p,a,li')].find((e) => visible(e) && e.childElementCount === 0 && e.textContent.trim() === 'Upload' && !e.closest('.el-dialog')), 15000, 'the Upload button');
-    safeClick(nav.parentElement || nav, 'the Upload button');
+    // The top bar's Upload is a div.nav-icon_text holding an icon and the word.
+    // Only the ICON opens the box: a click on the word or its wrapper does
+    // nothing (found on the first real run, 2026-11-09).
+    const label = await waitFor(() => [...document.querySelectorAll('span.text')].find((e) => visible(e) && e.textContent.trim() === 'Upload' && !e.closest('.el-dialog')), 15000, 'the Upload button');
+    safeClick(label.parentElement.querySelector('svg') || label.parentElement, 'the Upload icon');
     const dlg = await waitFor(() => [...document.querySelectorAll('.el-dialog')].find((d) => visible(d) && /Change Upload Type/.test(d.innerText)), 10000, 'the Upload box');
     safeClick(dlg.querySelector('.el-select input'), 'the upload type box');
     const opt = await waitFor(() => [...document.querySelectorAll('.el-select-dropdown__item')].find((i) => visible(i) && /UPC\s*&\s*Quantity/i.test(i.textContent)), 5000, 'the UPC & Quantity option');
@@ -103,6 +110,15 @@
   async function address(a) {
     const sw = await waitFor(() => [...document.querySelectorAll('.el-switch')].find((s) => /One-time Deliver To/i.test(s.parentElement.innerText)), 10000, 'the drop-ship switch');
     if (!sw.classList.contains('is-checked')) safeClick(sw, 'the drop-ship switch');
+    // HOKA may ask for its B2B2C terms first. A PERSON agrees, or cancels.
+    const termsOpen = () => [...document.querySelectorAll('.el-dialog')].find((d) => visible(d) && /TERMS AND CONDITIONS/i.test(d.innerText));
+    await sleep(1200);
+    if (termsOpen()) {
+      banner(['<b>Your turn:</b> HOKA wants you to agree to its B2B2C terms before using a drop-ship address. Read them and press <b>I agree</b> yourself, and the prep carries on. Cancel stops it here.'], 'bad');
+      await waitFor(() => !termsOpen(), 5 * 60 * 1000, 'the terms to be answered');
+      await sleep(800);
+      if (!sw.classList.contains('is-checked')) throw new Error('The terms were cancelled, so no drop-ship address was set');
+    }
     const field = (n) => document.querySelector('input[name="districtInfo.' + n + '"]');
     await waitFor(() => visible(field('firstName')), 5000, 'the drop-ship form');
     const filled = { firstName: a.firstName, lastName: a.lastName, phone: a.phone, street1: a.street1, street2: a.street2, city: a.city, zip: a.zip };
