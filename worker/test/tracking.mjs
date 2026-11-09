@@ -53,6 +53,11 @@ const anon = parseShipEmail({ from: 'ship@wolverine.com', body: '93307_Smith 1Z9
 check('unknown sender, one brand open: ships it', decide(anon, ord({ fulfillmentOrders: [FO('FO1', NEEDHAM, [L('s', 'Saucony', 2)])] }), NEEDHAM).status === 'ready');
 check('unknown sender, two brands open: review', decide(anon, mixed, NEEDHAM).status === 'review');
 
+console.log('\nInternational orders');
+const intl = decide(hoka, ord({ shippingAddress: { lastName: 'Smith', countryCodeV2: 'MX' }, fulfillmentOrders: mixed.fulfillmentOrders }), NEEDHAM);
+check('an order shipping abroad is never given the supplier tracking, even when everything else matches', intl.status === 'skip' && /MX/.test(intl.reason) && !intl.groups.length);
+check('a US order still goes through', decide(hoka, ord({ shippingAddress: { lastName: 'Smith', countryCodeV2: 'US' }, fulfillmentOrders: mixed.fulfillmentOrders }), NEEDHAM).status === 'ready');
+
 console.log('\nIn-store special orders');
 const POS = (o) => ord({ sourceName: 'pos', shippingAddress: null, billingAddress: null, email: 'jsmith77@example.com', fulfillmentOrders: [], ...o });
 const tillF = (id, lines, trk = []) => ({ id, status: 'SUCCESS', trackingInfo: trk, lineItems: lines });

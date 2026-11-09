@@ -201,7 +201,7 @@ function decideInStore(parsed, order, po, opts, review) {
 }
 
 // What to do with one parsed email and its order. Pure, so the test drives
-// every refusal. Returns { status: 'ready' | 'already' | 'review', reason, groups }.
+// every refusal. Returns { status: 'ready' | 'already' | 'review' | 'skip', reason, groups }.
 export function decide(parsed, order, needhamId, opts = {}) {
   const review = (reason) => ({ status: 'review', reason, groups: [] });
   if (parsed.pos.length !== 1) return review(parsed.pos.length ? 'More than one PO in this email (' + parsed.pos.map((p) => p.order + '_' + p.last).join(', ') + '), so the tracking cannot be matched to one order' : 'No PO found');
@@ -209,6 +209,12 @@ export function decide(parsed, order, needhamId, opts = {}) {
   const po = parsed.pos[0];
   if (!order) return review('No order #' + po.order);
   if (order.cancelledAt) return review('Order ' + order.name + ' is cancelled');
+  // INTERNATIONAL ORDERS GO TO THE STORE FIRST (owner, 2026-11-09): the
+  // supplier ships to us and we ship abroad, so the supplier's tracking only
+  // covers the leg to the store and is never the customer's. Not applied,
+  // nothing to press. Anything not shipping to the US counts.
+  const country = order.shippingAddress && order.shippingAddress.countryCodeV2;
+  if (country && country !== 'US') return { status: 'skip', reason: order.name + ' ships to ' + country + ': international orders come to the store first, so this tracking is not the customer\'s and was not applied', groups: [] };
   const onOrder = new Set();
   for (const f of order.fulfillments || []) for (const t of f.trackingInfo || []) if (t.number) onOrder.add(String(t.number).toUpperCase());
   if (parsed.tracking.every((t) => onOrder.has(t.number))) return { status: 'already', reason: 'Tracking already on ' + order.name, groups: [] };
@@ -240,7 +246,7 @@ export function decide(parsed, order, needhamId, opts = {}) {
 }
 
 const ORDER_Q = `query($q:String){ orders(first: 5, query:$q){ nodes{ id name cancelledAt sourceName email
-  shippingAddress{ lastName } billingAddress{ lastName }
+  shippingAddress{ lastName countryCodeV2 } billingAddress{ lastName }
   fulfillments{ id status trackingInfo{ number } fulfillmentLineItems(first: 50){ nodes{ quantity lineItem{ vendor title } } } }
   fulfillmentOrders(first: 20){ nodes{ id status assignedLocation{ location{ id } }
     lineItems(first: 50){ nodes{ id remainingQuantity lineItem{ vendor title } } } } } } } }`;

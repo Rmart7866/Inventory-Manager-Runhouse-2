@@ -8,8 +8,8 @@ var TK = {
     $: function (id) { return document.getElementById(id); },
     esc: function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); },
     H: function () { return { Authorization: 'Bearer ' + CatalogClient.CATALOG_TOKEN, 'X-Write-Secret': CatalogClient.writeSecret(), 'Content-Type': 'application/json' }; },
-    LABEL: { review: 'Needs a person', ready: 'Would add', written: 'Added', already: 'Already on order', error: 'Failed' },
-    FILTERS: [['attention', 'Needs attention'], ['written', 'Added'], ['all', 'All']],
+    LABEL: { review: 'Needs a person', ready: 'Would add', written: 'Added', already: 'Already on order', error: 'Failed', skip: 'Not applied' },
+    FILTERS: [['attention', 'Needs attention'], ['written', 'Added'], ['skip', 'International'], ['all', 'All']],
     // What staff did, from the Worker's reconcile, and whether the rules were right.
     TRUTH: {
         'match': ['Staff did the same', true], 'left-alone': ['Staff did not use it', true],
