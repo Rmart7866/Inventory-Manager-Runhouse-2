@@ -40,19 +40,42 @@
   async function selectModels(job) {
     await waitFor(() => document.querySelectorAll('img').length > 5, 20000, 'the products to load');
     const models = [...new Set(job.lines.map((l) => modelOf(l.title)).filter(Boolean))];
+    const selected = () => +((/(\d+)\s*models?\s*selected/i.exec(text()) || [])[1] || 0);
+    // SEARCH, not scroll. The list lives in its own scrolling panel and loads
+    // as it scrolls, so a model further down is simply not there yet (a real
+    // run stopped on "Cloudswift 4", 2026-11-09). "Search for a product" opens
+    // a results panel ("1 Result"); ticking a card there selects the model,
+    // and Escape closes the panel. Scrolling the PANEL is the fallback.
     for (const m of models) {
+      const before = selected();
       let card = null;
-      for (let i = 0; i < 25 && !card; i++) {
-        card = [...document.querySelectorAll('button')].find((b) => visible(b) && b.innerText.trim() === m);
-        if (!card) { window.scrollBy(0, 1200); await sleep(700); }
+      try {
+        const open = [...document.querySelectorAll('button')].find((b) => visible(b) && /search for a product/i.test(b.getAttribute('aria-label') || ''));
+        let inp = [...document.querySelectorAll('input')].find((i) => visible(i) && /search for a product/i.test(i.placeholder || ''));
+        if (!inp && open) { safeClick(open, 'Search for a product'); inp = await waitFor(() => [...document.querySelectorAll('input')].find((i) => visible(i) && /search for a product/i.test(i.placeholder || '')), 5000, 'the search box'); }
+        if (inp) {
+          typeInto(inp, m);
+          inp.focus();
+          card = await waitFor(() => {
+            let e = inp; for (let k = 0; k < 8 && e; k++) { e = e.parentElement; if (e && /\d+\s*Results?/i.test(e.innerText || '')) break; }
+            return e && [...e.querySelectorAll('button')].find((b) => visible(b) && b.innerText.trim() === m);
+          }, 8000, m + ' in the search results');
+        }
+      } catch (e) { card = null; }
+      if (!card) {
+        const panel = [...document.querySelectorAll('section, div')].find((e) => { const s = getComputedStyle(e); return /(auto|scroll)/.test(s.overflowY) && e.scrollHeight > e.clientHeight + 50; });
+        for (let i = 0; i < 30 && !card; i++) {
+          card = [...document.querySelectorAll('button')].find((b) => visible(b) && b.innerText.trim() === m);
+          if (!card && panel) { panel.scrollBy(0, 1000); await sleep(600); }
+        }
       }
-      if (!card) throw new Error('Could not find the "' + m + '" model in the re-order list');
-      card.scrollIntoView({ block: 'center' });
+      if (!card) throw new Error('Could not find the "' + m + '" model in the re-order list; it may not be orderable this season');
       safeClick(card, 'the ' + m + ' card');
-      await sleep(500);
+      await waitFor(() => selected() > before, 4000, m + ' to show as selected');
+      const inp = [...document.querySelectorAll('input')].find((i) => visible(i) && /search for a product/i.test(i.placeholder || ''));
+      if (inp) { inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })); await sleep(500); }
     }
-    const n = await waitFor(() => { const x = /(\d+)\s*models?\s*selected/i.exec(text()); return x && +x[1] >= models.length ? +x[1] : null; }, 5000, models.length + ' models to show as selected');
-    window.scrollTo(0, 0);
+    const n = await waitFor(() => selected() >= models.length ? selected() : null, 5000, models.length + ' models to show as selected');
     safeClick([...document.querySelectorAll('button')].find((b) => visible(b) && b.innerText.trim() === 'Continue'), 'Continue');
     return { models, n };
   }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Run House Order Prep",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Sets up a supplier order (items, ship-to address, PO) for a dropship order from the Late orders page, on HOKA and ON. Never submits an order.",
   "permissions": [
     "storage"
