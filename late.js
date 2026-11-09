@@ -45,11 +45,24 @@ var LO = {
 
     when: function (iso) { var d = new Date(iso); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); },
     isLate: function (r) { return r.days > LO.limit(); },
-    brandOf: function (r) { return r.brands.join(' + ') || 'Unknown brand'; },
+    // The store spells some brands two ways ("ON Running", "On Running"), so
+    // a brand is its lower case name, shown in the spelling most rows use.
+    key: function (b) { return String(b || '').trim().toLowerCase(); },
+    names: function () {
+        var c = {};
+        LO.st.rows.forEach(function (r) { r.brands.forEach(function (b) { var k = LO.key(b); c[k] = c[k] || {}; c[k][b] = (c[k][b] || 0) + 1; }); });
+        var out = {};
+        Object.keys(c).forEach(function (k) { out[k] = Object.keys(c[k]).sort(function (a, b) { return c[k][b] - c[k][a]; })[0]; });
+        return out;
+    },
+    brandOf: function (r) {
+        var n = LO.st.names || {}, seen = {};
+        return r.brands.map(function (b) { return n[LO.key(b)] || b; }).filter(function (b) { return seen[b] ? false : (seen[b] = true); }).join(' + ') || 'Unknown brand';
+    },
 
     shown: function () {
         return LO.st.rows.filter(function (r) {
-            return (LO.st.filter === 'all' || LO.isLate(r)) && (!LO.st.brand || r.brands.indexOf(LO.st.brand) >= 0);
+            return (LO.st.filter === 'all' || LO.isLate(r)) && (!LO.st.brand || r.brands.some(function (b) { return LO.key(b) === LO.st.brand; }));
         });
     },
 
@@ -62,10 +75,11 @@ var LO = {
             return '<button type="button" class="chip' + (LO.st.filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' + f[1] + '</button>';
         }).join('');
         LO.$('filters').querySelectorAll('[data-f]').forEach(function (b) { b.onclick = function () { LO.st.filter = b.dataset.f; LO.draw(); }; });
+        LO.st.names = LO.names();
         var brands = {};
-        rows.forEach(function (r) { r.brands.forEach(function (b) { brands[b] = (brands[b] || 0) + 1; }); });
-        LO.$('brand').innerHTML = '<option value="">All brands</option>' + Object.keys(brands).sort().map(function (b) {
-            return '<option value="' + LO.esc(b) + '"' + (LO.st.brand === b ? ' selected' : '') + '>' + LO.esc(b) + ' (' + brands[b] + ')</option>';
+        rows.forEach(function (r) { var ks = {}; r.brands.forEach(function (b) { ks[LO.key(b)] = 1; }); Object.keys(ks).forEach(function (k) { brands[k] = (brands[k] || 0) + 1; }); });
+        LO.$('brand').innerHTML = '<option value="">All brands</option>' + Object.keys(brands).sort(function (a, b) { return LO.st.names[a].localeCompare(LO.st.names[b]); }).map(function (k) {
+            return '<option value="' + LO.esc(k) + '"' + (LO.st.brand === k ? ' selected' : '') + '>' + LO.esc(LO.st.names[k]) + ' (' + brands[k] + ')</option>';
         }).join('');
 
         var list = LO.shown();
