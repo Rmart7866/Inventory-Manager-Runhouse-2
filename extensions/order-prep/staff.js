@@ -12,11 +12,14 @@
   // least one line with a UPC and a whole quantity.
   function valid(job) {
     if (!job || typeof job !== 'object') return false;
-    if (job.supplier !== 'hoka' && job.supplier !== 'on') return false;
+    if (!['hoka', 'on', 'brooks'].includes(job.supplier)) return false;
     if (typeof job.po !== 'string' || !job.po) return false;
     if (!Array.isArray(job.lines) || !job.lines.length) return false;
-    // HOKA finds a shoe by UPC; ON by its EAN, or by article code and size.
-    const findable = (l) => job.supplier === 'hoka' ? /^\d{8,14}$/.test(String(l.upc || '')) : (/^\d{13}$/.test(String(l.upc || '')) || /^ON-[0-9A-Z]{11}-/i.test(String(l.sku || '')));
+    // HOKA finds a shoe by UPC; ON by its EAN, or by article code and size;
+    // Brooks by style, colour, size and width read off our SKU.
+    const findable = (l) => job.supplier === 'hoka' ? /^\d{8,14}$/.test(String(l.upc || ''))
+      : job.supplier === 'brooks' ? /^\d{6}\d*-\d{3}-\d+-[A-Z0-9]{1,2}$|^\d{6}\d[A-Z]\d{3}\.\d{3}$/i.test(String(l.sku || '').trim())
+      : (/^\d{13}$/.test(String(l.upc || '')) || /^ON-[0-9A-Z]{11}-/i.test(String(l.sku || '')));
     return job.lines.every((l) => findable(l) && Number.isInteger(l.qty) && l.qty > 0 && l.qty < 50);
   }
 

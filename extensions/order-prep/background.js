@@ -9,6 +9,8 @@ const CARTS = {
   hoka: { url: 'https://hokaus.deckersb2b.deckers.com/order-center/#/orderCenter/shoppingCar', match: 'https://hokaus.deckersb2b.deckers.com/*' },
   // ON has no cart: a dropship order starts as a re-order (owner, 2026-11-09).
   on: { url: 'https://backstage.on-running.com/orders/create/re-order/product-selection', match: 'https://backstage.on-running.com/*' },
+  // Brooks starts at the basket, which must be empty before anything is added.
+  brooks: { url: 'https://fasttrack.brooksrunning.com/basket', match: 'https://fasttrack.brooksrunning.com/*' },
 };
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {

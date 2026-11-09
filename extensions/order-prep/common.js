@@ -5,14 +5,19 @@
 // The rules here are the same ones hoka.js learned the hard way, 2026-11-09:
 //   - type, do not set: a value set straight onto a field fills it but the
 //     page does not see typing, so its Save stays grey;
-//   - every click goes through safeClick, which refuses Submit, Place order,
-//     Agree, Delete and Discard, so prep can never place or remove an order;
+//   - every click goes through safeClick, which refuses Submit, Place (order
+//     or basket), Agree, Delete, Discard, Clear and Validate, so prep can never
+//     place or remove an order;
 //   - the job is saved after each step with a heartbeat, so a page reload
 //     carries on instead of losing the run.
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 (function (root) {
-  const FORBIDDEN = /submit|place order|\bagree\b|delete|discard/i;
+  // Brooks names its submit "Step 2/2: Place basket" and its wipe "Clear
+  // basket", so "place" and "clear" are refused whole, not just "place order".
+  // "Validate availability" is Brooks' step 1 of 2 and is left to a person too,
+  // so prep never walks the basket up to its last button.
+  const FORBIDDEN = /submit|\bplace\b|\bagree\b|delete|discard|\bclear\b|validate/i;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const visible = (el) => !!(el && el.offsetParent && el.getBoundingClientRect().width > 0);
   async function waitFor(fn, ms, what) {
@@ -102,5 +107,28 @@
     return m[2] ? m[1] + '.5' : m[1];
   }
 
-  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, safePress, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize };
+  // ---------- Brooks: our SKU to FastTrack's grid ----------
+  // Two SKU dialects live on the store (see brooks-converter.js):
+  //   110478114-187-1450-D   style 110478 + suffix | colour 187 | 14.0 | D
+  //   1104782E187.140        style 110478 | 2E | colour 187 | 14.0
+  // The tool's size is whole + 50, or whole + 55 for the half: 1450 is 14.0,
+  // 1455 is 14.5. FastTrack's columns read "14.0", its widths "D", "2E".
+  // A SKU that does not decode returns null, never a guess.
+  function brooksLine(line) {
+    const s = String((line && line.sku) || '').trim().toUpperCase();
+    let style, colour, size, width;
+    let m = /^(\d{6})\d*-(\d{3})-(\d+)-([A-Z0-9]{1,2})$/.exec(s);
+    if (m) {
+      const whole = m[3].slice(0, -2), tail = m[3].slice(-2);
+      if (!whole || (tail !== '50' && tail !== '55')) return null;
+      style = m[1]; colour = m[2]; size = parseInt(whole, 10) + (tail === '55' ? 0.5 : 0); width = m[4];
+    } else if ((m = /^(\d{6})(\d[A-Z])(\d{3})\.(\d{3})$/.exec(s))) {
+      style = m[1]; width = m[2]; colour = m[3]; size = parseInt(m[4], 10) / 10;
+    } else return null;
+    if (!isFinite(size) || size <= 0) return null;
+    width = width.replace(/^1(?=[A-Z]$)/, '');
+    return { style, colour, size: size.toFixed(1), width, key: style + '-' + colour };
+  }
+
+  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, safePress, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize, brooksLine };
 })(typeof window !== 'undefined' ? window : globalThis);
