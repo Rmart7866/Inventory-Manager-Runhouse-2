@@ -1,6 +1,6 @@
 // Supplier shipping emails to tracking: what is read out of an email, and
 // every reason an email is sent to review instead of written.
-import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender, truthOf, isLive } from '../src/tracking.js';
+import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender, truthOf, isLive, brandOfTitle, emailHasName } from '../src/tracking.js';
 
 let failures = 0;
 const check = (name, ok) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name); if (!ok) failures++; };
@@ -31,7 +31,7 @@ check('two word last name: either word, or both run together', ['Martinez', 'GAR
 check('hyphenated too', lastNameMatches('Jones', ord({ shippingAddress: { lastName: 'Smith-Jones' }, billingAddress: null })));
 check('but a word of a ONE word name is not enough, nor a 2 letter word', !lastNameMatches('Mart', ord({ shippingAddress: { lastName: 'Garcia Martinez' }, billingAddress: null })) && !lastNameMatches('De', ord({ shippingAddress: { lastName: 'De Vries' }, billingAddress: null })));
 check('accents ignored, and an accented PO is read whole', lastNameMatches('Pena', ord({ shippingAddress: { lastName: 'Peña' } })) && parseShipEmail({ body: '93307_Peña 1Z999AA10123456784' }).pos[0].last === 'Peña');
-check('an in-store sale with no name says so, not "does not match"', /no name on it/.test(decide(hoka, ord({ shippingAddress: null, billingAddress: null, sourceName: 'pos', fulfillmentOrders: [] }), NEEDHAM).reason));
+check('an in-store sale says so, not "does not match"', /in-store sale/.test(decide(hoka, ord({ shippingAddress: null, billingAddress: null, sourceName: 'pos', fulfillmentOrders: [] }), NEEDHAM).reason));
 check('vendor spellings agree', vendorKey('On Running') === 'on' && vendorKey('ON Running') === 'on' && vendorKey('HOKA ONE ONE') === 'hoka');
 
 console.log('\nDeciding');
@@ -52,6 +52,23 @@ check('a closed fulfillment order is not reopened', decide(hoka, ord({ fulfillme
 const anon = parseShipEmail({ from: 'ship@wolverine.com', body: '93307_Smith 1Z999AA10123456784' });
 check('unknown sender, one brand open: ships it', decide(anon, ord({ fulfillmentOrders: [FO('FO1', NEEDHAM, [L('s', 'Saucony', 2)])] }), NEEDHAM).status === 'ready');
 check('unknown sender, two brands open: review', decide(anon, mixed, NEEDHAM).status === 'review');
+
+console.log('\nIn-store special orders');
+const POS = (o) => ord({ sourceName: 'pos', shippingAddress: null, billingAddress: null, email: 'jsmith77@example.com', fulfillmentOrders: [], ...o });
+const tillF = (id, lines, trk = []) => ({ id, status: 'SUCCESS', trackingInfo: trk, lineItems: lines });
+const custom = (title, vendor = '') => ({ vendor, title, quantity: 1 });
+check('brand off the item name: "Hoka Clifton" and a bare "Clifton 11" are HOKA, "Nimbus 28" is not', brandOfTitle('Hoka Clifton 11 Men\u2019s 11.5 (2E)') === 'hoka' && brandOfTitle('Clifton 11 Women\u2019s 8.5') === 'hoka' && brandOfTitle('Nimbus 28 Women\u2019s 8.5') === null);
+const pos1 = decide(hoka, POS({ fulfillments: [tillF('F1', [custom('Ghost 18', 'Brooks'), custom('Hoka Clifton 11 Men 11.5')])] }), NEEDHAM);
+check('PO name in the email: tracking goes onto the till fulfillment', pos1.status === 'ready' && pos1.kind === 'update' && pos1.fulfillments.join() === 'F1');
+const pos2 = decide(hoka, POS({ email: 'runner@example.com', fulfillments: [tillF('F1', [custom('Clifton 11 Women 8.5')])] }), NEEDHAM);
+check('name not in the email: held, with Add anyway', pos2.status === 'review' && pos2.canOverride === true);
+check('Add anyway, after a person checked the name, makes it ready', decide(hoka, POS({ email: 'runner@example.com', fulfillments: [tillF('F1', [custom('Clifton 11 Women 8.5')])] }), NEEDHAM, { override: true }).status === 'ready');
+check('an in-store sale with no HOKA item stays held, even with override', decide(hoka, POS({ fulfillments: [tillF('F1', [custom('Nimbus 28')])] }), NEEDHAM, { override: true }).status === 'review');
+check('a till fulfillment that already has tracking is never overwritten', decide(hoka, POS({ fulfillments: [tillF('F1', [custom('Hoka Bondi 9')], [{ number: '1Z000' }])] }), NEEDHAM).status === 'review');
+const both = decide(hoka, POS({ fulfillments: [tillF('F1', [custom('Hoka Bondi 9 Women 7.5')]), tillF('F2', [custom('Bondi 9 - BERRY JAM', 'HOKA')])] }), NEEDHAM);
+check('special order AND a shelf pair: only the typed special order gets the tracking', both.status === 'ready' && both.fulfillments.join() === 'F1');
+check('only a catalog HOKA pair: held for a person', decide(hoka, POS({ fulfillments: [tillF('F2', [custom('Bondi 9 - BERRY JAM', 'HOKA')])] }), NEEDHAM).canOverride === true);
+check('the email check needs 3 letters and ignores case', emailHasName('J.SMITH@x.com', 'smith') && !emailHasName('li.x@y.com', 'Li'));
 
 console.log('\nWhich brands are live');
 const LIVE = { TRACKING_MODE: 'live', TRACKING_LIVE_BRANDS: 'hoka' };

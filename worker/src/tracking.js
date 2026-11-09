@@ -144,20 +144,73 @@ export function lastNameMatches(poLast, order) {
 // customer, so there is no name to check the PO against.
 const hasName = (o) => [o.shippingAddress, o.billingAddress].some((a) => a && norm(a.lastName));
 
+// IN-STORE SPECIAL ORDERS. Read off the held HOKA items 2026-11-09: a shoe
+// ordered at the Walpole till is rung up as a CUSTOM line with no vendor
+// ("Hoka Clifton 11 Men's 11.5 (2E)", or just "Clifton 11 Women's 8.5"), the
+// till marks the whole sale fulfilled, and HOKA ships the shoe later. So
+// there is no open line, no vendor and no address. The brand is read off the
+// item name (the brand or one of its model names), the tracking goes onto the
+// till's fulfillment of that item, and the name is checked against the
+// order's email address, the only name a POS order carries that this app can
+// read. A name that is not in the email waits for a person to check it.
+const MODEL_WORDS = {
+  hoka: ['hoka', 'clifton', 'bondi', 'arahi', 'gaviota', 'mach', 'rincon', 'speedgoat', 'challenger', 'kawana', 'transport', 'skyflow', 'skyward', 'mafate', 'tecton', 'cielo', 'rocket', 'solimar', 'stinson', 'torrent', 'zinal', 'anacapa', 'kaha', 'hopara', 'elevon', 'ora'],
+  brooks: ['brooks', 'ghost', 'glycerin', 'adrenaline', 'launch', 'hyperion', 'levitate', 'cascadia', 'caldera', 'divide', 'ariel', 'beast', 'addiction', 'revel', 'catamount'],
+};
+export function brandOfTitle(title) {
+  const words = new Set(String(title || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  for (const [k, list] of Object.entries(MODEL_WORDS)) if (list.some((w) => words.has(w))) return k;
+  return null;
+}
+const isBrandLine = (l, brand) => vendorKey(l.vendor) === brand || ((!l.vendor || /run ?house/i.test(l.vendor)) && brandOfTitle(l.title) === brand);
+export function emailHasName(email, last) {
+  const p = norm(last), local = norm(String(email || '').split('@')[0]);
+  return p.length >= 3 && local.includes(p);
+}
+
+// A special order is the CUSTOM line typed at the till. A catalog line of
+// the same brand in the same sale is usually a pair off the shelf the
+// customer took home (#89618 had both, 2026-11-09), so it never gets the
+// tracking when a custom line is there; a sale with only catalog lines waits
+// for a person, because nothing says which pair is shipping.
+const isCustomLine = (l) => !l.vendor || /run ?house/i.test(l.vendor);
+
+function decideInStore(parsed, order, po, opts, review) {
+  const B = (parsed.brand || '').toUpperCase();
+  if (!parsed.brand) return review(order.name + ' is an in-store sale and the sender brand is unknown');
+  const fs = (order.fulfillments || []).filter((f) => f.id);
+  const customOnes = fs.filter((f) => (f.lineItems || []).some((l) => isCustomLine(l) && isBrandLine(l, parsed.brand)));
+  const catalogOnes = fs.filter((f) => (f.lineItems || []).some((l) => !isCustomLine(l) && isBrandLine(l, parsed.brand)));
+  if (!customOnes.length && !catalogOnes.length) return review(order.name + ' is an in-store sale with no ' + B + ' item on it');
+  if (!customOnes.length && !opts.override) {
+    return { ...review(order.name + ' is an in-store sale whose ' + B + ' item is a catalog pair, not a typed special order, so it may have gone home with the customer. Check which pair is shipping, then press Add anyway.'), canOverride: true };
+  }
+  const useCustom = customOnes.length > 0;
+  const lineOk = (l) => isBrandLine(l, parsed.brand) && (useCustom ? isCustomLine(l) : true);
+  const withBrand = useCustom ? customOnes : catalogOnes;
+  const open = withBrand.filter((f) => !(f.trackingInfo || []).length);
+  if (!open.length) return review(order.name + ': its ' + B + ' item already has other tracking');
+  if (!emailHasName(order.email, po.last) && !opts.override) {
+    return { ...review(order.name + ' is an in-store special order and "' + po.last + '" is not in its email address, so the name cannot be checked. Check it, then press Add anyway.'), canOverride: true };
+  }
+  const lines = open.flatMap((f) => f.lineItems.filter(lineOk).map((l) => ({ id: '', qty: l.quantity || 1, vendor: l.vendor || B, title: l.title })));
+  return { status: 'ready', kind: 'update', reason: '', fulfillments: open.map((f) => f.id), groups: [{ fo: 'in-store', lines }] };
+}
+
 // What to do with one parsed email and its order. Pure, so the test drives
 // every refusal. Returns { status: 'ready' | 'already' | 'review', reason, groups }.
-export function decide(parsed, order, needhamId) {
+export function decide(parsed, order, needhamId, opts = {}) {
   const review = (reason) => ({ status: 'review', reason, groups: [] });
   if (parsed.pos.length !== 1) return review(parsed.pos.length ? 'More than one PO in this email (' + parsed.pos.map((p) => p.order + '_' + p.last).join(', ') + '), so the tracking cannot be matched to one order' : 'No PO found');
   if (!parsed.tracking.length) return review('No tracking number found');
   const po = parsed.pos[0];
   if (!order) return review('No order #' + po.order);
   if (order.cancelledAt) return review('Order ' + order.name + ' is cancelled');
-  if (!hasName(order)) return review(order.name + ' has no name on it (an in-store sale, ' + (order.sourceName || 'no address') + '), so the PO name cannot be checked');
-  if (!lastNameMatches(po.last, order)) return review('PO name "' + po.last + '" does not match the name on order ' + order.name);
   const onOrder = new Set();
   for (const f of order.fulfillments || []) for (const t of f.trackingInfo || []) if (t.number) onOrder.add(String(t.number).toUpperCase());
   if (parsed.tracking.every((t) => onOrder.has(t.number))) return { status: 'already', reason: 'Tracking already on ' + order.name, groups: [] };
+  if (!hasName(order)) return decideInStore(parsed, order, po, opts, review);
+  if (!lastNameMatches(po.last, order)) return review('PO name "' + po.last + '" does not match the name on order ' + order.name);
   const open = [];
   for (const fo of order.fulfillmentOrders || []) {
     if (!['OPEN', 'IN_PROGRESS'].includes(fo.status)) continue;
@@ -183,9 +236,9 @@ export function decide(parsed, order, needhamId) {
   return { status: 'ready', reason: '', groups };
 }
 
-const ORDER_Q = `query($q:String){ orders(first: 5, query:$q){ nodes{ id name cancelledAt sourceName
+const ORDER_Q = `query($q:String){ orders(first: 5, query:$q){ nodes{ id name cancelledAt sourceName email
   shippingAddress{ lastName } billingAddress{ lastName }
-  fulfillments{ trackingInfo{ number } }
+  fulfillments{ id status trackingInfo{ number } fulfillmentLineItems(first: 50){ nodes{ quantity lineItem{ vendor title } } } }
   fulfillmentOrders(first: 20){ nodes{ id status assignedLocation{ location{ id } }
     lineItems(first: 50){ nodes{ id remainingQuantity lineItem{ vendor title } } } } } } } }`;
 
@@ -193,15 +246,36 @@ async function findOrder(client, num) {
   const r = await client.graphql(ORDER_Q, { q: 'name:' + num });
   const o = r.data.orders.nodes.find((x) => x.name === '#' + num);
   if (!o) return null;
-  return { ...o, fulfillmentOrders: o.fulfillmentOrders.nodes.map((f) => ({ ...f, lineItems: f.lineItems.nodes })) };
+  return {
+    ...o,
+    fulfillments: o.fulfillments.map((f) => ({ ...f, lineItems: f.fulfillmentLineItems.nodes.map((n) => ({ ...n.lineItem, quantity: n.quantity })) })),
+    fulfillmentOrders: o.fulfillmentOrders.nodes.map((f) => ({ ...f, lineItems: f.lineItems.nodes })),
+  };
 }
 
 const FULFILL = `mutation($f: FulfillmentInput!){ fulfillmentCreate(fulfillment: $f){ fulfillment{ id status } userErrors{ field message } } }`;
 
 // The write. notifyCustomer is on by owner decision (2026-11-08): the
 // customer gets Shopify's shipping email with the tracking.
+const TRACK_UPDATE = `mutation($id: ID!, $t: FulfillmentTrackingInput!){ fulfillmentTrackingInfoUpdate(fulfillmentId: $id, trackingInfoInput: $t, notifyCustomer: true){ fulfillment{ id } userErrors{ field message } } }`;
+
 async function writeTracking(client, plan, tracking) {
   const company = tracking[0].company;
+  // An in-store special order: the till already fulfilled it, so the
+  // tracking goes ONTO that fulfillment (and Shopify emails the customer).
+  if (plan.kind === 'update') {
+    try {
+      for (const id of plan.fulfillments) {
+        const r = await client.graphql(TRACK_UPDATE, { id, t: { company, numbers: tracking.map((t) => t.number) } });
+        if (r.errors) return { ok: false, error: r.errors.map((e) => e.message).join('; ') };
+        const ue = r.data.fulfillmentTrackingInfoUpdate.userErrors;
+        if (ue.length) return { ok: false, error: ue.map((e) => e.message).join('; ') };
+      }
+      return { ok: true, id: plan.fulfillments.join(',') };
+    } catch (e) {
+      return { ok: false, error: String(e && e.message || e).slice(0, 300) };
+    }
+  }
   const f = {
     notifyCustomer: true,
     trackingInfo: { company, numbers: tracking.map((t) => t.number) },
@@ -219,9 +293,9 @@ async function writeTracking(client, plan, tracking) {
   }
 }
 
-async function plan(env, client, parsed) {
+async function plan(env, client, parsed, opts = {}) {
   const order = parsed.pos.length === 1 ? await findOrder(client, parsed.pos[0].order) : null;
-  const d = decide(parsed, order, env.NEEDHAM_LOCATION_ID);
+  const d = decide(parsed, order, env.NEEDHAM_LOCATION_ID, opts);
   return { d, order: order ? { id: order.id, name: order.name } : null };
 }
 
@@ -230,7 +304,7 @@ async function save(env, ev) {
   await env.CATALOG.put(EVENT + ev.key, JSON.stringify(ev), { expirationTtl: EVENT_TTL, metadata: {
     at: ev.at, st: ev.status, b: ev.parsed.brand || '', po: ev.parsed.pos.map((p) => p.order + '_' + p.last).join(' ').slice(0, 60),
     o: ev.order ? ev.order.name : '', i: ev.order ? String(ev.order.id).split('/').pop() : '', t: ev.parsed.tracking.map((t) => t.company + ' ' + t.number).join(', ').slice(0, 160),
-    n: short, r: String(ev.reason || ev.error || '').slice(0, 300),
+    n: short, r: String(ev.reason || ev.error || '').slice(0, 300), ov: ev.status === 'review' && ev.canOverride ? 1 : 0,
     // g: what staff actually did (reconcileTracking).
     g: ev.truth ? ev.truth.r : '', gr: ev.truth ? String(ev.truth.note || '').slice(0, 160) : '',
   } });
@@ -258,7 +332,7 @@ export async function handleTrackingIngest(request, env) {
   const ev = {
     key: (prior && prior.key) || String(9e15 - Date.now()).padStart(16, '0') + '-' + msgId, msg: msgId, at: new Date().toISOString(),
     from: String(b.from || '').slice(0, 120), subject: String(b.subject || '').slice(0, 200),
-    parsed, order, status: d.status, reason: d.reason, groups: d.groups, mode: live ? 'live' : 'dry',
+    parsed, order, status: d.status, reason: d.reason, groups: d.groups, mode: live ? 'live' : 'dry', canOverride: !!d.canOverride,
   };
   if (d.status === 'ready' && live) {
     const w = await writeTracking(client, d, parsed.tracking);
@@ -292,8 +366,11 @@ export async function handleTrackingApply(request, env) {
   if (!isLive(env, ev.parsed.brand)) return { status: 409, body: { error: 'Dry run for ' + (ev.parsed.brand || 'this sender').toUpperCase() + ': tracking is not sent.' } };
   if (ev.status === 'written') return { status: 409, body: { error: 'Already written' } };
   const client = createShopifyClient(env);
-  const { d, order } = await plan(env, client, ev.parsed);
-  ev.order = order; ev.groups = d.groups; ev.reason = d.reason;
+  // override: a person checked the name on an in-store special order whose
+  // email does not carry it. Every other check still applies.
+  const { d, order } = await plan(env, client, ev.parsed, { override: b.override === true });
+  ev.order = order; ev.groups = d.groups; ev.reason = d.reason; ev.canOverride = !!d.canOverride;
+  if (b.override === true) ev.overridden = true;
   if (d.status !== 'ready') { ev.status = d.status; await save(env, ev); return { status: 409, body: { error: d.reason || d.status, status: d.status } }; }
   const w = await writeTracking(client, d, ev.parsed.tracking);
   ev.status = w.ok ? 'written' : 'error'; ev.error = w.error || ''; ev.fulfillment = w.id || '';

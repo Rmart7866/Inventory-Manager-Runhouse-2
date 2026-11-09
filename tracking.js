@@ -85,7 +85,7 @@ var TK = {
                     '<td>' + TK.esc((e.b || '').toUpperCase() || '?') + '</td>' +
                     '<td class="trk">' + TK.esc(e.t) + '</td>' +
                     '<td class="checks">' + TK.checks(e) + '</td>' +
-                    '<td>' + (canApply ? '<button type="button" class="chip' + (armed ? ' arm' : '') + '" data-apply="' + TK.esc(e.key) + '">' + (armed ? (e.st === 'review' ? 'Sure? Adds it if it now matches' : 'Sure? Emails the customer') : (e.st === 'review' ? 'Check again' : 'Add tracking')) + '</button>' : '') + '</td></tr>';
+                    '<td>' + (canApply ? '<button type="button" class="chip' + (armed ? ' arm' : '') + '" data-apply="' + TK.esc(e.key) + '"' + (e.ov ? ' data-ov="1"' : '') + '>' + (armed ? (e.ov ? 'Sure? You checked the name' : e.st === 'review' ? 'Sure? Adds it if it now matches' : 'Sure? Emails the customer') : (e.ov ? 'Add anyway' : e.st === 'review' ? 'Check again' : 'Add tracking')) + '</button>' : '') + '</td></tr>';
             }).join('') + '</tbody></table>';
         TK.$('out').querySelectorAll('[data-apply]').forEach(function (b) { b.onclick = function () { TK.apply(b); }; });
     },
@@ -108,7 +108,7 @@ var TK = {
         var key = b.dataset.apply;
         if (TK.st.arm !== key) { TK.st.arm = key; TK.draw(); return; }
         TK.st.arm = null; b.disabled = true; b.textContent = 'Adding...';
-        fetch(CatalogClient._writeBase() + '/tracking/apply', { method: 'POST', headers: TK.H(), body: JSON.stringify({ key: key }) })
+        fetch(CatalogClient._writeBase() + '/tracking/apply', { method: 'POST', headers: TK.H(), body: JSON.stringify({ key: key, override: b.dataset.ov === '1' }) })
             .then(function (r) { return r.json(); })
             .then(function (j) { TK.st.err = j.error ? 'Not added: ' + j.error : ''; TK.load(); })
             .catch(function (e) { b.textContent = 'Failed: ' + e.message; });
