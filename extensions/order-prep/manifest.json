@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Run House Order Prep",
+  "version": "1.0.0",
+  "description": "Sets up a supplier cart for a dropship order (items, ship-to address, PO) from the Late orders page. Never submits an order.",
+  "permissions": ["storage"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://rmart7866.github.io/Inventory-Manager-Runhouse-2/*",
+        "http://localhost:8000/*",
+        "http://127.0.0.1:8000/*"
+      ],
+      "js": ["staff.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://hokaus.deckersb2b.deckers.com/order-center/*"],
+      "js": ["xlsx.js", "hoka.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

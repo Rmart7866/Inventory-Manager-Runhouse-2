@@ -97,6 +97,55 @@ export async function handleLateOrders(request, env) {
   return { body: { at: new Date().toISOString(), rows } };
 }
 
+// ORDER PREP, for the "Prep in HOKA" button (extensions/order-prep). Everything
+// a supplier cart needs for ONE order: its open Needham lines with UPC and
+// quantity, the PO, and the ship-to address. An order shipping abroad comes to
+// the store first (owner, 2026-11-09), so its address is withheld and the
+// supplier ships to the account's own ship-to. Pure, so the test drives it.
+export function shapePrep(order, needhamId) {
+  const lines = [];
+  for (const fo of order.fulfillmentOrders || []) {
+    if (!['OPEN', 'IN_PROGRESS'].includes(fo.status)) continue;
+    if (!fo.assignedLocation || !fo.assignedLocation.location || fo.assignedLocation.location.id !== needhamId) continue;
+    for (const l of fo.lineItems || []) {
+      if (!(l.remainingQuantity > 0)) continue;
+      const li = l.lineItem || {};
+      lines.push({ vendor: li.vendor || '', title: li.title || '', variant: li.variantTitle || '', sku: li.sku || (li.variant && li.variant.sku) || '', upc: String((li.variant && li.variant.barcode) || '').replace(/\D/g, ''), qty: l.remainingQuantity });
+    }
+  }
+  const a = order.shippingAddress || null;
+  const country = (a && a.countryCodeV2) || '';
+  const last = (a && a.lastName) || (order.billingAddress && order.billingAddress.lastName) || '';
+  const num = String(order.name || '').replace(/^#/, '');
+  return {
+    id: String(order.id || '').split('/').pop(), name: order.name, po: num + (last ? '_' + last.replace(/\s+/g, '') : ''),
+    international: !!country && country !== 'US',
+    address: a && (!country || country === 'US') ? {
+      firstName: a.firstName || '', lastName: a.lastName || '', phone: a.phone || order.phone || '',
+      street1: a.address1 || '', street2: a.address2 || '', city: a.city || '', state: a.provinceCode || '', zip: a.zip || '', country: country || 'US',
+    } : null,
+    lines,
+  };
+}
+
+const PREP_Q = `query($id: ID!){ order(id: $id){ id name phone
+  shippingAddress{ firstName lastName address1 address2 city provinceCode zip countryCodeV2 phone } billingAddress{ lastName }
+  fulfillmentOrders(first: 10){ nodes{ status assignedLocation{ location{ id } }
+    lineItems(first: 30){ nodes{ remainingQuantity lineItem{ vendor title variantTitle sku variant{ sku barcode } } } } } } } }`;
+
+// GET /orders/prep?id=<order id>  (staff, write secret): one order, shaped for a cart.
+export async function handleOrderPrep(request, env) {
+  const id = String(new URL(request.url).searchParams.get('id') || '').replace(/\D/g, '');
+  if (!id) return { status: 400, body: { error: 'An order id is needed' } };
+  const client = createShopifyClient(env);
+  const r = await client.graphql(PREP_Q, { id: 'gid://shopify/Order/' + id });
+  const o = r.data && r.data.order;
+  if (!o) return { status: 404, body: { error: 'No such order' } };
+  const prep = shapePrep({ ...o, fulfillmentOrders: o.fulfillmentOrders.nodes.map((f) => ({ ...f, lineItems: f.lineItems.nodes })) }, env.NEEDHAM_LOCATION_ID);
+  if (!prep.lines.length) return { status: 409, body: { error: 'Nothing open at Needham on ' + o.name } };
+  return { body: prep };
+}
+
 // GET /orders/late/chase?id=<order id>  (staff): every note on one order.
 export async function handleLateChaseGet(request, env) {
   const id = String(new URL(request.url).searchParams.get('id') || '').replace(/\D/g, '');

@@ -5,7 +5,7 @@
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 var LO = {
-    st: { rows: null, filter: 'late', brand: '', open: null, at: null },
+    st: { rows: null, filter: 'late', brand: '', open: null, at: null, prepExt: false },
     LIMITS: [3, 4, 5, 7, 10, 14],
     $: function (id) { return document.getElementById(id); },
     esc: function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); },
@@ -22,6 +22,10 @@ var LO = {
         LO.$('brand').onchange = function () { LO.st.brand = this.value; LO.draw(); };
         LO.$('refresh').onclick = function () { LO.load(); };
         LO.$('copy').onclick = LO.copy;
+        // The Run House Order Prep extension says hello when it is installed
+        // (extensions/order-prep). Ask, in case it loaded before this page.
+        window.addEventListener('message', LO.onExt);
+        window.postMessage({ source: 'rh-staff', type: 'ping' }, location.origin);
         LO.load();
         // Keeps itself current on a screen left open, without a refresh.
         setInterval(function () { if (!document.hidden && LO.st.rows && !LO.st.open) LO.load(true); }, 5 * 60000);
@@ -113,7 +117,8 @@ var LO = {
                 (LO.me() ? '' : '<input id="name-in" placeholder="Your name">') +
                 '<div class="btns"><button type="button" class="chip on" id="note-save">Save note</button><button type="button" class="chip" id="note-cancel">Cancel</button></div></div>' : '') +
             '</div>' +
-            '<div class="act">' + (open ? '' : '<button type="button" class="chip" data-note="' + LO.esc(r.id) + '">Add note</button>') + '</div>' +
+            '<div class="act">' + (open ? '' : '<button type="button" class="chip" data-note="' + LO.esc(r.id) + '">Add note</button>') +
+              (r.brands.some(function (b) { return LO.key(b) === 'hoka'; }) ? '<button type="button" class="chip" style="margin-top:6px;display:block" data-prep="' + LO.esc(r.id) + '" title="Opens HOKA\'s cart with these HOKA items, the ship-to address and the PO filled in. You check it and press Submit yourself.">Prep in HOKA</button>' : '') + '</div>' +
         '</div>';
     },
 
@@ -121,6 +126,7 @@ var LO = {
         var out = LO.$('out');
         out.querySelectorAll('[data-copy]').forEach(function (b) { b.onclick = function () { LO.clip(b.dataset.copy, 'Copied PO ' + b.dataset.copy); }; });
         out.querySelectorAll('[data-note]').forEach(function (b) { b.onclick = function () { LO.st.open = b.dataset.note; LO.draw(); var t = LO.$('note-in'); if (t) t.focus(); }; });
+        out.querySelectorAll('[data-prep]').forEach(function (b) { b.onclick = function () { LO.prep(b); }; });
         var cancel = LO.$('note-cancel'); if (cancel) cancel.onclick = function () { LO.st.open = null; LO.draw(); };
         var save = LO.$('note-save'); if (save) save.onclick = LO.saveNote;
     },
@@ -141,6 +147,40 @@ var LO = {
                 LO.st.open = null; LO.draw(); LO.toast('Note saved');
             })
             .catch(function (e) { btn.disabled = false; btn.textContent = 'Save note'; LO.toast('Not saved: ' + e.message); });
+    },
+
+    // ---------- Prep in HOKA ----------
+    // Hands one order to the Run House Order Prep extension, which opens
+    // HOKA's cart and fills items, address and PO, then stops for a person to
+    // submit. Only the order's HOKA lines are sent.
+    onExt: function (e) {
+        if (e.source !== window || !e.data || e.data.source !== 'rh-order-prep') return;
+        if (e.data.type === 'hello') LO.st.prepExt = true;
+        if (e.data.type === 'ack' && LO._ack) LO._ack(e.data);
+    },
+    prep: function (b) {
+        if (!LO.st.prepExt) { LO.toast('Install the Run House Order Prep extension first (extensions/order-prep in the repo).'); return; }
+        b.disabled = true; var label = b.textContent; b.textContent = 'Preparing...';
+        var restore = function () { b.disabled = false; b.textContent = label; };
+        fetch(CatalogClient._writeBase() + '/orders/prep?id=' + encodeURIComponent(b.dataset.prep), { headers: LO.H() })
+            .then(function (r) { return r.json(); })
+            .then(function (p) {
+                if (p.error) { restore(); LO.toast(p.error); return; }
+                var lines = p.lines.filter(function (l) { return LO.key(l.vendor) === 'hoka'; });
+                var noUpc = lines.filter(function (l) { return !/^\d{8,14}$/.test(l.upc); });
+                if (!lines.length) { restore(); LO.toast('No open HOKA items on ' + p.name); return; }
+                if (noUpc.length) { restore(); LO.toast(noUpc[0].title + ' has no UPC in Shopify, so it cannot be uploaded. Add it by hand.'); return; }
+                var timer = setTimeout(function () { LO._ack = null; restore(); LO.toast('The extension did not answer. Reload this page and try again.'); }, 4000);
+                LO._ack = function (a) {
+                    clearTimeout(timer); LO._ack = null; restore();
+                    LO.toast(a.ok ? 'Opening HOKA for ' + p.po + '. Check the cart, then submit it yourself.' : (a.error || 'The extension refused that order.'));
+                };
+                window.postMessage({ source: 'rh-staff', type: 'order-prep', job: {
+                    supplier: 'hoka', po: p.po, name: p.name, international: p.international, address: p.address,
+                    lines: lines.map(function (l) { return { upc: l.upc, qty: l.qty, title: l.title, variant: l.variant }; }),
+                } }, location.origin);
+            })
+            .catch(function (e) { restore(); LO.toast('Could not prepare: ' + e.message); });
     },
 
     // The orders shown, as plain text for an email to the rep.
