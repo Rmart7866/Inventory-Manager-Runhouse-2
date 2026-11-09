@@ -1,6 +1,6 @@
 // Supplier shipping emails to tracking: what is read out of an email, and
 // every reason an email is sent to review instead of written.
-import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender, truthOf, isLive, brandOfTitle, emailHasName } from '../src/tracking.js';
+import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender, truthOf, isLive, brandOfTitle, emailHasName, nameInItems } from '../src/tracking.js';
 
 let failures = 0;
 const check = (name, ok) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name); if (!ok) failures++; };
@@ -68,6 +68,8 @@ check('a till fulfillment that already has tracking is never overwritten', decid
 const both = decide(hoka, POS({ fulfillments: [tillF('F1', [custom('Hoka Bondi 9 Women 7.5')]), tillF('F2', [custom('Bondi 9 - BERRY JAM', 'HOKA')])] }), NEEDHAM);
 check('special order AND a shelf pair: only the typed special order gets the tracking', both.status === 'ready' && both.fulfillments.join() === 'F1');
 check('only a catalog HOKA pair: held for a person', decide(hoka, POS({ fulfillments: [tillF('F2', [custom('Bondi 9 - BERRY JAM', 'HOKA')])] }), NEEDHAM).canOverride === true);
+check('Shopify search found the name: ready, no button needed', decide(hoka, POS({ email: 'runner@example.com', fulfillments: [tillF('F1', [custom('Clifton 11 Women 8.5')])] }), NEEDHAM, { nameFound: true }).status === 'ready');
+check('a name that is in the order\'s own items proves nothing', nameInItems(POS({ fulfillments: [tillF('F1', [custom('Jenkins Elementary - Youth Hoodie')])] }), 'JENKINS') && !nameInItems(POS({ fulfillments: [tillF('F1', [custom('Clifton 11')])] }), 'Jenkins'));
 check('the email check needs 3 letters and ignores case', emailHasName('J.SMITH@x.com', 'smith') && !emailHasName('li.x@y.com', 'Li'));
 
 console.log('\nWhich brands are live');

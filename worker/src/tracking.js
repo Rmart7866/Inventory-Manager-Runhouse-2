@@ -190,8 +190,11 @@ function decideInStore(parsed, order, po, opts, review) {
   const withBrand = useCustom ? customOnes : catalogOnes;
   const open = withBrand.filter((f) => !(f.trackingInfo || []).length);
   if (!open.length) return review(order.name + ': its ' + B + ' item already has other tracking');
-  if (!emailHasName(order.email, po.last) && !opts.override) {
-    return { ...review(order.name + ' is an in-store special order and "' + po.last + '" is not in its email address, so the name cannot be checked. Check it, then press Add anyway.'), canOverride: true };
+  // The name is good if it is in the order's email address, or if Shopify's
+  // own order search, which sees the customer's name though this app cannot,
+  // finds this order for "<number> <name>" (opts.nameFound, set by plan()).
+  if (!emailHasName(order.email, po.last) && !opts.nameFound && !opts.override) {
+    return { ...review(order.name + ' is an in-store special order and "' + po.last + '" is neither in its email address nor found on it by Shopify\'s search, so the name cannot be checked. Check it, then press Add anyway.'), canOverride: true };
   }
   const lines = open.flatMap((f) => f.lineItems.filter(lineOk).map((l) => ({ id: '', qty: l.quantity || 1, vendor: l.vendor || B, title: l.title })));
   return { status: 'ready', kind: 'update', reason: '', fulfillments: open.map((f) => f.id), groups: [{ fo: 'in-store', lines }] };
@@ -293,8 +296,34 @@ async function writeTracking(client, plan, tracking) {
   }
 }
 
+// NAME BY SEARCH, for an in-store sale, which carries no name this app can
+// read (no read_customers). Shopify's order search does see the customer:
+// verified 2026-11-09, "name:93026 jenkins" finds #93026 while
+// "name:93026 mcgraw" and "name:92788 heslin", real names on OTHER orders,
+// find nothing. Search also matches item names, so a name that appears in
+// the order's own items ("Jenkins Elementary" team gear) proves nothing and
+// is not counted. A failed search counts as not found: it waits for a person.
+export function nameInItems(order, last) {
+  const p = norm(last);
+  const titles = [];
+  for (const f of order.fulfillments || []) for (const l of f.lineItems || []) titles.push(l.title);
+  for (const fo of order.fulfillmentOrders || []) for (const l of fo.lineItems || []) titles.push(l.lineItem && l.lineItem.title);
+  return titles.some((t) => norm(t).includes(p));
+}
+async function nameFoundBySearch(client, order, num, last) {
+  const clean = String(last || '').replace(/[^\p{L}'\-]/gu, '');
+  if (norm(clean).length < 3 || nameInItems(order, clean)) return false;
+  try {
+    const r = await client.graphql(`query($q:String){ orders(first: 5, query:$q){ nodes{ id } } }`, { q: 'name:' + num + ' ' + clean });
+    return r.data.orders.nodes.some((o) => o.id === order.id);
+  } catch (e) { return false; }
+}
+
 async function plan(env, client, parsed, opts = {}) {
   const order = parsed.pos.length === 1 ? await findOrder(client, parsed.pos[0].order) : null;
+  if (order && !hasName(order)) {
+    opts = { ...opts, nameFound: await nameFoundBySearch(client, order, parsed.pos[0].order, parsed.pos[0].last) };
+  }
   const d = decide(parsed, order, env.NEEDHAM_LOCATION_ID, opts);
   return { d, order: order ? { id: order.id, name: order.name } : null };
 }
