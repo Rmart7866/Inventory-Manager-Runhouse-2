@@ -57,7 +57,10 @@ var TK = {
 
     draw: function () {
         var j = TK.st.data, ev = j.events;
-        TK.$('banner').innerHTML = j.mode === 'live'
+        var liveList = (j.live || []).map(function (b) { return b.toUpperCase(); });
+        TK.$('banner').innerHTML = j.mode === 'live' && liveList.length
+            ? '<div class="banner live"><b>Live for ' + TK.esc(liveList.join(', ')) + '.</b> When one of their shipping emails matches an order cleanly, the tracking is added and Shopify emails the customer. Anything unclear waits here for a person. Every other brand is still a dry run: recorded, never sent.</div>'
+            : j.mode === 'live'
             ? '<div class="banner live"><b>Live.</b> When a shipping email matches an order cleanly, the tracking is added and Shopify emails the customer. Anything unclear waits here for a person.</div>'
             : '<div class="banner"><b>Dry run.</b> Nothing is added to Shopify and no customer is emailed. Every shipping email is read and matched to its order, and once staff ship that order by hand this page compares what they did with what this would have done.</div>';
         var count = function (f) { return ev.filter(function (e) { return TK.match(e, f); }).length; };
@@ -72,7 +75,7 @@ var TK = {
         if (!rows.length) { TK.$('out').innerHTML = '<div class="msg">Nothing here.</div>'; return; }
         TK.$('out').innerHTML = err + '<table><thead><tr><th>Received</th><th>Status</th><th>PO</th><th>Order</th><th>Brand</th><th>Tracking</th><th>Checks</th><th></th></tr></thead><tbody>' +
             rows.map(function (e) {
-                var canApply = j.mode === 'live' && (e.st === 'ready' || e.st === 'error');
+                var canApply = j.mode === 'live' && (!(j.live || []).length || (j.live || []).indexOf(e.b) >= 0) && (e.st === 'ready' || e.st === 'error');
                 var armed = TK.st.arm === e.key;
                 return '<tr><td style="white-space:nowrap">' + TK.esc(TK.when(e.at)) + '</td>' +
                     '<td><span class="st ' + TK.esc(e.st) + '">' + TK.esc(TK.LABEL[e.st] || e.st) + '</span>' + (e.r ? '<div class="why">' + TK.esc(e.r) + '</div>' : '') +

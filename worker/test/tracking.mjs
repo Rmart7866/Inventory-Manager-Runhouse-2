@@ -1,6 +1,6 @@
 // Supplier shipping emails to tracking: what is read out of an email, and
 // every reason an email is sent to review instead of written.
-import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender, truthOf } from '../src/tracking.js';
+import { parseShipEmail, decide, lastNameMatches, vendorKey, brandOfSender, truthOf, isLive } from '../src/tracking.js';
 
 let failures = 0;
 const check = (name, ok) => { console.log((ok ? '  ok    ' : '  FAIL  ') + name); if (!ok) failures++; };
@@ -46,6 +46,12 @@ check('a closed fulfillment order is not reopened', decide(hoka, ord({ fulfillme
 const anon = parseShipEmail({ from: 'ship@wolverine.com', body: '93307_Smith 1Z999AA10123456784' });
 check('unknown sender, one brand open: ships it', decide(anon, ord({ fulfillmentOrders: [FO('FO1', NEEDHAM, [L('s', 'Saucony', 2)])] }), NEEDHAM).status === 'ready');
 check('unknown sender, two brands open: review', decide(anon, mixed, NEEDHAM).status === 'review');
+
+console.log('\nWhich brands are live');
+const LIVE = { TRACKING_MODE: 'live', TRACKING_LIVE_BRANDS: 'hoka' };
+check('HOKA live, Brooks and an unknown sender stay dry', isLive(LIVE, 'hoka') && !isLive(LIVE, 'brooks') && !isLive(LIVE, null));
+check('dry mode is dry for every brand, list or not', !isLive({ TRACKING_MODE: 'dry', TRACKING_LIVE_BRANDS: 'hoka' }, 'hoka') && !isLive({}, 'hoka'));
+check('live with no list means every known or unknown brand', isLive({ TRACKING_MODE: 'live' }, 'brooks'));
 
 console.log('\nWhat staff actually did');
 const ev = { at: new Date().toISOString(), status: 'ready', parsed: hoka, groups: d1.groups };

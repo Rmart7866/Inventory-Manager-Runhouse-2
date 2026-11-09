@@ -74,7 +74,10 @@ NEEDHAM_LOCATION_ID = "gid://shopify/Location/77957136639"
 # Supplier shipping emails to tracking (src/tracking.js). "dry" records what it
 # WOULD write and writes nothing; "live" adds tracking to ready orders as the
 # emails arrive, which emails the customer. Switching is an owner decision.
-TRACKING_MODE = "dry"
+TRACKING_MODE = "live"
+# Live for these brand keys only; every other brand stays dry run. HOKA went
+# live 2026-11-09 on owner request after its dry run matched staff 27 of 27.
+TRACKING_LIVE_BRANDS = "hoka"
 
 # Locations a newly created product is activated at (comma separated GIDs). Real
 # quantity is written only at Needham; the others are activated at 0, so the

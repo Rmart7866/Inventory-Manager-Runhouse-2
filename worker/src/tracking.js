@@ -23,7 +23,11 @@
 //
 // TRACKING_MODE. "dry" (the default) only records what it WOULD write and
 // sends nothing at all, not even by hand; "live" writes ready ones as they
-// arrive, and a staff member can press Add tracking on one held item. Writing needs the app scope
+// arrive, and a staff member can press Add tracking on one held item.
+// TRACKING_LIVE_BRANDS narrows live to a list of brand keys: HOKA went live
+// alone on 2026-11-09 after a week of its dry run matched staff 27 of 27,
+// while Brooks, with 3 checks, stays dry. A brand not on the list, or an
+// email whose brand is unknown, is handled exactly as in dry run. Writing needs the app scope
 // write_merchant_managed_fulfillment_orders; without it Shopify refuses and
 // the refusal is recorded on the item.
 //
@@ -48,6 +52,18 @@ import { createShopifyClient } from './shopify.js';
 const EVENT = 'trk:'; // trk:<inverted time>-<msg id>, newest first in a list
 const SEEN = 'trkmsg:'; // trkmsg:<mailbox message id>, so a message is handled once
 const SEEN_TTL = 120 * 86400;
+
+// Is this brand live? Pure, so the test pins it.
+export function liveBrands(env) {
+  if (env.TRACKING_MODE !== 'live') return [];
+  return String(env.TRACKING_LIVE_BRANDS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+export function isLive(env, brand) {
+  if (env.TRACKING_MODE !== 'live') return false;
+  const list = liveBrands(env);
+  // No list at all means every brand; an unknown brand is never live under a list.
+  return !String(env.TRACKING_LIVE_BRANDS || '').trim() || (!!brand && list.includes(brand));
+}
 // Each email's record is kept six months (owner decision 2026-11-08), long
 // enough to judge the dry run and look back at a dispute, then cleans itself up.
 const EVENT_TTL = 183 * 86400;
@@ -223,7 +239,7 @@ export async function handleTrackingIngest(request, env) {
   }
   const client = createShopifyClient(env);
   const { d, order } = await plan(env, client, parsed);
-  const live = env.TRACKING_MODE === 'live';
+  const live = isLive(env, parsed.brand);
   const ev = {
     key: (prior && prior.key) || String(9e15 - Date.now()).padStart(16, '0') + '-' + msgId, msg: msgId, at: new Date().toISOString(),
     from: String(b.from || '').slice(0, 120), subject: String(b.subject || '').slice(0, 200),
@@ -247,7 +263,7 @@ export async function handleTrackingLog(request, env) {
     for (const k of p.keys) out.push({ key: k.name.slice(EVENT.length), ...(k.metadata || {}) });
     cursor = p.list_complete || out.length >= 150 ? null : p.cursor;
   } while (cursor);
-  return { body: { mode: env.TRACKING_MODE === 'live' ? 'live' : 'dry', events: out.slice(0, 150) } };
+  return { body: { mode: env.TRACKING_MODE === 'live' ? 'live' : 'dry', live: liveBrands(env), events: out.slice(0, 150) } };
 }
 
 // POST /tracking/apply { key }  (staff, write secret): write ONE item now, in
@@ -255,10 +271,10 @@ export async function handleTrackingLog(request, env) {
 export async function handleTrackingApply(request, env) {
   // The dry run sends nothing, by owner decision 2026-11-08: not even one
   // item by hand. Live mode is the only way a tracking reaches a customer.
-  if (env.TRACKING_MODE !== 'live') return { status: 409, body: { error: 'Dry run: tracking is not sent. Switch TRACKING_MODE to live first.' } };
   const b = await readJson(request);
   const ev = await env.CATALOG.get(EVENT + String(b.key || ''), 'json');
   if (!ev) return { status: 404, body: { error: 'Not found' } };
+  if (!isLive(env, ev.parsed.brand)) return { status: 409, body: { error: 'Dry run for ' + (ev.parsed.brand || 'this sender').toUpperCase() + ': tracking is not sent.' } };
   if (ev.status === 'written') return { status: 409, body: { error: 'Already written' } };
   const client = createShopifyClient(env);
   const { d, order } = await plan(env, client, ev.parsed);
