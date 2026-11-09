@@ -51,12 +51,17 @@
   const basketCount = () => { const b = document.querySelector('epc-basket-button'); const m = b && /^\s*(\d+)\s*\(/.exec(b.innerText || ''); return m ? +m[1] : 0; };
 
   // ---------- steps ----------
+  // One group per STYLE, not per colourway: FastTrack shows every colour of a
+  // style on one grid, and a second visit to that grid finds the first visit's
+  // pairs already in it and offers "Update 2 items" (a live run on two colours
+  // of 120444 stopped there, 2026-11-09). The search uses the first colourway,
+  // whose exact Style ID opens the grid.
   function groupsOf(job) {
     const g = new Map();
     for (const l of job.lines) {
       const b = brooksLine(l);
       if (!b) throw new Error((l.title || l.sku) + ' has a SKU this cannot read (' + l.sku + ')');
-      if (!g.has(b.key)) g.set(b.key, { key: b.key, title: l.title, pairs: [] });
+      if (!g.has(b.style)) g.set(b.style, { key: b.key, style: b.style, title: l.title, pairs: [] });
       g.get(b.key).pairs.push({ colour: b.colour, size: b.size, width: b.width, qty: l.qty, title: l.title });
     }
     return [...g.values()];
@@ -92,7 +97,7 @@
     for (const p of g.pairs) {
       const el = boxFor(p);
       const stock = el ? +(el.getAttribute('max') || 0) : 0;
-      if (!el || stock < p.qty) { missing.push(g.key + ' ' + p.width + ' size ' + p.size + (el ? ' (Brooks has ' + stock + ')' : ' (no box: out of stock or not sold in this width)')); continue; }
+      if (!el || stock < p.qty) { missing.push(g.style + '-' + p.colour + ' ' + p.width + ' size ' + p.size + (el ? ' (Brooks has ' + stock + ')' : ' (no box: out of stock or not sold in this width)')); continue; }
       el.scrollIntoView({ block: 'center', inline: 'center' });
       typeInto(el, String(p.qty));
       await sleep(300);
@@ -100,7 +105,7 @@
     }
     if (!typed.length) return { missing, added: 0 };
     const before = basketCount();
-    const add = await waitFor(() => [...document.querySelectorAll('button')].find((b) => visible(b) && /^Add \d+ items?$/i.test(b.innerText.trim()) && !b.disabled), 8000, 'the Add items button');
+    const add = await waitFor(() => [...document.querySelectorAll('button')].find((b) => visible(b) && /^(Add|Update) \d+ items?$/i.test(b.innerText.trim()) && !b.disabled), 8000, 'the Add items button');
     safeClick(add, 'Add items');
     const want = typed.reduce((a, p) => a + p.qty, 0);
     await waitFor(() => basketCount() >= before + want, 15000, 'the pairs to reach the basket');
@@ -195,7 +200,7 @@
         show('Adding ' + esc(g.title || g.key) + ' under 1005 Needham...');
         const r = await addColourway(g);
         job.missing = job.missing.concat(r.missing); job.added += r.added;
-        if (r.added) job.done.push(g.key + ': ' + r.added + ' pair' + (r.added > 1 ? 's' : '') + ' under 1005 Needham');
+        if (r.added) job.done.push(g.style + '-' + [...new Set(g.pairs.map((p) => p.colour))].join('/') + ': ' + r.added + ' pair' + (r.added > 1 ? 's' : '') + ' under 1005 Needham');
         job.gi++;
         if (job.gi < job.groups.length) { await go(searchUrl(job.groups[job.gi].key)); return; }
         if (!job.added) throw new Error('Nothing could be added: ' + job.missing.join('; '));

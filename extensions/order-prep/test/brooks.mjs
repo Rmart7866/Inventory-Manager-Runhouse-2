@@ -35,6 +35,8 @@ check('brooks.js never names the Place basket button', !/Place basket['"]/.test(
 check('the drop ship email is the Needham mailbox the tracking updater reads', /EMAIL = 'needham@therunhouse\.com'/.test(br));
 check('items go under 1005 Needham, chosen before any box is typed in',
   /SHIP_TO = \/\^\\s\*1005/.test(br) && br.indexOf('await pickNeedham()') < br.indexOf('typeInto(el, String(p.qty))'));
+check('one grid visit per STYLE: two colours of one style share a page, and a second visit offers "Update", not "Add"',
+  /g\.has\(b\.style\)/.test(br) && /\(Add\|Update\) \\d\+ items\?/.test(br));
 
-console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
+console.log(failures ?`\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);
