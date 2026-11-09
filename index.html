@@ -66,6 +66,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px 28px 80px; }
     <div class="cards">
       <a class="card big" href="inventory.html"><b>Inventory manager</b><span>Drop a supplier file on a brand, check it, write the stock to Shopify, create new products.</span><em id="n-cat"></em></a>
       <a class="card" href="apparel.html"><b>ON apparel</b><span>ON apparel stock, on its own page.</span><em></em></a>
+      <a class="card" href="late.html"><b>Late orders</b><span>Dropship orders still waiting on the supplier, oldest first, with notes on who chased the rep.</span><em id="n-late"></em></a>
     </div>
     <p class="refresh"><button type="button" id="refresh">Refresh store data now</button><span id="rstat">Rebuilds the catalog, shoe sizes and shoe sales from Shopify. It also runs by itself every night.</span></p>
   </section>
@@ -108,6 +109,20 @@ main { max-width: 1080px; margin: 0 auto; padding: 28px 28px 80px; }
             el.textContent = 'Shopify catalog refreshed ' + ago(s.ageSeconds);
             if (s.ageSeconds > 2 * 86400) el.className = 'warn';
         }).catch(function () { /* the card works without it */ });
+    // Late dropship orders, same rule as the page: more than the browser's
+    // "Late after" days (5 by default). Only with the write secret.
+    if (CatalogClient.hasWriteSecret()) {
+        fetch(CatalogClient._writeBase() + '/orders/late', { headers: { Authorization: 'Bearer ' + CatalogClient.CATALOG_TOKEN, 'X-Write-Secret': CatalogClient.writeSecret() } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                if (!j || !j.rows) return;
+                var lim = 5; try { lim = +localStorage.getItem('rhLateDays') || 5; } catch (e) { /* private mode */ }
+                var n = j.rows.filter(function (r) { return r.days > lim; }).length;
+                var el = document.getElementById('n-late');
+                el.textContent = n ? n + ' late' : 'Nothing late';
+                if (n) el.className = 'warn';
+            }).catch(function () { /* the card works without it */ });
+    }
     // Open requests: only when this browser already holds the write secret,
     // because request data carries customer names and emails.
     if (CatalogClient.hasWriteSecret()) {

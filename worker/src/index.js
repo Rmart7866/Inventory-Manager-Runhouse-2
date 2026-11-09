@@ -40,6 +40,7 @@ import { handleOrderLookup } from './orders-lookup.js';
 import { writeSizeCoverage, handleSizes } from './size-coverage.js';
 import { writeSizeSales } from './size-sales.js';
 import { handleTrackingIngest, handleTrackingLog, handleTrackingApply, handleTrackingIntl, reconcileTracking } from './tracking.js';
+import { handleLateOrders, handleLateChase, handleLateChaseGet } from './late-orders.js';
 import { handleResetOptions, handleResetCollections, handleResetScan, handleResetApply, handleResetHistory, handleResetUndo } from './inventory-reset.js';
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
@@ -541,6 +542,10 @@ export default {
       // The international tracker's Received button. Writes the tool's own
       // log only, never Shopify.
       '/tracking/intl': { handler: teamReqRoute(handleTrackingIntl), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // Late orders (late-orders.js): read only against Shopify; chase notes
+      // are the staff's own, stored here.
+      '/orders/late': { handler: teamReqRoute(handleLateOrders), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/orders/late/chase': { handler: teamReqRoute((r, e) => r.method === 'GET' ? handleLateChaseGet(r, e) : handleLateChase(r, e)), forWrite: true, needsWriteSecret: true, methods: ['GET', 'POST'] },
       '/orders/lookup': { handler: teamReqRoute(handleOrderLookup), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/options': { handler: teamReqRoute(handleResetOptions), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/inventory-reset/collections': { handler: teamReqRoute(handleResetCollections), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
