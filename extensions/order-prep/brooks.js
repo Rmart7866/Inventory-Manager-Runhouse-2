@@ -110,25 +110,36 @@
   async function dropShip(a) {
     safeClick(await waitFor(() => [...document.querySelectorAll('button, a')].find((b) => visible(b) && /^drop ship$/i.test(b.innerText.trim())), 15000, 'the Drop ship button'), 'Drop ship');
     const name = await waitFor(() => { const e = document.getElementById('recipientName'); return visible(e) ? e : null; }, 8000, 'the Drop ship form');
-    const set = (id, v) => { const e = document.getElementById(id); if (e) typeInto(e, v || ''); return !!e; };
-    set('recipientName', [a.firstName, a.lastName].filter(Boolean).join(' '));
-    set('recipientAddress', a.street1);
-    set('recipientSecondaryAddress', a.street2);
-    set('recipientEmail', EMAIL);
-    set('zip', a.zip);
-    set('city', a.city);
-    set('recipientPhone', PHONE);
-    const st = document.getElementById('countryState');
+    // The form finishes loading a moment AFTER it opens (the state list fills
+    // in, then the form resets), wiping anything typed before that: a live run
+    // typed every field, then found them all empty and no "FL" in a list that
+    // holds it (2026-11-09). So wait for the list, settle, fill, and read every
+    // field back after a pause.
     const code = String(a.state || '').toUpperCase();
-    if (!st || ![...st.options].some((o) => o.value === code)) throw new Error('Brooks has no state "' + a.state + '" in its list');
-    setVal(st, code);
-    await sleep(300);
+    const st = await waitFor(() => { const e = document.getElementById('countryState'); return e && [...e.options].some((o) => o.value === code) ? e : null; }, 10000, 'the state ' + code + ' in Brooks\' list').catch(() => null);
+    if (!st) throw new Error('Brooks has no state "' + a.state + '" in its list');
+    await sleep(1000);
+    const want = {
+      recipientName: [a.firstName, a.lastName].filter(Boolean).join(' '),
+      recipientAddress: a.street1 || '', recipientSecondaryAddress: a.street2 || '',
+      recipientEmail: EMAIL, zip: a.zip || '', city: a.city || '', recipientPhone: PHONE,
+    };
+    const fill = () => {
+      for (const [id, v] of Object.entries(want)) { const e = document.getElementById(id); if (e && e.value !== v) typeInto(e, v); }
+      const sel = document.getElementById('countryState');
+      if (sel && sel.value !== code) setVal(sel, code);
+    };
+    const wrong = () => Object.entries(want).filter(([id, v]) => { const e = document.getElementById(id); return !e || e.value !== v; }).map(([id]) => id)
+      .concat((document.getElementById('countryState') || {}).value === code ? [] : ['state']);
+    for (let i = 0; i < 3; i++) { fill(); await sleep(1200); if (!wrong().length) break; }
+    if (wrong().length) throw new Error('The Drop ship form would not keep ' + wrong().join(', ') + '; fill those by hand');
     // The resale certificate box is a statement made by The Run House. A person
     // ticks it; this only waits, then presses Apply once it is ticked.
-    const box = document.getElementById('confirm-text');
+    const ticked = () => { const b = document.getElementById('confirm-text'); return !!(b && b.checked); };
     banner(['Drop ship address filled for ' + esc(a.firstName + ' ' + a.lastName) + '.', '<b>Tick the resale certificate box</b> in the Drop ship form. Apply is pressed for you once it is ticked.'], '');
-    await waitFor(() => (box && box.checked) || !visible(name), 10 * 60 * 1000, 'the resale certificate box to be ticked');
-    if (!visible(name)) throw new Error('The Drop ship form was closed before Apply');
+    await waitFor(() => ticked() || !visible(document.getElementById('recipientName')), 10 * 60 * 1000, 'the resale certificate box to be ticked');
+    if (!visible(document.getElementById('recipientName'))) throw new Error('The Drop ship form was closed before Apply');
+    if (wrong().length) throw new Error('The Drop ship form lost ' + wrong().join(', ') + ' while waiting; fix those, then press Apply by hand');
     const apply = await waitFor(() => { const b = document.querySelector('button[data-e2e="apply-btn"]'); return b && !b.disabled ? b : null; }, 8000, 'Apply to light up (check the address fields)');
     safeClick(apply, 'Apply');
     await waitFor(() => !visible(document.getElementById('recipientName')), 10000, 'the Drop ship form to close');

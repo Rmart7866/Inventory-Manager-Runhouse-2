@@ -30,7 +30,7 @@ const strip = (f) => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8'
 const br = strip('brooks.js');
 check('brooks.js clicks nothing itself: every click goes through safeClick', !/\.click\(\)/.test(br) && !/new MouseEvent\('click'/.test(br) && !/new PointerEvent/.test(br));
 check('brooks.js never ticks the resale certificate box, it only reads it',
-  !/checked\s*=(?!=)/.test(br) && !/safeClick\(\s*box/.test(br) && /box\.checked/.test(br));
+  !/checked\s*=(?!=)/.test(br) && !/safeClick\(\s*box/.test(br) && /b\.checked/.test(br) && /confirm-text/.test(br));
 check('brooks.js never names the Place basket button', !/Place basket['"]/.test(br.replace(/<b>Step 2\/2: Place basket<\/b>/g, '')));
 check('the drop ship email is the Needham mailbox the tracking updater reads', /EMAIL = 'needham@therunhouse\.com'/.test(br));
 check('items go under 1005 Needham, chosen before any box is typed in',
