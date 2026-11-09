@@ -75,6 +75,8 @@
       document.body.appendChild(box);
     }
     box.style.borderLeftColor = tone === 'bad' ? '#ff7a90' : tone === 'ok' ? '#3ddc97' : '#4c9bff';
+    // Saved, so a reload of the cart can say how far the run got.
+    try { chrome.storage.local.set({ rhPrepLast: { at: Date.now(), lines, tone: tone || '', shown: false } }); } catch (e) { /* storage unavailable: the banner still shows */ }
     box.innerHTML = '<div style="font-weight:700;margin-bottom:4px">Run House order prep</div>' + lines.map((l) => '<div>' + l + '</div>').join('') +
       '<button type="button" style="margin-top:8px;background:none;border:1px solid rgba(255,255,255,.25);color:inherit;padding:3px 10px;cursor:pointer">Close</button>';
     box.querySelector('button').onclick = () => box.remove();
@@ -190,14 +192,44 @@
   }
 
   // ---------- the job hand-off ----------
+  // Found on the first real runs, 2026-11-09: HOKA can send a fresh tab to
+  // its portal home (#/home) instead of the cart, and a reload or redirect
+  // mid run wiped the banner. So: off the cart, a pending job sends the tab
+  // to the cart; on the cart, the job is only TAKEN once the cart has loaded
+  // (a redirect before that leaves it pending); and every banner is saved, so
+  // a reloaded cart shows how far the last run got.
+  const CART = 'https://hokaus.deckersb2b.deckers.com/order-center/#/orderCenter/shoppingCar';
+  const onCart = () => location.pathname.startsWith('/order-center') && /shoppingCar/i.test(location.hash);
+  let running = false;
   async function check() {
-    if (!/shoppingCar/i.test(location.hash)) return;
-    const { rhPrepJob: job } = await chrome.storage.local.get('rhPrepJob');
-    if (!job || job.state !== 'pending' || job.supplier !== 'hoka') return;
-    // Taken once, whatever happens next, so a reload never runs it twice.
+    if (running) return;
+    const got = await chrome.storage.local.get(['rhPrepJob', 'rhPrepLast']);
+    const job = got.rhPrepJob;
+    const pending = job && job.state === 'pending' && job.supplier === 'hoka';
+    if (pending && Date.now() - job.at > MAX_AGE) {
+      await chrome.storage.local.remove('rhPrepJob');
+      if (onCart()) banner(['A prep request from more than 15 minutes ago was ignored. Press Prep in HOKA again.'], 'bad');
+      return;
+    }
+    if (pending && !onCart()) { location.href = CART; return; }
+    if (!onCart()) return;
+    if (!pending) {
+      // No job: show the last run's outcome once, if it is recent.
+      const last = got.rhPrepLast;
+      if (last && Date.now() - last.at < 30 * 60 * 1000 && !last.shown) {
+        banner(['<i>Last prep, ' + new Date(last.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ':</i>'].concat(last.lines), last.tone);
+        await chrome.storage.local.set({ rhPrepLast: { ...last, shown: true } });
+      }
+      return;
+    }
+    running = true;
+    try {
+      await waitFor(() => /ORDER SETTING/i.test(pageText()) && (cartEmpty() || cartCounts()), 30000, 'the cart to load');
+    } catch (e) { running = false; return; } // still pending; a later load picks it up
+    // Taken once the cart is really here, so a reload never runs it twice.
     await chrome.storage.local.remove('rhPrepJob');
-    if (Date.now() - job.at > MAX_AGE) { banner(['A prep request from more than 15 minutes ago was ignored. Press Prep in HOKA again.'], 'bad'); return; }
-    run(job);
+    await run(job);
+    running = false;
   }
   window.addEventListener('hashchange', check);
   check();
