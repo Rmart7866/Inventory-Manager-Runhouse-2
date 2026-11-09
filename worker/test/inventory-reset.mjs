@@ -12,6 +12,8 @@ check('the men\'s shoes button is the Men\'s Shoes type, apostrophe and all', bu
 check('a button ignores any other filter sent with it', buildQuery({ preset: 'insoles', vendors: ['Hoka'] }) === 'product_type:"Insoles & Inserts"');
 check('socks use the store\'s sock tags too, but never a hoodie', /tag:"socks"/.test(buildQuery({ preset: 'socks' })) && /-product_type:"Hoodies"/.test(buildQuery({ preset: 'socks' })));
 check('apparel is garments, not socks or the compression type', /"Hoodies"/.test(buildQuery({ preset: 'apparel' })) && !/Socks|Compression/.test(buildQuery({ preset: 'apparel' })));
+check('unisex is the Unisex Shoes type', buildQuery({ preset: 'unisex' }) === 'product_type:"Unisex Shoes"');
+check('spikes are the Spikes type plus spikes typed unisex, never team apparel tagged track and field', /product_type:"Spikes"/.test(buildQuery({ preset: 'spikes' })) && !/track and field/.test(buildQuery({ preset: 'spikes' })));
 check('an unknown button is refused', buildQuery({ preset: 'everything' }) === null);
 check('a quote in a value cannot break out of the search', buildQuery({ tags: ['a" OR vendor:"x'] }) === 'tag:"a\\" OR vendor:\\"x"');
 check('a collection is its numeric id', buildQuery({ collections: ['gid://shopify/Collection/123'] }) === 'collection_id:123');
@@ -54,7 +56,7 @@ const post = (body) => new Request('https://w/x', { method: 'POST', body: JSON.s
 console.log('\nLocations');
 let r = await handleResetOptions(new Request('https://w/x'), env);
 check('only the allowed locations are offered, never Scituate or the Run Bus', !r.body.locations.some((l) => l.name === 'Scituate' || l.name === 'Run Bus') && r.body.locations.length === 2);
-check('the page is told the buttons', r.body.presets.map((p) => p.key).join() === 'mens,womens,socks,insoles,apparel,nutrition');
+check('the page is told the buttons', r.body.presets.map((p) => p.key).join() === 'mens,womens,unisex,spikes,socks,insoles,apparel,nutrition');
 check('every tag, across pages, sorted, for the Tag box', JSON.stringify(r.body.tags) === '["clearance","Walpole XC","zebra"]' && tagCalls === 2);
 await handleResetOptions(new Request('https://w/x'), env);
 check('the tag list is kept a day, not fetched every time', tagCalls === 2);

@@ -32,6 +32,12 @@ export const APPAREL_TYPES = ['T-Shirts', 'T-Shirt', 'Hoodies', 'Jackets', 'Jack
 export const PRESETS = {
   mens: { label: "All men's shoes", q: 'product_type:"Men\'s Shoes"' }, // 2,728
   womens: { label: "All women's shoes", q: 'product_type:"Women\'s Shoes"' }, // 2,791
+  unisex: { label: 'All unisex shoes', q: 'product_type:"Unisex Shoes"' }, // 147, added 2026-11-09
+  // Spikes, 2026-11-09: the "Spikes" type (117) plus the 4 spikes typed as
+  // Unisex Shoes (Crescendo XC 2, Kilkenny XC Spike) = 121. NOT the Track
+  // Spikes collection's rule: its tags (spike, spikes, track and field) also
+  // catch about 50 pieces of team store apparel tagged "track and field".
+  spikes: { label: 'Spikes', q: 'product_type:"Spikes" OR (product_type:"Unisex Shoes" AND (tag:"spike" OR tag:"spikes" OR title:*Spike*))' },
   // The type alone is 189; the store's Socks collection keys on the sock
   // and socks TAGS (compression socks, untyped Collective socks), 413. Two
   // garments carry a sock tag by mistake, so those types are excluded.

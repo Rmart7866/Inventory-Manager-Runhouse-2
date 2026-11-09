@@ -207,10 +207,14 @@ owner directed run) and the INVENTORY RESET page (`inventory-reset.html`,
 `worker/src/inventory-reset.js`, built 2026-11-06 on owner request).**
 Everything else in `tools/` is Needham scoped for the reason directly below.
 The reset page sets on hand to 0 for a slice of ONE location, picked by
-brand, product type, tag or collection, or one of six buttons, each a FIXED
+brand, product type, tag or collection, or one of eight buttons, each a FIXED
 search in the store's own types (`PRESETS` in inventory-reset.js, counts
 2026-11-06): All men's shoes 2,728 and All women's shoes 2,791 (the "Men's
-Shoes" / "Women's Shoes" types; Unisex and Kids' are separate and left out),
+Shoes" / "Women's Shoes" types), All unisex shoes 147 (the "Unisex Shoes"
+type) and Spikes 121 (the "Spikes" type plus the 4 spikes typed Unisex
+Shoes; NOT the Track Spikes collection's rule, whose "track and field" tag
+also catches team store apparel), both added 2026-11-09; Kids' shoes are
+left out,
 Socks 410 (the type plus the sock/socks TAGS the Socks collection uses, minus
 two garments mis-tagged sock), Insoles 50, Apparel 6,896 (clothing types
 only; socks, headwear, gloves and the Compression type, which holds socks
