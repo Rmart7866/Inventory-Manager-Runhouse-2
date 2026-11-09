@@ -116,7 +116,7 @@
     const termsOpen = () => [...document.querySelectorAll('.el-dialog')].find((d) => visible(d) && /TERMS AND CONDITIONS/i.test(d.innerText));
     await sleep(1200);
     if (termsOpen()) {
-      banner(['<b>Your turn:</b> HOKA wants you to agree to its B2B2C terms before using a drop-ship address. Read them and press <b>I agree</b> yourself, and the prep carries on. Cancel stops it here.'], 'bad');
+      banner(['<b>Your turn:</b> HOKA wants you to agree to its B2B2C terms before using a drop-ship address. Read them and press <b>I agree</b> yourself. HOKA reloads the page after that; the prep carries on by itself within about 20 seconds. Cancel stops it here.'], 'bad');
       await waitFor(() => !termsOpen(), 5 * 60 * 1000, 'the terms to be answered');
       await sleep(800);
       if (!sw.classList.contains('is-checked')) throw new Error('The terms were cancelled, so no drop-ship address was set');
@@ -156,38 +156,58 @@
     setVal(inp, value);
   }
 
+  // RESUMABLE. Agreeing to HOKA's B2B2C terms RELOADS the cart page (seen on
+  // a real run 2026-11-09), which killed the run mid address. So the job is
+  // saved after every step (job.step, job.done) and a reloaded cart carries
+  // on from the next step. One tab owns a job at a time: the owner writes a
+  // heartbeat, and another page only takes over once that goes quiet.
+  const ME = Math.random().toString(36).slice(2);
+  const save = (job) => chrome.storage.local.set({ rhPrepJob: job });
   async function run(job) {
-    const done = [];
-    const show = (now, tone) => banner(done.map((d) => '✓ ' + esc(d)).concat(now ? [now] : []), tone);
+    job.done = job.done || [];
+    const show = (now, tone) => banner(job.done.map((d) => '✓ ' + esc(d)).concat(now ? [now] : []), tone);
+    const beat = setInterval(() => { job.beat = Date.now(); save(job); }, 2000);
     try {
-      show('Waiting for the cart to load...');
+      show(job.step && job.step !== 'start' ? 'Carrying on after the page reloaded...' : 'Waiting for the cart to load...');
       await waitFor(() => /ORDER SETTING/i.test(pageText()) && (cartEmpty() || cartCounts()), 30000, 'the cart to load');
-      if (!cartEmpty()) {
-        banner(['<b>Nothing was done.</b> The HOKA cart already has items, so ' + esc(job.po) + ' was not added, to keep two orders from mixing.', 'Save or clear that cart yourself, then press Prep in HOKA again.'], 'bad');
-        return;
+      if (!job.step || job.step === 'start') {
+        if (!cartEmpty()) {
+          clearInterval(beat); await chrome.storage.local.remove('rhPrepJob');
+          banner(['<b>Nothing was done.</b> The HOKA cart already has items, so ' + esc(job.po) + ' was not added, to keep two orders from mixing.', 'Save or clear that cart yourself, then press Prep in HOKA again.'], 'bad');
+          return;
+        }
+        show('Adding ' + job.lines.length + ' item' + (job.lines.length === 1 ? '' : 's') + ' by UPC...');
+        const u = await upload(job);
+        job.short = u.got < u.want ? { got: u.got, want: u.want } : null;
+        job.done.push('Items: ' + u.got + ' of ' + u.want + ' pair' + (u.want === 1 ? '' : 's') + ' in the cart');
+        job.step = 'items'; await save(job);
       }
-      show('Adding ' + job.lines.length + ' item' + (job.lines.length === 1 ? '' : 's') + ' by UPC...');
-      const u = await upload(job);
-      done.push('Items: ' + u.got + ' of ' + u.want + ' pair' + (u.want === 1 ? '' : 's') + ' in the cart');
-      const short = u.got < u.want;
-      if (job.address) {
-        show('Filling the drop-ship address...');
-        await address(job.address);
-        done.push('Drop-ship address: ' + job.address.firstName + ' ' + job.address.lastName + ', ' + job.address.city + ' ' + job.address.state);
-      } else {
-        done.push(job.international ? 'International order: no drop-ship address, so HOKA ships to the store' : 'No address on the order: drop-ship address left off');
+      if (job.step === 'items') {
+        if (job.address) {
+          show('Filling the drop-ship address...');
+          await address(job.address);
+          job.done.push('Drop-ship address: ' + job.address.firstName + ' ' + job.address.lastName + ', ' + job.address.city + ' ' + job.address.state);
+        } else {
+          job.done.push(job.international ? 'International order: no drop-ship address, so HOKA ships to the store' : 'No address on the order: drop-ship address left off');
+        }
+        job.step = 'address'; await save(job);
       }
-      show('Setting delivery and PO...');
-      await delivery();
-      done.push('Delivery: as soon as possible');
-      await po(job.po);
-      done.push('PO ' + job.po);
-      banner(done.map((d) => '✓ ' + esc(d)).concat([
-        short ? '<b style="color:#f2c14e">Only ' + u.got + ' of ' + u.want + ' pairs went in: HOKA did not recognise a UPC. Add the rest by hand.</b>' : '',
+      if (job.step === 'address') {
+        show('Setting delivery and PO...');
+        await delivery();
+        job.done.push('Delivery: as soon as possible');
+        await po(job.po);
+        job.done.push('PO ' + job.po);
+      }
+      clearInterval(beat); await chrome.storage.local.remove('rhPrepJob');
+      const short = job.short;
+      banner(job.done.map((d) => '✓ ' + esc(d)).concat([
+        short ? '<b style="color:#f2c14e">Only ' + short.got + ' of ' + short.want + ' pairs went in: HOKA did not recognise a UPC. Add the rest by hand.</b>' : '',
         '<b>Ready for you.</b> Check the items, sizes, stock per size and address, then press <b>Submit Order</b> yourself. Nothing has been submitted.',
       ].filter(Boolean)), short ? 'bad' : 'ok');
     } catch (e) {
-      banner(done.map((d) => '✓ ' + esc(d)).concat(['<b>Stopped:</b> ' + esc(e.message) + '. Nothing was submitted; finish this one by hand.']), 'bad');
+      clearInterval(beat); await chrome.storage.local.remove('rhPrepJob');
+      banner(job.done.map((d) => '✓ ' + esc(d)).concat(['<b>Stopped:</b> ' + esc(e.message) + '. Nothing was submitted; finish this one by hand.']), 'bad');
     }
   }
 
@@ -204,7 +224,22 @@
   async function check() {
     if (running) return;
     const got = await chrome.storage.local.get(['rhPrepJob', 'rhPrepLast']);
-    const job = got.rhPrepJob;
+    let job = got.rhPrepJob;
+    // A job another page was running whose heartbeat has gone quiet (that
+    // page reloaded, e.g. after the terms) is picked up again here.
+    if (job && job.state === 'running' && job.supplier === 'hoka' && Date.now() - (job.beat || 0) > 20000 && Date.now() - job.at < MAX_AGE && onCart()) {
+      running = true;
+      job.owner = ME; job.beat = Date.now(); await save(job);
+      await run(job);
+      running = false;
+      return;
+    }
+    // Running elsewhere with a fresh heartbeat: right after a reload the dead
+    // page's last beat is still recent, so look again once it has gone quiet.
+    if (job && job.state === 'running' && job.supplier === 'hoka' && onCart() && Date.now() - job.at < MAX_AGE) {
+      setTimeout(check, 21000);
+      return;
+    }
     const pending = job && job.state === 'pending' && job.supplier === 'hoka';
     if (pending && Date.now() - job.at > MAX_AGE) {
       await chrome.storage.local.remove('rhPrepJob');
@@ -226,8 +261,10 @@
     try {
       await waitFor(() => /ORDER SETTING/i.test(pageText()) && (cartEmpty() || cartCounts()), 30000, 'the cart to load');
     } catch (e) { running = false; return; } // still pending; a later load picks it up
-    // Taken once the cart is really here, so a reload never runs it twice.
-    await chrome.storage.local.remove('rhPrepJob');
+    // Taken once the cart is really here: marked running and owned by this
+    // page, so a second tab never starts it too.
+    job = { ...job, state: 'running', owner: ME, beat: Date.now(), step: 'start', done: [] };
+    await save(job);
     await run(job);
     running = false;
   }
