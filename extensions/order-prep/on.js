@@ -25,7 +25,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 (function () {
   const P = window.RHPrep;
-  const { sleep, visible, waitFor, safeClick, typeInto, esc, byLabel, banner } = P;
+  const { sleep, visible, waitFor, safeClick, safePress, typeInto, esc, byLabel, banner } = P;
   const MAX_AGE = 15 * 60 * 1000;
   const START = 'https://backstage.on-running.com/orders/create/re-order/product-selection';
   const STATES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
@@ -144,15 +144,32 @@
     set(/^Street address/i, [a.street1, a.street2].filter(Boolean).join(' '));
     set(/^City/i, a.city);
     set(/^Zip/i, a.zip);
-    // State is a picker: open it and choose the state by name or code.
+    // State is a Reka UI select (button[data-cy=one-time-address-state-select],
+    // role combobox, options [role=option] with the state NAME as text and no
+    // value attribute). It opens on pointerdown, never on a click, and ON
+    // preselects Alabama, so an Alabama order needs no pick at all.
     const name = STATES[String(a.state || '').toUpperCase()] || a.state;
-    const opener = [...form.querySelectorAll('button, [role=combobox]')].find((b) => visible(b) && /state/i.test((b.innerText || '') + ' ' + (b.getAttribute('aria-label') || ''))) ||
-      [...document.querySelectorAll('button, [role=combobox]')].find((b) => visible(b) && /select state/i.test(b.innerText || ''));
+    const opener = document.querySelector('[data-cy=one-time-address-state-select]') ||
+      [...form.querySelectorAll('button[role=combobox], [role=combobox]')].find((b) => visible(b) && /state/i.test((b.innerText || '') + ' ' + (b.getAttribute('data-cy') || '')));
     if (!opener) throw new Error('Could not find the State picker');
-    safeClick(opener, 'the State picker');
-    const opt = await waitFor(() => [...document.querySelectorAll('[role=option], li, button')].find((o) => visible(o) && o !== opener && (o.innerText.trim() === name || o.innerText.trim() === a.state || o.innerText.trim().toLowerCase().startsWith(name.toLowerCase() + ' '))), 5000, 'the state ' + name);
-    safeClick(opt, name);
-    await sleep(400);
+    const shown = () => ((opener.querySelector('[data-slot=select-value]') || opener).innerText || '').trim();
+    if (shown().toLowerCase() !== String(name).toLowerCase()) {
+      const isState = (o) => { const t = o.innerText.trim(); return t === name || t === a.state; };
+      safePress(opener, 'the State picker', 'pointerdown');
+      const opt = await waitFor(() => [...document.querySelectorAll('[role=option]')].find((o) => visible(o) && isState(o)), 5000, 'the state ' + name + ' in the list');
+      opt.scrollIntoView({ block: 'nearest' });
+      await sleep(200);
+      safePress(opt, name, 'pointermove');
+      safePress(opt, name, 'pointerup');
+      await sleep(400);
+      // Keyboard is Reka's other way to pick: focus the item and press Enter.
+      if (shown().toLowerCase() !== String(name).toLowerCase() && opt.isConnected) {
+        opt.focus();
+        opt.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+        await sleep(400);
+      }
+      if (shown().toLowerCase() !== String(name).toLowerCase()) throw new Error('Could not set the State to ' + name + ' (it shows ' + shown() + ')');
+    }
     const saveBtn = [...form.querySelectorAll('button')].find((b) => visible(b) && b.innerText.trim() === 'Save') ||
       [...document.querySelectorAll('button')].find((b) => visible(b) && b.innerText.trim() === 'Save');
     safeClick(saveBtn, 'the address Save button');

@@ -30,6 +30,18 @@
     if (FORBIDDEN.test(text)) throw new Error('Refused to press "' + text + '": order prep never submits');
     if (typeof el.click === 'function') el.click(); else el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
   }
+  // A picker built on Reka UI (ON's State select) opens on POINTERDOWN and
+  // picks an item on POINTERUP, and ignores a plain click: a real run timed out
+  // waiting for the state list, 2026-11-09. Same guard as safeClick; the event
+  // lands at the element's own centre because Reka ignores a pointerup within
+  // 10px of where the picker was opened.
+  function safePress(el, what, type) {
+    if (!el) throw new Error('Could not find ' + what);
+    const text = ((el.innerText || el.textContent || el.value || '') + ' ' + (el.getAttribute && el.getAttribute('aria-label') || '')).trim();
+    if (FORBIDDEN.test(text)) throw new Error('Refused to press "' + text + '": order prep never submits');
+    const r = el.getBoundingClientRect();
+    el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, view: window, button: 0, buttons: type === 'pointerdown' ? 1 : 0, pointerType: 'mouse', pointerId: 1, isPrimary: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+  }
   function setVal(el, v) {
     const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
     setter.call(el, v == null ? '' : String(v));
@@ -90,5 +102,5 @@
     return m[2] ? m[1] + '.5' : m[1];
   }
 
-  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize };
+  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, safePress, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize };
 })(typeof window !== 'undefined' ? window : globalThis);
