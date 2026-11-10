@@ -228,6 +228,7 @@ var B2BLinkManager = {
                     }
                 </div>
                 <button class="copy-btn" style="margin-top:8px;" onclick="B2BLinkManager.copyActive('${brand}', '${group.key}', this)">${copyLabel}</button>
+                ${brand === 'brooks' ? `<button class="copy-btn" style="margin-top:8px;margin-left:6px;" onclick="B2BLinkManager.copyActive('${brand}', '', this)">Copy All Links</button>` : ''}
                 <div class="blm-add">
                     <input type="text" class="blm-input" id="${brand}-add-url-${group.key}" placeholder="Paste link URL..." onkeydown="if(event.key==='Enter')B2BLinkManager.submitAdd('${brand}', '${group.key}')">
                     <input type="text" class="blm-input blm-input-label" id="${brand}-add-label-${group.key}" placeholder="Label (optional)" onkeydown="if(event.key==='Enter')B2BLinkManager.submitAdd('${brand}', '${group.key}')">
