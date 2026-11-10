@@ -51,21 +51,7 @@
   const basketCount = () => { const b = document.querySelector('epc-basket-button'); const m = b && /^\s*(\d+)\s*\(/.exec(b.innerText || ''); return m ? +m[1] : 0; };
 
   // ---------- steps ----------
-  // One group per STYLE, not per colourway: FastTrack shows every colour of a
-  // style on one grid, and a second visit to that grid finds the first visit's
-  // pairs already in it and offers "Update 2 items" (a live run on two colours
-  // of 120444 stopped there, 2026-11-09). The search uses the first colourway,
-  // whose exact Style ID opens the grid.
-  function groupsOf(job) {
-    const g = new Map();
-    for (const l of job.lines) {
-      const b = brooksLine(l);
-      if (!b) throw new Error((l.title || l.sku) + ' has a SKU this cannot read (' + l.sku + ')');
-      if (!g.has(b.style)) g.set(b.style, { key: b.key, style: b.style, title: l.title, pairs: [] });
-      g.get(b.key).pairs.push({ colour: b.colour, size: b.size, width: b.width, qty: l.qty, title: l.title });
-    }
-    return [...g.values()];
-  }
+  const groupsOf = (job) => P.brooksGroups(job.lines);
 
   async function pickNeedham() {
     const tab = await waitFor(() => [...document.querySelectorAll('epc-delivery-shop')].find((t) => SHIP_TO.test(t.innerText || '')), 20000, 'the 1005 Needham ship-to tab');

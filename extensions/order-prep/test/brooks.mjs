@@ -35,8 +35,15 @@ check('brooks.js never names the Place basket button', !/Place basket['"]/.test(
 check('the drop ship email is the Needham mailbox the tracking updater reads', /EMAIL = 'needham@therunhouse\.com'/.test(br));
 check('items go under 1005 Needham, chosen before any box is typed in',
   /SHIP_TO = \/\^\\s\*1005/.test(br) && br.indexOf('await pickNeedham()') < br.indexOf('typeInto(el, String(p.qty))'));
-check('one grid visit per STYLE: two colours of one style share a page, and a second visit offers "Update", not "Add"',
-  /g\.has\(b\.style\)/.test(br) && /\(Add\|Update\) \\d\+ items\?/.test(br));
+const gs = P.brooksGroups([
+  { sku: '120444001-094-850-B', qty: 1, title: 'A' }, { sku: '120444001-090-950-B', qty: 2, title: 'B' }, { sku: '110478114-187-1450-D', qty: 1, title: 'C' },
+]);
+check('one grid visit per STYLE: two colours of one style are one group, another style is its own',
+  gs.length === 2 && gs[0].style === '120444' && gs[0].key === '120444-094' && gs[0].pairs.length === 2 &&
+  gs[0].pairs[1].colour === '090' && gs[0].pairs[1].qty === 2 && gs[1].key === '110478-187' && gs[1].pairs.length === 1);
+let threw = ''; try { P.brooksGroups([{ sku: 'HOKA-1', title: 'X' }]); } catch (e) { threw = e.message; }
+check('an unreadable SKU stops the run by name', /X has a SKU this cannot read/.test(threw));
+check('and a second visit to a grid that already holds pairs offers "Update", which is accepted', /\(Add\|Update\) \\d\+ items\?/.test(br));
 
 console.log(failures ?`\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

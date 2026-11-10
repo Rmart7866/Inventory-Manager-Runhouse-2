@@ -130,5 +130,23 @@
     return { style, colour, size: size.toFixed(1), width, key: style + '-' + colour };
   }
 
-  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, safePress, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize, brooksLine };
+  // One group per STYLE, not per colourway: FastTrack shows every colour of a
+  // style on one grid, and a second visit to that grid finds the first visit's
+  // pairs already in it and offers "Update 2 items" (a live run on two colours
+  // of 120444 stopped there, 2026-11-09). The search uses the first colourway,
+  // whose exact Style ID opens the grid. Kept here, not in brooks.js, so the
+  // test runs it: a half renamed key in brooks.js stopped a live run with
+  // "reading 'pairs'" the same day.
+  function brooksGroups(lines) {
+    const g = new Map();
+    for (const l of lines) {
+      const b = brooksLine(l);
+      if (!b) throw new Error((l.title || l.sku) + ' has a SKU this cannot read (' + l.sku + ')');
+      if (!g.has(b.style)) g.set(b.style, { key: b.key, style: b.style, title: l.title, pairs: [] });
+      g.get(b.style).pairs.push({ colour: b.colour, size: b.size, width: b.width, qty: l.qty, title: l.title });
+    }
+    return [...g.values()];
+  }
+
+  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, safePress, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize, brooksLine, brooksGroups };
 })(typeof window !== 'undefined' ? window : globalThis);
