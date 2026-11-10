@@ -1,31 +1,674 @@
 {
-  "_source": "Brooks tech sheets in the Brooks DAM (brookssports.widencollective.com), read 2026-11-10: F26_NA_TechSheets_SeasonalApparel_WomensShorts, _MensShorts, _Bras; F26_TechSheets_Apparel_W_MomentumCollection, M_MomentumCollection, W_MomentumThermalTight, M_DashTights, MomentumThermalVest, MomentumThermalHybridGlove, GlycerinSensoryQtrSock, M_DashLS, W_Dash.LS; S26_TechSheets_Apparel_ALL. Facts only, as Brooks states them. No prices. A model not listed here gets no description, never a guess.",
-  "Women's Dash Short": { "style": "221749", "uses": "everyday runs, training and multi-sport", "features": ["Brief lined", "Elastic waistband with internal drawcord", "Perforations on the back yoke aid breathability"], "rise": "Mid-rise", "inseam": "3\"", "pockets": "1 interior drop-in key pocket", "fabric": "Shell: 100% recycled polyester. Liner: 100% recycled polyester", "sizes": "XS to XXL; Black also in 2X and 3X" },
-  "Women's Dash 2-in-1 Short": { "style": "221754", "uses": "everyday runs, training and multi-sport", "features": ["Built-in shorts under a lightweight shell", "Elastic waistband with internal drawcord", "Perforations on the back yoke aid breathability"], "rise": "High-rise", "inseam": "Shell 3\", built-in shorts 3.5\"", "pockets": "1 interior drop-in key pocket and a drop-in phone pocket on the liner", "fabric": "Shell: 100% recycled polyester. Built-in shorts: 92% recycled polyester, 8% spandex", "sizes": "XS to XXL" },
-  "Women's Chaser 3\" Short 2.0": { "uses": "everyday runs, unrestricted movement and multi-sport", "features": ["Brief lined", "Wide, smooth waistband with an interior drawcord", "4-way stretch"], "rise": "High-rise", "inseam": "3\"", "pockets": "1 turn-and-lock phone pocket and 1 zippered external key pocket", "fabric": "Shell: 89% recycled polyester, 11% spandex. Liner: 92% recycled polyester, 8% spandex", "sizes": "XS to XXL" },
-  "Women's Chaser 5\" Short 2.0": { "uses": "everyday runs, unrestricted movement and multi-sport", "features": ["Brief lined", "Wide, smooth waistband with an interior drawcord", "4-way stretch"], "rise": "High-rise", "inseam": "5\"", "pockets": "1 turn-and-lock phone pocket and 1 zippered external key pocket", "fabric": "Shell: 89% recycled polyester, 11% spandex. Liner: 92% recycled polyester, 8% spandex", "sizes": "XS to XXL" },
-  "Women's Chaser 7\" Short 2.0": { "uses": "everyday runs, unrestricted movement and multi-sport", "features": ["Brief lined", "Wide, smooth waistband with an interior drawcord", "4-way stretch"], "rise": "High-rise", "inseam": "7\"", "pockets": "1 turn-and-lock phone pocket and 2 drop-in hand pockets", "fabric": "Shell: 89% recycled polyester, 11% spandex. Liner: 92% recycled polyester, 8% spandex", "sizes": "XS to XXL" },
-  "Women's Chaser 7/8 Tight": { "style": "221753", "tagline": "Next-level performance and style.", "features": ["Buttery-smooth, ultra-soft fabric with four-way stretch", "Waistband stays in place without pinching", "Back yoke seamlines add subtle shaping", "Raw hem finish", "Reflective bar at back"], "fit": "Fitted", "rise": "High-rise", "inseam": "25\"", "pockets": "2 side drop-in pockets that sit close to the body", "fabric": "75% nylon, 25% spandex", "sizes": "XS to XXL; Black also in 2X and 3X" },
-  "Women's Momentum Thermal Tight": { "style": "221806", "tagline": "Our warmest tight moves with your every stride.", "features": ["Built for cold-weather miles: warmth without the bulk", "Soft, supportive knit traps heat close to the body", "Four-way stretch with just-right compression", "Soft brushed interior"], "fit": "Fitted", "rise": "High-rise", "inseam": "28.5\"", "pockets": "2 side drop-in pockets and 1 center back zippered phone pocket", "fabric": "72% nylon, 28% spandex", "sizes": "XS to XXL" },
-  "Women's Dash Lite Bra": { "support": "Light", "features": ["Double-lined fabric with just-right compression delivers light, comfortable support", "4-way stretch", "Less compression than the Dash Padded Bra", "Pullover style"], "sizes": "XS to XXL" },
-  "Women's Chaser Padded Bra": { "support": "Medium", "features": ["Soft interior unicup", "Brushed bottom band", "Merrow stitching inside to reduce the risk of chafing", "Pullover style"], "sizes": "XS to XXL" },
-  "Women's Luxe Strappy Bra": { "support": "Light", "features": ["Double lined", "Crossback straps and back cutout", "Pullover style"], "sizes": "XS to XXL" },
-  "Women's Momentum Thermal 1/4 Zip": { "style": "221788", "tagline": "Designed for the optimal balance of warmth and breathability.", "features": ["Thermal fabric with a soft, cozy feel and an ideal warmth-to-weight ratio", "Antimicrobial treatment helps stop odor", "Thumbholes and fold-over hand mitts", "Reflective back hem"], "fit": "Semi-fitted", "fabric": "95% recycled polyester, 5% spandex", "sizes": "XS to XXL" },
-  "Women's Momentum Thermal Hoodie": { "style": "221789", "tagline": "Designed for the optimal balance of warmth and breathability.", "features": ["Thermal fabric with a soft, cozy feel and an ideal warmth-to-weight ratio", "Antimicrobial treatment helps stop odor", "Thumbholes and fold-over hand mitts", "Reflective back hem"], "fit": "Semi-fitted", "fabric": "95% recycled polyester, 5% spandex", "sizes": "XS to XXL" },
-  "Women's Dash Long Sleeve": { "style": "221785", "tagline": "Performance-forward, essential run top.", "features": ["Ultra lightweight, sweat-wicking performance knit", "Antimicrobial finish helps stop odor", "Thumbholes", "Side notches for range of motion", "Reflective path bar on lower back", "UPF 20+"], "fit": "Semi-fitted", "fabric": "86% recycled polyester, 14% spandex", "sizes": "XS to XXL" },
-  "Women's Canopy Jacket": { "style": "221751", "tagline": "Reliable protection from the elements.", "features": ["4-way stretch fabric with a DWR finish against wind and water (made without PFAS)", "Venting across the center back", "Hand pockets plus an inside phone-sized pocket", "Elastic binding and chin guard keep the hood secure", "Reflective bar at back"], "fit": "Semi-fitted", "fabric": "89% polyester, 11% spandex", "sizes": "XS to XXL; Black also in 2X and 3X" },
-  "Men's Dash Short": { "style": "211580", "uses": "everyday runs, training and multi-sport", "features": ["Flat, soft-knit waistband with internal drawcord", "Side notches for range of motion", "Perforated side panels for ventilation"], "inseam": "6\"", "pockets": "1 interior drop-in key pocket on the liner and 2 open hand pockets", "fabric": "Shell: 100% recycled polyester. Liner: 100% recycled polyester", "sizes": "XS to XXL" },
-  "Men's Dash Half Tight": { "style": "211611", "tagline": "Performance-essential half tight.", "features": ["Built-in brief liner", "Snug, just-right compression with ample stretch", "Flat, soft-knit waistband with internal drawcord"], "fit": "Fitted", "inseam": "8\"", "pockets": "1 drop-in phone pocket and 1 internal key pocket", "fabric": "Shell: 78% recycled polyester, 22% spandex. Liner: 100% recycled polyester", "sizes": "XS to XXL" },
-  "Men's Dash Tight": { "style": "211619", "features": ["Built-in brief liner", "Snug, just-right compression with ample stretch", "Flat, soft-knit waistband with internal drawcord", "Ankle zippers for easy on and off"], "fit": "Fitted", "inseam": "29\"", "pockets": "1 drop-in phone pocket and 1 internal key pocket", "fabric": "Shell: 78% recycled polyester, 22% spandex. Liner: 100% recycled polyester", "sizes": "XS to XXL" },
-  "Men's Cascadia 2-in-1 Short": { "uses": "trail running, long distances and hiking", "features": ["External drawcord supports the weight of stored gear", "Pull tabs open the pockets easily, even with gloves or cold fingers", "Antimicrobial", "Raw hem finish"], "inseam": "Shell 5\", liner 4\"", "pockets": "4 drop-in fuel pockets along the waistband, a center back zippered phone pocket and 2 drop-in pockets on the liner's thighs", "fabric": "75% nylon, 25% spandex; 78% recycled polyester, 22% spandex", "sizes": "XS to XXL" },
-  "Men's Dash Long Sleeve": { "style": "211607", "tagline": "Performance-forward, essential run top.", "features": ["Soft, sweat-wicking performance knit", "Antimicrobial finish helps stop odor", "UPF 40+ sun protection", "Side notches for range of motion", "Fabric reversed at the back for a different texture", "Reflective path bar at center back"], "fit": "Semi-fitted", "sizes": "XS to XXL" },
-  "Men's Dash Short Sleeve": { "style": "211581", "tagline": "Our go-to performance essential top.", "features": ["Partially recycled, soft performance knit that wicks sweat", "Antimicrobial finish helps stop odor", "UPF 40+ sun protection", "Performance notches at the sides for mobility", "Reflective path bar at center back"], "fit": "Semi-fitted", "fabric": "57% recycled polyester, 43% polyester", "sizes": "XS to XXL" },
-  "Men's Dash Singlet": { "style": "211588", "tagline": "Our go-to performance essential top.", "features": ["Partially recycled, soft performance knit that wicks sweat", "Antimicrobial finish helps stop odor", "UPF 40+ sun protection", "Performance notches at the sides for mobility", "Reflective path bar at center back"], "fit": "Semi-fitted", "fabric": "57% recycled polyester, 43% polyester", "sizes": "XS to XXL" },
-  "Men's Momentum Thermal 1/2 Zip": { "style": "211617", "tagline": "Designed for the optimal balance of warmth and breathability.", "features": ["Thermal fabric with a soft, cozy feel and an ideal warmth-to-weight ratio", "Hybrid build: side panels use Dash 1/4 Zip 3.0 fabric for thermoregulation and less weight", "Antimicrobial treatment helps stop odor", "Thumbholes", "Reflective back hem"], "fit": "Semi-fitted", "fabric": "Body: 95% recycled polyester, 5% spandex. Side panels: 88% recycled polyester, 12% spandex", "sizes": "XS to XXL" },
-  "Men's Momentum Thermal Vest": { "style": "211635", "tagline": "Targeted warmth for winter layering.", "features": ["100 gsm of strategically placed insulation, with zoned breathability to avoid overheating", "DWR-treated shell sheds light rain and snow", "Higher collar keeps the chill out", "Stretch thermal panels for mobility", "Zippered pockets with an internal stash pocket and warm lining"], "fit": "Semi-fitted", "fabric": "Shells: nylon and spandex. Insulation: 100% polyester", "sizes": "XS to XXL" },
-  "Men's Dash Pant": { "style": "211585", "tagline": "Go-to technical layering.", "features": ["Woven overlay panel with a DWR finish against wind (made without PFAS)", "Flat, soft-knit waistband with internal drawcord", "Ankle zips for easy layering", "Reflective bar at back"], "fit": "Semi-fitted", "inseam": "29\" (tall: 31\")", "fabric": "Body: 81% recycled polyester, 19% spandex. Overlay: 89% polyester, 11% spandex", "sizes": "XS to XXL; Black also in tall lengths" },
-  "Men's Canopy Jacket": { "style": "211582", "tagline": "Reliable protection from the elements.", "features": ["4-way stretch fabric with a DWR finish against wind and water (made without PFAS)", "Venting across the center back", "Hand pockets plus an inside phone-sized pocket", "Elastic binding and chin guard keep the hood secure", "Reflective bar at back"], "fit": "Semi-fitted", "fabric": "89% polyester, 11% spandex", "sizes": "XS to XXL" },
-  "Unisex Momentum Thermal Hybrid Glove": { "style": "280557", "tagline": "Stay warm your way: converts from glove to mitten with ease.", "features": ["Mitten cover flips on and off for extra coverage", "Touchscreen-compatible index finger and thumb", "Soft, brushed four-way stretch knit traps heat", "DWR-treated fabric resists wind and light water", "Soft brushed panel for nose wipe"], "fabric": "Glove: 72% nylon, 28% spandex. Mitt cover: 100% polyester", "sizes": "XS to XXL" },
-  "Unisex Glycerin Sensory Quarter": { "style": "280549", "tagline": "Feel the run: cushioned, flexible and fresh.", "features": ["Anatomically designed with a seamless toe to prevent rubbing", "High-pile cushioned pressure points for a sensory feel", "Looser knit under the arch for midfoot flexibility", "Cushioning at heel and toebox", "Y-heel pocket for a locked-in fit", "Anti-odor treatment", "Quarter length with speed tab"], "cushion": "Low", "fabric": "94% nylon, 6% spandex", "sizes": "S to XXL" },
-  "Unisex Run-In Quarter 3-Pack": { "style": "280542", "tagline": "Technical running socks built for distraction-free comfort.", "features": ["Wider arch construction and midfoot compression for hold", "Mesh zone on top of the foot for ventilation", "Heel and forefoot cushioning", "Y-heel pocket locks in the heel", "Sweat wicking", "Sock name and size stitched in"], "fabric": "96% nylon, 3% spandex, 1% polyester", "sizes": "S to XL", "pack": "3 pairs" }
+ "_source": "Brooks tech sheets in the Brooks DAM (brookssports.widencollective.com), read 2026-11-10: F26_NA_TechSheets_SeasonalApparel_WomensShorts, _MensShorts, _Bras; F26_TechSheets_Apparel_W_MomentumCollection, M_MomentumCollection, W_MomentumThermalTight, M_DashTights, MomentumThermalVest, MomentumThermalHybridGlove, GlycerinSensoryQtrSock, M_DashLS, W_Dash.LS; S26_TechSheets_Apparel_ALL. Facts only, as Brooks states them. No prices. A model not listed here gets no description, never a guess.",
+ "Women's Dash Short": {
+  "style": "221749",
+  "uses": "everyday runs, training and multi-sport",
+  "features": [
+   "Brief lined",
+   "Elastic waistband with internal drawcord",
+   "Perforations on the back yoke aid breathability"
+  ],
+  "rise": "Mid-rise",
+  "inseam": "3\"",
+  "pockets": "1 interior drop-in key pocket",
+  "fabric": "Shell: 100% recycled polyester. Liner: 100% recycled polyester",
+  "sizes": "XS to XXL; Black also in 2X and 3X"
+ },
+ "Women's Dash 2-in-1 Short": {
+  "style": "221754",
+  "uses": "everyday runs, training and multi-sport",
+  "features": [
+   "Built-in shorts under a lightweight shell",
+   "Elastic waistband with internal drawcord",
+   "Perforations on the back yoke aid breathability"
+  ],
+  "rise": "High-rise",
+  "inseam": "Shell 3\", built-in shorts 3.5\"",
+  "pockets": "1 interior drop-in key pocket and a drop-in phone pocket on the liner",
+  "fabric": "Shell: 100% recycled polyester. Built-in shorts: 92% recycled polyester, 8% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Women's Chaser 3\" Short 2.0": {
+  "uses": "everyday runs, unrestricted movement and multi-sport",
+  "features": [
+   "Brief lined",
+   "Wide, smooth waistband with an interior drawcord",
+   "4-way stretch"
+  ],
+  "rise": "High-rise",
+  "inseam": "3\"",
+  "pockets": "1 turn-and-lock phone pocket and 1 zippered external key pocket",
+  "fabric": "Shell: 89% recycled polyester, 11% spandex. Liner: 92% recycled polyester, 8% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Women's Chaser 5\" Short 2.0": {
+  "uses": "everyday runs, unrestricted movement and multi-sport",
+  "features": [
+   "Brief lined",
+   "Wide, smooth waistband with an interior drawcord",
+   "4-way stretch"
+  ],
+  "rise": "High-rise",
+  "inseam": "5\"",
+  "pockets": "1 turn-and-lock phone pocket and 1 zippered external key pocket",
+  "fabric": "Shell: 89% recycled polyester, 11% spandex. Liner: 92% recycled polyester, 8% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Women's Chaser 7\" Short 2.0": {
+  "uses": "everyday runs, unrestricted movement and multi-sport",
+  "features": [
+   "Brief lined",
+   "Wide, smooth waistband with an interior drawcord",
+   "4-way stretch"
+  ],
+  "rise": "High-rise",
+  "inseam": "7\"",
+  "pockets": "1 turn-and-lock phone pocket and 2 drop-in hand pockets",
+  "fabric": "Shell: 89% recycled polyester, 11% spandex. Liner: 92% recycled polyester, 8% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Women's Chaser 7/8 Tight": {
+  "style": "221753",
+  "tagline": "Next-level performance and style.",
+  "features": [
+   "Buttery-smooth, ultra-soft fabric with four-way stretch",
+   "Waistband stays in place without pinching",
+   "Back yoke seamlines add subtle shaping",
+   "Raw hem finish",
+   "Reflective bar at back"
+  ],
+  "fit": "Fitted",
+  "rise": "High-rise",
+  "inseam": "25\"",
+  "pockets": "2 side drop-in pockets that sit close to the body",
+  "fabric": "75% nylon, 25% spandex",
+  "sizes": "XS to XXL; Black also in 2X and 3X"
+ },
+ "Women's Momentum Thermal Tight": {
+  "style": "221806",
+  "tagline": "Our warmest tight moves with your every stride.",
+  "features": [
+   "Built for cold-weather miles: warmth without the bulk",
+   "Soft, supportive knit traps heat close to the body",
+   "Four-way stretch with just-right compression",
+   "Soft brushed interior"
+  ],
+  "fit": "Fitted",
+  "rise": "High-rise",
+  "inseam": "28.5\"",
+  "pockets": "2 side drop-in pockets and 1 center back zippered phone pocket",
+  "fabric": "72% nylon, 28% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Women's Dash Lite Bra": {
+  "support": "Light",
+  "features": [
+   "Double-lined fabric with just-right compression delivers light, comfortable support",
+   "4-way stretch",
+   "Less compression than the Dash Padded Bra",
+   "Pullover style"
+  ],
+  "sizes": "XS to XXL"
+ },
+ "Women's Chaser Padded Bra": {
+  "support": "Medium",
+  "features": [
+   "Soft interior unicup",
+   "Brushed bottom band",
+   "Merrow stitching inside to reduce the risk of chafing",
+   "Pullover style"
+  ],
+  "sizes": "XS to XXL"
+ },
+ "Women's Luxe Strappy Bra": {
+  "support": "Light",
+  "features": [
+   "Double lined",
+   "Crossback straps and back cutout",
+   "Pullover style"
+  ],
+  "sizes": "XS to XXL"
+ },
+ "Women's Momentum Thermal 1/4 Zip": {
+  "style": "221788",
+  "tagline": "Designed for the optimal balance of warmth and breathability.",
+  "features": [
+   "Thermal fabric with a soft, cozy feel and an ideal warmth-to-weight ratio",
+   "Antimicrobial treatment helps stop odor",
+   "Thumbholes and fold-over hand mitts",
+   "Reflective back hem"
+  ],
+  "fit": "Semi-fitted",
+  "fabric": "95% recycled polyester, 5% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Women's Momentum Thermal Hoodie": {
+  "style": "221789",
+  "tagline": "Designed for the optimal balance of warmth and breathability.",
+  "features": [
+   "Thermal fabric with a soft, cozy feel and an ideal warmth-to-weight ratio",
+   "Antimicrobial treatment helps stop odor",
+   "Thumbholes and fold-over hand mitts",
+   "Reflective back hem"
+  ],
+  "fit": "Semi-fitted",
+  "fabric": "95% recycled polyester, 5% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Women's Dash Long Sleeve": {
+  "style": "221785",
+  "tagline": "Performance-forward, essential run top.",
+  "features": [
+   "Ultra lightweight, sweat-wicking performance knit",
+   "Antimicrobial finish helps stop odor",
+   "Thumbholes",
+   "Side notches for range of motion",
+   "Reflective path bar on lower back",
+   "UPF 20+"
+  ],
+  "fit": "Semi-fitted",
+  "fabric": "86% recycled polyester, 14% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Women's Canopy Jacket": {
+  "style": "221751",
+  "tagline": "Reliable protection from the elements.",
+  "features": [
+   "4-way stretch fabric with a DWR finish against wind and water (made without PFAS)",
+   "Venting across the center back",
+   "Hand pockets plus an inside phone-sized pocket",
+   "Elastic binding and chin guard keep the hood secure",
+   "Reflective bar at back"
+  ],
+  "fit": "Semi-fitted",
+  "fabric": "89% polyester, 11% spandex",
+  "sizes": "XS to XXL; Black also in 2X and 3X"
+ },
+ "Men's Dash Short": {
+  "style": "211580",
+  "uses": "everyday runs, training and multi-sport",
+  "features": [
+   "Flat, soft-knit waistband with internal drawcord",
+   "Side notches for range of motion",
+   "Perforated side panels for ventilation"
+  ],
+  "inseam": "6\"",
+  "pockets": "1 interior drop-in key pocket on the liner and 2 open hand pockets",
+  "fabric": "Shell: 100% recycled polyester. Liner: 100% recycled polyester",
+  "sizes": "XS to XXL"
+ },
+ "Men's Dash Half Tight": {
+  "style": "211611",
+  "tagline": "Performance-essential half tight.",
+  "features": [
+   "Built-in brief liner",
+   "Snug, just-right compression with ample stretch",
+   "Flat, soft-knit waistband with internal drawcord"
+  ],
+  "fit": "Fitted",
+  "inseam": "8\"",
+  "pockets": "1 drop-in phone pocket and 1 internal key pocket",
+  "fabric": "Shell: 78% recycled polyester, 22% spandex. Liner: 100% recycled polyester",
+  "sizes": "XS to XXL"
+ },
+ "Men's Dash Tight": {
+  "style": "211619",
+  "features": [
+   "Built-in brief liner",
+   "Snug, just-right compression with ample stretch",
+   "Flat, soft-knit waistband with internal drawcord",
+   "Ankle zippers for easy on and off"
+  ],
+  "fit": "Fitted",
+  "inseam": "29\"",
+  "pockets": "1 drop-in phone pocket and 1 internal key pocket",
+  "fabric": "Shell: 78% recycled polyester, 22% spandex. Liner: 100% recycled polyester",
+  "sizes": "XS to XXL"
+ },
+ "Men's Cascadia 2-in-1 Short": {
+  "uses": "trail running, long distances and hiking",
+  "features": [
+   "External drawcord supports the weight of stored gear",
+   "Pull tabs open the pockets easily, even with gloves or cold fingers",
+   "Antimicrobial",
+   "Raw hem finish"
+  ],
+  "inseam": "Shell 5\", liner 4\"",
+  "pockets": "4 drop-in fuel pockets along the waistband, a center back zippered phone pocket and 2 drop-in pockets on the liner's thighs",
+  "fabric": "75% nylon, 25% spandex; 78% recycled polyester, 22% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Men's Dash Long Sleeve": {
+  "style": "211607",
+  "tagline": "Performance-forward, essential run top.",
+  "features": [
+   "Soft, sweat-wicking performance knit",
+   "Antimicrobial finish helps stop odor",
+   "UPF 40+ sun protection",
+   "Side notches for range of motion",
+   "Fabric reversed at the back for a different texture",
+   "Reflective path bar at center back"
+  ],
+  "fit": "Semi-fitted",
+  "sizes": "XS to XXL"
+ },
+ "Men's Dash Short Sleeve": {
+  "style": "211581",
+  "tagline": "Our go-to performance essential top.",
+  "features": [
+   "Partially recycled, soft performance knit that wicks sweat",
+   "Antimicrobial finish helps stop odor",
+   "UPF 40+ sun protection",
+   "Performance notches at the sides for mobility",
+   "Reflective path bar at center back"
+  ],
+  "fit": "Semi-fitted",
+  "fabric": "57% recycled polyester, 43% polyester",
+  "sizes": "XS to XXL"
+ },
+ "Men's Dash Singlet": {
+  "style": "211588",
+  "tagline": "Our go-to performance essential top.",
+  "features": [
+   "Partially recycled, soft performance knit that wicks sweat",
+   "Antimicrobial finish helps stop odor",
+   "UPF 40+ sun protection",
+   "Performance notches at the sides for mobility",
+   "Reflective path bar at center back"
+  ],
+  "fit": "Semi-fitted",
+  "fabric": "57% recycled polyester, 43% polyester",
+  "sizes": "XS to XXL"
+ },
+ "Men's Momentum Thermal 1/2 Zip": {
+  "style": "211617",
+  "tagline": "Designed for the optimal balance of warmth and breathability.",
+  "features": [
+   "Thermal fabric with a soft, cozy feel and an ideal warmth-to-weight ratio",
+   "Hybrid build: side panels use Dash 1/4 Zip 3.0 fabric for thermoregulation and less weight",
+   "Antimicrobial treatment helps stop odor",
+   "Thumbholes",
+   "Reflective back hem"
+  ],
+  "fit": "Semi-fitted",
+  "fabric": "Body: 95% recycled polyester, 5% spandex. Side panels: 88% recycled polyester, 12% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Men's Momentum Thermal Vest": {
+  "style": "211635",
+  "tagline": "Targeted warmth for winter layering.",
+  "features": [
+   "100 gsm of strategically placed insulation, with zoned breathability to avoid overheating",
+   "DWR-treated shell sheds light rain and snow",
+   "Higher collar keeps the chill out",
+   "Stretch thermal panels for mobility",
+   "Zippered pockets with an internal stash pocket and warm lining"
+  ],
+  "fit": "Semi-fitted",
+  "fabric": "Shells: nylon and spandex. Insulation: 100% polyester",
+  "sizes": "XS to XXL"
+ },
+ "Men's Dash Pant": {
+  "style": "211585",
+  "tagline": "Go-to technical layering.",
+  "features": [
+   "Woven overlay panel with a DWR finish against wind (made without PFAS)",
+   "Flat, soft-knit waistband with internal drawcord",
+   "Ankle zips for easy layering",
+   "Reflective bar at back"
+  ],
+  "fit": "Semi-fitted",
+  "inseam": "29\" (tall: 31\")",
+  "fabric": "Body: 81% recycled polyester, 19% spandex. Overlay: 89% polyester, 11% spandex",
+  "sizes": "XS to XXL; Black also in tall lengths"
+ },
+ "Men's Canopy Jacket": {
+  "style": "211582",
+  "tagline": "Reliable protection from the elements.",
+  "features": [
+   "4-way stretch fabric with a DWR finish against wind and water (made without PFAS)",
+   "Venting across the center back",
+   "Hand pockets plus an inside phone-sized pocket",
+   "Elastic binding and chin guard keep the hood secure",
+   "Reflective bar at back"
+  ],
+  "fit": "Semi-fitted",
+  "fabric": "89% polyester, 11% spandex",
+  "sizes": "XS to XXL"
+ },
+ "Unisex Momentum Thermal Hybrid Glove": {
+  "style": "280557",
+  "tagline": "Stay warm your way: converts from glove to mitten with ease.",
+  "features": [
+   "Mitten cover flips on and off for extra coverage",
+   "Touchscreen-compatible index finger and thumb",
+   "Soft, brushed four-way stretch knit traps heat",
+   "DWR-treated fabric resists wind and light water",
+   "Soft brushed panel for nose wipe"
+  ],
+  "fabric": "Glove: 72% nylon, 28% spandex. Mitt cover: 100% polyester",
+  "sizes": "XS to XXL"
+ },
+ "Unisex Glycerin Sensory Quarter": {
+  "style": "280549",
+  "tagline": "Feel the run: cushioned, flexible and fresh.",
+  "features": [
+   "Anatomically designed with a seamless toe to prevent rubbing",
+   "High-pile cushioned pressure points for a sensory feel",
+   "Looser knit under the arch for midfoot flexibility",
+   "Cushioning at heel and toebox",
+   "Y-heel pocket for a locked-in fit",
+   "Anti-odor treatment",
+   "Quarter length with speed tab"
+  ],
+  "cushion": "Low",
+  "fabric": "94% nylon, 6% spandex",
+  "sizes": "S to XXL"
+ },
+ "Unisex Run-In Quarter 3-Pack": {
+  "style": "280542",
+  "tagline": "Technical running socks built for distraction-free comfort.",
+  "features": [
+   "Wider arch construction and midfoot compression for hold",
+   "Mesh zone on top of the foot for ventilation",
+   "Heel and forefoot cushioning",
+   "Y-heel pocket locks in the heel",
+   "Sweat wicking",
+   "Sock name and size stitched in"
+  ],
+  "fabric": "96% nylon, 3% spandex, 1% polyester",
+  "sizes": "S to XL",
+  "pack": "3 pairs"
+ },
+ "Women's Luxe Tight": {
+  "style": "221735",
+  "source": "retailer listings",
+  "sources": [
+   "https://rununited.com/brooks-womens-luxe-tight",
+   "https://www.altitude-sports.com/p/brooks-luxe-tights-womens-bro-221735"
+  ],
+  "uses": "everyday runs, gym workouts, rest days",
+  "features": [
+   "soft, breathable stretch fabric",
+   "two thigh pockets",
+   "adjustable drawcord at the waist",
+   "bluesign approved"
+  ],
+  "fit": "Fitted",
+  "inseam": "24.5\"",
+  "pockets": "Two thigh pockets",
+  "fabric": "77% recycled polyester, 23% spandex",
+  "rise": "High-rise",
+  "sizes": "XS to XXL"
+ },
+ "Women's Podium Short Sleeve": {
+  "style": "221097",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.runningwarehouse.com/Brooks_Womens_Podium_Short_Sleeve/descpage-BWPSV.html",
+   "https://rununited.com/brooks-womens-podium-short-sleeve-shirt",
+   "https://runninglabstore.com/products/w-podium-short-sleeve-black"
+  ],
+  "uses": "track, team training, everyday running",
+  "features": [
+   "moisture-wicking DriLayer knit",
+   "lightweight and breathable",
+   "flatlock seams to reduce chafing",
+   "reflective branding on the shoulder"
+  ],
+  "fit": "Relaxed",
+  "fabric": "100% polyester"
+ },
+ "Men's Canopy Packable Jacket": {
+  "style": "211564",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.runningwarehouse.com/Brooks_Mens_Canopy_Packable_Jacket/descpage-BMFCPJ.html",
+   "https://sportsbasement.com/products/canopy-packable-jacket-1"
+  ],
+  "uses": "just-in-case layer for wind and light rain",
+  "features": [
+   "wind and water resistant shell",
+   "packs into its own hand pocket",
+   "secure hood",
+   "breathable",
+   "UPF 50+"
+  ],
+  "fit": "Semi-fitted",
+  "pockets": "Two zippered hand pockets",
+  "fabric": "100% recycled nylon"
+ },
+ "Women's Canopy Packable Jacket": {
+  "style": "221732",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.runningwarehouse.com/Brooks_Womens_Canopy_Packable_Jacket/descpage-BWCCPJ.html",
+   "https://www.roadrunnersports.com/product/48351/womens-brooks-canopy-packable-jacket?cc=588"
+  ],
+  "uses": "just-in-case layer for wind and light rain",
+  "features": [
+   "wind and water resistant shell",
+   "packs into its own hand pocket",
+   "secure hood",
+   "breathable",
+   "UPF 50+"
+  ],
+  "fit": "Semi-fitted",
+  "pockets": "Zippered hand pockets",
+  "fabric": "100% recycled nylon"
+ },
+ "Women's Shield Hybrid Jacket 3.0": {
+  "style": "221694",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.rei.com/product/250686/brooks-shield-hybrid-jacket-30-womens",
+   "https://www.roadrunnersports.com/product/46228/womens-brooks-shield-hybrid-jacket-30",
+   "https://www.therunnersshop.com/products/brooks-womens-shield-hybrid-jacket-3-0"
+  ],
+  "uses": "cold, wet runs",
+  "features": [
+   "120g THERMOLITE insulation",
+   "windproof panels with water-repellent treatment in key areas",
+   "thumbholes",
+   "tall collar and fitted cuffs",
+   "hip-length back",
+   "UPF 50+"
+  ],
+  "fit": "Semi-fitted",
+  "pockets": "Zippered hand pockets, stash pocket inside the right one",
+  "fabric": "Shell 100% recycled polyester, stretch panels polyester/spandex"
+ },
+ "Women's Shield Hybrid Vest 3.0": {
+  "style": "221695",
+  "source": "retailer listings",
+  "sources": [
+   "https://rununited.com/brooks-womens-shield-hybrid-3-0-vest",
+   "https://stores.brooksrunning.com/product/2082755/brooks-running-womens-shield-hybrid-vest-30"
+  ],
+  "uses": "cold, rainy runs",
+  "features": [
+   "THERMOLITE insulation, 120g with 80g in key areas",
+   "windproof panels with water-repellent treatment in key zones",
+   "tall collar against cold air",
+   "zoned breathability",
+   "lined, no hood"
+  ],
+  "fit": "Semi-fitted",
+  "pockets": "Two zippered hand pockets, stash pocket in the right one",
+  "fabric": "Shell 1 100% recycled polyester, shell 2 78% polyester / 22% spandex, insulation 100% polyester",
+  "sizes": "XS to XXL"
+ },
+ "Men's Momentum Thermal Pant": {
+  "style": "211567",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.runningwarehouse.com/Brooks_Mens_Momentum_Thermal_Pant/descpage-BMMTPB.html",
+   "https://www.altitude-sports.com/p/brooks-momentum-thermal-pants-mens-bro-211567"
+  ],
+  "uses": "cold weather running and workouts",
+  "features": [
+   "soft insulating thermal fabric",
+   "ankle zippers",
+   "internal drawcord",
+   "tapered leg",
+   "bluesign certified"
+  ],
+  "fit": "Semi-fitted",
+  "inseam": "30\"",
+  "pockets": "Two zippered hip pockets",
+  "fabric": "79% recycled polyester, 21% spandex"
+ },
+ "Women's Momentum Thermal Jogger 2.0": {
+  "style": "221736",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.runningwarehouse.com/Brooks_Womens_Momentum_Thermal_Jogger_20/descpage-BWMTJ1.html",
+   "https://www.dickssportinggoods.com/p/brooks-womens-momentum-thermal-2-0-joggers-25browfitnmmntmthrllk/25browfitnmmntmthrllk"
+  ],
+  "uses": "cold weather running and wear beyond the run",
+  "features": [
+   "thermal fabric",
+   "internal drawcord",
+   "jogger cuffs",
+   "reflective branding"
+  ],
+  "fit": "Semi-fitted",
+  "inseam": "28\"",
+  "pockets": "Two zippered pockets",
+  "fabric": "79% recycled polyester, 21% spandex",
+  "rise": "Mid-rise"
+ },
+ "Men's Breakaway 3\" Short": {
+  "style": "211536",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.runningwarehouse.com/Brooks_Mens_Breakaway_Split_3_Short/descpage-BMB3S.html",
+   "https://www.dickssportinggoods.com/p/brooks-mens-breakaway-3-shorts-24brombrkwy3shrtxmaa/24brombrkwy3shrtxmaa"
+  ],
+  "uses": "fast runs and racing",
+  "features": [
+   "4-way stretch GO2 fabric",
+   "built-in brief liner",
+   "split hem",
+   "perforated side panels for airflow"
+  ],
+  "fit": "Regular",
+  "inseam": "3\"",
+  "pockets": "Zippered pocket, key pocket in the liner"
+ },
+ "Men's Thermal Reflective Tight": {
+  "style": "211644",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.rei.com/product/C08173/brooks-thermal-reflective-tights-mens",
+   "https://21run.com/eu/brooks-thermal-reflective-tights-men-211644-427"
+  ],
+  "uses": "cold, low light runs",
+  "features": [
+   "brushed thermal fabric that wicks and dries quickly",
+   "reflective for low light visibility",
+   "ankle zippers",
+   "internal drawcord"
+  ],
+  "fit": "Fitted",
+  "inseam": "29\"",
+  "pockets": "Center back zip phone pocket, drop-in thigh pocket, key pocket in the liner",
+  "fabric": "72% nylon, 28% spandex body; ankle panels 95% recycled polyester, 5% elastane"
+ },
+ "Unisex Ghost Crew": {
+  "style": "280495",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.altitude-sports.com/p/brooks-ghost-crew-socks-unisex-bro-280495",
+   "https://brooksrunning.com/en_us/ghost-crew-sock/280495.html"
+  ],
+  "uses": "daily runs and race day",
+  "features": [
+   "extended cushioning under the heel and forefoot",
+   "targeted arch compression",
+   "antimicrobial treatment against odour",
+   "sock name and size stitched in"
+  ],
+  "cushion": "Extended",
+  "pack": "Single pair"
+ },
+ "Unisex Ghost Lite Quarter 2-Pack": {
+  "style": "280497",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.campsaver.com/brooks-ghost-lite-quarter-2-pack-sock.html",
+   "https://www.herroom.com/brooks-280497-ghost-lite-quarter-sock-2-pack.html"
+  ],
+  "uses": "running",
+  "features": [
+   "light cushioning at heel and toe",
+   "snug arch support",
+   "breathable mesh zones",
+   "odor resistant",
+   "quarter height"
+  ],
+  "fabric": "97% nylon, 3% spandex",
+  "cushion": "Light",
+  "pack": "2 pairs",
+  "sizes": "S to XL"
+ },
+ "Unisex Notch Thermal Beanie 2.0": {
+  "style": "280540",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.runningwarehouse.com/Brooks_Notch_Thermal_Beanie_20/descpage-BMTB2B.html",
+   "https://21run.com/eu/brooks-notch-thermal-beanie-20-unisex-280540-517"
+  ],
+  "uses": "cold weather running",
+  "features": [
+   "ribbed internal fleece lining",
+   "notched knit that holds heat",
+   "sweat wicking",
+   "odor-resistant finish",
+   "reflective branding front and back",
+   "shaped to cover the ears"
+  ],
+  "fit": "Fitted",
+  "sizes": "One size"
+ },
+ "Unisex Fusion Midweight Glove 2.0": {
+  "style": "280525",
+  "source": "retailer listings",
+  "sources": [
+   "https://www.fleetfeet.com/products/brooks-fusion-midweight-glove-2-0",
+   "https://21run.com/eu/brooks-fusion-midweight-gloves-20-unisex-280525-001",
+   "https://runpacers.com/products/unisex-brooks-fusion-midweight-glove-2-0"
+  ],
+  "uses": "cool to cold weather running",
+  "features": [
+   "GO2 warm fabric, light and breathable",
+   "touchscreen tips on thumb and index finger",
+   "soft wipe panel on the back of the thumb",
+   "magnetic cuffs keep the pair together",
+   "reflective details",
+   "UPF 50+"
+  ],
+  "fit": "Fitted",
+  "fabric": "Shell 78% polyester, 22% spandex; second shell 100% recycled polyester",
+  "sizes": "XS to XL"
+ },
+ "Unisex Dash Arm Sleeves": {
+  "style": "280541",
+  "source": "retailer listings",
+  "sources": [
+   "https://rununited.com/brooks-dash-luminary-arm-sleeves",
+   "https://www.fit2run.com/products/brooks-dash-arm-sleeves-unisex"
+  ],
+  "uses": "warm-ups, long runs and race day, layering on or off mid run",
+  "features": [
+   "lightweight 4-way stretch fabric",
+   "sweat wicking",
+   "UPF 50+",
+   "wrist to bicep coverage",
+   "78% recycled materials"
+  ],
+  "fit": "Fitted",
+  "pack": "Set of two sleeves",
+  "sizes": "S (14.75\" long), M (16.5\"), L (17.75\")"
+ }
 }

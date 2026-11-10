@@ -63,8 +63,10 @@ export const modelOf = (title) => String(title || '').replace(/^Brooks\s+/i, '')
 export function compose(f) {
   const out = [];
   if (f.tagline) out.push('<p>' + esc(f.tagline) + '</p>');
-  if (f.uses) out.push('<p>Built for ' + esc(f.uses) + '.</p>');
-  if (f.features && f.features.length) out.push('<ul>' + f.features.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>');
+  if (f.uses) out.push('<p>Built for ' + esc(String(f.uses).replace(/\.$/, '')) + '.</p>');
+  // Sentence case: retailer-sourced lines arrive lower case, Brooks' do not.
+  const cap = (x) => String(x).charAt(0).toUpperCase() + String(x).slice(1);
+  if (f.features && f.features.length) out.push('<ul>' + f.features.map((x) => '<li>' + esc(cap(x)) + '</li>').join('') + '</ul>');
   const fit = [['Fit', f.fit], ['Support', f.support], ['Rise', f.rise], ['Inseam', f.inseam], ['Cushion', f.cushion], ['Pack', f.pack], ['Sizes', f.sizes]]
     .filter(([, v]) => v).map(([k, v]) => '<li><strong>' + k + ':</strong> ' + esc(v) + '</li>');
   if (fit.length) out.push('<h4>Fit &amp; sizing</h4><ul>' + fit.join('') + '</ul>');
