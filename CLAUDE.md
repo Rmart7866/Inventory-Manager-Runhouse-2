@@ -75,6 +75,7 @@ node test/enrich-csv.mjs                      # applyToCSV round trip: a comma i
 node test/on-apparel-type.mjs                 # ON apparel: garment type, size ladder, never typed as a shoe
 node test/brooks-apparel.mjs                  # Brooks apparel: scraper sizes, garment fork, tabs, photo views
 node test/remote-images-session.mjs           # Stage 4 photos: every create in a session looks up its own colourways
+node test/create-batches.mjs                  # Stage 4: every batch of 20 is created, not just the first
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node test/image-keys.mjs                      # the sku -> colorway key per brand, the Puma trap
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files

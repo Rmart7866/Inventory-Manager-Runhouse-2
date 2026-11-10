@@ -1596,7 +1596,14 @@ var ProductEnrichment = {
                 setInfo(label + 'uploading images…');
                 prep = self._attachImages(chunk, function (d, t) { setInfo(label + 'uploading images… ' + d + ' / ' + t); });
             }
-            return prep.then(function (readyChunk) {
+            // readyChunk is needed AFTER the create returns (to register what
+            // was made), so it lives here, not as a parameter of the first
+            // step. As a parameter it was out of scope in the second step:
+            // every run since 2026-07-23 created its first batch of 20 and
+            // then threw "readyChunk is not defined", so batch 2 never ran.
+            var readyChunk = chunk;
+            return prep.then(function (prepared) {
+                readyChunk = prepared || chunk;
                 go.textContent = 'Creating…';
                 setInfo(label + 'creating in Shopify… (' + okCount + '/' + total + ' done)');
                 return CatalogClient.createProducts(readyChunk);
