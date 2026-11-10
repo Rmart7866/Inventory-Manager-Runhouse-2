@@ -69,6 +69,10 @@ yes('the made up shoe ladder is gone: reading nothing means no rows',
   !/'5\.0', '5\.5', '6\.0'/.test(src) && /No sizes read from the grid header, so no rows/.test(src));
 yes('a row with no width label is read as one garment row, not skipped',
   /allInventoryGrids\.length === 1 && brooksIsApparelStyle\(this\.extractFromURL\(\)\) \? \[\{ apparel: true \}\]/.test(src));
+yes('a page is read only once its product header style matches the link (the GTS 25 titled GTS 26)',
+  /function brooksHeaderMatchesUrl\(\)/.test(src) && /checks\.headerMatches = brooksHeaderMatchesUrl\(\)/.test(src) &&
+  /&& checks\.headerMatches;/.test(src) && /if \(!brooksHeaderMatchesUrl\(\)\) \{/.test(src));
+yes("and the name comes from the product's own header first", /'epc-product-header \[data-e2e="pcard-title"\]',\s*'\[data-e2e="pcard-title"\]'/.test(src));
 yes("WOMEN is tested before MEN (it contains it), so women's stops reading as men's",
   src.indexOf("GENDER-WOMEN") > 0 && src.indexOf("GENDER-WOMEN") < src.indexOf("GENDER-MEN|"));
 

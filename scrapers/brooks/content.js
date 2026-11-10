@@ -36,6 +36,20 @@ function brooksSizeToken(text) {
 // 2xxxxx garments, 3xxxxx bras, 28xxxx gloves and hats, 74xxxx socks.
 function brooksIsApparelStyle(styleId) { return /^[02-9]/.test(String(styleId || '').trim()); }
 
+// THE PRODUCT HEADER MUST BELONG TO THE LINK. A run on 2026-11-10 read its
+// FIRST page (110454, the Adrenaline GTS 25) while the previous product's
+// header (Adrenaline GTS 26) was still on screen, so 270 GTS 25 rows went out
+// titled "Adrenaline GTS 26" and the tool created them under the wrong name.
+// The header (epc-product-header) carries its own style id, "110454-020", and
+// the link carries "/brooks/110454/"; a page is read only when the two agree.
+function brooksUrlStyle() { const m = window.location.pathname.match(/\/brooks\/(\d{6})\//); return m ? m[1] : ''; }
+function brooksHeaderStyle() {
+    const el = document.querySelector('epc-product-header [data-e2e="p-card-header-id"]');
+    const m = el && el.textContent.trim().match(/^(\d{6})-\d{3}$/);
+    return m ? m[1] : '';
+}
+function brooksHeaderMatchesUrl() { const u = brooksUrlStyle(); return !u || brooksHeaderStyle() === u; }
+
 // ============================================================================
 // AUTO-CLICKER: Automatically clicks "At once" buttons to reveal inventory
 // ============================================================================
@@ -1661,6 +1675,12 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
         const layoutType = this.detectLayoutType();
         console.log(`Detected layout type: ${layoutType}`);
         
+        // Never read a page whose header is another product's: no rows is
+        // recoverable, a GTS 25 sold as a GTS 26 is not.
+        if (!brooksHeaderMatchesUrl()) {
+            console.warn('Product header style ' + (brooksHeaderStyle() || 'none') + ' does not match the link style ' + brooksUrlStyle() + ', so no rows');
+            return inventoryData;
+        }
         const productInfo = this.extractProductInfo();
         console.log('Product Info:', productInfo);
         
@@ -2153,7 +2173,10 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
             styleId = this.extractFromURL();
         }
         
+        // The product's OWN header first: a bare pcard-title can be another
+        // product's card still on the page (see brooksHeaderMatchesUrl).
         const titleSelectors = [
+            'epc-product-header [data-e2e="pcard-title"]',
             '[data-e2e="pcard-title"]',
             '.price-title',
             '.product-title',
@@ -2354,7 +2377,8 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
         // does not.
         const sizeHeaderCount = [...document.querySelectorAll('[data-e2e="xSize"]')].filter((e) => brooksSizeToken(e.textContent)).length;
         checks.hasPartialData = checks.inventoryInputCount > 10 || checks.materialCount > 0;
-        checks.hasData = (checks.inventoryInputCount > 20 || (sizeHeaderCount > 0 && checks.inventoryInputCount >= sizeHeaderCount)) && checks.materialCount > 0;
+        checks.headerMatches = brooksHeaderMatchesUrl();
+        checks.hasData = (checks.inventoryInputCount > 20 || (sizeHeaderCount > 0 && checks.inventoryInputCount >= sizeHeaderCount)) && checks.materialCount > 0 && checks.headerMatches;
         
         return checks;
     }
