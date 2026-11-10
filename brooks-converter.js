@@ -283,8 +283,19 @@ var BrooksConverter = {
     ],
     // Falls back to T-Shirts, as ON does, because a garment with no type at all
     // is invisible to classify() and would be offered as new again next week.
-    apparelTypeFor: function(model) {
+    //
+    // ACCESSORY STYLES (28xxxx: socks, gloves, hats, sleeves) are read first,
+    // because Brooks names its socks WITHOUT the word: "Ghost Crew", "Ghost
+    // Lite Quarter 2-Pack", "Run-In No Show 3-Pack". The garment rules typed
+    // the first drop's socks as Crewnecks and T-Shirts (2026-11-10). A crew,
+    // quarter, no show or tab on a 28 style is a sock; a sleeve is Compression,
+    // the store's type for sleeves and compression socks.
+    apparelTypeFor: function(model, style) {
         var m = String(model || '');
+        if (/^28/.test(String(style || ''))) {
+            if (/\bsocks?\b|\bcrew\b|\bquarter\b|no[-\s]?show|\btab\b/i.test(m)) return 'Socks';
+            if (/\bsleeves?\b/i.test(m)) return 'Compression';
+        }
         for (var i = 0; i < this.APPAREL_TYPE_RULES.length; i++) {
             if (this.APPAREL_TYPE_RULES[i][0].test(m)) return this.APPAREL_TYPE_RULES[i][1];
         }
@@ -818,7 +829,7 @@ var BrooksConverter = {
             // 2026-10-20, see CLAUDE.md). Type, category path, size order and the
             // collection tags follow the ON apparel rules exactly.
             if (product.apparel) {
-                var garment = self.apparelTypeFor(product.model);
+                var garment = self.apparelTypeFor(product.model, self.styleOf(product.handle) || self.styleOf((product.variants[0] || {}).sku));
                 productType = garment;   // NOT gendered, never ending in "shoes"
                 tags.push(garment);
                 // The exact strings the live apparel and gender collections key on.

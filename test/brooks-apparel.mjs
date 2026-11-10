@@ -89,6 +89,15 @@ const T = {
   'Run Visible Insulated Vest': 'Vests', 'Notch Thermal Hoodie 3.0': 'Hoodies', 'Fusion Midweight Glove': 'Gloves',
 };
 for (const [name, want] of Object.entries(T)) eq(name, B.apparelTypeFor(name), want);
+console.log('\nAccessory styles (28xxxx): Brooks names its socks without the word');
+eq('Ghost Crew on a 28 style is a sock, not a crewneck', B.apparelTypeFor('Ghost Crew', '280495189'), 'Socks');
+eq('Ghost Lite Quarter 2-Pack is a sock', B.apparelTypeFor('Ghost Lite Quarter 2-Pack', '280497001'), 'Socks');
+eq('Run-In No Show 3-Pack is a sock', B.apparelTypeFor('Run-In No Show 3-Pack', '280493629'), 'Socks');
+eq('Dash Arm Sleeves are Compression, the store type for sleeves', B.apparelTypeFor('Dash Arm Sleeves', '280541754'), 'Compression');
+eq('a glove and a beanie on 28 styles keep their types', [B.apparelTypeFor('Momentum Thermal Hybrid Glove', '280557001'), B.apparelTypeFor('Notch Thermal Beanie 2.0', '280540001')], ['Gloves', 'Headwear']);
+eq('a garment named Crew is still a crewneck (not a 28 style)', B.apparelTypeFor('Movement Crew', '211600001'), 'Crewnecks');
+for (const t of ['Socks', 'Compression']) eq(t + ' classifies as apparel for Brooks', classify(t, 'Brooks'), 'apparel');
+
 console.log('\nEvery garment type is one the Worker reads back as apparel');
 for (const t of new Set(Object.values(T))) eq(t + ' classifies as apparel for Brooks', classify(t, 'Brooks'), 'apparel');
 
