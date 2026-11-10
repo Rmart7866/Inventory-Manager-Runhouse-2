@@ -134,6 +134,8 @@ node tools/prune-thin-drafts.mjs --since 2026-10-20 --min-units 10
 node tools/tag-apparel-collections.mjs --since 2026-10-20   # collection tags, add-only
 node tools/apparel-content.mjs --since 2026-10-20   # SEO copy + shopify.* category metafields
 node tools/apparel-collections.mjs            # apparel:<group> tags + the apparel collections
+node tools/brooks-apparel-content.mjs         # Brooks garment descriptions + Fit & sizing, from the DAM tech sheets
+                                              # (tools/brooks-apparel-facts.json, facts only, add only)
 node tools/reorder-on-apparel-media.mjs      # lead with the on-model shot, not ON's flat render
 node tools/fix-on-blurry-images.mjs          # replace images uploaded at thumbnail size
 
