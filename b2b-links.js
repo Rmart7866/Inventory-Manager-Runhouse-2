@@ -144,47 +144,31 @@ var B2BLinkManager = {
         if (!container) return;
 
         var activeTab = container.dataset.tab || 'active';
+        var self = this;
+        // Brooks shoes and apparel share one scrape but are kept in two tabs,
+        // split by the link's own style (see isApparelLink), so the lists stay
+        // readable and each can be copied on its own. ASICS keeps one list.
+        var groups = brand === 'brooks'
+            ? [{ key: 'active', label: 'Shoes', links: activeLinks.filter(function(l) { return !self.isApparelLink(brand, l.url); }) },
+               { key: 'apparel', label: 'Apparel', links: activeLinks.filter(function(l) { return self.isApparelLink(brand, l.url); }) }]
+            : [{ key: 'active', label: 'Active', links: activeLinks }];
+        if (!groups.some(function(g) { return g.key === activeTab; }) && activeTab !== 'archived') activeTab = 'active';
 
         container.innerHTML = `
             <div class="blm-tabs">
-                <button class="blm-tab ${activeTab === 'active' ? 'blm-tab-active' : ''}"
-                    onclick="B2BLinkManager.switchTab('${brand}', 'active')">
-                    Active <span class="blm-count">${activeLinks.length}</span>
-                </button>
+                ${groups.map(function(g) {
+                    return `<button class="blm-tab ${activeTab === g.key ? 'blm-tab-active' : ''}"
+                    onclick="B2BLinkManager.switchTab('${brand}', '${g.key}')">
+                    ${g.label} <span class="blm-count">${g.links.length}</span>
+                </button>`;
+                }).join('')}
                 <button class="blm-tab ${activeTab === 'archived' ? 'blm-tab-active' : ''}"
                     onclick="B2BLinkManager.switchTab('${brand}', 'archived')">
                     Archived <span class="blm-count blm-count-warn">${archivedLinks.length}</span>
                 </button>
             </div>
 
-            <div class="blm-panel" id="${brand}-tab-active" style="display:${activeTab === 'active' ? 'block' : 'none'}">
-                <div class="blm-list" id="${brand}-link-list">
-                    ${activeLinks.length === 0
-                        ? '<div class="blm-empty">No links yet — add one below</div>'
-                        : activeLinks.map(function(link) {
-                            return `<div class="blm-item" id="blm-item-${link.id}">
-                                <div class="blm-item-main">
-                                    <span class="blm-label" title="${link.url}">${link.label || link.url}</span>
-                                    <span class="blm-handle">${link.handle || ''}</span>
-                                    ${(link.locationName || B2BLinkManager.locationFor(link.url))
-                                        ? `<span class="blm-handle blm-handle-warn">${link.locationName || B2BLinkManager.locationFor(link.url)}</span>`
-                                        : ''}
-                                </div>
-                                <div class="blm-item-actions">
-                                    <a href="${link.url}" target="_blank" class="blm-open" title="Open link">↗</a>
-                                    <button class="blm-delete" onclick="B2BLinkManager.deleteLink('${brand}', '${link.id}')" title="Delete">✕</button>
-                                </div>
-                            </div>`;
-                        }).join('')
-                    }
-                </div>
-                <button class="copy-btn" style="margin-top:8px;" onclick="B2BLinkManager.copyActive('${brand}')">Copy All Links</button>
-                <div class="blm-add">
-                    <input type="text" class="blm-input" id="${brand}-add-url" placeholder="Paste link URL..." onkeydown="if(event.key==='Enter')B2BLinkManager.submitAdd('${brand}')">
-                    <input type="text" class="blm-input blm-input-label" id="${brand}-add-label" placeholder="Label (optional)" onkeydown="if(event.key==='Enter')B2BLinkManager.submitAdd('${brand}')">
-                    <button class="blm-add-btn" onclick="B2BLinkManager.submitAdd('${brand}')">+ Add</button>
-                </div>
-            </div>
+            ${groups.map(function(g) { return self._activePanel(brand, g, activeTab === g.key); }).join('')}
 
             <div class="blm-panel" id="${brand}-tab-archived" style="display:${activeTab === 'archived' ? 'block' : 'none'}">
                 ${archivedLinks.length === 0
@@ -208,26 +192,80 @@ var B2BLinkManager = {
         `;
     },
 
+    // A Brooks garment, bra, sock, glove or hat has a style that does not
+    // start with 1 (shoes are 110xxx / 120xxx), the same split the picker and
+    // BrooksConverter.isApparelStyle make. Read off the link, never stored, so
+    // no link can sit in the wrong tab because a field was left empty.
+    isApparelLink: function(brand, url) {
+        if (brand !== 'brooks') return false;
+        var m = String(url || '').match(/\/brooks\/(\d{6})\//);
+        return !!m && m[1].charAt(0) !== '1';
+    },
+
+    _activePanel: function(brand, group, visible) {
+        var activeLinks = group.links;
+        var copyLabel = brand === 'brooks' ? 'Copy ' + group.label + ' Links' : 'Copy All Links';
+        return `
+            <div class="blm-panel" id="${brand}-tab-${group.key}" style="display:${visible ? 'block' : 'none'}">
+                <div class="blm-list" id="${brand}-link-list-${group.key}">
+                    ${activeLinks.length === 0
+                        ? '<div class="blm-empty">No links yet. Add one below.</div>'
+                        : activeLinks.map(function(link) {
+                            return `<div class="blm-item" id="blm-item-${link.id}">
+                                <div class="blm-item-main">
+                                    <span class="blm-label" title="${link.url}">${link.label || link.url}</span>
+                                    <span class="blm-handle">${link.handle || ''}</span>
+                                    ${(link.locationName || B2BLinkManager.locationFor(link.url))
+                                        ? `<span class="blm-handle blm-handle-warn">${link.locationName || B2BLinkManager.locationFor(link.url)}</span>`
+                                        : ''}
+                                </div>
+                                <div class="blm-item-actions">
+                                    <a href="${link.url}" target="_blank" class="blm-open" title="Open link">↗</a>
+                                    <button class="blm-delete" onclick="B2BLinkManager.deleteLink('${brand}', '${link.id}')" title="Delete">✕</button>
+                                </div>
+                            </div>`;
+                        }).join('')
+                    }
+                </div>
+                <button class="copy-btn" style="margin-top:8px;" onclick="B2BLinkManager.copyActive('${brand}', '${group.key}', this)">${copyLabel}</button>
+                <div class="blm-add">
+                    <input type="text" class="blm-input" id="${brand}-add-url-${group.key}" placeholder="Paste link URL..." onkeydown="if(event.key==='Enter')B2BLinkManager.submitAdd('${brand}', '${group.key}')">
+                    <input type="text" class="blm-input blm-input-label" id="${brand}-add-label-${group.key}" placeholder="Label (optional)" onkeydown="if(event.key==='Enter')B2BLinkManager.submitAdd('${brand}', '${group.key}')">
+                    <button class="blm-add-btn" onclick="B2BLinkManager.submitAdd('${brand}', '${group.key}')">+ Add</button>
+                </div>
+            </div>`;
+    },
+
     switchTab: function(brand, tab) {
         var container = document.getElementById(brand + '-link-manager');
         container.dataset.tab = tab;
         this.renderBrand(brand);
     },
 
-    submitAdd: async function(brand) {
-        var urlInput = document.getElementById(brand + '-add-url');
-        var labelInput = document.getElementById(brand + '-add-label');
+    submitAdd: async function(brand, group) {
+        group = group || 'active';
+        var urlInput = document.getElementById(brand + '-add-url-' + group);
+        var labelInput = document.getElementById(brand + '-add-label-' + group);
         var url = urlInput.value.trim();
         if (!url) { urlInput.focus(); return; }
-        var btn = document.querySelector(`#${brand}-link-manager .blm-add-btn`);
+        var btn = document.querySelector(`#${brand}-tab-${group} .blm-add-btn`);
         btn.textContent = 'Adding...'; btn.disabled = true;
         await this.addLink(brand, url, labelInput.value.trim());
+        // A link lands in the tab its own style says, whichever tab it was
+        // typed into, so show that tab.
+        var c = document.getElementById(brand + '-link-manager');
+        if (c && brand === 'brooks') { c.dataset.tab = this.isApparelLink(brand, url) ? 'apparel' : 'active'; await this.renderBrand(brand); }
         // inputs get cleared by re-render
     },
 
-    copyActive: function(brand) {
+    // group: 'active' (Brooks shoes, or every ASICS link) or 'apparel'.
+    copyActive: function(brand, group, btnEl) {
         var self = this;
-        var links = (this.cache[brand] || []).filter(function(l) { return l.active; });
+        var links = (this.cache[brand] || []).filter(function(l) {
+            if (!l.active) return false;
+            if (brand !== 'brooks' || !group) return true;
+            return (group === 'apparel') === self.isApparelLink(brand, l.url);
+        });
         var text = links.map(function(l) {
             // A line with no location still reads Needham in the scraper, so
             // every ordinary footwear link is emitted exactly as before.
@@ -235,7 +273,7 @@ var B2BLinkManager = {
             return loc ? l.url + ' ' + loc : l.url;
         }).join('\n');
         navigator.clipboard.writeText(text).then(function() {
-            var btn = document.querySelector(`#${brand}-link-manager .copy-btn`);
+            var btn = btnEl || document.querySelector(`#${brand}-link-manager .copy-btn`);
             var orig = btn.textContent; btn.textContent = 'Copied!'; btn.classList.add('copied');
             setTimeout(function() { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
         });
