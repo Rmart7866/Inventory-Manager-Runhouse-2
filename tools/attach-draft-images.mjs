@@ -30,6 +30,12 @@
 //   node tools/attach-draft-images.mjs --limit 3       try three
 //   node tools/attach-draft-images.mjs --apply         attach, with a rollback
 //   node tools/attach-draft-images.mjs --restore <f>   delete what it added
+//   node tools/attach-draft-images.mjs --apparel       GARMENT drafts instead
+//
+// --apparel takes drafts whose type does NOT end in "shoes" (Brooks garments
+// created before Stage 4 looked up every batch's photos, 2026-11-10), uses the
+// source's per colourway views (a Brooks garment is mf mb d1 d2, not a shoe's
+// six) and leaves "running shoe" out of the alt text.
 //
 // It never publishes anything. Status is not in the payload, so a draft stays
 // a draft; what to sell is a commercial decision, not this tool's.
@@ -47,6 +53,7 @@ const arg = (n, d) => { const i = process.argv.indexOf(n); return i !== -1 && pr
 const LIMIT = Number(arg('--limit', '0'));
 const RESTORE = arg('--restore', '');
 const SINCE = arg('--since', '2026-10-01');
+const APPAREL = process.argv.includes('--apparel');
 
 // PUMA'S CDN 404s A REQUEST WITH NO BROWSER USER AGENT, measured 2026-10-30,
 // so the HEAD check here sends one or it measures itself rather than the
@@ -96,10 +103,10 @@ async function gql(q, v = {}, attempt = 0) {
 }
 
 // Alt text, the same shape backfill-alt-text.mjs writes, plus which view it is.
-function altFor(title, word) {
+function altFor(title, word, garment) {
   const { model, colour } = titleParts(title);
   let a = model;
-  if (!/\bshoes?\b/i.test(a)) a += ' running shoe';
+  if (!garment && !/\bshoes?\b/i.test(a)) a += ' running shoe';
   if (colour && !new RegExp(colour.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(a)) a += ' in ' + colour;
   a = (a + ', ' + word + ' view').replace(/\s+/g, ' ').trim();
   return a.length > 125 ? a.slice(0, 122).replace(/\s+\S*$/, '') + '...' : a;
@@ -121,7 +128,7 @@ async function restore(file) {
 async function main() {
   if (RESTORE) return restore(RESTORE);
   console.log('mode    : ' + (APPLY ? 'APPLY, this attaches media' : 'dry run, nothing is written'));
-  console.log('filter  : DRAFT, in stock, product type ends in "shoes", no media, inventory touched since ' + SINCE);
+  console.log('filter  : DRAFT, in stock, product type ' + (APPAREL ? 'NOT ending in "shoes" (garments)' : 'ends in "shoes"') + ', no media, inventory touched since ' + SINCE);
 
   const Q = `query($a:String){ products(first:100, after:$a, query:"status:DRAFT AND inventory_total:>0") {
     pageInfo{ hasNextPage endCursor }
@@ -136,7 +143,7 @@ async function main() {
     const d = await gql(Q, { a: after });
     for (const e of d.products.edges) {
       const p = e.node; seen++;
-      if (!/shoes$/i.test(p.productType || '')) continue;
+      if (/shoes$/i.test(p.productType || '') === APPAREL) continue;
       if (p.mediaCount.count > 0) continue;
       const brand = BRAND[(p.vendor || '').toLowerCase()];
       if (!brand) continue;
@@ -150,7 +157,7 @@ async function main() {
     if (!d.products.pageInfo.hasNextPage) break;
     after = d.products.pageInfo.endCursor;
   }
-  console.log('scanned : ' + seen + ' drafts with stock, ' + targets.length + ' are shoes with no image and fresh inventory\n');
+  console.log('scanned : ' + seen + ' drafts with stock, ' + targets.length + ' are ' + (APPAREL ? 'garments' : 'shoes') + ' with no image and fresh inventory\n');
 
   const plan = [], blocked = [];
   for (const t of targets) {
@@ -160,11 +167,11 @@ async function main() {
     const key = PE._imageKeyIn(t.brand, t.sku);
     if (!key) { blocked.push({ ...t, why: 'no colorway key from sku "' + t.sku + '"' }); continue; }
     const files = [];
-    for (const v of src.views) {
+    for (const v of (src.viewsFor ? src.viewsFor(key) : src.views)) {
       const url = src.urlFor(key, v);
       try {
         const r = await fetch(url, { method: 'HEAD', headers: { 'user-agent': UA }, signal: AbortSignal.timeout(12000) });
-        if (r.ok) files.push({ originalSource: url, contentType: 'IMAGE', alt: altFor(t.title, v.word) });
+        if (r.ok) files.push({ originalSource: url, contentType: 'IMAGE', alt: altFor(t.title, v.word, APPAREL) });
       } catch (e) { /* a miss is a miss */ }
     }
     if (!files.length) { blocked.push({ ...t, why: 'keyed ' + key + ' but the host has no views' }); continue; }
