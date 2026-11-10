@@ -13,6 +13,29 @@ function stampForFilename(d = new Date()) {
 // SKU prefix prevents duplicates when same colorway exists across different size ranges (men's/women's)
 // Matches HTML converter for consistent handle generation across inventory and product CSVs
 
+// ONE SIZE VOCABULARY for the header reader, shoes and apparel. Brooks apparel
+// grids (2026-11-10, Dash 2-in-1 Short 221754, Luxe Pocket Bra 300661) carry
+// XS S M L XL XXL in the same [data-e2e=xSize] header the shoes use, and NO
+// width rows. The old reader kept numbers 5 to 20 only and, finding none,
+// returned a made up shoe ladder that the cells were then mapped onto BY
+// POSITION, the exact ON and ASICS apparel trap (see CLAUDE.md). It also
+// dropped a real 4.0 or 4.5 shoe column, shifting every cell after it.
+// A vocabulary, not "any text", so a stray "Yes" or "Add" never reads as a size.
+function brooksSizeToken(text) {
+    const t = String(text || '').trim().toUpperCase();
+    if (!t) return null;
+    if (/^\d{1,2}(\.\d)?$/.test(t)) { const n = parseFloat(t); return n >= 1 && n <= 20 ? t : null; }
+    if (/^(XXXS|XXS|2XS|XS|S|M|L|XL|XXL|2XL|XXXL|3XL|4XL)T?$/.test(t)) return t;        // LT, XLT: tall
+    if (/^[2-5]X$/.test(t)) return t;
+    if (/^(XS|S|M|L|XL)\/(S|M|L|XL|XXL)$/.test(t)) return t;                            // S/M
+    if (/^\d{2}\s?[A-H]{1,3}(\/[A-H]{1,3})?$/.test(t)) return t.replace(/\s+/g, '');   // bra 32C, 34DD, 30A/B
+    if (/^(OS|OSFA|O\/S|ONE SIZE|1SZ|N\/S)$/.test(t)) return t;
+    return null;
+}
+// Brooks apparel and accessories have a style that does not start with 1:
+// 2xxxxx garments, 3xxxxx bras, 28xxxx gloves and hats, 74xxxx socks.
+function brooksIsApparelStyle(styleId) { return /^[02-9]/.test(String(styleId || '').trim()); }
+
 // ============================================================================
 // AUTO-CLICKER: Automatically clicks "At once" buttons to reveal inventory
 // ============================================================================
@@ -1819,8 +1842,11 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
         });
         
         if (widths.length === 0) {
-            console.log('No widths found in horizontal-sizes, using default');
-            widths.push('B');
+            // A shoe with no width label is a B, as before; a garment has no
+            // width, and a "-B" on its SKU would match nothing.
+            const apparel = brooksIsApparelStyle(this.extractFromURL());
+            console.log('No widths found in horizontal-sizes, using', apparel ? 'none (apparel)' : 'B');
+            widths.push(apparel ? '' : 'B');
         }
         
         return widths;
@@ -1834,8 +1860,8 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
         
         sizeElements.forEach((element, index) => {
             const sizeSpan = element.querySelector('span');
-            const size = sizeSpan ? sizeSpan.textContent.trim() : '';
-            
+            const size = brooksSizeToken(sizeSpan ? sizeSpan.textContent : '') || '';
+
             const inventoryCell = element.querySelector('[data-e2e="vertical-grid-cell"]');
             
             if (size && inventoryCell) {
@@ -1863,18 +1889,15 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
         sizeHeaders.forEach((sizeElement, index) => {
             const sizeText = sizeElement.textContent.trim();
             
-            if (/^\d+\.?\d*$/.test(sizeText) && parseFloat(sizeText) >= 5.0 && parseFloat(sizeText) <= 20.0) {
-                sizes.push(sizeText);
-            }
+            const size = brooksSizeToken(sizeText);
+            if (size) sizes.push(size);
         });
-        
+
         console.log(`Extracted ${sizes.length} valid sizes from grid header:`, sizes);
-        
-        if (sizes.length === 0) {
-            console.log('No sizes found in header, using fallback size run');
-            return ['5.0', '5.5', '6.0', '6.5', '7.0', '7.5', '8.0', '8.5', '9.0', '9.5', '10.0', '10.5', '11.0', '11.5', '12.0'];
-        }
-        
+
+        // No invented ladder: reading nothing means no rows, the honest answer.
+        if (sizes.length === 0) console.log('No sizes read from the grid header, so no rows');
+
         return sizes;
     }
 
@@ -1889,14 +1912,21 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
         productRows.forEach((row, colorIndex) => {
             const colorInfo = this.extractColorFromRow(row, colors, colorIndex);
             
-            const widthElements = row.querySelectorAll('.y-size');
             const allInventoryGrids = row.querySelectorAll('.grid-row.cells');
-            
+            // Apparel rows carry NO width label: one grid of cells, no width.
+            // Without this the loop below ran zero times and a garment page
+            // produced no rows at all (2026-11-10). Apparel styles ONLY: a shoe
+            // page drawn without its width labels still reads nothing, as it
+            // always has, rather than inventing width-less shoe SKUs.
+            const widthElements = row.querySelectorAll('.y-size').length
+                ? row.querySelectorAll('.y-size')
+                : (allInventoryGrids.length === 1 && brooksIsApparelStyle(this.extractFromURL()) ? [{ apparel: true }] : []);
+
             widthElements.forEach((widthElement, widthIndex) => {
-                const isWidthHidden = widthElement.classList.contains('d-none');
-                const widthText = widthElement.textContent.trim();
-                
-                if (isWidthHidden || !widthText || !/^[A-Z0-9]+E?$/.test(widthText) || widthText.length > 3) {
+                const isWidthHidden = !widthElement.apparel && widthElement.classList.contains('d-none');
+                const widthText = widthElement.apparel ? '' : widthElement.textContent.trim();
+
+                if (!widthElement.apparel && (isWidthHidden || !widthText || !/^[A-Z0-9]+E?$/.test(widthText) || widthText.length > 3)) {
                     return;
                 }
                 
@@ -2161,11 +2191,14 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
             }
         }
         
+        // "WOMEN" contains "MEN", so it is tested FIRST: the old order read
+        // every women's product as MEN. The badge also carries a gender-women
+        // or gender-men class, which is the cleaner signal.
         const genderElement = document.querySelector('.gender-men, .gender-women, .gender-unisex, [data-e2e="gender"]');
         if (genderElement) {
-            const genderText = genderElement.textContent.trim().toUpperCase();
-            if (genderText.includes('MEN')) gender = 'MEN';
-            else if (genderText.includes('WOMEN')) gender = 'WOMEN';
+            const genderText = (genderElement.className + ' ' + genderElement.textContent).toUpperCase();
+            if (/GENDER-WOMEN|\bWOMEN\b|\bWOMAN\b/.test(genderText)) gender = 'WOMEN';
+            else if (/GENDER-MEN|\bMEN\b|\bMAN\b/.test(genderText)) gender = 'MEN';
         }
         
         const wspElement = document.querySelector('[data-e2e="product-price-wsp"] .price-value, .wsdp-price');
@@ -2314,8 +2347,14 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
         const readyIndicatorCount = readinessIndicators.filter(Boolean).length;
         checks.ready = readyIndicatorCount >= 2;
         
+        // "More than 20 boxes" is a shoe grid's shape (15 sizes and up). A
+        // garment in two colours has about 12, so it never counted as ready and
+        // every apparel page waited out the whole timeout. Also ready once the
+        // boxes cover the size header at least once, which a half drawn grid
+        // does not.
+        const sizeHeaderCount = [...document.querySelectorAll('[data-e2e="xSize"]')].filter((e) => brooksSizeToken(e.textContent)).length;
         checks.hasPartialData = checks.inventoryInputCount > 10 || checks.materialCount > 0;
-        checks.hasData = checks.inventoryInputCount > 20 && checks.materialCount > 0;
+        checks.hasData = (checks.inventoryInputCount > 20 || (sizeHeaderCount > 0 && checks.inventoryInputCount >= sizeHeaderCount)) && checks.materialCount > 0;
         
         return checks;
     }

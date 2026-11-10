@@ -73,6 +73,7 @@ node test/on-title.mjs                        # ON titles: a two-tone color is n
 node test/on-model-identity.mjs               # a Volt is not an Echo: model, version, family prefix
 node test/enrich-csv.mjs                      # applyToCSV round trip: a comma in Tags cannot shift a column
 node test/on-apparel-type.mjs                 # ON apparel: garment type, size ladder, never typed as a shoe
+node test/brooks-apparel.mjs                  # Brooks apparel: scraper sizes, garment fork, tabs, photo views
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node test/image-keys.mjs                      # the sku -> colorway key per brand, the Puma trap
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
@@ -2122,6 +2123,24 @@ Consequences worth knowing:
   written back in the spelling that product actually uses, the same alignment
   idea as the footwear `"9"` versus `"9.0"` problem. Bra cup ranges
   (`Small A-C`) are kept as part of the key, or every cup collides into one size.
+
+**BROOKS APPAREL RIDES THE FOOTWEAR SCRAPE (2026-11-10), and the STYLE is the
+split.** FastTrack draws garments on the same grid as shoes: colour rows
+("001 Black"), the [data-e2e=xSize] header reading XS to XXL (or 32C, OS), and
+NO width rows at all. The scraper therefore produced ZERO rows for a garment
+(it loops over width labels), and its header reader kept numbers 5 to 20 only
+and fell back to an invented shoe ladder, the ON / ASICS trap again. Fixed in
+`scrapers/brooks/content.js`: `brooksSizeToken` is the vocabulary, no fallback,
+a width-less row is one garment row for APPAREL STYLES ONLY, and gender tests
+WOMEN before MEN (it read every women's product as men's). Style first digit:
+1 footwear (110 men's, 120 women's), 21 men's garments, 22 women's, 3 bras,
+28 gloves and hats, 74 socks. `BrooksConverter` forks on it like ON's article
+code: garment type from `APPAREL_TYPE_RULES` (short SLEEVE before short, or a
+Podium Short Sleeve is typed Shorts), the ON size ladder and category paths,
+the `womens apparel` / `women` collection tags, no width. The picker splits
+Shoes / Apparel. Photos are on the same host and key with different views,
+`mf mb d1 d2` (none of the shoe views exist for a garment). The scraper Chrome
+loads is the DESKTOP copy, `chrome extensions /brooks scraper`, not the repo.
 
 The ON scraper was footwear-only and would **invent** a 21-slot shoe size ladder
 whenever it could not read an apparel size header, then match real stock to it by

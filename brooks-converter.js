@@ -235,20 +235,87 @@ var BrooksConverter = {
         ]
     },
 
+    // ========== APPAREL ==========
+    // Brooks apparel rides the same FastTrack scrape as the shoes (2026-11-10).
+    // The STYLE says which is which, one character, no name parsing, the same
+    // idea as ON's article code: footwear styles start with 1 (110xxx men's,
+    // 120xxx women's), garments with 2 (211xxx men's, 221xxx women's), bras
+    // with 3, gloves and hats 28xxxx, socks 74xxxx. The style is the 9-digit
+    // tail of the scraper's handle and the head of its SKU.
+    styleOf: function(handleOrSku) {
+        var s = String(handleOrSku || '');
+        var m = s.match(/(\d{9})$/) || s.match(/^(\d{9})-/);
+        return m ? m[1] : '';
+    },
+    isApparelStyle: function(handleOrSku) {
+        var st = this.styleOf(handleOrSku);
+        return !!st && st.charAt(0) !== '1';
+    },
+
+    // A Brooks model name to a garment type. Same vocabulary as ON's
+    // (APPAREL_TYPE_RE in worker/src/catalog.js, APPAREL_CATEGORIES in
+    // worker/src/products.js): a type outside it creates a product the tool
+    // cannot read back. NOT ON's rule list, because Brooks names its tops
+    // "Podium Short Sleeve" and "Luxe Long Sleeve": ON's /\bshorts?\b/ would
+    // type a short sleeve tee as Shorts. Short sleeve is therefore tested
+    // BEFORE short, and tights before shorts so "Half Tight" is a tight.
+    APPAREL_TYPE_RULES: [
+        [/\bbra\b/i,                                        'Sports Bras'],
+        [/\bsocks?\b/i,                                     'Socks'],
+        [/\bglove|\bmitt/i,                                 'Gloves'],
+        [/\b(cap|hat|beanie|headband|visor|gaiter)\b/i,     'Headwear'],
+        [/\bvest\b/i,                                       'Vests'],
+        [/\bhood(ie|y)/i,                                   'Hoodies'],
+        [/\bjacket|\bshell\b|\banorak/i,                    'Jackets'],
+        [/[14]\/[24]\s*zip|half[-\s]?zip|quarter[-\s]?zip/i, 'Half-Zips'],
+        [/full[-\s]?zip/i,                                  'Full Zips'],
+        [/\bcrew(neck)?\b/i,                                'Crewnecks'],
+        [/\bjogger/i,                                       'Joggers'],
+        [/\bsweatpants?\b/i,                                'Sweatpants'],
+        [/\btights?\b|\blegging|\bcapri/i,                  'Tights/Leggings'],
+        [/\bskort/i,                                        'Skorts'],
+        [/short[-\s]?sleeve|\btee\b|t-shirt/i,              'T-Shirts'],
+        [/long[-\s]?sleeve/i,                               'Long Sleeves'],
+        [/\bsinglet|\btank\b/i,                             'Tanks'],
+        [/\bshorts?\b/i,                                    'Shorts'],
+        [/\bpants?\b/i,                                     'Pants'],
+        [/\bdress\b/i,                                      'Active Dress'],
+    ],
+    // Falls back to T-Shirts, as ON does, because a garment with no type at all
+    // is invisible to classify() and would be offered as new again next week.
+    apparelTypeFor: function(model) {
+        var m = String(model || '');
+        for (var i = 0; i < this.APPAREL_TYPE_RULES.length; i++) {
+            if (this.APPAREL_TYPE_RULES[i][0].test(m)) return this.APPAREL_TYPE_RULES[i][1];
+        }
+        console.warn('[Brooks] no garment type rule matched "' + m + '", defaulting to T-Shirts');
+        return 'T-Shirts';
+    },
+
     // ========== DERIVE GENDER FROM STYLE CODE ==========
-    // Style code at end of handle: 110xxx = Men, 120xxx = Women
+    // Style code at end of handle: 110xxx = Men, 120xxx = Women. Apparel:
+    // 21xxxx men's, 22xxxx women's (checked against the store's own Brooks
+    // garments, "Dash 1/4 Zip MEN 211565", "Luxe Hoodie WOMEN 221..."), 3xxxxx
+    // bras women's, everything else (gloves, hats, socks) unisex.
     getGender: function(handle) {
         var match = handle.match(/(\d{9})$/);
         if (match) {
             var prefix = match[1].substring(0, 3);
             if (prefix === '110') return "Men's";
             if (prefix === '120') return "Women's";
+            if (match[1].charAt(0) !== '1') {
+                var two = match[1].substring(0, 2);
+                if (two === '21') return "Men's";
+                if (two === '22' || match[1].charAt(0) === '3') return "Women's";
+                return 'Unisex';
+            }
         }
         return '';
     },
 
     // ========== DERIVE WIDTH FROM HANDLE (GENDER-AWARE) ==========
     getWidth: function(handle, isWomen) {
+        if (this.isApparelStyle(handle)) return '';   // a garment has no width
         var match = handle.match(/-(2a|2e|4e|d|b|narrow)-\d{9}$/i);
         if (!match) return '';
 
@@ -354,11 +421,14 @@ var BrooksConverter = {
 
         model = model.toUpperCase();
 
-        return { gender: gender, model: model, color: color, width: width };
+        return { gender: gender, model: model, color: color, width: width, apparel: this.isApparelStyle(handle || '') };
     },
 
     // ========== GET DISPLAY CATEGORY ==========
-    getCategory: function(modelName) {
+    // A garment is "Apparel", whatever its name, so it never lands in a shoe
+    // category and the picker's Apparel tab can find it.
+    getCategory: function(modelName, apparel) {
+        if (apparel) return 'Apparel';
         for (var cat in this.productCategories) {
             if (this.productCategories[cat].indexOf(modelName) !== -1) {
                 return cat;
@@ -464,7 +534,7 @@ var BrooksConverter = {
                             model: titleInfo.model || 'Unknown',
                             modelKey: modelKey,
                             gender: titleInfo.gender,
-                            category: self.getCategory(titleInfo.model || ''),
+                            category: self.getCategory(titleInfo.model || '', titleInfo.apparel),
                             colorways: new Map(),
                             totalRows: 0,
                             totalInventory: 0
@@ -481,6 +551,10 @@ var BrooksConverter = {
                             title: row.Title || '',
                             color: titleInfo.color,
                             width: titleInfo.width,
+                            // The picker's Shoes / Apparel tabs read the style
+                            // off the SKU, the way ON's read its article code.
+                            sku: row.SKU || '',
+                            apparel: titleInfo.apparel,
                             rows: 0,
                             inventory: 0
                         });
@@ -583,7 +657,8 @@ var BrooksConverter = {
                         model: titleInfo.model,
                         color: titleInfo.color,
                         width: titleInfo.width,
-                        category: self.getCategory(titleInfo.model),
+                        category: self.getCategory(titleInfo.model, titleInfo.apparel),
+                        apparel: titleInfo.apparel,
                         sku: row.SKU || '',
                         size: row['Option1 Value'] || '',
                         quantity: qty,
@@ -691,6 +766,7 @@ var BrooksConverter = {
                     color: variantData.color,
                     width: variantData.width,
                     category: variantData.category,
+                    apparel: !!variantData.apparel,
                     variants: []
                 });
             }
@@ -725,6 +801,30 @@ var BrooksConverter = {
             var productType = "Unisex Shoes";
             if (product.gender === "Men's") productType = "Men's Shoes";
             else if (product.gender === "Women's") productType = "Women's Shoes";
+            var shopCategory = 'Apparel & Accessories > Shoes';
+
+            // APPAREL FORKS HERE, on the style in its own handle, never on the
+            // name. A garment typed "Women's Shoes" is not cosmetic: the Worker
+            // gives anything whose type ends in "shoes" the Athletic Shoes
+            // category and a 2 lb weight, and the category is what Shopify applies
+            // the Massachusetts footwear exemption from (the ON shorts of
+            // 2026-10-20, see CLAUDE.md). Type, category path, size order and the
+            // collection tags follow the ON apparel rules exactly.
+            if (product.apparel) {
+                var garment = self.apparelTypeFor(product.model);
+                productType = garment;   // NOT gendered, never ending in "shoes"
+                tags.push(garment);
+                // The exact strings the live apparel and gender collections key on.
+                var gKey = product.gender === "Men's" ? 'mens' : product.gender === "Women's" ? 'womens' : 'unisex';
+                tags.push(gKey + ' apparel');
+                tags.push(gKey === 'mens' ? 'men' : gKey === 'womens' ? 'women' : 'unisex');
+                if (garment === 'Socks') tags.push('socks');
+                var ON = (typeof OnConverter !== 'undefined') ? OnConverter : null;
+                shopCategory = (ON && ON.APPAREL_CATEGORY_PATH && ON.APPAREL_CATEGORY_PATH[garment]) || 'Apparel & Accessories > Clothing > Activewear';
+                // Ladder order, or Shopify opens the product page on whatever
+                // size the feed listed first.
+                if (ON && ON.sortApparelVariants) product.variants = ON.sortApparelVariants.call(ON, product.variants);
+            }
 
             product.variants.forEach(function(variant, idx) {
                 var row = {};
@@ -734,7 +834,7 @@ var BrooksConverter = {
                     row['URL handle'] = cleanedHandle;
                     row['Description'] = '';
                     row['Vendor'] = 'Brooks';
-                    row['Product category'] = 'Apparel & Accessories > Shoes';
+                    row['Product category'] = shopCategory;
                     row['Type'] = productType;
                     row['Tags'] = tags.join(', ');
                     row['Published on online store'] = 'FALSE';
@@ -742,7 +842,7 @@ var BrooksConverter = {
                     row['Option1 name'] = 'Size';
                     row['SEO title'] = cleanedTitle;
                     row['SEO description'] = cleanedTitle;
-                    row['Google Shopping / Google product category'] = 'Apparel & Accessories > Shoes';
+                    row['Google Shopping / Google product category'] = shopCategory;
                     row['Google Shopping / Gender'] = gGender;
                     row['Google Shopping / Age group'] = 'Adult (13+ years old)';
                     row['Google Shopping / Condition'] = 'New';

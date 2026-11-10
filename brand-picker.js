@@ -649,7 +649,20 @@ if (typeof BrooksConverter !== 'undefined') {
     BrandPicker.register('brooks', {
         converter: BrooksConverter, containerId: 'brooks-picker-container', trackerId: 'brooks-tracker-report',
         headerGradient: 'linear-gradient(135deg, #1a2b4a 0%, #0d1b2a 100%)',
-        comparisonKey: '_brooksTrackerComparison', vendorName: 'Brooks', checkboxClass: 'brooks-picker-cb'
+        comparisonKey: '_brooksTrackerComparison', vendorName: 'Brooks', checkboxClass: 'brooks-picker-cb',
+        // Brooks apparel rides the footwear scrape (2026-11-10). The split is
+        // the style's first digit, read off the SKU: 1 shoes, anything else a
+        // garment, bra, sock, glove or hat. See BrooksConverter.isApparelStyle.
+        tabs: [{ key: 'shoes', label: 'Shoes' }, { key: 'apparel', label: 'Apparel' }],
+        tabOf: function (product) {
+            var cws = product.colorways || [];
+            for (var i = 0; i < cws.length; i++) {
+                if (cws[i] && typeof cws[i].apparel === 'boolean') return cws[i].apparel ? 'apparel' : 'shoes';
+                var m = /^(\d)\d{8}-/.exec(String((cws[i] && cws[i].sku) || ''));
+                if (m) return m[1] === '1' ? 'shoes' : 'apparel';
+            }
+            return product.category === 'Apparel' ? 'apparel' : 'shoes';
+        }
     });
 }
 if (typeof PumaConverter !== 'undefined') {

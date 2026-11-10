@@ -908,6 +908,17 @@ var ProductEnrichment = {
                 { id: 'm', word: 'medial' }, { id: 'h', word: 'heel' },
                 { id: 'o', word: 'top' }, { id: 's', word: 'sole' }
             ],
+            // GARMENTS ARE SHOT DIFFERENTLY on the same host and key. Read off
+            // FastTrack's own Dash 2-in-1 Short page 2026-11-10: mf model front,
+            // mb model back, d1 and d2 details, each 2048x2048, and NONE of the
+            // shoe views exist for a garment (all 29 single letters 404). A
+            // garment's style does not start with 1 (221754, 300661, 741543), so
+            // the key's first digit picks the list. The model front leads.
+            apparelViews: [
+                { id: 'mf', word: 'front' }, { id: 'mb', word: 'back' },
+                { id: 'd1', word: 'detail' }, { id: 'd2', word: 'detail2' }
+            ],
+            viewsFor: function (code) { return /^1/.test(String(code)) ? this.views : this.apparelViews; },
             // NO QUERY STRING. Any parameter routes the request through the
             // CDN's resizer, which re-encodes the 2048px original down to
             // about 166 KB.
@@ -1104,7 +1115,9 @@ var ProductEnrichment = {
 
         var jobs = [];
         codes.forEach(function (c) {
-            src.views.forEach(function (v, i) { jobs.push({ code: c, view: v, i: i }); });
+            // A source may pick its views per colourway (Brooks shoots shoes
+            // and garments differently, see its entry).
+            (src.viewsFor ? src.viewsFor(c) : src.views).forEach(function (v, i) { jobs.push({ code: c, view: v, i: i }); });
         });
         var idx = {}, done = 0, next = 0;
         if (!jobs.length) { self._imageIndexRemote = {}; self._imageBrand = brand; self._rebuildImageIndex(); return Promise.resolve({}); }

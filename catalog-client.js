@@ -700,7 +700,23 @@ var CatalogClient = {
             self._existingSkusByBrand[toolBrand] = res.existingSkus || new Set();
             self._existingCwKeysByBrand[toolBrand] = res.existingCwKeys || new Set();
             self._existingHandlesByBrand[toolBrand] = res.existingHandles || new Set();
-            return res;
+            // PRESENCE ONLY, from the apparel catalog too. One supplier file can
+            // carry shoes and garments (ON's always has, Brooks' does since
+            // 2026-11-10), and /catalog holds footwear only, so a garment
+            // created last week read as NEW on every scan after. Its SKUs and
+            // handles are folded into the presence sets and NOTHING else: the
+            // removal / zeroing scope stays the footwear Needham known set, so
+            // this cannot make the tool zero a garment.
+            return self.fetchApparelCatalog().then(function (cat) {
+                if (cat) {
+                    try {
+                        var a = self.buildApparelKnownSets(cat, toolBrand);
+                        a.existingSkus.forEach(function (s) { res.existingSkus.add(s); });
+                        a.existingHandles.forEach(function (h) { res.existingHandles.add(h); });
+                    } catch (e) { console.warn('[CatalogClient] apparel presence not merged:', e && e.message); }
+                }
+                return res;
+            }, function () { return res; });
         });
     },
 
