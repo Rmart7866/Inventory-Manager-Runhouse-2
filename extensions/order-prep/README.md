@@ -1,9 +1,9 @@
-# Run House Order Prep
+# Run House Order Draft (folder: order-prep)
 
 Sets up a supplier order for one dropship order, from the **Late orders** page,
 and stops before anything is ordered. **HOKA**, **ON** and **Brooks**.
 
-## Brooks (Prep in Brooks)
+## Brooks (Draft in Brooks)
 
 1. opens FastTrack's basket, which must be **empty** (otherwise it does nothing);
 2. for each colourway searches `<style>-<colour>` from our SKU, picks the
@@ -15,7 +15,7 @@ and stops before anything is ordered. **HOKA**, **ON** and **Brooks**.
 4. types the PO into the delivery line's order reference (20 characters at most);
 5. **stops**: you press Step 1/2: Validate availability and Step 2/2: Place basket.
 
-## ON (Prep in ON)
+## ON (Draft in ON)
 
 The path staff use: Start a re-order, then a One time address.
 
@@ -29,7 +29,7 @@ The path staff use: Start a re-order, then a One time address.
    fills it and saves the address (an international order keeps the Default address);
 5. **stops**: a person presses Submit order.
 
-Pressing **Prep in HOKA** on an order:
+Pressing **Draft in HOKA** on an order:
 
 1. opens HOKA's B2B cart in a new tab;
 2. checks the cart is empty (if not, it does nothing, so two orders never mix);

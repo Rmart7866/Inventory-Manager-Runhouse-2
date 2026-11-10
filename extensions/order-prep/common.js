@@ -32,7 +32,7 @@
   function safeClick(el, what) {
     if (!el) throw new Error('Could not find ' + what);
     const text = ((el.innerText || el.textContent || el.value || '') + ' ' + (el.getAttribute && el.getAttribute('aria-label') || '')).trim();
-    if (FORBIDDEN.test(text)) throw new Error('Refused to press "' + text + '": order prep never submits');
+    if (FORBIDDEN.test(text)) throw new Error('Refused to press "' + text + '": the draft tool never submits');
     if (typeof el.click === 'function') el.click(); else el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
   }
   // A picker built on Reka UI (ON's State select) opens on POINTERDOWN and
@@ -43,7 +43,7 @@
   function safePress(el, what, type) {
     if (!el) throw new Error('Could not find ' + what);
     const text = ((el.innerText || el.textContent || el.value || '') + ' ' + (el.getAttribute && el.getAttribute('aria-label') || '')).trim();
-    if (FORBIDDEN.test(text)) throw new Error('Refused to press "' + text + '": order prep never submits');
+    if (FORBIDDEN.test(text)) throw new Error('Refused to press "' + text + '": the draft tool never submits');
     const r = el.getBoundingClientRect();
     el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, view: window, button: 0, buttons: type === 'pointerdown' ? 1 : 0, pointerType: 'mouse', pointerId: 1, isPrimary: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
   }
@@ -84,7 +84,7 @@
       document.body.appendChild(box);
     }
     box.style.borderLeftColor = tone === 'bad' ? '#ff7a90' : tone === 'ok' ? '#3ddc97' : '#4c9bff';
-    box.innerHTML = '<div style="font-weight:700;margin-bottom:4px">Run House order prep</div>' + lines.map((l) => '<div>' + l + '</div>').join('') +
+    box.innerHTML = '<div style="font-weight:700;margin-bottom:4px">Run House order draft</div>' + lines.map((l) => '<div>' + l + '</div>').join('') +
       '<button type="button" style="margin-top:8px;background:none;border:1px solid rgba(255,255,255,.25);color:inherit;padding:3px 10px;cursor:pointer">Close</button>';
     box.querySelector('button').onclick = () => { box.remove(); box = null; };
   }

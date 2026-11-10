@@ -46,7 +46,7 @@
   function safeClick(el, what) {
     if (!el) throw new Error('Could not find ' + what);
     const text = (el.innerText || el.textContent || el.value || '').trim();
-    if (FORBIDDEN.test(text)) throw new Error('Refused to press "' + text + '": order prep never submits');
+    if (FORBIDDEN.test(text)) throw new Error('Refused to press "' + text + '": the draft tool never submits');
     // An SVG icon has no .click(); a real click event reaches the same handler.
     if (typeof el.click === 'function') el.click(); else el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
   }
@@ -77,7 +77,7 @@
     box.style.borderLeftColor = tone === 'bad' ? '#ff7a90' : tone === 'ok' ? '#3ddc97' : '#4c9bff';
     // Saved, so a reload of the cart can say how far the run got.
     try { chrome.storage.local.set({ rhPrepLast: { at: Date.now(), lines, tone: tone || '', shown: false } }); } catch (e) { /* storage unavailable: the banner still shows */ }
-    box.innerHTML = '<div style="font-weight:700;margin-bottom:4px">Run House order prep</div>' + lines.map((l) => '<div>' + l + '</div>').join('') +
+    box.innerHTML = '<div style="font-weight:700;margin-bottom:4px">Run House order draft</div>' + lines.map((l) => '<div>' + l + '</div>').join('') +
       '<button type="button" style="margin-top:8px;background:none;border:1px solid rgba(255,255,255,.25);color:inherit;padding:3px 10px;cursor:pointer">Close</button>';
     box.querySelector('button').onclick = () => box.remove();
   }
@@ -148,7 +148,7 @@
     const termsOpen = () => [...document.querySelectorAll('.el-dialog')].find((d) => visible(d) && /TERMS AND CONDITIONS/i.test(d.innerText));
     await sleep(1200);
     if (termsOpen()) {
-      banner(['<b>Your turn:</b> HOKA wants you to agree to its B2B2C terms before using a drop-ship address. Read them and press <b>I agree</b> yourself. HOKA reloads the page after that; the prep carries on by itself within about 20 seconds. Cancel stops it here.'], 'bad');
+      banner(['<b>Your turn:</b> HOKA wants you to agree to its B2B2C terms before using a drop-ship address. Read them and press <b>I agree</b> yourself. HOKA reloads the page after that; the draft carries on by itself within about 20 seconds. Cancel stops it here.'], 'bad');
       await waitFor(() => !termsOpen(), 5 * 60 * 1000, 'the terms to be answered');
       await sleep(800);
       if (!sw.classList.contains('is-checked')) throw new Error('The terms were cancelled, so no drop-ship address was set');
@@ -186,7 +186,7 @@
     if (ready) {
       safeClick(saveBtn, 'the address Save button');
     } else {
-      banner(['✓ The drop-ship address is filled in.', '<b>Your turn:</b> HOKA has not enabled <b>Save</b>. Click into any address field, type a space and delete it, then press <b>Save</b>. The prep carries on with the PO after that.'], 'bad');
+      banner(['✓ The drop-ship address is filled in.', '<b>Your turn:</b> HOKA has not enabled <b>Save</b>. Click into any address field, type a space and delete it, then press <b>Save</b>. The draft carries on with the PO after that.'], 'bad');
     }
     const mb = await waitFor(prompt, ready ? 8000 : 5 * 60 * 1000, 'the drop ship address to be saved');
     // Recorded BEFORE confirming: HOKA may reload the page on save, and the
@@ -239,7 +239,7 @@
           job.step = 'items'; await save(job);
         } else {
           const go = await ask(['The HOKA cart already has <b>' + (c ? c.products + ' product' + (c.products === 1 ? '' : 's') + ', ' + c.units + ' pair' + (c.units === 1 ? '' : 's') : 'items') + '</b>.',
-            'If those are <b>' + esc(job.po) + '</b>\'s shoes, carry on and the prep fills the address and PO. If they belong to another order, close this and save or clear that cart first.'], 'Carry on with what is in the cart');
+            'If those are <b>' + esc(job.po) + '</b>\'s shoes, carry on and the draft fills the address and PO. If they belong to another order, close this and save or clear that cart first.'], 'Carry on with what is in the cart');
           if (!go) { clearInterval(beat); await chrome.storage.local.remove('rhPrepJob'); banner(['Stopped. Nothing was changed for ' + esc(job.po) + '.'], 'bad'); return; }
           job.done.push('Items: kept what was in the cart (checked by a person)');
           job.step = 'items'; await save(job);
@@ -318,7 +318,7 @@
     const pending = job && job.state === 'pending' && job.supplier === 'hoka';
     if (pending && Date.now() - job.at > MAX_AGE) {
       await chrome.storage.local.remove('rhPrepJob');
-      if (onCart()) banner(['A prep request from more than 15 minutes ago was ignored. Press Prep in HOKA again.'], 'bad');
+      if (onCart()) banner(['A draft request from more than 15 minutes ago was ignored. Press Draft in HOKA again.'], 'bad');
       return;
     }
     if (pending && !onCart()) { location.href = CART; return; }
@@ -327,7 +327,7 @@
       // No job: show the last run's outcome once, if it is recent.
       const last = got.rhPrepLast;
       if (last && Date.now() - last.at < 30 * 60 * 1000 && !last.shown) {
-        banner(['<i>Last prep, ' + new Date(last.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ':</i>'].concat(last.lines), last.tone);
+        banner(['<i>Last draft, ' + new Date(last.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ':</i>'].concat(last.lines), last.tone);
         await chrome.storage.local.set({ rhPrepLast: { ...last, shown: true } });
       }
       return;

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Run House Order Prep",
-  "version": "1.2.3",
+  "name": "Run House Order Draft",
+  "version": "1.3.0",
   "description": "Sets up a supplier order (items, ship-to address, PO) for a dropship order from the Late orders page, on HOKA, ON and Brooks. Never submits an order.",
   "permissions": [
     "storage"

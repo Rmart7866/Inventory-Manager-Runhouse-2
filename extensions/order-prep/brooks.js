@@ -175,7 +175,7 @@
         await waitFor(() => document.querySelector('epc-basket-button'), 20000, 'FastTrack to load');
         await sleep(1500);
         const n = basketCount();
-        if (n) throw new Error('The Brooks basket already holds ' + n + ' item(s). Place or clear that basket first (a stopped prep leaves its pairs there too), then press Prep again');
+        if (n) throw new Error('The Brooks basket already holds ' + n + ' item(s). Place or clear that basket first (a stopped draft leaves its pairs there too), then press Draft again');
         job.groups = groupsOf(job); job.gi = 0; job.missing = []; job.added = 0;
         job.step = 'items';
         await go(searchUrl(job.groups[0].key));
@@ -228,7 +228,7 @@
     if (running) return;
     const { rhPrepJob: job } = await chrome.storage.local.get('rhPrepJob');
     if (!job || job.supplier !== 'brooks') return;
-    if (Date.now() - job.at > MAX_AGE) { await chrome.storage.local.remove('rhPrepJob'); banner(['A prep request from more than 15 minutes ago was ignored. Press Prep in Brooks again.'], 'bad'); return; }
+    if (Date.now() - job.at > MAX_AGE) { await chrome.storage.local.remove('rhPrepJob'); banner(['A draft request from more than 15 minutes ago was ignored. Press Draft in Brooks again.'], 'bad'); return; }
     if (job.state === 'pending') {
       running = true;
       const j = { ...job, state: 'running', owner: ME, beat: Date.now(), step: 'start', done: [] };

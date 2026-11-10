@@ -103,7 +103,7 @@
     // than exactly this order's own pairs is refused, like HOKA's cart.
     const ours = new Map(job.lines.map((l) => [boxFor(l), l.qty]).filter(([el]) => el));
     const foreign = [...document.querySelectorAll('input[type=number]')].filter((i) => +i.value > 0 && ours.get(i) !== +i.value);
-    if (foreign.length) throw new Error('This ON draft already holds ' + foreign.length + ' other size(s), probably an earlier order. Submit or delete that draft in My orders first, then press Prep again');
+    if (foreign.length) throw new Error('This ON draft already holds ' + foreign.length + ' other size(s), probably an earlier order. Submit or delete that draft in My orders first, then press Draft again');
     const missing = [];
     for (const l of job.lines) {
       const el = boxFor(l);
@@ -247,7 +247,7 @@
     if (running) return;
     const { rhPrepJob: job } = await chrome.storage.local.get('rhPrepJob');
     if (!job || job.supplier !== 'on') return;
-    if (Date.now() - job.at > MAX_AGE) { await chrome.storage.local.remove('rhPrepJob'); banner(['A prep request from more than 15 minutes ago was ignored. Press Prep in ON again.'], 'bad'); return; }
+    if (Date.now() - job.at > MAX_AGE) { await chrome.storage.local.remove('rhPrepJob'); banner(['A draft request from more than 15 minutes ago was ignored. Press Draft in ON again.'], 'bad'); return; }
     if (job.state === 'pending') {
       if (where() !== 'select') { location.href = START; return; }
       running = true;

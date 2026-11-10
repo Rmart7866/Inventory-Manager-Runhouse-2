@@ -123,7 +123,7 @@ var LO = {
             '</div>' +
             '<div class="act">' + (open ? '' : '<button type="button" class="chip" data-note="' + LO.esc(r.id) + '">Add note</button>') +
               LO.SUPPLIERS.filter(function (s) { return r.brands.some(function (b) { return s.is(LO.key(b)); }); }).map(function (s) {
-                  return '<button type="button" class="chip" style="margin-top:6px;display:block" data-prep="' + LO.esc(r.id) + '" data-supplier="' + s.key + '" title="Opens ' + s.name + ' with this order\'s ' + s.name + ' items, the ship-to address and the PO filled in. You check it and submit it yourself.">Prep in ' + s.name + '</button>';
+                  return '<button type="button" class="chip" style="margin-top:6px;display:block" data-prep="' + LO.esc(r.id) + '" data-supplier="' + s.key + '" title="Opens ' + s.name + ' with this order\'s ' + s.name + ' items, the ship-to address and the PO filled in. You check it and submit it yourself.">Draft in ' + s.name + '</button>';
               }).join('') + '</div>' +
         '</div>';
     },
@@ -174,14 +174,14 @@ var LO = {
         if (e.data.type === 'ack' && LO._ack) LO._ack(e.data);
     },
     prep: function (b) {
-        if (!LO.st.prepExt) { LO.toast('Install the Run House Order Prep extension first (extensions/order-prep in the repo).'); return; }
+        if (!LO.st.prepExt) { LO.toast('Install the Run House Order Draft extension first (extensions/order-prep in the repo).'); return; }
         var row = LO.st.rows.filter(function (x) { return x.id === b.dataset.prep; })[0];
         if (row && row.ordered && b.dataset.armed !== '1') {
-            b.dataset.armed = '1'; b.textContent = 'Already ordered. Prep again?';
+            b.dataset.armed = '1'; b.textContent = 'Already ordered. Draft again?';
             LO.toast('This order already has its PO in a comment, so it was ordered. Press again only to order it a second time.');
             return;
         }
-        b.disabled = true; var label = b.textContent; b.textContent = 'Preparing...';
+        b.disabled = true; var label = b.textContent; b.textContent = 'Drafting...';
         var restore = function () { b.disabled = false; b.textContent = label; };
         fetch(CatalogClient._writeBase() + '/orders/prep?id=' + encodeURIComponent(b.dataset.prep), { headers: LO.H() })
             .then(function (r) { return r.json(); })
@@ -191,7 +191,7 @@ var LO = {
                 var lines = p.lines.filter(function (l) { return sup.is(LO.key(l.vendor)); });
                 var noUpc = lines.filter(function (l) { return !sup.findable(l); });
                 if (!lines.length) { restore(); LO.toast('No open ' + sup.name + ' items on ' + p.name); return; }
-                if (noUpc.length) { restore(); LO.toast(noUpc[0].title + ' ' + sup.why + ', so it cannot be prepped. Add it by hand.'); return; }
+                if (noUpc.length) { restore(); LO.toast(noUpc[0].title + ' ' + sup.why + ', so it cannot be drafted. Add it by hand.'); return; }
                 var timer = setTimeout(function () { LO._ack = null; restore(); LO.toast('The extension did not answer. Reload this page and try again.'); }, 4000);
                 LO._ack = function (a) {
                     clearTimeout(timer); LO._ack = null; restore();
@@ -202,7 +202,7 @@ var LO = {
                     lines: lines.map(function (l) { return { upc: l.upc, qty: l.qty, sku: l.sku, title: l.title, variant: l.variant }; }),
                 } }, location.origin);
             })
-            .catch(function (e) { restore(); LO.toast('Could not prepare: ' + e.message); });
+            .catch(function (e) { restore(); LO.toast('Could not draft: ' + e.message); });
     },
 
     // The orders shown, as plain text for an email to the rep.
