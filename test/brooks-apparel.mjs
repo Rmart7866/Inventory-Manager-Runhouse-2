@@ -125,6 +125,10 @@ const bg = read('scrapers/brooks/background.js');
 yes('the scraper CSV ends with an MSRP column, filled only with a plain number',
   /"On hand \(new\)",MSRP'\);/.test(bg) && /quantity,\s*\/\^\\d\+\(\\\.\\d\{1,2\}\)\?\$\/\.test\(String\(variant\.msrp/.test(bg));
 yes('and never the wholesale price', !/variant\.wsp/.test(bg));
+yes('an inch mark in a garment name is doubled inside the quoted Title (Breakaway 3" Short)',
+  /`"\$\{String\(title\)\.replace\(\/"\/g, '""'\)\}"`/.test(bg) && !/`"\$\{title\}"`/.test(bg));
+const inch = parseCSV(H + '\n' + row('breakaway-3-short-black-211536001', 'Breakaway 3"" Short - Black', 'S', '211536001-001-S', 33, '60.00') + '\n').data[0];
+eq('and such a row reads back with every column in place', [inch.Title, inch.SKU, inch['On hand (new)'], inch.MSRP], ['Breakaway 3" Short - Black', '211536001-001-S', '33', '60.00']);
 eq('every row converts and keeps Needham', [inv.length, inv.every((r) => r.Location === 'Needham')], [6, true]);
 const handles = new Set(inv.map((r) => r.Handle));
 const out = B.generateNewProductCSV({ newProducts: [...handles].map((h) => ({ handle: h })), newColorways: [] });

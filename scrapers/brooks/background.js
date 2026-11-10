@@ -457,9 +457,14 @@ class UnifiedBrooksCSVManager {
                 const sku = this.generateSKU(variant);
                 const quantity = Math.max(0, parseInt(variant.availableQuantity || variant.quantity) || 0);
                 
+                // An inch mark in a garment name ("Breakaway 3" Short") must be
+                // doubled inside the quoted field, or the row is malformed CSV
+                // and every column after Title can shift. Shoe names never
+                // carried one, so this first bit on the apparel scrape of
+                // 2026-11-10, the same trap the ON scraper's CSV fell into.
                 const row = [
                     handle,
-                    `"${title}"`,
+                    `"${String(title).replace(/"/g, '""')}"`,
                     'Size',
                     variant.sizeUS || variant.size,
                     '',  // Option2 Name - EMPTY
