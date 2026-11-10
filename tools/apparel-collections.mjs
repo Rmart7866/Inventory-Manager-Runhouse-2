@@ -39,6 +39,7 @@
 //   node tools/apparel-collections.mjs --only tags --apply
 //   node tools/apparel-collections.mjs --only collections --apply
 //   node tools/apparel-collections.mjs --apply
+//   node tools/apparel-collections.mjs --only tags --vendor Brooks --apply
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 
@@ -49,6 +50,11 @@ const arg = (n, d) => { const i = process.argv.indexOf('--' + n);
   return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const APPLY = process.argv.includes('--apply');
 const ONLY = arg('only', 'both');
+// --vendor limits the TAG phase to one vendor's garments (case insensitive,
+// like Shopify's own vendor match), so a new drop can be tagged without
+// sweeping every other vendor's untagged garments in with it. The collection
+// counts still read the whole store.
+const VENDOR = arg('vendor', '').trim().toLowerCase();
 const DO_TAGS = ONLY === 'both' || ONLY === 'tags';
 const DO_COLL = ONLY === 'both' || ONLY === 'collections';
 const PUBLISH = !process.argv.includes('--no-publish');
@@ -157,6 +163,7 @@ for (const p of all) {
   grid[k] = grid[k] || { all: 0, active: 0 };
   grid[k].all++; if (p.status === 'ACTIVE') grid[k].active++;
   const want = 'apparel:' + g;
+  if (VENDOR && String(p.vendor || '').trim().toLowerCase() !== VENDOR) continue;
   if (!p.tags.some((t) => t.trim().toLowerCase() === want)) tagPlan.push({ p, tag: want });
 }
 console.log('classified: ' + (all.length - unclassified.length - noGender.length)
