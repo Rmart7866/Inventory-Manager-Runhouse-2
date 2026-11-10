@@ -1083,16 +1083,37 @@ var ProductEnrichment = {
         return code + '_' + (rank < 10 ? '0' : '') + rank + '_' + v.word + '.jpg';
     },
 
-    // Probe every view of every colorway in `specs` for `brand`.
+    // Probe every view of every colorway in `specs` for `brand` that has NOT
+    // been probed yet, and ADD the results to the index already built.
+    //
+    // It used to probe once per session and replace the index, and the dialog
+    // only called it while the index was empty. So the FIRST create of a
+    // session got its photos and every later create in the same session got
+    // none: its colourways were never looked up (reported 2026-11-10, Brooks
+    // apparel, but true of every CDN brand). _remoteProbed remembers what was
+    // asked, so a code is probed once and a new batch probes only its own.
+    _remoteProbed: null,
+    remoteCodesNeeded: function (brand, specs) {
+        // A SUPPLIED source (ON's sidecar) costs nothing to read and can gain
+        // URLs mid session when the sidecar is dropped late, so it is never
+        // treated as already asked. Only network probes are remembered.
+        var src = this.remoteSourceFor(brand);
+        var self = this, probed = (!(src && src.supplied) && this._imageBrand === brand && this._remoteProbed) || {}, out = [], seen = {};
+        (specs || []).forEach(function (sp) {
+            var k = self._imageKeyIn(brand, ((sp.variants || [])[0] || {}).sku || '');
+            if (k && !seen[k] && !probed[k]) { seen[k] = 1; out.push(k); }
+        });
+        return out;
+    },
     loadRemoteImages: function (brand, specs, onProgress) {
         var self = this;
         var src = this.remoteSourceFor(brand);
         if (!src) return Promise.resolve({});
-        var codes = [], seen = {};
-        (specs || []).forEach(function (sp) {
-            var k = self._imageKeyIn(brand, ((sp.variants || [])[0] || {}).sku || '');
-            if (k && !seen[k]) { seen[k] = 1; codes.push(k); }
-        });
+        if (this._imageBrand !== brand) { this._remoteProbed = null; this._imageIndexRemote = null; }
+        var codes = this.remoteCodesNeeded(brand, specs);
+        var probed = this._remoteProbed = this._remoteProbed || {};
+        var base = this._imageIndexRemote || {};
+        codes.forEach(function (c) { probed[c] = 1; });
         // A SUPPLIED source already knows its URLs, so there is nothing to
         // probe and nothing to build. Index them straight away.
         if (src.supplied) {
@@ -1106,11 +1127,14 @@ var ProductEnrichment = {
                     });
                 });
             });
-            self._imageIndexRemote = sidx;
+            // Replace each asked code's entry, including with nothing: no
+            // sidecar URL now means no image, never a stale one.
+            codes.forEach(function (c) { if (sidx[c]) base[c] = sidx[c]; else delete base[c]; });
+            self._imageIndexRemote = base;
             self._imageBrand = brand;
             self._rebuildImageIndex();
             if (onProgress) onProgress(1, 1);
-            return Promise.resolve(sidx);
+            return Promise.resolve(base);
         }
 
         var jobs = [];
@@ -1120,7 +1144,7 @@ var ProductEnrichment = {
             (src.viewsFor ? src.viewsFor(c) : src.views).forEach(function (v, i) { jobs.push({ code: c, view: v, i: i }); });
         });
         var idx = {}, done = 0, next = 0;
-        if (!jobs.length) { self._imageIndexRemote = {}; self._imageBrand = brand; self._rebuildImageIndex(); return Promise.resolve({}); }
+        if (!jobs.length) { self._imageIndexRemote = base; self._imageBrand = brand; self._rebuildImageIndex(); return Promise.resolve(base); }
 
         function worker() {
             var j = jobs[next++];
@@ -1146,11 +1170,12 @@ var ProductEnrichment = {
         return Promise.all(lanes).then(function () {
             Object.keys(idx).forEach(function (c) {
                 idx[c].sort(function (a, b) { return self._angleRank(a.name) - self._angleRank(b.name); });
+                base[c] = idx[c];
             });
-            self._imageIndexRemote = idx;
+            self._imageIndexRemote = base;
             self._imageBrand = brand;
             self._rebuildImageIndex();
-            return idx;
+            return base;
         });
     },
 
@@ -1278,6 +1303,7 @@ var ProductEnrichment = {
             this._imageIndex = null;
             this._imageIndexFolder = null;
             this._imageIndexRemote = null;
+            this._remoteProbed = null;
             this._imageBrand = null;
         }
     },
@@ -1515,7 +1541,9 @@ var ProductEnrichment = {
         render();
 
 
-        if (remoteSrc && !self._imageIndexRemote) {
+        // Every dialog looks up the colourways not looked up yet this session,
+        // not just the first one (see loadRemoteImages).
+        if (remoteSrc && self.remoteCodesNeeded(brand, specs).length) {
             remoteBusy = 'Checking ' + remoteSrc.label + ' for photos…';
             render();
             self.loadRemoteImages(brand, specs, function (d, t) {

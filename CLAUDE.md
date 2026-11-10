@@ -74,6 +74,7 @@ node test/on-model-identity.mjs               # a Volt is not an Echo: model, ve
 node test/enrich-csv.mjs                      # applyToCSV round trip: a comma in Tags cannot shift a column
 node test/on-apparel-type.mjs                 # ON apparel: garment type, size ladder, never typed as a shoe
 node test/brooks-apparel.mjs                  # Brooks apparel: scraper sizes, garment fork, tabs, photo views
+node test/remote-images-session.mjs           # Stage 4 photos: every create in a session looks up its own colourways
 node test/supplier-images.mjs                 # CDN photo keys, URL attach, folder pooling
 node test/image-keys.mjs                      # the sku -> colorway key per brand, the Puma trap
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
