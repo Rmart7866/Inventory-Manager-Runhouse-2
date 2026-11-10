@@ -75,11 +75,15 @@ var BrandPicker = {
             });
         }
 
+        // Open on the first tab that HAS products. A Brooks apparel-only file
+        // opened on an empty Shoes tab, so staff saw nothing to tick and hit
+        // "Please select at least one product!" (2026-11-10).
+        var firstKey = groups ? (config.tabs.filter(function (t) { return (groups[t.key] || []).length; })[0] || config.tabs[0]).key : null;
         if (groups) {
             html += '<div class="bp-tabs">';
             config.tabs.forEach(function (t, i) {
                 var n = (groups[t.key] || []).length;
-                html += '<button class="bp-tab' + (i === 0 ? ' bp-tab-on' : '') + '" data-tab="' + t.key +
+                html += '<button class="bp-tab' + (t.key === firstKey ? ' bp-tab-on' : '') + '" data-tab="' + t.key +
                     '" onclick="BrandPicker.showTab(\'' + brand + '\',\'' + t.key + '\')">' +
                     t.label + ' <span class="bp-tab-n">' + n + '</span></button>';
             });
@@ -125,7 +129,7 @@ var BrandPicker = {
         if (groups) {
             config.tabs.forEach(function (t, i) {
                 html += '<div class="bp-tabpane" id="' + brand + '-tab-' + t.key + '"' +
-                    (i === 0 ? '' : ' style="display:none;"') + '>';
+                    (t.key === firstKey ? '' : ' style="display:none;"') + '>';
                 var list = groups[t.key] || [];
                 if (!list.length) html += '<div class="bp-empty">Nothing in this file.</div>';
                 list.forEach(renderItem);
