@@ -94,16 +94,16 @@ for (const t of new Set(Object.values(T))) eq(t + ' classifies as apparel for Br
 
 // ---------- 3. a mixed scrape through scan, convert and the product CSV ----------
 console.log('\nA mixed scrape: garments and shoes in one file');
-const H = 'Handle,Title,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,SKU,HS Code,COO,Location,Bin name,Incoming (not editable),Unavailable (not editable),Committed (not editable),Available (not editable),On hand (current),On hand (new)';
-const row = (h, t, size, sku, q) => [h, '"' + t + '"', 'Size', size, '', '', '', '', sku, '', '', 'Needham', '', '', '', '', '', '', q].join(',');
+const H = 'Handle,Title,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,SKU,HS Code,COO,Location,Bin name,Incoming (not editable),Unavailable (not editable),Committed (not editable),Available (not editable),On hand (current),On hand (new),MSRP';
+const row = (h, t, size, sku, q, msrp = '') => [h, '"' + t + '"', 'Size', size, '', '', '', '', sku, '', '', 'Needham', '', '', '', '', '', '', q, msrp].join(',');
 const csv = [H,
   // feed order deliberately NOT ladder order
-  row('dash-2in1-short-cosmo-221754001', 'Dash 2-in-1 Short - Cosmo', 'XL', '221754001-368-XL', 24),
-  row('dash-2in1-short-cosmo-221754001', 'Dash 2-in-1 Short - Cosmo', 'XS', '221754001-368-XS', 25),
-  row('dash-2in1-short-cosmo-221754001', 'Dash 2-in-1 Short - Cosmo', 'M', '221754001-368-M', 4),
-  row('dash-2in1-short-cosmo-221754001', 'Dash 2-in-1 Short - Cosmo', 'S', '221754001-368-S', 27),
-  row('podium-short-sleeve-black-211445001', 'Podium Short Sleeve - Black', 'M', '211445001-001-M', 30),
-  row('glycerin-flex-whiteblackgum-110478114', 'Glycerin Flex - White/Black/Gum', '14.0', '110478114-187-1450-D', 100),
+  row('dash-2in1-short-cosmo-221754001', 'Dash 2-in-1 Short - Cosmo', 'XL', '221754001-368-XL', 24, '58.00'),
+  row('dash-2in1-short-cosmo-221754001', 'Dash 2-in-1 Short - Cosmo', 'XS', '221754001-368-XS', 25, '58.00'),
+  row('dash-2in1-short-cosmo-221754001', 'Dash 2-in-1 Short - Cosmo', 'M', '221754001-368-M', 4, '58.00'),
+  row('dash-2in1-short-cosmo-221754001', 'Dash 2-in-1 Short - Cosmo', 'S', '221754001-368-S', 27, '58.00'),
+  row('podium-short-sleeve-black-211445001', 'Podium Short Sleeve - Black', 'M', '211445001-001-M', 30, '50.00'),
+  row('glycerin-flex-whiteblackgum-110478114', 'Glycerin Flex - White/Black/Gum', '14.0', '110478114-187-1450-D', 100, '170.00'),
 ].join('\n') + '\n';
 const file = { text: async () => csv };
 const products = await B.scanFile(file);
@@ -116,6 +116,15 @@ eq('picker tabs: garments to Apparel, shoe to Shoes', [tabOf(byName["Women's DAS
 eq('and from a bare SKU when the flag is absent', [tabOf({ colorways: [{ sku: '300661001-100-XXL' }] }), tabOf({ colorways: [{ sku: '120431070-020-950-B' }] })], ['apparel', 'shoes']);
 
 const inv = await B.convert(file);
+console.log('\nPrice: a garment carries FastTrack\'s MSRP, a shoe keeps its own price order');
+const pv = Object.fromEntries(B.productVariantData.map(([, v]) => [v.sku, v.msrp]));
+eq("the short's MSRP reaches the review screen", pv['221754001-368-M'], '58.00');
+eq('the tee too', pv['211445001-001-M'], '50.00');
+eq('the shoe gets none, so its live sibling price still wins as before', pv['110478114-187-1450-D'], '');
+const bg = read('scrapers/brooks/background.js');
+yes('the scraper CSV ends with an MSRP column, filled only with a plain number',
+  /"On hand \(new\)",MSRP'\);/.test(bg) && /quantity,\s*\/\^\\d\+\(\\\.\\d\{1,2\}\)\?\$\/\.test\(String\(variant\.msrp/.test(bg));
+yes('and never the wholesale price', !/variant\.wsp/.test(bg));
 eq('every row converts and keeps Needham', [inv.length, inv.every((r) => r.Location === 'Needham')], [6, true]);
 const handles = new Set(inv.map((r) => r.Handle));
 const out = B.generateNewProductCSV({ newProducts: [...handles].map((h) => ({ handle: h })), newColorways: [] });

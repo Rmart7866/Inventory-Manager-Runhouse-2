@@ -659,6 +659,13 @@ var BrooksConverter = {
                         width: titleInfo.width,
                         category: self.getCategory(titleInfo.model, titleInfo.apparel),
                         apparel: titleInfo.apparel,
+                        // FastTrack's MSRP, from the scraper's trailing MSRP
+                        // column. The review screen takes it as the feed price.
+                        // GARMENTS ONLY: without it a garment had no price at
+                        // all and fell back to the $140 Brooks shoe default
+                        // (2026-11-10). Shoes keep their existing price order
+                        // (a live sibling's price, then the default) untouched.
+                        msrp: titleInfo.apparel ? String(row.MSRP || '').trim() : '',
                         sku: row.SKU || '',
                         size: row['Option1 Value'] || '',
                         quantity: qty,

@@ -415,7 +415,13 @@ class UnifiedBrooksCSVManager {
         
         let csvLines = [];
         
-        csvLines.push('Handle,Title,"Option1 Name","Option1 Value","Option2 Name","Option2 Value","Option3 Name","Option3 Value",SKU,"HS Code",COO,Location,"Bin name","Incoming (not editable)","Unavailable (not editable)","Committed (not editable)","Available (not editable)","On hand (current)","On hand (new)"');
+        // MSRP is a trailing column the inventory tool reads by NAME. FastTrack
+        // shows it on every grid ("MSRP 58.00") and the record already carries
+        // it; without it a new garment had no price and the review screen fell
+        // back to the $140 Brooks SHOE default (2026-11-10). Retail price only,
+        // never the wholesale one: this repo is public and so are its files'
+        // shapes, and wholesale pricing must not travel.
+        csvLines.push('Handle,Title,"Option1 Name","Option1 Value","Option2 Name","Option2 Value","Option3 Name","Option3 Value",SKU,"HS Code",COO,Location,"Bin name","Incoming (not editable)","Unavailable (not editable)","Committed (not editable)","Available (not editable)","On hand (current)","On hand (new)",MSRP');
         
         // Group by width first, then by colorway
         const widthGroups = {};
@@ -470,9 +476,10 @@ class UnifiedBrooksCSVManager {
                     '',
                     '',
                     '',
-                    quantity
+                    quantity,
+                    /^\d+(\.\d{1,2})?$/.test(String(variant.msrp || '')) ? variant.msrp : ''
                 ];
-                
+
                 csvLines.push(row.join(','));
             });
         });
