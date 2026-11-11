@@ -1,0 +1,1920 @@
+{%- comment -%}
+  Single source of truth for which collections group colorways into one card.
+  Liquid owns it because TWO consumers need it: the JS grid below, and the
+  server rendered seed. When only the JS knew, the seed grouped every
+  collection, so a model page like /collections/hoka-bondi-9 shipped grouped
+  cards that the JS then re-rendered ungrouped.
+  Browse-style collections only. Model-family pages are deliberately absent:
+  the swatch row caps at 6 tiles plus a +N chip, which would hide colorways on
+  a page opened to compare them.
+{%- endcomment -%}
+{%- assign grouped_handles = 'all-trail,altra,asics,asics-footwear,asics-running-shoes,brooks,carbon-plate-running-shoes,diadora,gore-tex-and-waterproof-shoes,hoka,hoka-shoes,maximum-cushion-running-shoes,mens-1,mens-apparel-2,mens-extra-wide-running-and-walking-shoes,mens-hoodies,mens-jackets,mens-pants,mens-road-running-shoes,mens-running-walking-footwear,mens-shorts,mens-tights,mens-tops,mens-walking-shoes,mens-wide-running-and-walking-shoes,mens-winter-apparel-sale,merrell,narrow-mens-running-and-walking-shoes,narrow-womens-running-walking-shoes,new-balance,on-apparel,on-running,pickleball-shoes,puma,race-shoes,recovery,reebok,sale,saucony,saucony-1,slip-resistant-shoes,stability-running-walking-shoes,trail-running-shoes,womens,womens-apparel-1,womens-dresses,womens-extra-wide-running-and-walking-shoes,womens-hoodies,womens-jackets,womens-pants,womens-road-running-shoes,womens-shorts,womens-skirts,womens-sports-bras,womens-tights,womens-tops,womens-walking-shoes,womens-winter-sale-items' | split: ',' -%}
+{%- assign grouping_on = false -%}
+{%- if grouped_handles contains collection.handle -%}{%- assign grouping_on = true -%}{%- endif -%}
+{% comment %}
+  Product Grid with Running Theme Animations
+  Mobile-optimized version: cleaner breakpoints, readable text, accessible badges.
+
+  PATCH: Now supports search results.
+  When window.__TRH_SEARCH_PRODUCTS__ is defined (set by main-search.liquid),
+  the grid uses that data instead of fetching /collections/{handle}/products.json.
+
+  PATCH: Colorway grouping (collection pages only).
+  On the collections listed in GROUPED_HANDLES, products sharing a cw-group:<key>
+  tag (written by tag-groups.js) collapse into one card. The card shows one
+  colorway as the face and the other colorways as small image swatches beneath
+  the price, each linking to that colorway's product page. Untagged products,
+  and every other collection, render exactly as before (one card per product).
+  Search mode never groups.
+
+  PATCH: Limited-edition float-to-top (collection pages only).
+  On a handle listed in LE_FEATURE, products carrying the mapped tag (e.g.
+  "DFF LE") are pulled to the front of the SAME grid and marked with a small
+  "Limited Edition" label, so the drop reads as featured-up-top rather than a
+  separate block. Tag-driven; works with or without a dedicated LE collection.
+
+  Usage on a collection page:  {% render 'shoe-collection-grid', collection: collection %}
+  Usage on the search page:    {% render 'shoe-collection-grid' %}  (data injected via global)
+{% endcomment %}
+
+<style>
+/* Use theme font everywhere — inherits from theme.liquid on collection pages
+   and from .trh-search on the search results page. */
+
+/* ============================================
+   LOADING STATE
+   ============================================ */
+.loading-container {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  animation: showLoading 0.3s ease forwards;
+  animation-delay: 2s;
+}
+
+@keyframes showLoading {
+  to { opacity: 1; pointer-events: auto; }
+}
+
+.loading-container.hide {
+  animation: hideLoading 0.3s ease forwards;
+  animation-delay: 0s;
+}
+
+@keyframes hideLoading {
+  to { opacity: 0; pointer-events: none; }
+}
+
+.loading-dots {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.loading-dots span {
+  width: 12px;
+  height: 12px;
+  background: #4F7FFF;
+  border-radius: 50%;
+  animation: dotBounce 1.4s ease-in-out infinite both;
+}
+
+.loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+.loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: scale(0.8) translateY(0); opacity: 0.5; }
+  40% { transform: scale(1.2) translateY(-20px); opacity: 1; }
+}
+
+.running-track {
+  width: min(300px, 70vw);
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+.track-progress {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, #4F7FFF, transparent);
+  animation: trackRun 1.5s ease-in-out infinite;
+}
+
+@keyframes trackRun {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.loading-text {
+  margin-top: 20px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4F7FFF;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ============================================
+   LAYOUT
+   ============================================ */
+.filter-layout {
+  font-family: inherit;
+  display: flex;
+  gap: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+  box-sizing: border-box;
+}
+
+.products-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+/* ============================================
+   PRODUCT CARD - DESKTOP
+   ============================================ */
+@keyframes runIn {
+  0% { opacity: 0; transform: translateX(-60px); }
+  60% { transform: translateX(10px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+.product-card {
+  display: block;
+  text-decoration: none;
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 20px rgba(79, 127, 255, 0.08);
+  opacity: 0;
+  animation: runIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.product-card--sale {
+  border: 1px solid rgba(79, 127, 255, 0.15);
+  box-shadow:
+    0 4px 20px rgba(79, 127, 255, 0.12),
+    inset 0 0 0 1px rgba(79, 127, 255, 0.05);
+}
+
+.product-card:nth-child(1) { animation-delay: 0.1s; }
+.product-card:nth-child(2) { animation-delay: 0.15s; }
+.product-card:nth-child(3) { animation-delay: 0.2s; }
+.product-card:nth-child(4) { animation-delay: 0.25s; }
+.product-card:nth-child(5) { animation-delay: 0.3s; }
+.product-card:nth-child(6) { animation-delay: 0.35s; }
+.product-card:nth-child(7) { animation-delay: 0.4s; }
+.product-card:nth-child(8) { animation-delay: 0.45s; }
+.product-card:nth-child(9) { animation-delay: 0.5s; }
+
+@media (hover: hover) and (pointer: fine) {
+  .product-card:hover {
+    transform: translateX(8px) translateY(-5px) scale(1.02);
+    box-shadow:
+      -6px 6px 25px rgba(79, 127, 255, 0.15),
+      -3px 3px 10px rgba(0, 0, 0, 0.08);
+  }
+
+  .product-card--sale:hover {
+    border-color: rgba(79, 127, 255, 0.3);
+    box-shadow:
+      -6px 6px 30px rgba(79, 127, 255, 0.2),
+      -3px 3px 10px rgba(0, 0, 0, 0.08),
+      inset 0 0 0 1px rgba(79, 127, 255, 0.1);
+  }
+
+  .product-card:hover .product-image {
+    transform: translate(-49%, -50%) scale(1.08) rotate(1deg);
+  }
+
+  .product-card:hover .product-brand { color: #6B8FFF; }
+
+  .product-card:hover .product-title {
+    color: #4F7FFF;
+    transform: translateX(4px);
+  }
+
+  .product-card:hover .product-price {
+    transform: scale(1.1);
+  }
+
+  .product-card:hover .product-card__badge,
+  .product-card:hover .product-card__width-badge {
+    transform: scale(1.05);
+  }
+
+  /* Grouped cards hold still on hover so the swatch row is easy to click. */
+  .product-card--group:hover {
+    transform: none;
+  }
+  .product-card--group:hover .product-image {
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+}
+
+@media (hover: none) {
+  .product-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+}
+
+.product-image-wrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 100%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f5f7ff 0%, #ffffff 100%);
+}
+
+.product-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  height: 90%;
+  object-fit: contain;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.product-info {
+  padding: 20px 18px;
+  background: white;
+  position: relative;
+  z-index: 2;
+}
+
+/* Limited-edition treatment (LE_FEATURE handles only) — accent frame + badge */
+.product-card--le {
+  box-sizing: border-box;
+  border: 2px solid #1f6fe0;
+  box-shadow: 0 6px 24px rgba(31, 111, 224, 0.18);
+}
+.product-card__le-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 4;
+  background: #1f6fe0;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border-radius: 0;
+  line-height: 1;
+  box-shadow: none;
+}
+
+/* In-grid sub-collection headers (full-width rows inside #productGrid) */
+.grid-section {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 4px 12px;
+}
+.grid-section--le {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  background: #dbe9fc;
+  border-bottom: 2px solid #1f6fe0;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.grid-section__row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.grid-section__sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: #5a6a8a;
+  line-height: 1.4;
+  max-width: 70ch;
+}
+.grid-section--rest {
+  border-bottom: 1px solid rgba(10, 17, 36, 0.12);
+  margin: 14px 0 6px;
+}
+.grid-section__title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0a1124;
+  letter-spacing: 0.01em;
+}
+.grid-section--rest .grid-section__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #5a6a8a;
+}
+.grid-section__count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f6fe0;
+}
+
+.product-brand {
+  font-size: 11px;
+  font-weight: 700;
+  color: #4F7FFF;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+  display: inline-block;
+  transition: color 0.3s ease;
+}
+
+.product-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+  min-height: 42px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.product-price {
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #4F7FFF 0%, #6B8FFF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.price-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.product-price--sale {
+  background: linear-gradient(135deg, #2D5FFF 0%, #4F7FFF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.product-price--compare {
+  font-size: 15px;
+  font-weight: 500;
+  color: #A3B3CC;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: #D1D9E6;
+  background: none;
+  -webkit-text-fill-color: #A3B3CC;
+  opacity: 0.7;
+}
+
+/* ============================================
+   COLORWAY SWATCHES (grouped cards)
+   ============================================ */
+.product-card__main {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cw-swatches {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 0 18px 16px;
+  background: white;
+  position: relative;
+  z-index: 2;
+}
+
+.cw-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(79, 127, 255, 0.18);
+  background: #f5f7ff;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.cw-swatch img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cw-swatch--active {
+  border-color: #4F7FFF;
+  border-width: 2px;
+}
+
+@media (hover: hover) {
+  .cw-swatch:hover {
+    border-color: #4F7FFF;
+    transform: translateY(-2px);
+  }
+}
+
+/* A colorway that does not match the active filters. Kept visible so the
+   shopper can still see the model's full color range, but muted so it reads
+   as "not in your size" instead of looking like a live option. */
+.cw-swatch--muted {
+  opacity: 0.32;
+  filter: grayscale(100%);
+}
+
+.cw-swatch--muted:hover {
+  opacity: 0.6;
+}
+
+.cw-swatch-more {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6B8FFF;
+  margin-left: 2px;
+  white-space: nowrap;
+}
+
+/* ============================================
+   BADGES
+   ============================================ */
+.product-card__badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: #2D5FFF;
+  color: white;
+  padding: 6px 11px;
+  border-radius: 0;
+  font-weight: 800;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  z-index: 3;
+  box-shadow: none;
+  transition: transform 0.3s ease;
+}
+
+.product-card__width-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 5px 10px;
+  border-radius: 0;
+  font-weight: 800;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  transition: transform 0.3s ease;
+}
+
+.product-card__width-badge--wide {
+  background: #4F7FFF;
+}
+
+.product-card__width-badge--extra-wide {
+  background: #2D5FFF;
+}
+
+.product-card__width-badge--narrow {
+  background: #6B8FFF;
+}
+
+.width-badge-icon {
+  display: none;
+}
+
+.width-badge-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+.no-results {
+  text-align: center;
+  padding: 100px 20px;
+  color: #6b7280;
+  grid-column: 1 / -1;
+  animation: runIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ============================================
+   TABLET
+   ============================================ */
+@media (max-width: 1024px) {
+  .product-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+}
+
+/* ============================================
+   MOBILE
+   ============================================ */
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  .filter-layout {
+    flex-direction: column;
+    gap: 16px;
+    padding: 0 12px 32px;
+    max-width: 100vw;
+  }
+
+  .products-section {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* ============================================
+     SHOP APP STYLE — clean, minimal, mobile-first
+     Uses TheRunHouse navy palette throughout.
+     ============================================ */
+
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 0;
+    width: 100%;
+  }
+
+  /* Card: white, subtle navy-tinted border, no fancy shadow */
+  .product-card {
+    background: #fff;
+    border: 1px solid rgba(30, 58, 111, 0.10);
+    border-radius: 14px;
+    box-shadow: none;
+    overflow: hidden;
+    opacity: 0;
+    animation: shopCardIn 0.25s ease-out forwards;
+    animation-delay: 0s;
+    transition: opacity 0.15s ease;
+  }
+
+  .product-card--sale {
+    border: 1px solid rgba(30, 58, 111, 0.10);
+    box-shadow: none;
+  }
+
+  @keyframes shopCardIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Tap feedback: subtle dim only — no bouncy transforms while scrolling */
+  .product-card:active {
+    opacity: 0.7;
+    transform: none;
+    transition: opacity 0.05s ease;
+  }
+
+  /* Image area: very light navy tint, fills cell, contained product */
+  .product-image-wrapper {
+    position: relative;
+    width: 100%;
+    padding-top: 100%;
+    background: rgba(30, 58, 111, 0.04);
+    overflow: hidden;
+  }
+
+  .product-image {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 92%;
+    height: 92%;
+    object-fit: contain;
+    transition: none;
+  }
+
+  /* Info section: left-aligned, generous spacing */
+  .product-info {
+    padding: 10px 12px 14px;
+    background: #fff;
+  }
+
+  .product-card--le {
+    border: 2px solid #1f6fe0;
+    box-shadow: none;
+  }
+  .product-card__le-badge {
+    top: 10px;
+    left: 10px;
+    padding: 4px 8px;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+  .grid-section { padding: 4px 2px 10px; gap: 8px; }
+  .grid-section--rest { margin: 10px 0 4px; }
+  .grid-section__title { font-size: 15px; }
+  .grid-section--rest .grid-section__title { font-size: 13px; }
+  .grid-section__count { font-size: 12px; }
+  .grid-section__sub { font-size: 12px; }
+
+  /* Brand: small uppercase navy — branded but understated */
+  .product-brand {
+    display: block;
+    font-family: inherit;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #1e3a6f;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0 0 4px;
+    line-height: 1;
+  }
+
+  /* Title: regular weight, dark navy text, 2 lines max */
+  .product-title {
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #0f1e3d;
+    line-height: 1.35;
+    margin: 0 0 8px;
+    min-height: 36px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    transition: none;
+  }
+
+  /* Price: bold solid navy (no gradient) */
+  .product-price,
+  .product-price--sale {
+    font-family: inherit;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #0f1e3d;
+    background: none !important;
+    -webkit-background-clip: initial !important;
+    background-clip: initial !important;
+    -webkit-text-fill-color: #0f1e3d !important;
+    line-height: 1.2;
+  }
+
+  /* Sale price: brighter navy/blue accent — different from regular text but
+     still on-brand. (No red — keeps the navy palette consistent.) */
+  .product-card--sale .product-price--sale {
+    color: #2c5aa0 !important;
+    -webkit-text-fill-color: #2c5aa0 !important;
+  }
+
+  .product-price--compare {
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #5a6a8a;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    background: none !important;
+    -webkit-text-fill-color: #5a6a8a !important;
+    opacity: 1;
+  }
+
+  .price-wrapper {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  /* SALE badge: navy corner pill, top-left */
+  .product-card__badge {
+    top: 10px;
+    left: 10px;
+    right: auto;
+    padding: 3px 8px;
+    background: #1e3a6f !important;
+    color: #fff;
+    font-family: inherit;
+    font-size: 9.5px;
+    font-weight: 700;
+    border-radius: 0;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    box-shadow: none;
+    line-height: 1.4;
+  }
+
+  /* Width badge: lighter navy pill, top-right */
+  .product-card__width-badge {
+    top: 10px;
+    right: 10px;
+    left: auto;
+    padding: 3px 7px;
+    background: rgba(30, 58, 111, 0.85) !important;
+    color: #fff;
+    font-family: inherit;
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 0;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    gap: 0;
+    box-shadow: none;
+    line-height: 1.4;
+  }
+
+  /* Hide the chevron icons — text-only badges look cleaner */
+  .product-card__width-badge .width-badge-icon {
+    display: none;
+  }
+
+  /* Kill any decorative pseudo-elements */
+  .product-card::before,
+  .product-card::after {
+    display: none;
+  }
+
+  /* Swatches: smaller on mobile, sit under the price */
+  .cw-swatches {
+    padding: 0 12px 12px;
+    gap: 5px;
+  }
+  .cw-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+  }
+  .cw-swatch-more { font-size: 11px; }
+}
+
+@media (max-width: 400px) {
+  .filter-layout {
+    padding: 0 10px 24px;
+  }
+
+  .product-grid {
+    gap: 10px;
+  }
+
+  .product-info {
+    padding: 9px 10px 12px;
+  }
+
+  .product-brand {
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    margin-bottom: 3px;
+  }
+
+  .product-title {
+    font-size: 13px;
+    min-height: 34px;
+    margin-bottom: 6px;
+  }
+
+  .product-price,
+  .product-price--sale {
+    font-size: 14px;
+  }
+
+  .product-price--compare {
+    font-size: 12px;
+  }
+
+  .price-wrapper {
+    gap: 5px;
+  }
+
+  .product-card__badge,
+  .product-card__width-badge {
+    padding: 2px 6px;
+    font-size: 9px;
+    border-radius: 0;
+  }
+
+  .cw-swatch { width: 26px; height: 26px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-card,
+  .product-card *,
+  .loading-dots span,
+  .track-progress,
+  .loading-text {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .product-card { opacity: 1; }
+}
+</style>
+
+{%- comment -%}
+  Threshold lives here so the loader and the seed cannot disagree. Both are
+  driven by the same flag: if the page ships real products, there is nothing to
+  wait for and a loading overlay on top of visible shoes just reads as the page
+  loading twice.
+{%- endcomment -%}
+{%- assign seed_min_products = 100 -%}
+{%- assign is_seeded = false -%}
+{%- if collection.all_products_count >= seed_min_products -%}{%- assign is_seeded = true -%}{%- endif -%}
+
+{%- unless is_seeded -%}
+<!-- Loading Animation -->
+<div class="loading-container" id="loadingAnimation" role="status" aria-live="polite" aria-label="Loading products">
+  <div class="loading-dots" aria-hidden="true">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+  <div class="running-track" aria-hidden="true">
+    <div class="track-progress"></div>
+  </div>
+  <div class="loading-text">Loading</div>
+</div>
+{%- endunless -%}
+
+<!-- Products Grid -->
+<div class="products-section">
+  <div class="product-grid" id="productGrid" role="list" aria-label="Products">
+    {%- comment -%}
+      Server rendered so crawlers and the first paint get real products. The JS
+      filter replaces this entire container once it is ready, see renderProducts().
+    {%- endcomment -%}
+    {% render 'shoe-collection-seed', seed_min_products: seed_min_products, grouping: grouping_on %}
+  </div>
+</div>
+
+<script>
+window.ShoeCollectionFilter = (function() {
+  {%- comment -%}
+    Whether this page shipped server rendered products. When it did, the grid
+    must not redraw them on load: the seed and the JS output are close but not
+    identical, and swapping one for the other a few seconds in is what made the
+    page look like it loaded twice. The JS still parses everything and stands
+    ready, it just does not touch the DOM until the shopper asks it to.
+  {%- endcomment -%}
+  const SEEDED = {{ is_seeded }};
+  'use strict';
+
+  // ============================================================
+  // Colorway grouping config (collection pages only).
+  // On these collections, products sharing a cw-group:<key> tag collapse into
+  // one card with swatches. Search mode and all other collections render as
+  // one card per product, unchanged.
+  // ============================================================
+  const GROUPED_HANDLES = [{% for h in grouped_handles %}'{{ h }}'{% unless forloop.last %},{% endunless %}{% endfor %}];
+  const CURRENT_HANDLE = '{{ collection.handle }}';
+  const GROUP_TAG_PREFIX = 'cw-group:';
+  const GROUPING_ON =
+    !Array.isArray(window.__TRH_SEARCH_PRODUCTS__) &&
+    GROUPED_HANDLES.indexOf(CURRENT_HANDLE) !== -1;
+
+  // ============================================================
+  // Limited-edition "float to top" config (collection pages only).
+  // On a handle listed here, products carrying the mapped tag are pulled to the
+  // front of the SAME grid and marked with a small "Limited Edition" label, so
+  // the drop reads as featured-up-top rather than a separate block.
+  // Add more partner stores with handle: 'TAG' pairs.
+  // ============================================================
+  const LE_FEATURE = {
+    'doug-flutie-jr-foundation-for-autism': { tag: 'DFF LE', title: 'Patrick Linehan Limited Edition', rest: 'Shop the Collection' }
+  };
+  const LE_CFG =
+    !Array.isArray(window.__TRH_SEARCH_PRODUCTS__) ? (LE_FEATURE[CURRENT_HANDLE] || null) : null;
+  const LE_TAG = LE_CFG ? (typeof LE_CFG === 'string' ? LE_CFG : LE_CFG.tag) : null;
+  const LE_TITLE = LE_CFG ? (LE_CFG.title || 'Limited Edition') : '';
+  const LE_SUBTITLE = LE_CFG ? (LE_CFG.subtitle || '') : '';
+  const LE_REST = LE_CFG ? (LE_CFG.rest || '') : '';
+
+  const state = {
+    allProducts: [],
+    displayedProducts: [],
+    groups: new Map(),          // groupKey -> [product, ...]  (all colorways)
+    allSizes: new Set(),
+    allTypes: new Set(),
+    allVendors: new Set(),
+    allWidths: new Set(),
+    activeFilters: { size: [], type: [], vendor: [], width: [] },
+    searchTerm: ''
+  };
+
+  const utils = {
+    debounce: function(func, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+      };
+    },
+
+    formatPrice: function(price) {
+      // price is stored as cents; format as dollars
+      return (price / 100).toFixed(2);
+    },
+
+    escapeAttr: function(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    },
+
+    // Pull the cw-group key out of a product's tags, or null if untagged.
+    // products.json usually returns tags as an array, but tolerate a comma
+    // string too so grouping never silently no-ops.
+    groupKeyOf: function(tags) {
+      let list = tags;
+      if (typeof tags === 'string') list = tags.split(',').map(t => t.trim());
+      if (!Array.isArray(list)) return null;
+      for (const t of list) {
+        if (typeof t === 'string' && t.indexOf(GROUP_TAG_PREFIX) === 0) {
+          return t.slice(GROUP_TAG_PREFIX.length);
+        }
+      }
+      return null;
+    },
+
+    // True if a product's tags include `wanted` (case-insensitive). Tolerates
+    // tags as an array or a comma string, like groupKeyOf.
+    hasTag: function(tags, wanted) {
+      const w = String(wanted == null ? '' : wanted).toLowerCase().trim();
+      if (!w) return false;
+      let list = tags;
+      if (typeof tags === 'string') list = tags.split(',').map(t => t.trim());
+      if (!Array.isArray(list)) return false;
+      return list.some(t => String(t).toLowerCase().trim() === w);
+    },
+
+    normalizeVendor: function(vendor) {
+      if (!vendor) return '';
+      const brandMappings = {
+        'asics': 'ASICS', 'hoka': 'HOKA', 'on': 'ON Running',
+        'on running': 'ON Running', 'new balance': 'New Balance',
+        'brooks': 'Brooks', 'saucony': 'Saucony', 'puma': 'Puma',
+        'nike': 'Nike', 'adidas': 'Adidas', 'reebok': 'Reebok',
+        'mizuno': 'Mizuno', 'altra': 'Altra'
+      };
+      const lowerVendor = vendor.toLowerCase().trim();
+      if (brandMappings[lowerVendor]) return brandMappings[lowerVendor];
+      return vendor.trim().split(' ').map(w =>
+        w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+      ).join(' ');
+    },
+
+    cleanTitle: function(title) {
+      return title.replace(/\s*\((?![^)]*\b(?:wide|narrow)\b)[^)]*\)/gi, '').trim();
+    },
+
+    // Model name without the colorway, for grouped cards. Strips the trailing
+    // " - Color", or the joined-dash color ("Bondi 8-Sharkskin"), leaving the
+    // model (and any width marker like "(Wide)").
+    modelTitle: function(title) {
+      let t = String(title == null ? '' : title).trim();
+      t = t.replace(/\s*\([^)]*\d[^)]*\)\s*$/, '').trim();
+      const sd = t.indexOf(' - ');
+      if (sd >= 0) return t.slice(0, sd).trim();
+      const m = t.match(/^(.*?\d+\s*(?:x-?wide|extra ?wide|wide|narrow)?)\s*-\s*\S/i);
+      if (m) return m[1].trim();
+      return t;
+    },
+
+    getWidthType: function(title) {
+      const lower = title.toLowerCase();
+      if (lower.includes('extra wide') || lower.includes('extra-wide') ||
+          lower.includes('x-wide') || lower.includes('xwide') ||
+          lower.includes('2e') || lower.includes('4e') || lower.includes('6e')) {
+        return 'extra-wide';
+      }
+      if (lower.includes('wide') && !lower.includes('extra wide') &&
+          !lower.includes('extra-wide')) {
+        return 'wide';
+      }
+      if (lower.includes('narrow') || lower.includes('2a') || lower.includes('b width')) {
+        return 'narrow';
+      }
+      return null;
+    },
+
+    getWidthBadgeHTML: function(widthType) {
+      if (!widthType) return '';
+      const badges = {
+        'wide': {
+          label: 'Wide',
+          class: 'product-card__width-badge--wide',
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 12h16M4 12l3-3M4 12l3 3M20 12l-3-3M20 12l-3 3"/></svg>'
+        },
+        'extra-wide': {
+          label: 'X-Wide',
+          class: 'product-card__width-badge--extra-wide',
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 12h20M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></svg>'
+        },
+        'narrow': {
+          label: 'Narrow',
+          class: 'product-card__width-badge--narrow',
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 12h8M8 12l3-3M8 12l3 3M16 12l-3-3M16 12l-3 3"/></svg>'
+        }
+      };
+      const badge = badges[widthType];
+      if (!badge) return '';
+      return `
+        <div class="product-card__width-badge ${badge.class}" aria-label="${badge.label} width">
+          <span class="width-badge-icon" aria-hidden="true">${badge.icon}</span>
+          <span>${badge.label}</span>
+        </div>
+      `;
+    },
+
+    /**
+     * Parse a raw size string into an array of normalized size labels.
+     * Mirrors the parser in shoe-collection-filter.liquid so size matching
+     * between filter UI and product variants stays consistent.
+     *   "8"               => ["8"]
+     *   "10.5"            => ["10.5"]
+     *   "6.5/8"           => ["M 6.5", "W 8"]
+     *   "M10.5/W12"       => ["M 10.5", "W 12"]
+     *   "M 10.5 / W 12"   => ["M 10.5", "W 12"]
+     *   "Men's 9"         => ["M 9"]
+     *   Non-shoe sizes    => []
+     */
+    parseSize: function(rawSize) {
+      if (!rawSize) return [];
+      let s = String(rawSize).trim();
+      s = s.replace(/^\s*(US|UK|EU|EUR|SIZE)\s*[:.\s-]*/i, '').trim();
+
+      const lower = s.toLowerCase();
+      const apparelWords = [
+        'small', 'medium', 'large', 'xs', 'xxs', 'xxl', 'xxxl',
+        'one size', 'onesize', 'o/s',
+        'youth', 'kids', 'junior', 'toddler', 'infant', 'child',
+        'n/a', 'na', 'none', 'free', 'universal',
+        'unisex', 'standard', 'regular', 'petite', 'plus', 'tall'
+      ];
+      if (/^[A-Z]+$/i.test(s) && !/^[MW]\d/i.test(s)) {
+        for (const word of apparelWords) if (lower === word || lower.includes(word)) return [];
+      }
+      for (const word of apparelWords) {
+        if (lower === word) return [];
+      }
+
+      s = s.replace(/\bMen['']?s\b/gi, 'M').replace(/\bWomen['']?s\b/gi, 'W');
+      const compact = s.replace(/\s+/g, '');
+
+      const cleanNum = (n) => {
+        const f = parseFloat(n);
+        if (isNaN(f)) return n;
+        return f % 1 === 0 ? String(f) : f.toFixed(1);
+      };
+
+      const isShoeSize = (n) => n >= 3 && n <= 20;
+
+      let m;
+      // Unisex: M10.5/W12 → ["10.5", "12"]
+      m = compact.match(/^M(\d+\.?\d*)\/W(\d+\.?\d*)$/i);
+      if (m) {
+        const out = [];
+        if (isShoeSize(parseFloat(m[1]))) out.push(cleanNum(m[1]));
+        if (isShoeSize(parseFloat(m[2]))) out.push(cleanNum(m[2]));
+        return out;
+      }
+
+      // Unisex: W12/M10.5 → ["12", "10.5"]
+      m = compact.match(/^W(\d+\.?\d*)\/M(\d+\.?\d*)$/i);
+      if (m) {
+        const out = [];
+        if (isShoeSize(parseFloat(m[1]))) out.push(cleanNum(m[1]));
+        if (isShoeSize(parseFloat(m[2]))) out.push(cleanNum(m[2]));
+        return out;
+      }
+
+      // Implicit unisex: 6.5/8 → ["6.5", "8"]
+      m = compact.match(/^(\d+\.?\d*)\/(\d+\.?\d*)$/);
+      if (m) {
+        const n1 = parseFloat(m[1]), n2 = parseFloat(m[2]);
+        if (isShoeSize(n1) && isShoeSize(n2)) {
+          return [cleanNum(m[1]), cleanNum(m[2])];
+        }
+      }
+
+      // Single-gender variants → just the number
+      m = compact.match(/^M(\d+\.?\d*)$/i);
+      if (m && isShoeSize(parseFloat(m[1]))) return [cleanNum(m[1])];
+
+      m = compact.match(/^W(\d+\.?\d*)$/i);
+      if (m && isShoeSize(parseFloat(m[1]))) return [cleanNum(m[1])];
+
+      m = compact.match(/^(\d+\.?\d*)M$/i);
+      if (m && isShoeSize(parseFloat(m[1]))) return [cleanNum(m[1])];
+
+      m = compact.match(/^(\d+\.?\d*)W$/i);
+      if (m && isShoeSize(parseFloat(m[1]))) return [cleanNum(m[1])];
+
+      m = compact.match(/^(\d+\.?\d*)[\(\[](?:M|W)[\)\]]$/i);
+      if (m && isShoeSize(parseFloat(m[1]))) return [cleanNum(m[1])];
+
+      // Plain number
+      m = compact.match(/^(\d+\.?\d*)$/);
+      if (m && isShoeSize(parseFloat(m[1]))) return [cleanNum(m[1])];
+
+      return [];
+    }
+  };
+
+  function hideLoading() {
+    const loader = document.getElementById('loadingAnimation');
+    if (!loader) return;
+    loader.classList.add('hide');
+    setTimeout(() => loader.parentNode && loader.parentNode.removeChild(loader), 300);
+  }
+
+  let loaderTimeout;
+  function setupLoaderTimeout() {
+    loaderTimeout = setTimeout(() => { loaderTimeout = null; }, 2000);
+  }
+
+  // ============================================================
+  // PATCH: Use search results from window.__TRH_SEARCH_PRODUCTS__
+  // when present (set by main-search.liquid). Otherwise, fall back
+  // to the original collection-handle fetch behavior.
+  // ============================================================
+  async function loadProducts() {
+    setupLoaderTimeout();
+    try {
+      let allProducts;
+
+      if (Array.isArray(window.__TRH_SEARCH_PRODUCTS__)) {
+        // Search-mode: server-pre-rendered product data, no fetch needed.
+        allProducts = window.__TRH_SEARCH_PRODUCTS__;
+      } else {
+        // Collection-mode: read the slim filter index, and fall back to the
+        // original products.json crawl if it is unavailable.
+        //
+        // products.json ships every variant field, every image size and the
+        // full description. On men's shoes that was 17.3 MB over 8 sequential
+        // requests before a single shoe could render. The index carries only
+        // the fields processProducts() reads, and its first response says how
+        // many pages exist, so the remainder are fetched in parallel instead of
+        // one after another.
+        //
+        // The fallback matters: if this snippet ships to a theme without
+        // templates/collection.filter-index.liquid, the index request returns
+        // an HTML page rather than JSON. Rather than leave the grid empty, we
+        // detect that and use the old path.
+        const collectionHandle = '{{ collection.handle }}';
+
+        const indexPage = async (page) => {
+          const res = await fetch(`/collections/${collectionHandle}?view=filter-index&page=${page}`);
+          if (!res.ok) throw new Error('filter-index HTTP ' + res.status);
+          const data = await res.json();
+          if (!Array.isArray(data.products)) throw new Error('filter-index returned no products array');
+          return data;
+        };
+
+        try {
+          const first = await indexPage(1);
+          allProducts = first.products;
+          const pages = first.pages || 1;
+          if (pages > 1) {
+            const rest = await Promise.all(
+              Array.from({ length: pages - 1 }, (_, i) => indexPage(i + 2).then(d => d.products))
+            );
+            for (const chunk of rest) allProducts = allProducts.concat(chunk);
+          }
+        } catch (err) {
+          console.warn('[shoe-grid] filter index unavailable, falling back to products.json:', err.message);
+          allProducts = [];
+          let page = 1, hasMore = true;
+          while (hasMore) {
+            const res = await fetch(`/collections/${collectionHandle}/products.json?limit=250&page=${page}`);
+            const data = await res.json();
+            if (data.products && data.products.length > 0) {
+              allProducts = allProducts.concat(data.products);
+              page++;
+              hasMore = data.products.length === 250;
+            } else {
+              hasMore = false;
+            }
+          }
+        }
+      }
+
+      processProducts(allProducts);
+      buildFilters();
+      setupEventListeners();
+
+      // Always render the full grid. An earlier version appended only the
+      // products the server had not drawn, to avoid a visible re-render, but the
+      // seed groups colorways within its own 48 product page while the JS groups
+      // across the whole collection. Skipping a seeded group therefore dropped
+      // every sibling that fell on a later page, so a model with 23 colorways
+      // showed as one card. Correctness wins over the settle.
+      renderProducts();
+
+      if (loaderTimeout) {
+        clearTimeout(loaderTimeout);
+        const loader = document.getElementById('loadingAnimation');
+        if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
+      } else {
+        hideLoading();
+      }
+    } catch (err) {
+      console.error('Error loading products:', err);
+      hideLoading();
+    }
+  }
+
+  function processProducts(products) {
+    state.allSizes.clear();
+    state.allTypes.clear();
+    state.allVendors.clear();
+    state.allWidths.clear();
+    state.groups.clear();
+
+    state.allProducts = products.map(product => {
+      const sizes = new Set();
+      product.variants.forEach(variant => {
+        if (variant.available) {
+          // Check option1, option2, option3 — size can be on any of them
+          [variant.option1, variant.option2, variant.option3].forEach(opt => {
+            if (!opt) return;
+            const parsed = utils.parseSize(opt);
+            parsed.forEach(label => {
+              sizes.add(label);
+              state.allSizes.add(label);
+            });
+          });
+        }
+      });
+
+      if (product.product_type) state.allTypes.add(product.product_type);
+
+      const normalizedVendor = product.vendor ? utils.normalizeVendor(product.vendor) : '';
+      if (normalizedVendor) state.allVendors.add(normalizedVendor);
+
+      const widthType = utils.getWidthType(product.title);
+      if (widthType) state.allWidths.add(widthType);
+
+      // Price from variant: handle both string ("150.00") and integer/cents
+      let priceCents = 0;
+      let comparePriceCents = null;
+      const v0 = product.variants[0];
+      if (v0) {
+        if (typeof v0.price === 'string' && v0.price.includes('.')) {
+          // Decimal dollars string — convert to cents
+          priceCents = Math.round(parseFloat(v0.price) * 100);
+        } else if (typeof v0.price === 'string') {
+          // Integer-as-string cents
+          priceCents = parseInt(v0.price, 10) || 0;
+        } else if (typeof v0.price === 'number') {
+          // Numeric — assume already in cents if > 100, else dollars
+          priceCents = v0.price > 100 ? v0.price : Math.round(v0.price * 100);
+        }
+        if (v0.compare_at_price) {
+          if (typeof v0.compare_at_price === 'string' && v0.compare_at_price.includes('.')) {
+            comparePriceCents = Math.round(parseFloat(v0.compare_at_price) * 100);
+          } else if (typeof v0.compare_at_price === 'string') {
+            comparePriceCents = parseInt(v0.compare_at_price, 10) || null;
+          } else if (typeof v0.compare_at_price === 'number') {
+            comparePriceCents = v0.compare_at_price > 100 ? v0.compare_at_price : Math.round(v0.compare_at_price * 100);
+          }
+        }
+      }
+
+      const anyAvailable = product.variants.some(v => v.available);
+
+      return {
+        id: product.id,
+        title: utils.cleanTitle(product.title),
+        originalTitle: product.title,
+        handle: product.handle,
+        vendor: normalizedVendor,
+        type: product.product_type,
+        price: priceCents,
+        image: product.images && product.images[0] ? product.images[0].src : '',
+        sizes: Array.from(sizes),
+        compareAtPrice: comparePriceCents,
+        widthType: widthType,
+        variants: product.variants,
+        tags: product.tags || [],
+        isLE: LE_TAG ? utils.hasTag(product.tags, LE_TAG) : false,
+        groupKey: GROUPING_ON ? utils.groupKeyOf(product.tags) : null,
+        available: anyAvailable
+      };
+    });
+
+    // Build the groupKey -> colorways map so a grouped card can render every
+    // sibling's swatch regardless of the active filter.
+    if (GROUPING_ON) {
+      state.allProducts.forEach(p => {
+        if (!p.groupKey) return;
+        if (!state.groups.has(p.groupKey)) state.groups.set(p.groupKey, []);
+        state.groups.get(p.groupKey).push(p);
+      });
+    }
+
+    state.displayedProducts = [...state.allProducts];
+
+    const widthDisplayMap = { 'wide': 'Wide', 'extra-wide': 'Extra Wide', 'narrow': 'Narrow' };
+    const productsWithWidths = state.allProducts.map(p => ({
+      ...p,
+      widths: p.widthType ? [widthDisplayMap[p.widthType]] : ['Standard']
+    }));
+
+    window.dispatchEvent(new CustomEvent('productsLoaded', {
+      detail: { products: productsWithWidths }
+    }));
+  }
+
+  function buildFilters() {
+    const sizeSection = document.getElementById('sizeSection');
+    const validSizes = Array.from(state.allSizes).filter(s =>
+      s !== null && s !== undefined && s !== '' && s !== 'null'
+    );
+
+    if (validSizes.length > 0 && sizeSection) {
+      const sortedSizes = validSizes.sort((a, b) => {
+        const firstNum = (size) => {
+          const str = size.toString();
+          if (str.includes('/')) return parseFloat(str.split('/')[0].replace(/[MW]/g, '')) || 0;
+          return parseFloat(str) || 0;
+        };
+        return firstNum(a) - firstNum(b);
+      });
+
+      const sizeHTML = sortedSizes.map(size => {
+        const id = `size-${size.toString().replace(/[^a-zA-Z0-9]/g, '')}`;
+        return `<div class="size-item">
+          <input type="checkbox" id="${id}" value="${size}" data-filter="size">
+          <label for="${id}"><span>${size}</span></label>
+        </div>`;
+      }).join('');
+
+      const sizeOptions = document.getElementById('sizeOptions');
+      if (sizeOptions) {
+        sizeOptions.innerHTML = sizeHTML;
+        sizeSection.classList.remove('hidden');
+      }
+    } else if (sizeSection) {
+      sizeSection.classList.add('hidden');
+    }
+
+    const typeOptions = document.getElementById('typeOptions');
+    if (state.allTypes.size > 0 && typeOptions) {
+      const sorted = Array.from(state.allTypes).sort();
+      typeOptions.innerHTML = sorted.map(type => {
+        const count = state.allProducts.filter(p => p.type === type).length;
+        const id = `type-${type.replace(/[^a-zA-Z0-9]/g, '')}`;
+        return `<div class="checkbox-item">
+          <input type="checkbox" id="${id}" value="${type}" data-filter="type">
+          <label for="${id}">
+            <span class="checkbox-text"><span class="custom-checkbox"></span><span>${type}</span></span>
+            <span class="item-count">${count}</span>
+          </label>
+        </div>`;
+      }).join('');
+    }
+
+    const brandOptions = document.getElementById('brandOptions');
+    if (state.allVendors.size > 0 && brandOptions) {
+      const sorted = Array.from(state.allVendors).sort();
+      brandOptions.innerHTML = sorted.map(vendor => {
+        const count = state.allProducts.filter(p => p.vendor === vendor).length;
+        const id = `vendor-${vendor.replace(/[^a-zA-Z0-9]/g, '')}`;
+        return `<div class="checkbox-item">
+          <input type="checkbox" id="${id}" value="${vendor}" data-filter="vendor">
+          <label for="${id}">
+            <span class="checkbox-text"><span class="custom-checkbox"></span><span>${vendor}</span></span>
+            <span class="item-count">${count}</span>
+          </label>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  function setupEventListeners() {
+    const mobileToggle = document.getElementById('mobileFilterToggle');
+    const sidebarContainer = document.getElementById('sidebarContainer');
+
+    if (mobileToggle && sidebarContainer) {
+      mobileToggle.addEventListener('click', () => {
+        mobileToggle.classList.toggle('open');
+        sidebarContainer.classList.toggle('open');
+        const firstSpan = mobileToggle.querySelector('span:first-child');
+        if (firstSpan) {
+          firstSpan.textContent = sidebarContainer.classList.contains('open') ? 'Hide Filters' : 'Show Filters';
+        }
+      });
+    }
+
+    const searchInput = document.getElementById('searchInput');
+    const debouncedSearch = utils.debounce((term) => {
+      state.searchTerm = term;
+      applyFilters();
+    }, 300);
+
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => debouncedSearch(e.target.value.trim()));
+    }
+
+    document.addEventListener('change', (e) => {
+      if (e.target.dataset.filter) {
+        const ft = e.target.dataset.filter;
+        const val = e.target.value;
+        if (e.target.checked) {
+          if (!state.activeFilters[ft].includes(val)) state.activeFilters[ft].push(val);
+        } else {
+          state.activeFilters[ft] = state.activeFilters[ft].filter(v => v !== val);
+        }
+        updateFilterCounts();
+        updateActiveFilters();
+        updateClearButton();
+        applyFilters();
+      }
+    });
+
+    window.addEventListener('ts:sport', () => {
+      updateFilterCounts();
+      updateActiveFilters();
+      updateClearButton();
+      applyFilters();
+    });
+
+    window.addEventListener('filtersChanged', (e) => {
+      state.activeFilters.size = e.detail.sizes || [];
+      state.activeFilters.width = e.detail.widths || [];
+      state.activeFilters.type = e.detail.types || [];
+      state.activeFilters.vendor = e.detail.vendors || [];
+      updateFilterCounts();
+      updateActiveFilters();
+      updateClearButton();
+      applyFilters();
+    });
+
+    const clearBtn = document.getElementById('clearFiltersBtn');
+    if (clearBtn) clearBtn.addEventListener('click', clearAllFilters);
+  }
+
+  function updateFilterCounts() {
+    const setCount = (id, n) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (n > 0) { el.textContent = n; el.style.display = 'inline-flex'; }
+      else { el.style.display = 'none'; }
+    };
+    setCount('sizeCount', state.activeFilters.size.length);
+    setCount('typeCount', state.activeFilters.type.length);
+    setCount('brandCount', state.activeFilters.vendor.length);
+  }
+
+  function updateClearButton() {
+    const btn = document.getElementById('clearFiltersBtn');
+    if (!btn) return;
+    btn.disabled = !(state.activeFilters.size.length ||
+                     state.activeFilters.type.length ||
+                     state.activeFilters.vendor.length);
+  }
+
+  function updateActiveFilters() {
+    const container = document.getElementById('activeFilters');
+    if (!container) return;
+
+    const all = [
+      ...state.activeFilters.size.map(v => ({ type: 'size', value: v })),
+      ...state.activeFilters.width.map(v => ({ type: 'width', value: v })),
+      ...state.activeFilters.type.map(v => ({ type: 'type', value: v })),
+      ...state.activeFilters.vendor.map(v => ({ type: 'vendor', value: v }))
+    ];
+
+    if (all.length === 0) { container.innerHTML = ''; return; }
+
+    container.innerHTML = all.map(f => `
+      <div class="filter-tag">
+        <span>${f.value}</span>
+        <button class="remove-tag" data-filter="${f.type}" data-value="${f.value}" aria-label="Remove ${f.value} filter">×</button>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('.remove-tag').forEach(btn => {
+      btn.addEventListener('click', () => removeFilter(btn.dataset.filter, btn.dataset.value));
+    });
+  }
+
+  function removeFilter(type, value) {
+    state.activeFilters[type] = state.activeFilters[type].filter(v => v !== value);
+    const cb = document.querySelector(`input[data-filter="${type}"][value="${value}"]`);
+    if (cb) cb.checked = false;
+    updateFilterCounts();
+    updateActiveFilters();
+    updateClearButton();
+    applyFilters();
+  }
+
+  function clearAllFilters() {
+    state.activeFilters = { size: [], type: [], vendor: [], width: [] };
+    document.querySelectorAll('input[data-filter]').forEach(i => i.checked = false);
+    updateFilterCounts();
+    updateActiveFilters();
+    updateClearButton();
+    applyFilters();
+  }
+
+  function applyFilters() {
+    let filtered = [...state.allProducts];
+
+    if (state.searchTerm) {
+      const term = state.searchTerm.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.title.toLowerCase().includes(term) || p.vendor.toLowerCase().includes(term)
+      );
+    }
+
+    // Team-store sport toggle (sections/team-store-sport-toggle.liquid).
+    // Only active when a team-store page sets window.__TS_SPORT; every other
+    // collection leaves it undefined, so this is a no-op there.
+    if (window.__TS_SPORT) {
+      const sportTag = 'sport:' + window.__TS_SPORT;
+      filtered = filtered.filter(p => utils.hasTag(p.tags, sportTag));
+    }
+
+    if (state.activeFilters.size.length > 0) {
+      filtered = filtered.filter(p => p.sizes.some(s => state.activeFilters.size.includes(s)));
+    }
+    if (state.activeFilters.type.length > 0) {
+      // Smart matching: if the user selects a gendered type like "Men's Running"
+      // or "Women's Running", we also include any "Unisex" products in that
+      // category. A unisex shoe fits both men's and women's customers, so it
+      // shouldn't be hidden when they filter to their gender.
+      const activeTypes = state.activeFilters.type;
+      const hasGenderedSelection = activeTypes.some(t =>
+        /\b(men's|mens|women's|womens)\b/i.test(t)
+      );
+
+      filtered = filtered.filter(p => {
+        if (!p.type) return false;
+        // Direct match — always include
+        if (activeTypes.includes(p.type)) return true;
+        // Bonus inclusion: if user selected a gendered type AND this product
+        // is unisex within the same category, include it.
+        if (hasGenderedSelection && /\bunisex\b/i.test(p.type)) {
+          // Match category words (e.g. "Running", "Trail", "Walking") between
+          // the active gendered type and the unisex product.
+          return activeTypes.some(activeType => {
+            // Strip "Men's"/"Women's" from the active type to get the category
+            const activeCategory = activeType
+              .replace(/\b(men's|mens|women's|womens)\b/gi, '')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .toLowerCase();
+            const productCategory = p.type
+              .replace(/\bunisex\b/gi, '')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .toLowerCase();
+            // If the categories match (e.g. both are "running"), include
+            // OR if either is empty (just "Unisex" or just "Men's"), include
+            return !activeCategory || !productCategory ||
+                   activeCategory === productCategory ||
+                   activeCategory.includes(productCategory) ||
+                   productCategory.includes(activeCategory);
+          });
+        }
+        return false;
+      });
+    }
+    if (state.activeFilters.vendor.length > 0) {
+      filtered = filtered.filter(p => state.activeFilters.vendor.includes(p.vendor));
+    }
+    if (state.activeFilters.width.length > 0) {
+      const widthDisplayMap = { 'wide': 'Wide', 'extra-wide': 'Extra Wide', 'narrow': 'Narrow' };
+      filtered = filtered.filter(p => {
+        const w = p.widthType ? widthDisplayMap[p.widthType] : 'Standard';
+        return state.activeFilters.width.includes(w);
+      });
+    }
+
+    state.displayedProducts = filtered;
+    renderProducts();
+  }
+
+  // Build the swatch row for a grouped card. members is every colorway in the
+  // group; repId marks which one is currently the card face.
+  // Size a Shopify CDN image to what is actually drawn. Measured 2026-11-11:
+  // swatches downloaded at width=400 and showed at 30px (22px on phones),
+  // 1,080 of them on the women's road page, each 9 to 13 times too big.
+  // Anything not on the Shopify CDN is passed through untouched.
+  function sizedImg(url, w) {
+    if (!url) return '';
+    if (!/(cdn\.shopify\.com|\/cdn\/shop\/)/.test(url)) return url;
+    const base = url.replace(/([?&])width=\d+&?/, '$1').replace(/[?&]$/, '');
+    return base + (base.includes('?') ? '&' : '?') + 'width=' + w;
+  }
+
+  function getGroupSwatchesHTML(members, repId, matchedIds) {
+    if (!members || members.length < 2) return '';
+    const MAX = 6;
+    // Colorways matching the active filters come first, so the six visible
+    // tiles are the ones the shopper can actually buy in the size they picked.
+    // The rest stay in the row, greyed, so the model's full range is still
+    // legible without offering a dead end.
+    const isMatch = (m) => !matchedIds || matchedIds.has(m.id);
+    const ordered = members.filter(isMatch).concat(members.filter(m => !isMatch(m)));
+    const shown = ordered.slice(0, MAX);
+    const extra = ordered.length - shown.length;
+    const tiles = shown.map(m => {
+      const active = m.id === repId ? ' cw-swatch--active' : '';
+      const muted = isMatch(m) ? '' : ' cw-swatch--muted';
+      const label = utils.escapeAttr(isMatch(m) ? m.title : m.title + ' (not in the selected filters)');
+      return `<a href="/products/${m.handle}" class="cw-swatch${active}${muted}" aria-label="${label}" title="${label}">${m.image ? `<img src="${sizedImg(m.image, 96)}" alt="" loading="lazy" width="30" height="30">` : ''}</a>`;
+    }).join('');
+    const more = extra > 0 ? `<span class="cw-swatch-more">+${extra}</span>` : '';
+    return `<div class="cw-swatches" role="group" aria-label="Available colors">${tiles}${more}</div>`;
+  }
+
+  // Inner markup shared by both card shapes (image + brand + title + price).
+  function cardInnerHTML(product, opts) {
+    opts = opts || {};
+    const titleText = opts.title || product.title;
+    const price = utils.formatPrice(product.price);
+    const isOnSale = product.compareAtPrice && product.compareAtPrice > product.price;
+    const widthBadgeHTML = utils.getWidthBadgeHTML(product.widthType);
+
+    let priceHTML, badgeHTML = '';
+    if (isOnSale) {
+      const comparePrice = utils.formatPrice(product.compareAtPrice);
+      const savings = Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100);
+      badgeHTML = `<div class="product-card__badge" aria-label="On sale, save ${savings} percent">SAVE ${savings}%</div>`;
+      priceHTML = `
+        <div class="price-wrapper">
+          <div class="product-price product-price--sale" aria-label="Sale price $${price}">$${price}</div>
+          <div class="product-price--compare" aria-label="Regular price $${comparePrice}">$${comparePrice}</div>
+        </div>
+      `;
+    } else {
+      priceHTML = `<div class="product-price">$${price}</div>`;
+    }
+
+    return `
+      ${widthBadgeHTML}
+      ${badgeHTML}
+      <div class="product-image-wrapper">
+        ${product.image ? `<img src="${sizedImg(product.image, 600)}" srcset="${sizedImg(product.image, 360)} 360w, ${sizedImg(product.image, 600)} 600w" sizes="(min-width: 990px) 300px, 50vw" alt="" class="product-image" loading="lazy">` : ''}
+      </div>
+      <div class="product-info">
+        <div class="product-brand">${product.vendor}</div>
+        <h3 class="product-title">${titleText}</h3>
+        ${priceHTML}
+      </div>
+    `;
+  }
+
+  function renderProducts() {
+    const grid = document.getElementById('productGrid');
+    const count = document.getElementById('resultsCount');
+    if (!grid) return;
+
+    // Build the visible list. With grouping on, collapse colorways that share a
+    // groupKey into one card (the first matched colorway is the face), and show
+    // the rest as swatches. Untagged products and other collections are 1:1.
+    let cards = [];             // array of { product, isGroup, members }
+    if (GROUPING_ON) {
+      // Displayed colorways per group, so the card face can prefer an in-stock one.
+      const displayedByGroup = new Map();
+      for (const p of state.displayedProducts) {
+        if (!p.groupKey) continue;
+        if (!displayedByGroup.has(p.groupKey)) displayedByGroup.set(p.groupKey, []);
+        displayedByGroup.get(p.groupKey).push(p);
+      }
+
+      const seen = new Set();
+      for (const p of state.displayedProducts) {
+        if (p.groupKey) {
+          if (seen.has(p.groupKey)) continue;
+          seen.add(p.groupKey);
+          const dispMembers = displayedByGroup.get(p.groupKey) || [p];
+          // Face the card with an in-stock colorway. Fall back to the first
+          // matched colorway only if every one is sold out.
+          const rep = dispMembers.find(m => m.available) || dispMembers[0];
+          const members = state.groups.get(p.groupKey) || [p];
+          // Which colorways actually survived the filters, so the swatch row can
+          // grey out the ones that did not instead of sending the shopper to a
+          // product that has none of their size.
+          const matchedIds = new Set(dispMembers.map(m => m.id));
+          cards.push({ product: rep, isGroup: members.length > 1, members, matchedIds });
+        } else {
+          cards.push({ product: p, isGroup: false, members: null });
+        }
+      }
+      // Order for the grouped collections:
+      //   1. Models with multiple widths, or with color swatches, ride up top.
+      //      A model's width variants (Standard, Wide, X-Wide, Narrow) are kept
+      //      adjacent and ordered consistently, so they sit side by side.
+      //   2. Lone single-colorway cards (one width, one color) fall below.
+      //   3. Untagged products fall last.
+      // Models keep their feed order by first appearance; only widths within a
+      // model are reordered.
+      const byModel = new Map();   // modelPrefix -> [card, ...] in feed order
+      const untagged = [];
+      for (const c of cards) {
+        const gk = c.product.groupKey;
+        if (!gk) { untagged.push(c); continue; }
+        const model = gk.split('--')[0];
+        if (!byModel.has(model)) byModel.set(model, []);
+        byModel.get(model).push(c);
+      }
+
+      const widthRank = { standard: 0, wide: 1, xwide: 2, 'extra-wide': 2, narrow: 3 };
+      const rankOf = (gk) => {
+        const w = (gk.split('--')[1] || '');
+        return widthRank[w] === undefined ? 9 : widthRank[w];
+      };
+
+      const top = [];
+      const loneSingles = [];
+      for (const model of byModel.keys()) {     // insertion order = feed order
+        const groupCards = byModel.get(model);
+        groupCards.sort((a, b) => rankOf(a.product.groupKey) - rankOf(b.product.groupKey));
+        const interesting = groupCards.length > 1 || groupCards.some(c => c.isGroup);
+        if (interesting) top.push(...groupCards);
+        else loneSingles.push(...groupCards);
+      }
+
+      cards = top.concat(loneSingles, untagged);
+    } else {
+      for (const p of state.displayedProducts) {
+        cards.push({ product: p, isGroup: false, members: null });
+      }
+    }
+
+    // Limited-edition handles: stable-partition the drop to the front of the
+    // same grid. Order within each side is preserved, so it stays one
+    // continuous block — just featured first.
+    if (LE_TAG) {
+      const le = [], rest = [];
+      for (const c of cards) { (c.product.isLE ? le : rest).push(c); }
+      cards = le.concat(rest);
+    }
+
+    if (count) {
+      count.innerHTML = `<strong>${cards.length}</strong> ${cards.length !== 1 ? 'products' : 'product'}`;
+    }
+
+    if (cards.length === 0) {
+      grid.innerHTML = `
+        <div class="no-results" role="status">
+          <h3>No products found</h3>
+          <p>Try adjusting your filters or search query</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Build a single card's markup (grouped or standalone).
+    const buildCard = (card) => {
+      const product = card.product;
+      const isOnSale = product.compareAtPrice && product.compareAtPrice > product.price;
+      const saleClass = isOnSale ? ' product-card--sale' : '';
+      const leClass = product.isLE ? ' product-card--le' : '';
+      const ariaLabel = [
+        product.vendor,
+        product.title,
+        isOnSale ? `On sale for $${utils.formatPrice(product.price)}` : `$${utils.formatPrice(product.price)}`
+      ].filter(Boolean).join(', ');
+
+      if (card.isGroup) {
+        // Grouped card: the card is a div (so swatches can be their own links),
+        // with an inner anchor over the image/info and a swatch row beneath.
+        const swatches = getGroupSwatchesHTML(card.members, product.id, card.matchedIds);
+        const modelName = utils.modelTitle(product.title);
+        return `
+          <div class="product-card product-card--group${saleClass}${leClass}" role="listitem">
+            <a href="/products/${product.handle}" class="product-card__main" aria-label="${utils.escapeAttr(ariaLabel)}">
+              ${cardInnerHTML(product, { title: modelName })}
+            </a>
+            ${swatches}
+          </div>
+        `;
+      }
+
+      // Standalone card: the whole card is one anchor.
+      return `
+        <a href="/products/${product.handle}" class="product-card${saleClass}${leClass}" role="listitem" aria-label="${utils.escapeAttr(ariaLabel)}">
+          ${cardInnerHTML(product)}
+        </a>
+      `;
+    };
+
+    // Assemble the grid. On an LE_FEATURE handle, insert a full-width
+    // "Limited Edition" header before the floated drop and a quieter header
+    // where the regular products resume, so the LE set reads as a labeled
+    // sub-collection inside the same grid (not a separate block).
+    const leSectionCount = LE_TAG ? cards.filter(c => c.product.isLE).length : 0;
+    const parts = [];
+    let leHeadDone = false, restHeadDone = false;
+
+
+    cards.forEach(card => {
+      if (LE_TAG && leSectionCount > 0) {
+        if (!leHeadDone && card.product.isLE) {
+          const countLabel = `${leSectionCount} ${leSectionCount !== 1 ? 'styles' : 'style'}`;
+          parts.push(
+            `<div class="grid-section grid-section--le">
+               <div class="grid-section__row">
+                 <span class="grid-section__title">${LE_TITLE}</span>
+                 <span class="grid-section__count">${countLabel}</span>
+               </div>
+               ${LE_SUBTITLE ? `<span class="grid-section__sub">${LE_SUBTITLE}</span>` : ''}
+             </div>`
+          );
+          leHeadDone = true;
+        }
+        if (leHeadDone && !restHeadDone && !card.product.isLE) {
+          parts.push(
+            `<div class="grid-section grid-section--rest">
+               ${LE_REST ? `<span class="grid-section__title">${LE_REST}</span>` : ''}
+             </div>`
+          );
+          restHeadDone = true;
+        }
+      }
+      parts.push(buildCard(card));
+    });
+
+    {%- comment -%}
+      Fade the swap. The seed and the JS grid are close but not identical, so a
+      hard innerHTML replace reads as a second page load. Dropping opacity for a
+      single frame and easing it back turns the handoff into a settle. This also
+      smooths every later filter change, which used to snap.
+    {%- endcomment -%}
+    grid.style.transition = 'opacity 200ms ease';
+    grid.style.opacity = '0';
+    grid.innerHTML = parts.join('');
+    requestAnimationFrame(() => { grid.style.opacity = '1'; });
+  }
+
+  function init() {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadProducts);
+    } else {
+      loadProducts();
+    }
+  }
+
+  init();
+
+  return {
+    refresh: loadProducts,
+    clearFilters: clearAllFilters,
+    getState: () => state
+  };
+})();
+</script>
