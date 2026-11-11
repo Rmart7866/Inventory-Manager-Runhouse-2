@@ -1,0 +1,827 @@
+{% comment %}
+  Search results page for The Run House.
+  Layout:
+    1. Hero: breadcrumbs + result count + inline search form
+    2. Collections & Pages strip (if any matched)
+    3. Shoe-style filter sidebar (size, width, type, brand)
+    4. Animated shoe-style product grid
+
+  Uses the shoe-collection-filter and shoe-collection-grid snippets but
+  feeds them search.results instead of collection.products. The grid snippet
+  is patched to read from window.__TRH_SEARCH_PRODUCTS__ when available
+  (see partner snippet patch below).
+{% endcomment %}
+
+<div class="trh-search" data-section-id="{{ section.id }}">
+
+  {%- comment -%} ===== HERO ===== {%- endcomment -%}
+  <div class="trh-search__hero">
+    <div class="trh-search__hero-inner">
+      <nav class="trh-search__breadcrumbs" aria-label="Breadcrumbs">
+        <a href="{{ routes.root_url }}">Home</a>
+        <span class="trh-search__breadcrumb-sep" aria-hidden="true">/</span>
+        <span>Search</span>
+      </nav>
+
+      {%- if search.performed -%}
+        {%- assign clean_terms = search.terms | replace: '*', '' -%}
+        {%- if search.results_count > 0 -%}
+          <h1 class="trh-search__title">
+            <span class="trh-search__title-count">{{ search.results_count }}</span>
+            {% if search.results_count == 1 %}result{% else %}results{% endif %} for
+            <span class="trh-search__title-term">"{{ clean_terms }}"</span>
+          </h1>
+        {%- else -%}
+          <h1 class="trh-search__title">
+            No results for <span class="trh-search__title-term">"{{ clean_terms }}"</span>
+          </h1>
+        {%- endif -%}
+      {%- else -%}
+        <h1 class="trh-search__title">Search</h1>
+        <p class="trh-search__subtitle">Find shoes, brands, gear, and more.</p>
+      {%- endif -%}
+
+      {%- comment -%}
+        Hero "search again" trigger.
+        Rather than rendering its own input (which the theme's predictive
+        search keeps hijacking on tap), this is a button styled to look
+        like a search input. Clicking it programmatically triggers the
+        working header search bar, which the user uses to type.
+      {%- endcomment -%}
+      {%- comment -%}
+        Note: there is intentionally NO search bar in the hero. The header
+        search at the top of the page is always available and handles
+        "search again" actions cleanly. A second hero-level input would
+        be redundant and create visual confusion.
+      {%- endcomment -%}
+    </div>
+  </div>
+
+  {%- comment -%} ===== BODY ===== {%- endcomment -%}
+  <div class="trh-search__body">
+    {%- if search.performed -%}
+
+      {%- assign clean_terms = search.terms | replace: '*', '' -%}
+
+      {%- comment -%}
+        Count products / pages / articles in search.results by iterating once.
+        We can't use `concat` to bucket items into arrays because Liquid's
+        concat requires arrays, not single items — that silently fails.
+        Instead we count + iterate twice (once now to know what to render,
+        again later inside each section).
+      {%- endcomment -%}
+      {%- assign product_count = 0 -%}
+      {%- assign page_count = 0 -%}
+      {%- assign article_count = 0 -%}
+      {%- for item in search.results -%}
+        {%- if item.object_type == 'product' -%}
+          {%- assign product_count = product_count | plus: 1 -%}
+        {%- elsif item.object_type == 'page' -%}
+          {%- assign page_count = page_count | plus: 1 -%}
+        {%- elsif item.object_type == 'article' -%}
+          {%- assign article_count = article_count | plus: 1 -%}
+        {%- endif -%}
+      {%- endfor -%}
+
+      {%- comment -%}
+        Find collections that match the search term by title.
+        Shopify's results page doesn't return collections via type=collection,
+        so we scan the site's collections.
+      {%- endcomment -%}
+      {%- assign search_lower = clean_terms | downcase -%}
+      {%- assign collection_match_count = 0 -%}
+      {%- for c in collections -%}
+        {%- assign c_title_lower = c.title | downcase -%}
+        {%- if c_title_lower contains search_lower and c.metafields.seo.hidden.value != 1 -%}
+          {%- assign collection_match_count = collection_match_count | plus: 1 -%}
+        {%- endif -%}
+      {%- endfor -%}
+
+      {%- comment -%} ===== COLLECTIONS / PAGES / ARTICLES STRIP ===== {%- endcomment -%}
+      {%- if collection_match_count > 0 or page_count > 0 or article_count > 0 -%}
+        <div class="trh-search__related">
+
+          {%- if collection_match_count > 0 -%}
+            <div class="trh-related-group">
+              <h2 class="trh-related-group__title">Collections</h2>
+              <div class="trh-related-grid">
+                {%- assign rendered_collections = 0 -%}
+                {%- for c in collections -%}
+                  {%- if rendered_collections >= 50 -%}{%- break -%}{%- endif -%}
+                  {%- assign c_title_lower = c.title | downcase -%}
+                  {%- if c_title_lower contains search_lower and c.metafields.seo.hidden.value != 1 -%}
+                    {%- assign rendered_collections = rendered_collections | plus: 1 -%}
+                    <a href="{{ c.url }}" class="trh-related-card trh-related-card--collection">
+                      {%- if c.image -%}
+                        <div class="trh-related-card__image-wrap">
+                          <img class="trh-related-card__image"
+                               src="{{ c.image | image_url: width: 96 }}"
+                               srcset="{{ c.image | image_url: width: 48 }} 1x, {{ c.image | image_url: width: 96 }} 2x"
+                               alt="{{ c.title | escape }}"
+                               loading="lazy"
+                               width="80" height="80">
+                        </div>
+                      {%- else -%}
+                        <div class="trh-related-card__icon-wrap" aria-hidden="true">
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="16" rx="2"/>
+                            <path d="M3 9h18"/>
+                          </svg>
+                        </div>
+                      {%- endif -%}
+                      <div class="trh-related-card__body">
+                        <span class="trh-related-card__kind">Collection</span>
+                        <span class="trh-related-card__title">{{ c.title }}</span>
+                        {%- if c.products_count > 0 -%}
+                          <span class="trh-related-card__meta">{{ c.products_count }} {% if c.products_count == 1 %}product{% else %}products{% endif %}</span>
+                        {%- endif -%}
+                      </div>
+                      <svg class="trh-related-card__arrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M3 1l6 7-6 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="square"/>
+                      </svg>
+                    </a>
+                  {%- endif -%}
+                {%- endfor -%}
+              </div>
+            </div>
+          {%- endif -%}
+
+          {%- if page_count > 0 or article_count > 0 -%}
+            <div class="trh-related-group">
+              <h2 class="trh-related-group__title">Pages & Articles</h2>
+              <div class="trh-related-grid trh-related-grid--info">
+                {%- assign rendered_pages = 0 -%}
+                {%- for item in search.results -%}
+                  {%- if rendered_pages >= 50 -%}{%- break -%}{%- endif -%}
+                  {%- if item.object_type == 'page' -%}
+                    {%- assign rendered_pages = rendered_pages | plus: 1 -%}
+                    <a href="{{ item.url }}" class="trh-related-card trh-related-card--info">
+                      <div class="trh-related-card__icon-wrap" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+                          <rect x="3" y="2" width="14" height="16"/>
+                          <path d="M6 6h8M6 9h8M6 12h6"/>
+                        </svg>
+                      </div>
+                      <div class="trh-related-card__body">
+                        <span class="trh-related-card__kind">Page</span>
+                        <span class="trh-related-card__title">{{ item.title }}</span>
+                      </div>
+                    </a>
+                  {%- endif -%}
+                {%- endfor -%}
+
+                {%- assign rendered_articles = 0 -%}
+                {%- for item in search.results -%}
+                  {%- if rendered_articles >= 50 -%}{%- break -%}{%- endif -%}
+                  {%- if item.object_type == 'article' -%}
+                    {%- assign rendered_articles = rendered_articles | plus: 1 -%}
+                    <a href="{{ item.url }}" class="trh-related-card trh-related-card--info">
+                      <div class="trh-related-card__icon-wrap" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">
+                          <path d="M3 2h9l3 3v13H3V2z M12 2v3h3"/>
+                          <path d="M6 9h7M6 12h7M6 15h5"/>
+                        </svg>
+                      </div>
+                      <div class="trh-related-card__body">
+                        <span class="trh-related-card__kind">Article</span>
+                        <span class="trh-related-card__title">{{ item.title }}</span>
+                      </div>
+                    </a>
+                  {%- endif -%}
+                {%- endfor -%}
+              </div>
+            </div>
+          {%- endif -%}
+
+        </div>
+      {%- endif -%}
+
+      {%- comment -%} ===== PRODUCT RESULTS LAYOUT (filter + grid) ===== {%- endcomment -%}
+      {%- if product_count > 0 -%}
+        {%- paginate search.results by 250 -%}
+
+        {%- comment -%}
+          Re-count products WITHIN the paginated slice for the JSON blob.
+          (search.results inside paginate refers to the current page only.)
+        {%- endcomment -%}
+        {%- assign page_product_count = 0 -%}
+        {%- for item in search.results -%}
+          {%- if item.object_type == 'product' -%}
+            {%- assign page_product_count = page_product_count | plus: 1 -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+        {%- comment -%} Pagination banner only shows if there's more than one page. {%- endcomment -%}
+        {%- if paginate.pages > 1 -%}
+          <div class="trh-search__overflow-banner">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <circle cx="9" cy="9" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M9 5v5M9 12.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span>Showing the first <strong>250</strong> of <strong>{{ search.results_count }}</strong> matches. Refine your search or use the filters to narrow down.</span>
+          </div>
+        {%- endif -%}
+
+        {%- comment -%}
+          Pre-build a JSON blob of THIS page's product results so the
+          shoe-grid JS can consume them without a separate fetch.
+        {%- endcomment -%}
+        <script id="trh-search-products-data" type="application/json">
+          {
+            "products": [
+              {%- assign emitted = 0 -%}
+              {%- for item in search.results -%}
+                {%- if item.object_type == 'product' -%}
+                  {%- if emitted > 0 -%},{%- endif -%}
+                  {%- assign emitted = emitted | plus: 1 -%}
+                  {
+                    "id": {{ item.id | json }},
+                    "title": {{ item.title | json }},
+                    "handle": {{ item.handle | json }},
+                    "vendor": {{ item.vendor | json }},
+                    "product_type": {{ item.type | json }},
+                    "images": [
+                      {%- if item.featured_image -%}
+                        { "src": {{ item.featured_image | image_url: width: 800 | prepend: 'https:' | json }} }
+                      {%- endif -%}
+                    ],
+                    "variants": [
+                      {%- for v in item.variants -%}
+                        {
+                          "id": {{ v.id | json }},
+                          "title": {{ v.title | json }},
+                          "option1": {{ v.option1 | json }},
+                          "option2": {{ v.option2 | json }},
+                          "option3": {{ v.option3 | json }},
+                          "price": {{ v.price | money_without_currency | replace: ',', '' | json }},
+                          "compare_at_price": {%- if v.compare_at_price -%}{{ v.compare_at_price | money_without_currency | replace: ',', '' | json }}{%- else -%}null{%- endif -%},
+                          "available": {{ v.available | json }},
+                          "inventory_quantity": {{ v.inventory_quantity | default: 0 | json }}
+                        }{%- unless forloop.last -%},{%- endunless -%}
+                      {%- endfor -%}
+                    ]
+                  }
+                {%- endif -%}
+              {%- endfor -%}
+            ]
+          }
+        </script>
+
+        <div class="trh-search__heading-bar">
+          <h2 class="trh-search__products-heading">Products</h2>
+          <span class="trh-search__page-info">
+            {{ page_product_count }} {% if page_product_count == 1 %}product{% else %}products{% endif %}
+          </span>
+        </div>
+
+        <div class="filter-layout trh-search__filter-layout">
+          {%- render 'shoe-collection-filter' -%}
+          {%- render 'shoe-collection-grid' -%}
+        </div>
+
+        {%- if paginate.pages > 1 -%}
+          <nav class="trh-search__pagination" role="navigation" aria-label="Pagination">
+            {%- if paginate.previous -%}
+              <a href="{{ paginate.previous.url }}" class="trh-search__pagination-link trh-search__pagination-link--prev">
+                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                  <path d="M9 1L3 7l6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="square"/>
+                </svg>
+                Previous
+              </a>
+            {%- endif -%}
+
+            <ul class="trh-search__pagination-list">
+              {%- for part in paginate.parts -%}
+                {%- if part.is_link -%}
+                  <li><a href="{{ part.url }}" class="trh-search__pagination-num">{{ part.title }}</a></li>
+                {%- elsif part.title == paginate.current_page -%}
+                  <li><span class="trh-search__pagination-num trh-search__pagination-num--current" aria-current="page">{{ part.title }}</span></li>
+                {%- else -%}
+                  <li><span class="trh-search__pagination-num trh-search__pagination-num--gap">{{ part.title }}</span></li>
+                {%- endif -%}
+              {%- endfor -%}
+            </ul>
+
+            {%- if paginate.next -%}
+              <a href="{{ paginate.next.url }}" class="trh-search__pagination-link trh-search__pagination-link--next">
+                Next
+                <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                  <path d="M5 1l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="square"/>
+                </svg>
+              </a>
+            {%- endif -%}
+          </nav>
+        {%- endif -%}
+
+        {%- endpaginate -%}
+
+      {%- elsif collection_match_count == 0 and page_count == 0 and article_count == 0 -%}
+        {%- comment -%} ===== EMPTY STATE ===== {%- endcomment -%}
+        <div class="trh-search__empty">
+          <svg class="trh-search__empty-icon" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+            <circle cx="28" cy="28" r="20" fill="none" stroke="currentColor" stroke-width="3"/>
+            <path d="M44 44l14 14" stroke="currentColor" stroke-width="3" stroke-linecap="square"/>
+            <path d="M20 28h16M28 20v16" stroke="currentColor" stroke-width="2" opacity="0.3"/>
+          </svg>
+          <h2 class="trh-search__empty-title">Nothing matched "{{ clean_terms }}"</h2>
+          <p class="trh-search__empty-hint">Try a different keyword, check your spelling, or browse our collections below.</p>
+          <div class="trh-search__empty-suggestions">
+            <p class="trh-search__empty-suggestions-label">Popular searches:</p>
+            <div class="trh-search__empty-tags">
+              <a href="{{ routes.search_url }}?q=brooks&type=product" class="trh-search__empty-tag">Brooks</a>
+              <a href="{{ routes.search_url }}?q=hoka&type=product" class="trh-search__empty-tag">HOKA</a>
+              <a href="{{ routes.search_url }}?q=saucony&type=product" class="trh-search__empty-tag">Saucony</a>
+              <a href="{{ routes.search_url }}?q=asics&type=product" class="trh-search__empty-tag">ASICS</a>
+              <a href="{{ routes.search_url }}?q=on running&type=product" class="trh-search__empty-tag">On Running</a>
+              <a href="{{ routes.search_url }}?q=new balance&type=product" class="trh-search__empty-tag">New Balance</a>
+            </div>
+          </div>
+        </div>
+      {%- endif -%}
+
+    {%- else -%}
+      <div class="trh-search__prompt">
+        <p>Start typing above to find what you're looking for.</p>
+      </div>
+    {%- endif -%}
+  </div>
+</div>
+
+<style>
+  {%- if settings.type_body_font -%}
+    {{ settings.type_body_font | font_face: font_display: 'swap' }}
+    {%- assign trh_search_font = settings.type_body_font.family | append: ', ' | append: settings.type_body_font.fallback_families -%}
+  {%- else -%}
+    {%- assign trh_search_font = "'Chivo', sans-serif" -%}
+  {%- endif -%}
+
+  .trh-search {
+    /* Custom search-page tokens */
+    --trh-primary: #1e3a6f;
+    --trh-secondary: #2c5aa0;
+    --trh-accent: #4a7bc8;
+    --trh-text: #0f1e3d;
+    --trh-muted: #5a6a8a;
+    --trh-border: rgba(30, 58, 111, 0.14);
+    --trh-hover-bg: rgba(30, 58, 111, 0.06);
+    --trh-bg-soft: rgba(30, 58, 111, 0.03);
+    --trh-radius: 2px;
+    --trh-radius-sm: 0px;
+    --trh-font: {{ trh_search_font }};
+
+    /* ======================================================
+       Theme CSS variables that shoe-collection-filter.liquid
+       expects. On a collection page these come from theme.liquid
+       or settings; on the search page we must provide them or
+       the filter sidebar renders unstyled.
+       ====================================================== */
+    --font-family: {{ trh_search_font }};
+
+    /* Colors (mapped to navy palette) */
+    --white: #ffffff;
+    --primary: #0f1e3d;          /* dark navy text */
+    --secondary: #5a6a8a;        /* muted text */
+    --border: rgba(30, 58, 111, 0.14);
+    --hover-bg: rgba(30, 58, 111, 0.06);
+
+    /* Spacing scale */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 20px;
+    --spacing-2xl: 24px;
+
+    /* Font sizes */
+    --font-size-xs: 11px;
+    --font-size-sm: 13px;
+    --font-size-md: 14px;
+    --font-size-lg: 16px;
+    --font-size-xl: 18px;
+
+    /* Font weights */
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+
+    /* Border radius — keep square aesthetic */
+    --radius: 2px;
+
+    color: var(--trh-text);
+  }
+
+  .trh-search__hero,
+  .trh-search__hero *,
+  .trh-search__related,
+  .trh-search__related *,
+  .trh-search__heading-bar,
+  .trh-search__heading-bar *,
+  .trh-search__empty,
+  .trh-search__empty *,
+  .trh-search__prompt {
+    font-family: var(--trh-font);
+  }
+
+  /* HERO */
+  .trh-search__hero {
+    background: linear-gradient(180deg, var(--trh-bg-soft) 0%, transparent 100%);
+    border-bottom: 1px solid var(--trh-border);
+    padding: 2rem 1.5rem 2.5rem;
+  }
+  .trh-search__hero-inner { max-width: 1400px; margin: 0 auto; }
+  .trh-search__breadcrumbs {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.8rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--trh-muted); margin-bottom: 1.25rem;
+  }
+  .trh-search__breadcrumbs a { color: var(--trh-muted); text-decoration: none; transition: color 0.15s; }
+  .trh-search__breadcrumbs a:hover { color: var(--trh-primary); }
+  .trh-search__breadcrumb-sep { opacity: 0.5; }
+  .trh-search__title {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 900; letter-spacing: -0.01em; line-height: 1.15;
+    margin: 0 0 0.5rem; color: var(--trh-text);
+  }
+  .trh-search__title-count, .trh-search__title-term { color: var(--trh-primary); font-weight: 700; }
+  .trh-search__subtitle { font-size: 1rem; color: var(--trh-muted); margin: 0 0 1.5rem; }
+  .trh-search__form {
+    margin-top: 1.5rem;
+    max-width: 640px;
+    /* When rendered as a button, strip default button styling */
+    background: transparent;
+    border: none;
+    padding: 0;
+    width: 100%;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+    display: block;
+    /* Ensure button is on top of anything overlapping */
+    position: relative;
+    z-index: 2;
+  }
+  /* Make sure all child elements pass clicks to the button */
+  .trh-search__form * {
+    pointer-events: none;
+  }
+  .trh-search__form-wrap {
+    display: flex; align-items: center; background: #fff;
+    border: 2px solid var(--trh-border); border-radius: var(--trh-radius);
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .trh-search__form:hover .trh-search__form-wrap,
+  .trh-search__form:focus-visible .trh-search__form-wrap,
+  .trh-search__form-wrap:focus-within {
+    border-color: var(--trh-primary);
+    box-shadow: 0 0 0 4px rgba(30, 58, 111, 0.1);
+  }
+  .trh-search__form:focus-visible {
+    outline: none;
+  }
+  .trh-search__form-icon { flex-shrink: 0; margin-left: 1rem; color: var(--trh-muted); }
+  .trh-search__form-input {
+    flex: 1; border: none; background: transparent;
+    padding: 0.9rem 1rem; font-size: 1rem;
+    font-family: var(--trh-font); color: var(--trh-text);
+    outline: none; min-width: 0;
+    /* When rendered as a span (placeholder mode), display block-like */
+    display: block;
+  }
+  .trh-search__form-input--placeholder {
+    color: var(--trh-muted);
+  }
+  .trh-search__form-input::placeholder { color: var(--trh-muted); }
+  .trh-search__form-submit {
+    flex-shrink: 0; padding: 0 1.5rem;
+    height: calc(100% - 4px); margin: 2px;
+    background: var(--trh-primary); color: #fff; border: none;
+    border-radius: var(--trh-radius-sm);
+    font-family: var(--trh-font); font-size: 0.85rem;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    cursor: pointer; transition: background 0.2s;
+    /* When rendered as a span inside a button, ensure proper alignment */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(2.7rem);
+  }
+  .trh-search__form:hover .trh-search__form-submit { background: var(--trh-secondary); }
+
+  /* BODY */
+  .trh-search__body { max-width: 1400px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+  /* RELATED STRIP (Collections + Pages + Articles) */
+  .trh-search__related {
+    margin-bottom: 3rem; padding-bottom: 2.5rem;
+    border-bottom: 1px solid var(--trh-border);
+  }
+  .trh-related-group { margin-bottom: 2rem; }
+  .trh-related-group:last-child { margin-bottom: 0; }
+  .trh-related-group__title {
+    font-size: 0.75rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--trh-muted); margin: 0 0 1rem;
+  }
+  .trh-related-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.75rem;
+  }
+  .trh-related-grid--info {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+  .trh-related-card {
+    display: flex; align-items: center; gap: 0.85rem;
+    padding: 0.75rem 0.85rem;
+    text-decoration: none; color: var(--trh-text);
+    background: #fff; border: 1.5px solid var(--trh-border);
+    border-radius: var(--trh-radius);
+    transition: border-color 0.15s, transform 0.15s, background 0.15s;
+  }
+  .trh-related-card:hover {
+    border-color: var(--trh-primary);
+    transform: translateY(-2px); background: var(--trh-hover-bg);
+  }
+  .trh-related-card__image-wrap, .trh-related-card__icon-wrap {
+    flex-shrink: 0; width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--trh-radius);
+    background: var(--trh-hover-bg); color: var(--trh-primary);
+    overflow: hidden;
+  }
+  .trh-related-card__image { width: 48px; height: 48px; object-fit: cover; display: block; }
+  .trh-related-card__body {
+    flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem;
+  }
+  .trh-related-card__kind {
+    font-size: 0.65rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--trh-muted); line-height: 1;
+  }
+  .trh-related-card__title {
+    font-size: 0.95rem; font-weight: 600;
+    color: var(--trh-text); line-height: 1.3;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .trh-related-card__meta {
+    font-size: 0.75rem; color: var(--trh-muted); line-height: 1;
+  }
+  .trh-related-card__arrow {
+    flex-shrink: 0; color: var(--trh-muted);
+    transition: color 0.15s, transform 0.15s;
+  }
+  .trh-related-card:hover .trh-related-card__arrow {
+    color: var(--trh-primary); transform: translateX(3px);
+  }
+
+  /* Override --primary-blue / --secondary-blue from shoe-collection-filter
+     snippet's :root, scoped to inside our search wrapper, to match our
+     navy palette exactly. */
+  .trh-search {
+    --primary-blue: #1e3a6f;
+    --secondary-blue: #2c5aa0;
+    --light-purple: #4a7bc8;
+    --accent-purple: #4a7bc8;
+  }
+
+  /* Override the shoe-collection-grid's accent blues too — its CSS uses
+     hardcoded #4F7FFF (royal blue) for product cards. We want navy. */
+  .trh-search .product-card { box-shadow: 0 4px 20px rgba(30, 58, 111, 0.08); }
+  .trh-search .product-card--sale {
+    border-color: rgba(30, 58, 111, 0.15);
+    box-shadow: 0 4px 20px rgba(30, 58, 111, 0.12),
+                inset 0 0 0 1px rgba(30, 58, 111, 0.05);
+  }
+  .trh-search .product-brand {
+    color: var(--trh-primary);
+  }
+  .trh-search .product-image-wrapper {
+    background: linear-gradient(135deg, var(--trh-bg-soft) 0%, #ffffff 100%);
+  }
+  .trh-search .product-price {
+    background: linear-gradient(135deg, var(--trh-primary) 0%, var(--trh-secondary) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .trh-search .product-price--sale {
+    background: linear-gradient(135deg, var(--trh-primary) 0%, var(--trh-secondary) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .trh-search .product-card__badge {
+    background: linear-gradient(135deg, var(--trh-primary) 0%, var(--trh-secondary) 100%);
+    box-shadow: 0 2px 10px rgba(30, 58, 111, 0.3);
+  }
+  .trh-search .product-card__width-badge--wide {
+    background: linear-gradient(135deg, var(--trh-secondary) 0%, var(--trh-accent) 100%);
+    box-shadow: 0 2px 8px rgba(30, 58, 111, 0.3);
+  }
+  .trh-search .product-card__width-badge--extra-wide {
+    background: linear-gradient(135deg, var(--trh-primary) 0%, var(--trh-secondary) 100%);
+    box-shadow: 0 2px 8px rgba(30, 58, 111, 0.3);
+  }
+  .trh-search .product-card__width-badge--narrow {
+    background: linear-gradient(135deg, var(--trh-accent) 0%, #6b8eca 100%);
+    box-shadow: 0 2px 8px rgba(74, 123, 200, 0.3);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .trh-search .product-card:hover {
+      box-shadow: -6px 6px 25px rgba(30, 58, 111, 0.15),
+                  -3px 3px 10px rgba(0, 0, 0, 0.08);
+    }
+    .trh-search .product-card:hover .product-brand { color: var(--trh-secondary); }
+    .trh-search .product-card:hover .product-title { color: var(--trh-primary); }
+  }
+
+  /* OVERFLOW BANNER */
+  .trh-search__overflow-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.85rem 1.1rem;
+    margin-bottom: 1.5rem;
+    background: var(--trh-bg-soft);
+    border: 1px solid var(--trh-border);
+    border-left: 3px solid var(--trh-primary);
+    border-radius: var(--trh-radius);
+    font-size: 0.85rem;
+    color: var(--trh-text);
+    line-height: 1.4;
+  }
+  .trh-search__overflow-banner svg {
+    flex-shrink: 0;
+    color: var(--trh-primary);
+  }
+  .trh-search__overflow-banner strong {
+    color: var(--trh-primary);
+    font-weight: 700;
+  }
+  .trh-search__heading-bar {
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .trh-search__products-heading {
+    font-size: 1.15rem; font-weight: 700;
+    color: var(--trh-text); margin: 0; letter-spacing: -0.01em;
+  }
+  .trh-search__page-info {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--trh-muted);
+  }
+
+  /* PAGINATION */
+  .trh-search__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--trh-border);
+    flex-wrap: wrap;
+  }
+  .trh-search__pagination-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    background: #fff;
+    border: 1.5px solid var(--trh-border);
+    border-radius: var(--trh-radius);
+    color: var(--trh-text);
+    text-decoration: none;
+    font-family: var(--trh-font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .trh-search__pagination-link:hover {
+    border-color: var(--trh-primary);
+    color: var(--trh-primary);
+    background: var(--trh-hover-bg);
+  }
+  .trh-search__pagination-list {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    gap: 0.25rem;
+  }
+  .trh-search__pagination-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    height: 38px;
+    padding: 0 0.6rem;
+    background: #fff;
+    border: 1.5px solid var(--trh-border);
+    border-radius: var(--trh-radius);
+    color: var(--trh-text);
+    text-decoration: none;
+    font-family: var(--trh-font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  a.trh-search__pagination-num:hover {
+    border-color: var(--trh-primary);
+    color: var(--trh-primary);
+    background: var(--trh-hover-bg);
+  }
+  .trh-search__pagination-num--current {
+    background: var(--trh-primary);
+    border-color: var(--trh-primary);
+    color: #fff !important;
+  }
+  .trh-search__pagination-num--gap {
+    border-color: transparent;
+    color: var(--trh-muted);
+  }
+
+  /* Override shoe-collection-grid's outer container to fit our wrapper */
+  .trh-search__filter-layout.filter-layout {
+    max-width: none; padding: 0; margin: 0;
+  }
+
+  /* EMPTY STATE */
+  .trh-search__empty {
+    text-align: center; padding: 3rem 1rem 4rem;
+    max-width: 600px; margin: 0 auto;
+  }
+  .trh-search__empty-icon { color: var(--trh-border); margin-bottom: 1rem; }
+  .trh-search__empty-title {
+    font-size: clamp(1.25rem, 3vw, 1.5rem);
+    font-weight: 700; margin: 0 0 0.5rem; color: var(--trh-text);
+  }
+  .trh-search__empty-hint {
+    color: var(--trh-muted); font-size: 1rem;
+    margin: 0 0 2rem; line-height: 1.5;
+  }
+  .trh-search__empty-suggestions {
+    border-top: 1px solid var(--trh-border); padding-top: 2rem;
+  }
+  .trh-search__empty-suggestions-label {
+    font-size: 0.75rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--trh-muted); margin: 0 0 1rem;
+  }
+  .trh-search__empty-tags {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;
+  }
+  .trh-search__empty-tag {
+    display: inline-block; padding: 0.55rem 1rem;
+    background: #fff; border: 1.5px solid var(--trh-border);
+    border-radius: var(--trh-radius);
+    color: var(--trh-text); text-decoration: none;
+    font-size: 0.85rem; font-weight: 600;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+  }
+  .trh-search__empty-tag:hover {
+    background: var(--trh-primary); color: #fff;
+    border-color: var(--trh-primary); transform: translateY(-1px);
+  }
+  .trh-search__prompt {
+    text-align: center; padding: 4rem 1rem;
+    color: var(--trh-muted); font-size: 1rem;
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .trh-search__hero { padding: 1.5rem 1rem 2rem; }
+    .trh-search__body { padding: 1.5rem 1rem 3rem; }
+    .trh-search__form-submit { padding: 0 1rem; font-size: 0.75rem; }
+    .trh-related-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script>
+  // Bridge: feed search results to the shoe-collection-grid component
+  // BEFORE its loadProducts() fetch fires.
+  (function() {
+    const dataEl = document.getElementById('trh-search-products-data');
+    if (dataEl) {
+      try {
+        window.__TRH_SEARCH_PRODUCTS__ = JSON.parse(dataEl.textContent).products || [];
+      } catch (err) {
+        console.error('[trh-search] Failed to parse products data', err);
+        window.__TRH_SEARCH_PRODUCTS__ = [];
+      }
+    }
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "t:sections.main-search.name",
+  "settings": []
+}
+{% endschema %}

@@ -75,3 +75,26 @@ html body .filter-section .checkbox-text span {
   font-size: 14px !important;
   line-height: 1.35 !important;
 }
+
+/* TAP TARGETS AND SMALL TEXT, from the 2026-11-11 crawl (390px phone).
+   Tap areas grow with padding and a negative margin, so nothing moves. */
+@media (max-width: 989px) {
+  html body .upper-header .social-icons a {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    margin: -11px -6px !important;
+  }
+  html body button.location-toggle { min-height: 40px !important; }
+  html body button.mobile-toggle { min-width: 44px !important; min-height: 44px !important; }
+}
+/* Text that measured under 12px. */
+html body .trh-pick__label { font-size: 12px !important; }
+html body .trh-pick__meta { font-size: 13px !important; }
+html body .filter-section .item-count { font-size: 12px !important; }
+html body .trh-specbar__k { font-size: 12px !important; }
+html body .trh-related-card__kind { font-size: 12px !important; }
+/* The compare page's "only show differences" box was 17px square. */
+html body #trh-compare input#onlydiff { width: 22px !important; height: 22px !important; }
