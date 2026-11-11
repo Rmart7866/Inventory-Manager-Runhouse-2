@@ -14,7 +14,9 @@
     - The logo wall and the store count read the same custom.team_stores
       list, from the team-stores page's metafield rather than this page's.
 
-  No underline under the title (owner, 2026-11-11).
+  Restyled the same day at the owner's request: no underline, a single
+  colour title, no "Get Started" label, no ship time (stat or sentence),
+  and the second stat is names and numbers personalization.
 {%- endcomment -%}
 
 {%- assign sid = section.id -%}
@@ -92,7 +94,7 @@
     font-size: clamp(36px, 5vw, 66px) !important; font-weight: 900 !important; letter-spacing: -0.035em;
     line-height: 0.98 !important; color: #fff !important; margin-bottom: 20px !important; text-transform: none !important;
   }
-  #hts-{{ sid }} h2 em { font-style: normal; color: var(--ts-glow); text-decoration: none; }
+  #hts-{{ sid }} h2 em { font-style: normal; color: inherit; text-decoration: none; }
   #hts-{{ sid }} .hts-blurb { font-size: 17px !important; line-height: 1.6 !important; color: rgba(255,255,255,0.74) !important; max-width: 58ch; }
   #hts-{{ sid }} .hts-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
   #hts-{{ sid }} .hts-btn {
@@ -196,18 +198,18 @@
   "tag": "section",
   "class": "home-team-store-cta",
   "settings": [
-    { "type": "text", "id": "kicker", "label": "Small label", "default": "Get Started" },
+    { "type": "text", "id": "kicker", "label": "Small label", "info": "Leave blank for none." },
     { "type": "text", "id": "heading_lead", "label": "Heading", "default": "Create your" },
     { "type": "text", "id": "heading_highlight", "label": "Heading, highlighted words", "default": "team store" },
-    { "type": "textarea", "id": "blurb", "label": "Text", "default": "Chat with us today to set up a custom team store for your organization. We offer customization options like names and numbers, and a wide range of products including apparel, hats, water bottles, and more. Custom orders typically ship within 5–7 business days." },
+    { "type": "textarea", "id": "blurb", "label": "Text", "default": "Chat with us today to set up a custom team store for your organization. We offer customization options like names and numbers, and a wide range of products including apparel, hats, water bottles, and more." },
     { "type": "text", "id": "builder_label", "label": "Builder button label", "default": "Build your store" },
     { "type": "text", "id": "contact_email", "label": "Contact email", "default": "teamstores@therunhouse.com" },
     { "type": "checkbox", "id": "show_logo_wall", "label": "Show moving logo wall", "default": true },
     { "type": "checkbox", "id": "show_stats", "label": "Show quick stats", "info": "The first stat is the live team store count.", "default": true },
-    { "type": "text", "id": "stat_2_value", "label": "Stat 2 value", "default": "Names & #s" },
-    { "type": "text", "id": "stat_2_label", "label": "Stat 2 label", "default": "Personalization" },
-    { "type": "text", "id": "stat_3_value", "label": "Stat 3 value", "default": "5–7 days" },
-    { "type": "text", "id": "stat_3_label", "label": "Stat 3 label", "default": "Typical ship time" },
+    { "type": "text", "id": "stat_2_value", "label": "Stat 2 value", "default": "Names & numbers" },
+    { "type": "text", "id": "stat_2_label", "label": "Stat 2 label", "default": "Personalization available" },
+    { "type": "text", "id": "stat_3_value", "label": "Stat 3 value", "info": "Leave blank for none." },
+    { "type": "text", "id": "stat_3_label", "label": "Stat 3 label" },
     { "type": "color", "id": "dark_color", "label": "Dark background", "default": "#05101d" },
     { "type": "color", "id": "accent_color", "label": "Accent", "default": "#2b7fff" },
     { "type": "color", "id": "highlight_color", "label": "Highlight", "default": "#06b6d4" },
