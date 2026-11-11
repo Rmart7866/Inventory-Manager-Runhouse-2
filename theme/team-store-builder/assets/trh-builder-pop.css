@@ -299,12 +299,17 @@ html body #trh-sb .bund .btn.add:hover { background: #fff !important; }
 html body #trh-sb .bnw { margin: 0 0 18px !important; }
 html body #trh-sb #sb-3:has(#sharedbar:not([hidden])) .bnw { display: none !important; }
 html body #trh-sb #pv-banner img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
-html body #trh-sb .storebanner { margin: 0 0 12px !important; background: #eef3f9 !important; }
-html body #trh-sb .storebanner img {
-  display: block !important;
-  width: 100% !important;
-  aspect-ratio: 4 / 1 !important;
-  object-fit: cover !important;
+/* The customer's banner goes BEHIND the "Team store preview" card, in
+   place of the race photo (owner, 2026-11-11). --bn is set inline by the
+   builder's review(). A FLAT tint, not a fade, keeps the white team name
+   readable on any photo. The print rule in trh-builder.css still drops the
+   background on paper, which is right: the name prints navy on white. */
+html body #trh-sb .storehead.hasbn {
+  background-color: var(--p-ink) !important;
+  background-image: linear-gradient(rgba(5,16,29,0.55), rgba(5,16,29,0.55)), var(--bn) !important;
+  background-size: auto, cover !important;
+  background-position: center, center !important;
+  min-height: 200px !important;
 }
 
 /* ----------------------------------------------------------------- FAQ */
