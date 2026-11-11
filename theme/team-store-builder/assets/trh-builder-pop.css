@@ -367,3 +367,9 @@ html body #trh-sb .faq a { color: #7fd3e6 !important; }
 @media (prefers-reduced-motion: reduce) {
   html body #trh-sb section[id^="sb-"] { animation: none !important; }
 }
+
+/* No sideways scroll on this page (crawl 2026-11-11: 1448px wide at a 1440
+   window). The overflow is Shopify's off-screen hCaptcha badge for the
+   contact form plus the tilted gear wall. clip, not hidden, so nothing
+   sticky on the page stops sticking. This sheet loads on this page only. */
+html, body { overflow-x: clip; }
