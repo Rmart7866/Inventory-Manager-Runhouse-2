@@ -1,0 +1,219 @@
+{%- comment -%}
+  THE BUILDER'S ANIMATED HEADER, 2026-11-11, Todays Draft Theme.
+
+  Replaces the builder's own static photo header (.trh-hero inside the
+  snippet, hidden by trh-builder-pop.css but left in the DOM because the
+  "Watch how it works" button inside it opens the video, and the button here
+  simply clicks it).
+
+  The moving wall is REAL team store products wearing REAL team logos, read
+  from the same store list the Team Stores page uses (the custom.team_stores
+  metafield on the team-stores page), one product per sampled store. It is
+  the page's pitch shown rather than told: your logo, on actual gear.
+  Same visual language as the Team Stores logo wall (white tiles, hard
+  cyan and orange offset blocks, a tilt) so the two pages read as one,
+  but horizontal, so it is not a copy of it.
+
+  Text is kept deliberately short: one line under the headline. The owner's
+  brief was more colour and motion, and not a wall of text.
+{%- endcomment -%}
+
+{%- assign tbh_data = pages['team-stores'].metafields.custom.team_stores.value -%}
+{%- assign tbh_stores = tbh_data.stores -%}
+{%- assign tbh_count = tbh_stores | size -%}
+{%- assign tbh_a = '' -%}
+{%- assign tbh_b = '' -%}
+{%- assign tbh_n = 0 -%}
+{%- if tbh_count > 0 -%}
+  {%- assign tbh_step = tbh_count | divided_by: 40 | at_least: 1 -%}
+  {%- for store in tbh_stores -%}
+    {%- if tbh_n >= 18 -%}{%- break -%}{%- endif -%}
+    {%- assign tbh_mod = forloop.index0 | modulo: tbh_step -%}
+    {%- if tbh_mod != 0 -%}{%- continue -%}{%- endif -%}
+    {%- assign tbh_c = collections[store.h] -%}
+    {%- if tbh_c == blank -%}{%- continue -%}{%- endif -%}
+    {%- assign tbh_p = tbh_c.products.first -%}
+    {%- if tbh_p == blank or tbh_p.featured_image == blank -%}{%- continue -%}{%- endif -%}
+    {%- capture tbh_tile -%}<span class="tbh-tile"><img src="{{ tbh_p.featured_image | image_url: width: 300 }}" alt="" width="150" height="150" loading="lazy"></span>{%- endcapture -%}
+    {%- assign tbh_row = tbh_n | modulo: 2 -%}
+    {%- if tbh_row == 0 -%}{%- assign tbh_a = tbh_a | append: tbh_tile -%}{%- else -%}{%- assign tbh_b = tbh_b | append: tbh_tile -%}{%- endif -%}
+    {%- assign tbh_n = tbh_n | plus: 1 -%}
+  {%- endfor -%}
+{%- endif -%}
+
+<style>
+  .tbh {
+    --tbh-deep: #05101d;
+    --tbh-glow: #06b6d4;
+    --tbh-blue: #2b7fff;
+    --tbh-pop: #f47b20;
+    position: relative;
+    overflow: hidden;
+    background: var(--tbh-deep);
+    color: #fff;
+    isolation: isolate;
+  }
+  /* Drifting light: three soft glows on slow, out of step loops, so the
+     background is never quite the same twice and never busy. */
+  .tbh::before, .tbh::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    width: 720px;
+    height: 720px;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.42;
+    pointer-events: none;
+  }
+  .tbh::before { background: var(--tbh-glow); top: -340px; left: -220px; animation: tbh-drift-a 18s ease-in-out infinite alternate; }
+  .tbh::after  { background: var(--tbh-blue); bottom: -420px; right: -180px; animation: tbh-drift-b 22s ease-in-out infinite alternate; }
+  .tbh-ember {
+    position: absolute; z-index: -1; width: 380px; height: 380px; border-radius: 50%;
+    background: var(--tbh-pop); filter: blur(110px); opacity: 0.28; top: 30%; left: 42%;
+    animation: tbh-drift-c 16s ease-in-out infinite alternate; pointer-events: none;
+  }
+  /* Track lanes: faint diagonal stripes that slide, the one nod to running. */
+  .tbh-lanes {
+    position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0.07;
+    background: repeating-linear-gradient(-62deg, #fff 0 2px, transparent 2px 86px);
+    background-size: 200% 200%;
+    animation: tbh-lanes 14s linear infinite;
+  }
+  @keyframes tbh-drift-a { to { transform: translate(140px, 90px) scale(1.15); } }
+  @keyframes tbh-drift-b { to { transform: translate(-160px, -60px) scale(0.9); } }
+  @keyframes tbh-drift-c { to { transform: translate(-120px, 70px) scale(1.2); } }
+  @keyframes tbh-lanes { to { background-position: 172px 0; } }
+
+  .tbh-in {
+    max-width: 1240px; margin: 0 auto; padding: 72px 28px 76px;
+    display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 40px; align-items: center;
+  }
+  .tbh-kicker {
+    display: inline-block; margin: 0 0 22px; padding: 8px 12px;
+    background: var(--tbh-glow); color: var(--tbh-deep);
+    font: 900 12px/1 Chivo, system-ui, sans-serif; letter-spacing: 0.14em; text-transform: uppercase;
+    animation: tbh-rise 0.6s ease both;
+  }
+  .tbh h1 {
+    margin: 0; color: #fff; text-transform: none; letter-spacing: -0.02em;
+    font: 900 clamp(42px, 6.2vw, 78px)/0.98 Chivo, system-ui, sans-serif;
+    animation: tbh-rise 0.6s 0.08s ease both;
+  }
+  .tbh h1 em {
+    font-style: normal; color: var(--tbh-glow);
+    background: linear-gradient(var(--tbh-pop), var(--tbh-pop)) left 92% / 0 7px no-repeat;
+    animation: tbh-underline 0.7s 0.55s ease forwards;
+  }
+  @keyframes tbh-underline { to { background-size: 100% 7px; } }
+  .tbh-lead {
+    margin: 22px 0 0; max-width: 46ch; color: rgba(255,255,255,0.78);
+    font-size: 18px; line-height: 1.5; animation: tbh-rise 0.6s 0.16s ease both;
+  }
+  .tbh-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; animation: tbh-rise 0.6s 0.24s ease both; }
+  .tbh-go, .tbh-vid {
+    display: inline-flex; align-items: center; gap: 12px; padding: 18px 24px; cursor: pointer;
+    font: 900 16px/1 Chivo, system-ui, sans-serif; text-decoration: none !important;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  }
+  .tbh-go { background: var(--tbh-pop); color: #fff !important; border: 2px solid var(--tbh-pop); }
+  .tbh-go::after { content: '\2192'; transition: transform 0.12s ease; }
+  .tbh-go:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 0 var(--tbh-glow); }
+  .tbh-go:hover::after { transform: translateX(4px); }
+  .tbh-vid { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,0.32); }
+  .tbh-vid::before { content: '\25B6'; font-size: 12px; color: var(--tbh-glow); }
+  .tbh-vid:hover { border-color: #fff; }
+  .tbh-stats { display: flex; flex-wrap: wrap; gap: 34px; margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.14); animation: tbh-rise 0.6s 0.32s ease both; }
+  .tbh-stat b { display: block; font: 900 30px/1 Chivo, system-ui, sans-serif; color: #fff; }
+  .tbh-stat:first-child b { color: var(--tbh-pop); }
+  .tbh-stat span { display: block; margin-top: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.55); }
+  @keyframes tbh-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+  /* The gear wall. Two rows drifting opposite ways, tilted like a stack of
+     hang tags. Each row holds its tiles twice so the loop has no seam. */
+  .tbh-wall {
+    position: relative; display: flex; flex-direction: column; gap: 22px;
+    transform: rotate(-7deg); margin: -40px -80px -40px 0;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  }
+  .tbh-row { display: flex; gap: 22px; width: max-content; animation: tbh-slide 46s linear infinite; }
+  .tbh-row + .tbh-row { animation-duration: 54s; animation-direction: reverse; }
+  .tbh-wall:hover .tbh-row { animation-play-state: paused; }
+  @keyframes tbh-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .tbh-tile {
+    flex: none; width: 168px; aspect-ratio: 1; padding: 10px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s ease;
+  }
+  .tbh-tile:nth-child(3n+1) { box-shadow: 7px 7px 0 0 var(--tbh-glow); }
+  .tbh-tile:nth-child(3n+2) { box-shadow: 7px 7px 0 0 var(--tbh-pop); }
+  .tbh-tile:nth-child(3n)   { box-shadow: 7px 7px 0 0 var(--tbh-blue); }
+  .tbh-tile:hover { transform: scale(1.05) rotate(2deg); }
+  .tbh-tile img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+
+  /* Once someone is past step 1 they have bought in: the header shrinks to
+     a slim band so the products sit high on the screen. */
+  .tbh-page:has(#trh-sb .steps span:first-child:not(.on)) .tbh-in { padding: 26px 28px; grid-template-columns: 1fr; }
+  .tbh-page:has(#trh-sb .steps span:first-child:not(.on)) :is(.tbh-kicker, .tbh-lead, .tbh-actions, .tbh-stats, .tbh-wall) { display: none; }
+  .tbh-page:has(#trh-sb .steps span:first-child:not(.on)) .tbh h1 { font-size: clamp(28px, 3.4vw, 40px); animation: none; }
+
+  @media (max-width: 989px) {
+    .tbh-in { grid-template-columns: 1fr; padding: 48px 20px 40px; gap: 34px; }
+    .tbh-wall { margin: 0 -40px; }
+    .tbh-tile { width: 120px; }
+  }
+  @media (max-width: 600px) {
+    .tbh-lead { font-size: 16px; }
+    .tbh-stats { gap: 22px; }
+    .tbh-stat b { font-size: 24px; }
+    .tbh-go, .tbh-vid { padding: 15px 18px; font-size: 15px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tbh *, .tbh::before, .tbh::after { animation: none !important; }
+    .tbh h1 em { background-size: 100% 7px; }
+  }
+</style>
+
+<div class="tbh">
+  <span class="tbh-ember" aria-hidden="true"></span>
+  <span class="tbh-lanes" aria-hidden="true"></span>
+  <div class="tbh-in">
+    <div>
+      <p class="tbh-kicker">Free to set up &middot; No minimums</p>
+      <h1>Build your <em>team store</em></h1>
+      <p class="tbh-lead">Your logo on real gear, in your colors. We send a free preview before anything goes live.</p>
+      <div class="tbh-actions">
+        <a href="#sb-1" class="tbh-go" data-tbh-go>Start building</a>
+        <button type="button" class="tbh-vid" data-tbh-vid>Watch how it works</button>
+      </div>
+      <div class="tbh-stats">
+        {%- if tbh_count > 0 -%}<div class="tbh-stat"><b>{{ tbh_count }}</b><span>Team stores</span></div>{%- endif -%}
+        <div class="tbh-stat"><b>$0</b><span>To set up</span></div>
+        <div class="tbh-stat"><b>Free</b><span>Preview first</span></div>
+      </div>
+    </div>
+    {%- if tbh_n >= 8 -%}
+      <div class="tbh-wall" aria-hidden="true">
+        <div class="tbh-row">{{ tbh_a }}{{ tbh_a }}</div>
+        <div class="tbh-row">{{ tbh_b }}{{ tbh_b }}</div>
+      </div>
+    {%- endif -%}
+  </div>
+</div>
+
+<script>
+  (function () {
+    // The video modal belongs to the builder; its own button lives in the
+    // hidden old header, so this one just presses it.
+    var vid = document.querySelector('[data-tbh-vid]');
+    if (vid) vid.addEventListener('click', function () { var b = document.getElementById('howv'); if (b) b.click(); });
+    var go = document.querySelector('[data-tbh-go]');
+    if (go) go.addEventListener('click', function (e) {
+      var t = document.getElementById('trh-sb');
+      if (!t) return;
+      e.preventDefault();
+      t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  })();
+</script>

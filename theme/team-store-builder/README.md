@@ -26,6 +26,28 @@ directory open the builder, falling back to the email if the
 `build-your-store` page is ever missing. Backups of the overwritten files
 are in `theme-backups/` (gitignored).
 
+## The brighter layer and the animated header, 2026-11-11
+
+Owner's brief: too cluttered with text, not enough colour or motion, look
+at the Team Stores page and how much it pops. Todays Draft Theme only.
+
+| file | what it is |
+|---|---|
+| `snippets/trh-builder-hero.liquid` | the new header: deep navy, drifting cyan / blue / orange glows, sliding track-lane stripes, and a tilted two-row wall of REAL team store products (one per sampled store, from the same `custom.team_stores` list the Team Stores page reads). Shrinks to a slim band past step 1 |
+| `assets/trh-builder-pop.css` | the restyle, loaded AFTER `trh-builder.css`: race-split step rail, offset-block chips and buttons, orange commit buttons, gradient preview frame, bundle band, and five redundant sentences hidden |
+| `sections/main-page.liquid` | loads both; `tbh-page` wraps header and builder so the header can read the builder's step rail with `:has()` |
+
+Palette is the Team Stores page's, measured off it: deep `#05101d`, cyan
+`#06b6d4`, electric `#2b7fff`, orange `#f47b20`. Every rule is
+`html body #trh-sb ... !important` because `trh-builder.css` carries 360
+`!important` rules. The builder's markup and JS are untouched; the old
+`.trh-hero` is hidden, not removed, because its video button is what the
+new "Watch how it works" presses.
+
+Checked in preview on steps 1 and 2 with no console errors. Step 3 needs a
+product in the request before it opens and was not rendered. Mobile was
+not rendered either.
+
 ## Where it used to live, and why that was a problem
 
 All 112KB of it sat in the `body_html` field of page `167233192191`. A

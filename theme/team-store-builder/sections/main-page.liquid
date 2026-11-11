@@ -23,6 +23,15 @@
 {%- if page.handle == 'build-your-store' -%}
 
   {{ 'trh-builder.css' | asset_url | stylesheet_tag }}
+  {%- comment -%}
+    The brighter layer and the animated header, 2026-11-11. The layer must
+    load AFTER trh-builder.css. The header sits outside page-width so it can
+    run full bleed, and tbh-page wraps both so the header can shrink once
+    the builder is past step 1 (it reads the builder's own step rail).
+  {%- endcomment -%}
+  {{ 'trh-builder-pop.css' | asset_url | stylesheet_tag }}
+  <div class="tbh-page">
+  {%- render 'trh-builder-hero' -%}
 
   {%- comment -%}
     Full bleed rather than page-width--narrow, and outside .rte. The
@@ -32,6 +41,7 @@
   {%- endcomment -%}
   <div class="page-width">
     {%- render 'team-store-builder' -%}
+  </div>
   </div>
 
 {%- else -%}
