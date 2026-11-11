@@ -1,0 +1,265 @@
+{
+ "_note": "Batch 2, 2026-11-11: shoe model and accessory brand collections with no SEO title or meta. Generated from each collection's own active products. Add only.",
+ "collections": {
+  "aetrex": {
+   "seoTitle": "Aetrex Insoles | The Run House",
+   "meta": "Aetrex insoles at The Run House. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "_kind": "brand"
+  },
+  "amphipod": {
+   "seoTitle": "Amphipod Hydration & Running Gear | The Run House",
+   "meta": "Amphipod handhelds, hydration belts, storage and visibility gear at The Run House. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "_kind": "brand"
+  },
+  "balega": {
+   "seoTitle": "Balega Running Socks | The Run House",
+   "meta": "Balega running socks at The Run House. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "_kind": "brand"
+  },
+  "falke": {
+   "seoTitle": "Falke Running Socks | The Run House",
+   "meta": "Falke running socks at The Run House. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "_kind": "brand"
+  },
+  "feetures": {
+   "seoTitle": "Feetures Running Socks | The Run House",
+   "meta": "Feetures running socks at The Run House. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "_kind": "brand"
+  },
+  "powerstep": {
+   "seoTitle": "PowerStep Insoles | The Run House",
+   "meta": "PowerStep insoles and arch support at The Run House. Get fitted in Needham, Walpole or Falmouth, MA, or shop online.",
+   "_kind": "brand"
+  },
+  "sprints": {
+   "seoTitle": "Sprints Running Hats | The Run House",
+   "meta": "Sprints running hats and headwear at The Run House. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "_kind": "brand"
+  },
+  "triggerpoint": {
+   "seoTitle": "Triggerpoint Recovery Tools | The Run House",
+   "meta": "Triggerpoint recovery tools at The Run House. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "_kind": "brand"
+  },
+  "cumulus": {
+   "seoTitle": "ASICS Cumulus Running Shoes | The Run House",
+   "meta": "Shop the ASICS Cumulus in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "new-balance-rebel-v5": {
+   "seoTitle": "New Balance Rebel V5 Running Shoes | The Run House",
+   "meta": "Shop the New Balance Rebel V5 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "on-cloudmonster-2": {
+   "seoTitle": "On Cloudmonster 2 Running Shoes | The Run House",
+   "meta": "Shop the On Cloudmonster 2 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "hoka-bondi-9": {
+   "seoTitle": "HOKA Bondi 9 Running Shoes | The Run House",
+   "meta": "Shop the HOKA Bondi 9 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "on-cloudboom-strike": {
+   "seoTitle": "On Cloudboom Strike Running Shoes | The Run House",
+   "meta": "Shop the On Cloudboom Strike in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "on-cloudrunner": {
+   "seoTitle": "On Cloudrunner Running Shoes | The Run House",
+   "meta": "Shop the On Cloudrunner in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "on-cloudfow-5": {
+   "seoTitle": "On Cloudfow 5 Running Shoes | The Run House",
+   "meta": "Shop the On Cloudfow 5 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "on-cloudsurfer-2": {
+   "seoTitle": "On Cloudsurfer 2 Running Shoes | The Run House",
+   "meta": "Shop the On Cloudsurfer 2 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "on-cloud-6": {
+   "seoTitle": "On Cloud 6 Running Shoes | The Run House",
+   "meta": "Shop the On Cloud 6 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "puma-velocity-nitro-4": {
+   "seoTitle": "Puma Velocity Nitro 4 Running Shoes | The Run House",
+   "meta": "Shop the Puma Velocity Nitro 4 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "puma-magmax": {
+   "seoTitle": "Puma Magmax Running Shoes | The Run House",
+   "meta": "Shop the Puma Magmax in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "new-balance-880v15": {
+   "seoTitle": "New Balance 880v15 Running Shoes | The Run House",
+   "meta": "Shop the New Balance 880v15 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "saucony-endorphin-pro-4": {
+   "seoTitle": "Saucony Endorphin Pro 4 Running Shoes | The Run House",
+   "meta": "Shop the Saucony Endorphin Pro 4 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "sauocony-ride-18": {
+   "seoTitle": "Saucony Ride 18 Running Shoes | The Run House",
+   "meta": "Shop the Saucony Ride 18 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "sauony-triumph-23": {
+   "seoTitle": "Saucony Triumph 23 Running Shoes | The Run House",
+   "meta": "Shop the Saucony Triumph 23 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "brooks-ghost-max": {
+   "seoTitle": "Brooks Ghost Max Running Shoes | The Run House",
+   "meta": "Shop the Brooks Ghost Max in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "glycerin-max": {
+   "seoTitle": "Brooks Glycerin Max Running Shoes | The Run House",
+   "meta": "Shop the Brooks Glycerin Max in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "magnify-nitro": {
+   "seoTitle": "Puma Magnify Nitro Running Shoes | The Run House",
+   "meta": "Shop the Puma Magnify Nitro in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "saucony-ride-19": {
+   "seoTitle": "Saucony Ride 19 Running Shoes | The Run House",
+   "meta": "Shop the Saucony Ride 19 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "puma-deviate-nitro-4": {
+   "seoTitle": "Puma Deviate Nitro 4 Running Shoes | The Run House",
+   "meta": "Shop the Puma Deviate Nitro 4 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "brooks-glycerin-flex": {
+   "seoTitle": "Brooks Glycerin Flex Running Shoes | The Run House",
+   "meta": "Shop the Brooks Glycerin Flex in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "glycerin-max-2": {
+   "seoTitle": "Brooks Glycerin Max 2 Running Shoes | The Run House",
+   "meta": "Shop the Brooks Glycerin Max 2 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "on-cloudmonster": {
+   "seoTitle": "On Cloudmonster Running Shoes | The Run House",
+   "meta": "Shop the On Cloudmonster in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "brooks-ghost-18": {
+   "seoTitle": "Brooks Ghost 18 Running Shoes | The Run House",
+   "meta": "Shop the Brooks Ghost 18 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "on-cloudmonster-hyper": {
+   "seoTitle": "On Cloudmonster Hyper Running Shoes | The Run House",
+   "meta": "Shop the On Cloudmonster Hyper in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "saucony-endorphin-elite": {
+   "seoTitle": "Saucony Endorphin Elite Running Shoes | The Run House",
+   "meta": "Shop the Saucony Endorphin Elite in unisex sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "asics-novablast-6": {
+   "seoTitle": "ASICS Novablast 6 Running Shoes | The Run House",
+   "meta": "Shop the ASICS Novablast 6 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "puma-magmax-2": {
+   "seoTitle": "Puma Magmax 2 Running Shoes | The Run House",
+   "meta": "Shop the Puma Magmax 2 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "saucony-endorphin-pro-5": {
+   "seoTitle": "Saucony Endorphin Pro 5 Running Shoes | The Run House",
+   "meta": "Shop the Saucony Endorphin Pro 5 in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "brooks-ghost-amp": {
+   "seoTitle": "Brooks Ghost Amp Running Shoes | The Run House",
+   "meta": "Shop the Brooks Ghost Amp in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "brooks-cascadia": {
+   "seoTitle": "Brooks Cascadia Trail Running Shoes | The Run House",
+   "meta": "Shop the Brooks Cascadia in women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "brooks-addiction-gts": {
+   "seoTitle": "Brooks Addiction GTS Running Shoes | The Run House",
+   "meta": "Shop the Brooks Addiction GTS in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-timp": {
+   "seoTitle": "Altra Timp Running Shoes | The Run House",
+   "meta": "Shop the Altra Timp in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-olympus": {
+   "seoTitle": "Altra Olympus Running Shoes | The Run House",
+   "meta": "Shop the Altra Olympus in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-torin": {
+   "seoTitle": "Altra Torin Running Shoes | The Run House",
+   "meta": "Shop the Altra Torin in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-escalante": {
+   "seoTitle": "Altra Escalante Running Shoes | The Run House",
+   "meta": "Shop the Altra Escalante in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-experience-flow": {
+   "seoTitle": "Altra Experience Flow Running Shoes | The Run House",
+   "meta": "Shop the Altra Experience Flow in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-experience-wild": {
+   "seoTitle": "Altra Experience Wild Running Shoes | The Run House",
+   "meta": "Shop the Altra Experience Wild in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-fwd-via": {
+   "seoTitle": "Altra FWD Via Running Shoes | The Run House",
+   "meta": "Shop the Altra FWD Via in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-superior": {
+   "seoTitle": "Altra Superior Running Shoes | The Run House",
+   "meta": "Shop the Altra Superior in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-mont-blanc-speed": {
+   "seoTitle": "Altra Mont Blanc Speed Running Shoes | The Run House",
+   "meta": "Shop the Altra Mont Blanc Speed in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-vanish-pulse": {
+   "seoTitle": "Altra Vanish Pulse Running Shoes | The Run House",
+   "meta": "Shop the Altra Vanish Pulse in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-motiv-flx": {
+   "seoTitle": "Altra Motiv FLX Running Shoes | The Run House",
+   "meta": "Shop the Altra Motiv FLX in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  },
+  "altra-voyager": {
+   "seoTitle": "Altra Voyager Running Shoes | The Run House",
+   "meta": "Shop the Altra Voyager in men's and women's sizes at The Run House. Try a pair on and get fitted in Needham, Walpole or Falmouth, MA.",
+   "_kind": "model"
+  }
+ }
+}
