@@ -1,0 +1,357 @@
+{%- comment -%}
+  sections/shoe-review.liquid, The Run House
+  Single-shoe blog review. Reads review.* article metafields and pulls the spec
+  strip + price from the linked product (review.reviewed_product).
+
+  PHOTOS:
+    - Featured image  -> framed hero (full image, never cropped).
+    - review.gallery  -> full images, never cropped. Two layouts via the section
+                         setting "Scatter gallery photos through text":
+                           OFF -> masonry grid block (columns adapt to count).
+                           ON  -> images spread evenly between body paragraphs.
+    - Body images     -> drop into the body editor anywhere; auto-framed.
+
+  Article metafields (namespace 'review'):
+    reviewed_product  product_reference
+    score             number_decimal           out of 10 (badge color tiers by value)
+    verdict           single_line_text_field
+    pros              list.single_line_text_field
+    cons              list.single_line_text_field
+    best_for          list.single_line_text_field
+    gallery           list.file_reference
+    weight_oz         number_decimal
+    miles_tested      number_integer
+    tester            single_line_text_field
+    fit_notes         single_line_text_field
+
+  Pairs with snippets/shoe-spec-chart.liquid.
+{%- endcomment -%}
+
+{%- liquid
+  assign r = article.metafields.review
+  assign rp = r.reviewed_product.value
+  assign score = r.score.value
+  assign verdict = r.verdict.value
+  assign tester = r.tester.value
+  assign miles = r.miles_tested.value
+  assign weight = r.weight_oz.value
+  assign fit = r.fit_notes.value
+  assign pros = r.pros.value
+  assign cons = r.cons.value
+  assign best_for = r.best_for.value
+  assign gallery = r.gallery.value
+  assign eyebrow = section.settings.eyebrow | default: 'Review'
+
+  # score badge color tiers
+  assign score_color = '#1f6fe0'
+  if score != nil
+    if score >= 8
+      assign score_color = '#157a45'
+    elsif score >= 6.5
+      assign score_color = '#1f6fe0'
+    elsif score >= 5
+      assign score_color = '#b8730f'
+    else
+      assign score_color = '#d11f2a'
+    endif
+  endif
+
+  # photo layout
+  assign scatter = false
+  if section.settings.scatter_photos and gallery != blank
+    assign scatter = true
+  endif
+
+  # grid column count (only used when not scattering): fewer columns = bigger photos
+  assign gcount = 0
+  if gallery != blank
+    assign gcount = gallery.size
+  endif
+  assign gcols = 2
+  if gcount == 1
+    assign gcols = 1
+  endif
+-%}
+
+<div class="trh-review">
+
+  {%- if article.image -%}
+    <div class="trh-review__hero">
+      <img src="{{ article.image | image_url: width: 1600 }}"
+           srcset="{{ article.image | image_url: width: 800 }} 800w, {{ article.image | image_url: width: 1200 }} 1200w, {{ article.image | image_url: width: 1600 }} 1600w"
+           sizes="(min-width: 900px) 860px, 100vw"
+           alt="{{ article.title | escape }}" width="{{ article.image.width }}" height="{{ article.image.height }}" loading="eager">
+    </div>
+  {%- endif -%}
+
+  <div class="trh-review__eyebrow">
+    <span class="trh-review__tag">{{ eyebrow }}</span>
+    {%- assign meta_bits = '' -%}
+    {%- if tester != blank -%}{%- assign meta_bits = meta_bits | append: 'Tested by ' | append: tester -%}{%- endif -%}
+    {%- if miles != nil -%}
+      {%- if meta_bits != '' -%}{%- assign meta_bits = meta_bits | append: ' · ' -%}{%- endif -%}
+      {%- assign meta_bits = meta_bits | append: miles | append: ' miles' -%}
+    {%- endif -%}
+    {%- if meta_bits != '' -%}<span class="trh-review__meta">{{ meta_bits }}</span>{%- endif -%}
+  </div>
+
+  <h1 class="trh-review__title">{{ article.title }}</h1>
+
+  {%- if verdict != blank or score != nil -%}
+    <div class="trh-review__verdict-row">
+      {%- if verdict != blank -%}<p class="trh-review__verdict">{{ verdict }}</p>{%- endif -%}
+      {%- if score != nil and section.settings.show_score -%}
+        <div class="trh-review__score" style="background:{{ score_color }};">
+          <div class="trh-review__score-n">{{ score }}</div>
+          <div class="trh-review__score-k">out of 10</div>
+        </div>
+      {%- endif -%}
+    </div>
+  {%- endif -%}
+
+  {%- if rp -%}
+    {% render 'shoe-spec-chart', product: rp %}
+  {%- endif -%}
+
+  {%- if gallery != blank and scatter == false -%}
+    <div class="trh-review__gallery{% if gcount == 1 %} is-single{% endif %}" style="column-count:{{ gcols }};">
+      {%- for img in gallery -%}
+        <div class="trh-review__gallery-item">
+          <img src="{{ img | image_url: width: 1200 }}"
+               srcset="{{ img | image_url: width: 700 }} 700w, {{ img | image_url: width: 1200 }} 1200w, {{ img | image_url: width: 1600 }} 1600w"
+               sizes="(min-width: 900px) 420px, 100vw"
+               alt="{{ img.alt | default: article.title | escape }}" width="{{ img.width }}" height="{{ img.height }}" loading="lazy">
+        </div>
+      {%- endfor -%}
+    </div>
+  {%- endif -%}
+
+  {%- if pros != blank or cons != blank -%}
+    <div class="trh-review__poco">
+      {%- if pros != blank -%}
+        <div class="trh-review__panel trh-review__panel--pros">
+          <div class="trh-review__panel-k">Pros</div>
+          {%- for p in pros -%}<div class="trh-review__li"><span class="trh-review__plus">+</span>{{ p }}</div>{%- endfor -%}
+        </div>
+      {%- endif -%}
+      {%- if cons != blank -%}
+        <div class="trh-review__panel trh-review__panel--cons">
+          <div class="trh-review__panel-k">Cons</div>
+          {%- for c in cons -%}<div class="trh-review__li"><span class="trh-review__minus">–</span>{{ c }}</div>{%- endfor -%}
+        </div>
+      {%- endif -%}
+    </div>
+  {%- endif -%}
+
+  {%- if best_for != blank -%}
+    <div class="trh-review__bestfor">
+      <div class="trh-review__bestfor-k">Best for</div>
+      <div class="trh-review__chips">
+        {%- for b in best_for -%}<span class="trh-review__chip">{{ b }}</span>{%- endfor -%}
+      </div>
+    </div>
+  {%- endif -%}
+
+  {%- if weight != nil or miles != nil or fit != blank -%}
+    <div class="trh-review__statline">
+      {%- if weight != nil -%}<div><span>Weight</span> <strong>{{ weight }} oz</strong></div>{%- endif -%}
+      {%- if miles != nil -%}<div><span>Tested</span> <strong>{{ miles }} miles</strong></div>{%- endif -%}
+      {%- if fit != blank -%}<div><span>Fit</span> <strong>{{ fit }}</strong></div>{%- endif -%}
+    </div>
+  {%- endif -%}
+
+  <div class="trh-review__body rte">
+    {%- if scatter -%}
+      {%- assign chunks = article.content | split: '</p>' -%}
+      {%- assign nc = chunks.size -%}
+      {%- assign ni = gallery.size -%}
+      {%- assign ni1 = ni | plus: 1 -%}
+      {%- assign placed = 0 -%}
+      {%- for chunk in chunks -%}
+        {{ chunk }}{%- unless forloop.last -%}</p>{%- endunless -%}
+        {%- if placed < ni and forloop.last == false -%}
+          {%- assign nextk = placed | plus: 1 -%}
+          {%- assign target = nextk | times: nc | divided_by: ni1 -%}
+          {%- if forloop.index >= target -%}
+            {%- assign photo = gallery[placed] -%}
+            <div class="trh-review__scatter">
+              <img src="{{ photo | image_url: width: 1400 }}"
+                   srcset="{{ photo | image_url: width: 800 }} 800w, {{ photo | image_url: width: 1400 }} 1400w"
+                   sizes="(min-width: 900px) 840px, 100vw"
+                   alt="{{ photo.alt | default: article.title | escape }}" width="{{ photo.width }}" height="{{ photo.height }}" loading="lazy">
+            </div>
+            {%- assign placed = placed | plus: 1 -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- if placed < ni -%}
+        {%- for j in (placed..ni) -%}
+          {%- if j < ni -%}
+            {%- assign photo = gallery[j] -%}
+            <div class="trh-review__scatter">
+              <img src="{{ photo | image_url: width: 1400 }}"
+                   srcset="{{ photo | image_url: width: 800 }} 800w, {{ photo | image_url: width: 1400 }} 1400w"
+                   sizes="(min-width: 900px) 840px, 100vw"
+                   alt="{{ photo.alt | default: article.title | escape }}" width="{{ photo.width }}" height="{{ photo.height }}" loading="lazy">
+            </div>
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endif -%}
+    {%- else -%}
+      {{ article.content }}
+    {%- endif -%}
+  </div>
+
+  {%- if rp and section.settings.show_buy -%}
+    <a class="trh-review__cta" href="{{ rp.url }}">
+      Shop the {{ article.title }}
+      <span class="trh-review__cta-price">{{ rp.price | money }}</span>
+    </a>
+  {%- endif -%}
+
+</div>
+
+<style>
+  .trh-review {
+    --trh-navy: #1b3566;
+    --trh-accent: #1f6fe0;
+    --trh-accent-deep: #1559bd;
+    --trh-navy-tint: rgba(31,111,224,0.08);
+    --trh-blue-soft: #eef3fb;
+    --trh-ink: #0a1124;
+    --trh-body: #39434f;
+    --trh-muted: #6b7686;
+    --trh-line: rgba(10,23,51,0.14);
+    --trh-line-strong: rgba(10,23,51,0.30);
+    --trh-green: #157a45;
+    --trh-green-soft: #e9f6ef;
+    --trh-green-ink: #0f6e43;
+    --trh-red: #d11f2a;
+    --trh-red-soft: #fdecee;
+    --trh-red-ink: #a3121c;
+    --trh-gray-soft: #f3f6fb;
+    font-family: 'Chivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--trh-ink);
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 4rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .trh-review__hero {
+    border: 2.5px solid var(--trh-ink);
+    box-shadow: 10px 10px 0 var(--trh-accent);
+    margin-bottom: 2rem;
+    background: #fff;
+  }
+  .trh-review__hero img { display: block; width: 100%; height: auto; }
+
+  .trh-review__eyebrow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .trh-review__tag {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+    color: #fff; background: var(--trh-accent); padding: 5px 11px;
+  }
+  .trh-review__meta { font-size: 12px; color: var(--trh-muted); letter-spacing: 0.04em; }
+
+  .trh-review__title {
+    font-size: clamp(1.9rem, 5vw, 2.6rem); font-weight: 800; letter-spacing: -0.03em;
+    line-height: 1.02; margin: 0 0 18px;
+  }
+
+  .trh-review__verdict-row {
+    display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; margin-bottom: 26px;
+  }
+  .trh-review__verdict {
+    font-size: 1.2rem; font-weight: 600; color: var(--trh-body); margin: 0;
+    flex: 1; min-width: 240px; line-height: 1.4;
+    border-left: 4px solid var(--trh-accent); padding-left: 16px;
+  }
+  .trh-review__score {
+    color: #fff; padding: 14px 22px; text-align: center; flex-shrink: 0; align-self: flex-start;
+  }
+  .trh-review__score-n { font-size: 2.4rem; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+  .trh-review__score-k { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.85; margin-top: 4px; }
+
+  .trh-review__gallery { column-gap: 14px; margin: 26px 0; }
+  .trh-review__gallery-item {
+    break-inside: avoid; margin-bottom: 14px;
+    border: 1.5px solid var(--trh-line-strong); background: #fff;
+  }
+  .trh-review__gallery-item img { display: block; width: 100%; height: auto; }
+
+  .trh-review__scatter { margin: 1.9rem 0; }
+  .trh-review__scatter img {
+    display: block; width: 100%; height: auto;
+    border: 2px solid var(--trh-ink); box-shadow: 6px 6px 0 var(--trh-navy-tint);
+  }
+
+  .trh-review__poco { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 26px 0; }
+  .trh-review__panel { padding: 16px 18px; }
+  .trh-review__panel--pros { background: var(--trh-green-soft); border-top: 4px solid var(--trh-green); }
+  .trh-review__panel--cons { background: var(--trh-red-soft); border-top: 4px solid var(--trh-red); }
+  .trh-review__panel-k { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 12px; }
+  .trh-review__panel--pros .trh-review__panel-k { color: var(--trh-green-ink); }
+  .trh-review__panel--cons .trh-review__panel-k { color: var(--trh-red-ink); }
+  .trh-review__li { display: flex; gap: 9px; margin-bottom: 9px; font-size: 14px; font-weight: 600; line-height: 1.35; }
+  .trh-review__li:last-child { margin-bottom: 0; }
+  .trh-review__plus { color: var(--trh-green); font-weight: 800; flex-shrink: 0; }
+  .trh-review__minus { color: var(--trh-red); font-weight: 800; flex-shrink: 0; }
+
+  .trh-review__bestfor { margin: 26px 0; }
+  .trh-review__bestfor-k { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--trh-muted); margin-bottom: 10px; }
+  .trh-review__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .trh-review__chip { font-size: 13px; font-weight: 700; background: var(--trh-blue-soft); color: var(--trh-navy); padding: 7px 13px; }
+
+  .trh-review__statline {
+    display: flex; flex-wrap: wrap; gap: 24px;
+    background: var(--trh-gray-soft); padding: 14px 18px; margin: 26px 0; font-size: 13px;
+  }
+  .trh-review__statline span { color: var(--trh-muted); }
+  .trh-review__statline strong { font-weight: 800; }
+
+  .trh-review__body { font-size: 16px; line-height: 1.7; color: var(--trh-body); margin: 26px 0; }
+  .trh-review__body p { margin: 0 0 1.1rem; }
+  .trh-review__body h2, .trh-review__body h3 { color: var(--trh-ink); font-weight: 800; letter-spacing: -0.01em; margin: 2rem 0 0.75rem; }
+  .trh-review__body h2 { font-size: 1.5rem; }
+  .trh-review__body h3 { font-size: 1.2rem; }
+  .trh-review__body a { color: var(--trh-accent); text-decoration: underline; text-underline-offset: 2px; }
+  .trh-review__body img {
+    display: block; width: 100%; height: auto; margin: 1.6rem 0;
+    border: 2px solid var(--trh-ink); box-shadow: 6px 6px 0 var(--trh-navy-tint);
+  }
+  .trh-review__body ul, .trh-review__body ol { margin: 0 0 1.1rem 1.25rem; }
+  .trh-review__body li { margin-bottom: 0.4rem; }
+
+  .trh-review__cta {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--trh-accent); color: #fff; text-decoration: none;
+    padding: 17px 24px; font-size: 16px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    transition: background 0.18s ease;
+  }
+  .trh-review__cta:hover { background: var(--trh-accent-deep); }
+  .trh-review__cta-price { margin-left: auto; font-weight: 800; white-space: nowrap; }
+
+  @media (max-width: 600px) {
+    .trh-review { padding: 1rem 1rem 3rem; }
+    .trh-review__hero { box-shadow: 7px 7px 0 var(--trh-accent); margin-bottom: 1.5rem; }
+    .trh-review__poco { grid-template-columns: 1fr; gap: 12px; }
+    .trh-review__gallery { column-count: 1 !important; }
+  }
+</style>
+
+{% schema %}
+{
+  "name": "Shoe review",
+  "tag": "section",
+  "class": "shoe-review-section",
+  "settings": [
+    { "type": "text", "id": "eyebrow", "label": "Eyebrow label", "default": "Review" },
+    { "type": "checkbox", "id": "show_score", "label": "Show score badge", "default": true },
+    { "type": "checkbox", "id": "show_buy", "label": "Show buy button", "default": true },
+    { "type": "checkbox", "id": "scatter_photos", "label": "Scatter gallery photos through text", "default": false }
+  ]
+}
+{% endschema %}
+
