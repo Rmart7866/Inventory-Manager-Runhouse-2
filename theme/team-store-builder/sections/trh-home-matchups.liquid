@@ -255,7 +255,15 @@
     line-height: .98 !important;
     font-size: clamp(40px, 5vw, 66px) !important;
   }
-  html body main .trhp-band[data-trhp-band="home"] .trhp-t em { font-style: normal !important; color: #f47b20 !important; }
+  /* Single colour title (owner, 2026-11-11). */
+  html body main .trhp-band[data-trhp-band="home"] .trhp-t em { font-style: normal !important; color: inherit !important; }
+  /* No 01 / 02 / 03 on the points, the text stays. */
+  html body main .trhp-band[data-trhp-band="home"] .trhp-pts i { display: none !important; }
+  /* No arrow. "Start my House Call &rarr;" is TEXT in the shared script,
+     which is not edited, so the label is redrawn without it: the link's own
+     text is sized to nothing and the same words are set in its place. */
+  html body main .trhp-band[data-trhp-band="home"] .trhp-b { font-size: 0 !important; }
+  html body main .trhp-band[data-trhp-band="home"] .trhp-b::before { content: 'Start my House Call'; font-size: 16px; line-height: 1; }
   html body main .trhp-band[data-trhp-band="home"] .trhp-s,
   html body main .trhp-band[data-trhp-band="home"] .trhp-p,
   html body main .trhp-band[data-trhp-band="home"] .trhp-pts li { font-family: 'Chivo', system-ui, sans-serif !important; }
