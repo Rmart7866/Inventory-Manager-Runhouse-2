@@ -55,8 +55,10 @@ The header's motion is now the gear wall and the faint lanes only. A
 computed-style sweep over steps 1 and 2 found no underline left.
 
 **The store banner.** Step 3 has an optional "Store banner" upload. It goes
-up through the same cart property path as the logos, shows full width
-across the top of the store preview, and is sent as `banner_file` in the
+up through the same cart property path as the logos, sits BEHIND the "Team
+store preview" card in place of the race photo (owner's call: on the card,
+not as a strip above it; `.storehead.hasbn`, `--bn` set inline, a flat 55%
+tint so the team name reads), and is sent as `banner_file` in the
 request. The Worker keeps it on the work copy (`workFrom` -> `banner`), the
 staff inbox shows it in the Logos pane, and Build sets it as the
 COLLECTION IMAGE on a NEW store only (an existing store's image is never
