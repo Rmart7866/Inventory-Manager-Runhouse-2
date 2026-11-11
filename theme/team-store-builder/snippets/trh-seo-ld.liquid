@@ -1,0 +1,74 @@
+{%- comment -%}
+  Page level structured data, 2026-11-11. Rendered from layout/theme.liquid
+  in the <head> on collection, product and article pages.
+
+  Measured by the crawl that day: collections carried only CollectionPage, no
+  page had a BreadcrumbList, and articles had no Article type at all, so
+  Google could not show breadcrumbs in results or treat the shoe reviews as
+  articles. The home page keeps its own blocks in snippets/structured-data.
+{%- endcomment -%}
+{%- assign trh_home = shop.url | append: '/' -%}
+{%- assign trh_logo = images['Gotham-Black-B_W.png'] -%}
+
+{%- if template.name == 'collection' and collection.handle -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": {{ trh_home | json }} },
+    { "@type": "ListItem", "position": 2, "name": {{ collection.title | json }}, "item": {{ shop.url | append: collection.url | json }} }
+  ]
+}
+</script>
+{%- elsif template.name == 'product' -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": {{ trh_home | json }} },
+    {%- if collection and collection.handle -%}
+    { "@type": "ListItem", "position": 2, "name": {{ collection.title | json }}, "item": {{ shop.url | append: collection.url | json }} },
+    { "@type": "ListItem", "position": 3, "name": {{ product.title | json }}, "item": {{ shop.url | append: product.url | json }} }
+    {%- else -%}
+    { "@type": "ListItem", "position": 2, "name": {{ product.title | json }}, "item": {{ shop.url | append: product.url | json }} }
+    {%- endif -%}
+  ]
+}
+</script>
+{%- elsif template.name == 'article' and article -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": {{ article.title | truncate: 110 | json }},
+  "datePublished": {{ article.published_at | date: '%Y-%m-%dT%H:%M:%S%z' | json }},
+  "dateModified": {{ article.updated_at | date: '%Y-%m-%dT%H:%M:%S%z' | json }},
+  "author": { "@type": "Person", "name": {{ article.author | json }} },
+  {%- if article.image %}
+  "image": {{ article.image | image_url: width: 1200 | prepend: 'https:' | json }},
+  {%- endif %}
+  "description": {{ article.excerpt_or_content | strip_html | strip_newlines | truncate: 300 | json }},
+  "mainEntityOfPage": {{ shop.url | append: article.url | json }},
+  "publisher": {
+    "@type": "Organization",
+    "name": {{ shop.name | json }}
+    {%- if trh_logo %},
+    "logo": { "@type": "ImageObject", "url": {{ trh_logo | image_url: width: 600 | prepend: 'https:' | json }} }
+    {%- endif %}
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": {{ trh_home | json }} },
+    { "@type": "ListItem", "position": 2, "name": {{ blog.title | json }}, "item": {{ shop.url | append: blog.url | json }} },
+    { "@type": "ListItem", "position": 3, "name": {{ article.title | json }}, "item": {{ shop.url | append: article.url | json }} }
+  ]
+}
+</script>
+{%- endif -%}

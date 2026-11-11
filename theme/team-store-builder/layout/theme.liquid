@@ -312,6 +312,9 @@ h1.section-header__title {
   {%- if template.name == 'index' -%}
     {%- render 'structured-data' -%}
   {%- endif -%}
+  {%- if template.name == 'collection' or template.name == 'product' or template.name == 'article' -%}
+    {%- render 'trh-seo-ld' -%}
+  {%- endif -%}
 </head>
 <body class="template-{{ template | replace: '.', ' ' | truncatewords: 1, '' | handle }}{% if request.path == '/challenge' %} template-challange{% endif %}" 
     data-center-text="{{ settings.type_body_align_text }}" 

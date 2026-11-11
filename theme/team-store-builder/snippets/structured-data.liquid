@@ -1,0 +1,76 @@
+{%- comment -%}
+  Structured data for the home page.
+
+  Measured on the live home page 2026-09-25: zero JSON-LD blocks and no <h1>.
+  So Google had nothing telling it what this business is, and nothing tying the
+  three shops to their addresses, which is what local search results are built
+  from.
+
+  Three blocks:
+    Organization, who the business is, so the brand panel can be built.
+    WebSite with SearchAction, which is what lets Google show a search box
+      under the brand result.
+    SportingGoodsStore, once per retail shop, with its real address and phone
+      read from the Shopify locations rather than retyped here.
+
+  Addresses are hardcoded deliberately: locations in Shopify include the
+  warehouse, the Run Bus and the out of state event locations, and none of
+  those is a shop a customer can walk into.
+{%- endcomment -%}
+
+{%- assign shop_url = shop.url -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": {{ shop.name | json }},
+  "url": {{ shop_url | json }},
+  {%- assign trh_logo = settings.logo | default: images['Gotham-Black-B_W.png'] -%}
+  {% if trh_logo %}"logo": {{ trh_logo | image_url: width: 600 | prepend: 'https:' | json }},{% endif %}
+  "description": {{ page_description | default: shop.description | json }},
+  "sameAs": [
+    "https://www.facebook.com/therunhouse",
+    "https://www.instagram.com/therunhouse"
+  ]
+}
+</script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": {{ shop.name | json }},
+  "url": {{ shop_url | json }},
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "{{ shop_url }}/search?q={search_term_string}"
+    },
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>
+
+{%- assign stores = 'Needham|943 Great Plain Ave|Needham|02492|+1-781-400-1327,Walpole|15 West Street|Walpole|02081|+1-508-734-5283,Falmouth|227 Main St|Falmouth|02540|+1-508-444-6432' | split: ',' -%}
+{%- for store in stores -%}
+  {%- assign f = store | split: '|' -%}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SportingGoodsStore",
+    "name": "{{ shop.name }} {{ f[0] }}",
+    "url": {{ shop_url | json }},
+    "telephone": "{{ f[4] }}",
+    "parentOrganization": { "@type": "Organization", "name": {{ shop.name | json }} },
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "{{ f[1] }}",
+      "addressLocality": "{{ f[2] }}",
+      "addressRegion": "MA",
+      "postalCode": "{{ f[3] }}",
+      "addressCountry": "US"
+    }
+  }
+  </script>
+{%- endfor -%}
