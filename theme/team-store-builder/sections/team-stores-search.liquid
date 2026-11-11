@@ -216,6 +216,7 @@
 
   #ts-{{ sid }} .ts-cta.no-wall .ts-cta-inner { grid-template-columns: 1fr; max-width: 820px; }
 
+  #ts-{{ sid }} .ts-cta h1,
   #ts-{{ sid }} .ts-cta h2 {
     font-size: clamp(36px, 5vw, 66px) !important;
     font-weight: 900 !important;
@@ -226,6 +227,7 @@
   }
 
   /* No underline under the title, owner 2026-11-11. */
+  #ts-{{ sid }} .ts-cta h1 em,
   #ts-{{ sid }} .ts-cta h2 em {
     font-style: normal;
     color: var(--ts-glow);
@@ -932,7 +934,7 @@
       <div class="ts-cta-inner">
         <div>
           <p class="ts-kicker">Get Started</p>
-          <h2>Create your <em>team store</em></h2>
+          {%- if section.settings.hero_image != blank -%}<h2>Create your <em>team store</em></h2>{%- else -%}<h1>Create your <em>team store</em></h1>{%- endif -%}
           {%- if section.settings.contact_blurb != blank -%}
             <p>{{ section.settings.contact_blurb }}</p>
           {%- endif -%}
