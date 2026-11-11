@@ -1,0 +1,166 @@
+{%- capture trh_pairs -%}{%- render 'trh-compare-pairs' -%}{%- endcapture -%}
+{%- assign trh_list = trh_pairs | strip | split: ';' -%}
+{%- assign trh_a = '' -%}{%- assign trh_b = '' -%}
+{%- assign trh_lab = '' -%}
+{%- for e in trh_list -%}{%- assign f = e | split: '|' -%}{%- if f[0] == page.handle -%}{%- assign trh_a = f[1] -%}{%- assign trh_b = f[2] -%}{%- assign trh_lab = f[3] -%}{%- break -%}{%- endif -%}{%- endfor -%}
+{%- if trh_a != '' -%}
+{%- capture trh_imgs -%}{%- render 'trh-compare-imgs' -%}{%- endcapture -%}
+{%- assign trh_il = trh_imgs | strip | split: ';' -%}
+{%- for e in trh_il -%}{%- assign f = e | split: '|' -%}{%- if f[0] == trh_a or f[0] == trh_b -%}
+<link rel="preload" as="image" href="{{ f[1] }}&width=420" imagesrcset="{{ f[1] }}&width=300 300w, {{ f[1] }}&width=420 420w, {{ f[1] }}&width=640 640w, {{ f[1] }}&width=800 800w" imagesizes="(min-width: 1000px) 376px, 37vw" fetchpriority="high">
+{%- endif -%}{%- endfor -%}
+{%- endif -%}
+<div id="trh-compare" data-title="{{ page.title | escape }}" data-handle="{{ page.handle }}"><div class="trh-static"><h1>{{ page.title }}</h1>{{ page.content }}
+{%- if page.handle == 'shoe-compare' -%}
+{%- render 'trh-compare-hub' -%}
+{%- elsif trh_a != '' -%}
+{%- assign trh_names = trh_lab | split: ' vs ' -%}
+<section class="trh-more"><h2>More head-to-heads</h2>
+{%- for trh_s in (1..2) -%}
+{%- if trh_s == 1 -%}{%- assign trh_id = trh_a -%}{%- assign trh_nm = trh_names[0] -%}{%- else -%}{%- assign trh_id = trh_b -%}{%- assign trh_nm = trh_names[1] -%}{%- endif -%}
+{%- capture trh_ul -%}{%- for e in trh_list -%}{%- assign f = e | split: '|' -%}{%- if f[0] != page.handle -%}{%- if f[1] == trh_id or f[2] == trh_id -%}<li><a href="/pages/{{ f[0] }}">{{ f[4] }}</a></li>{%- endif -%}{%- endif -%}{%- endfor -%}{%- endcapture -%}
+{%- if trh_ul != '' -%}<h3>More with the {{ trh_nm }}</h3><ul>{{ trh_ul }}</ul>{%- endif -%}
+{%- endfor -%}
+<p><a href="/pages/shoe-compare">See all head-to-heads</a></p></section>
+{%- endif -%}
+</div></div>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"{{ shop.url }}/"},{"@type":"ListItem","position":2,"name":"Toe to Toe","item":"{{ shop.url }}/pages/shoe-compare"}{%- if page.handle != 'shoe-compare' -%},{"@type":"ListItem","position":3,"name":{{ page.title | json }},"item":"{{ shop.url }}/pages/{{ page.handle }}"}{%- endif -%}]}</script>
+<script>(function(){var r=document.getElementById('trh-compare');if(!r)return;r.classList.add('trh-wait');setTimeout(function(){if(!r.dataset.ready)r.classList.remove('trh-wait')},6000)})();</script>
+<style>#trh-compare.trh-wait{min-height:100vh}#trh-compare.trh-wait .trh-static{display:none}#trh-compare .trh-static{max-width:980px;margin:0 auto;padding:28px 16px 64px}#trh-compare .trh-static table{border-collapse:collapse;width:100%;margin:12px 0}#trh-compare .trh-static th,#trh-compare .trh-static td{border:1px solid #d9dee8;padding:6px 10px;text-align:left;vertical-align:top}</style>
+<script src="{{ 'trh-compare.js' | asset_url }}" defer></script>
+<style id="trh-compare-read">
+/* ==========================================================================
+   SHOE COMPARE, READABILITY LAYER. 2026-11-11, Todays Draft Theme only.
+
+   Owner: keep the colours, lose the random underlines and line accents, and
+   above all make it readable; it reads as a wall of text. The page itself is
+   drawn by assets/trh-compare.js (411 KB, CSS inside it), which is NOT
+   edited: this sheet sits after it in the document and overrides it.
+
+   What was measured before writing it (Clifton 11 vs Ghost 18):
+     - every paragraph was CHIVO, the display face, at 16px with 0.45px of
+       added tracking. Wide letters plus tracking at body size is what made
+       it a wall. The store's own body face is Noto Sans Display
+       (--typeBasePrimary); Chivo stays for headings, as on the rest of
+       the site.
+     - nine link styles drew underlines, and the accents were a two tone
+       bar under every round heading, a two tone stripe down the short
+       answer, coloured top rules on cards, coloured left rules on notes,
+       colour bars under photos and hairlines either side of group labels.
+     - the commonest small sizes were 13px and 12px in a mid grey.
+   ========================================================================== */
+
+/* ---------------------------------------------------------- body text */
+html body #trh-compare .wrap { letter-spacing: normal !important; }
+html body #trh-compare .wrap p,
+html body #trh-compare .wrap li,
+html body #trh-compare .wrap dd,
+html body #trh-compare .wrap dt,
+html body #trh-compare .wrap figcaption,
+html body #trh-compare .wrap .pick li span {
+  font-family: var(--typeBasePrimary, 'Noto Sans Display'), var(--typeBaseFallback, sans-serif) !important;
+  letter-spacing: normal !important;
+}
+html body #trh-compare .voice p,
+html body #trh-compare .newcol p,
+html body #trh-compare .morecol p,
+html body #trh-compare .fitnote p,
+html body #trh-compare .two > p,
+html body #trh-compare .vid p {
+  font-size: 17px !important;
+  line-height: 1.65 !important;
+  color: #26303d !important;
+  font-weight: 400 !important;
+}
+html body #trh-compare .sec > p,
+html body #trh-compare p.size-say { max-width: 68ch !important; font-size: 17px !important; line-height: 1.65 !important; color: #26303d !important; }
+html body #trh-compare .pick li { font-size: 16px !important; line-height: 1.55 !important; color: #26303d !important; margin-bottom: 6px !important; }
+html body #trh-compare p.fine,
+html body #trh-compare p.foot,
+html body #trh-compare .rt p.rw,
+html body #trh-compare p.missing,
+html body #trh-compare p.bf-same { font-size: 14.5px !important; line-height: 1.55 !important; color: #4a5568 !important; }
+html body #trh-compare .wrap p + p { margin-top: 0.75em !important; }
+
+/* -------------------------------------------------------- no underlines */
+html body #trh-compare a,
+html body #trh-compare a:hover,
+html body #trh-compare a:focus { text-decoration: none !important; }
+/* A link still has to read as one: colour and weight do it now. */
+html body #trh-compare .morelist a,
+html body #trh-compare .mu-links a,
+html body #trh-compare .mu-prev a,
+html body #trh-compare .store p a,
+html body #trh-compare .stores .st-c a,
+html body #trh-compare .buy-msg a,
+html body #trh-compare .trh-more a { color: #1f5fbf !important; font-weight: 700 !important; }
+html body #trh-compare .vid-store,
+html body #trh-compare .pick-cta { border-bottom: 0 !important; }
+
+/* ---------------------------------------------------- no line accents */
+html body #trh-compare .sec-h { border-top: 0 !important; padding-top: 0 !important; }
+html body #trh-compare .sec-h h2::after,
+html body #trh-compare .guide h2::after,
+html body #trh-compare .verdict::after,
+html body #trh-compare .kicker span::before,
+html body #trh-compare .grp::before,
+html body #trh-compare .grp::after { display: none !important; content: none !important; }
+html body #trh-compare .photo,
+html body #trh-compare .vid,
+html body #trh-compare .slot.set { border-bottom: 0 !important; }
+html body #trh-compare .deal,
+html body #trh-compare .stackfig,
+html body #trh-compare .g-src p { border-left: 0 !important; }
+html body #trh-compare .g-steps li { border-top: 0 !important; }
+html body #trh-compare .mu-meta,
+html body #trh-compare .buy-panel { border-top-width: 1px !important; border-top-color: #e3e9f2 !important; }
+html body #trh-compare .stick { border-bottom: 0 !important; box-shadow: 0 4px 14px rgba(10,17,36,.10) !important; }
+
+/* --------------------------------------------------------------- layers */
+/* Cards: one clean white panel each, lifted off the page by a soft shadow
+   instead of a coloured rule. The shoe's colour stays in its marker square
+   and its name. */
+html body #trh-compare .pick,
+html body #trh-compare .voice,
+html body #trh-compare .newcol,
+html body #trh-compare .morecol,
+html body #trh-compare .fitnote {
+  background: #fff !important;
+  background-image: none !important;
+  border: 1px solid #e3e9f2 !important;
+  border-radius: 0 !important;
+  box-shadow: 0 1px 2px rgba(10,26,47,.05), 0 8px 24px rgba(10,26,47,.06) !important;
+  padding: 22px 24px !important;
+}
+html body #trh-compare .deal,
+html body #trh-compare .stackfig { background: #eef3fa !important; padding: 18px 20px !important; }
+
+/* Every other round sits on a full-width tinted band, so the page reads as
+   a stack of distinct blocks rather than one long column. The band is drawn
+   with a spread shadow clipped sideways, so it reaches the page edges
+   without making the page scroll sideways. */
+html body #trh-compare .wrap > .sec { padding-top: 48px !important; padding-bottom: 48px !important; margin-top: 0 !important; margin-bottom: 0 !important; }
+html body #trh-compare .wrap > .sec:nth-child(odd) {
+  background: #f1f5fa !important;
+  box-shadow: 0 0 0 100vmax #f1f5fa !important;
+  clip-path: inset(0 -100vmax) !important;
+}
+html body #trh-compare .sec-h { margin-bottom: 26px !important; }
+
+@media (max-width: 700px) {
+  html body #trh-compare .voice p,
+  html body #trh-compare .newcol p,
+  html body #trh-compare .morecol p,
+  html body #trh-compare .fitnote p,
+  html body #trh-compare .two > p,
+  html body #trh-compare .sec > p,
+  html body #trh-compare p.size-say { font-size: 16px !important; }
+  html body #trh-compare .pick,
+  html body #trh-compare .voice,
+  html body #trh-compare .newcol,
+  html body #trh-compare .morecol,
+  html body #trh-compare .fitnote { padding: 18px !important; }
+  html body #trh-compare .wrap > .sec { padding-top: 36px !important; padding-bottom: 36px !important; }
+}
+</style>
+{% schema %}{"name":"Shoe compare","settings":[]}{% endschema %}
