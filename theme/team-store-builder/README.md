@@ -70,6 +70,35 @@ it and `bannerError` says why. Pinned in `worker/test/team-requests.mjs`.
 Checked in preview on steps 1, 2 and 3, including a real banner upload.
 Mobile was not rendered.
 
+## "Copy of Team Stores LIVE": efficiency, usability and SEO pass, 2026-11-11
+
+Todays Draft was published as "Team Stores LIVE"; this work is in its copy
+(168902361343), found by a read-only crawl of 19 pages on desktop and a 390px
+phone. Every file changed is in this folder.
+
+| fix | measured |
+|---|---|
+| Collection grid swatches load at 96px, cards by srcset, no `src=""` img | swatches were 400px shown at 30px, 1,080 per page |
+| Team Stores directory reads a precomputed image map | server processing 760 ms to 356 ms, db 314 to 84 ms; live had 500s at the 3 s render limit |
+| Three `@font-face` rules pointing at missing Poppins files removed | 3 failed requests on every page |
+| One h1 on Team Stores and Membership | had none |
+| Product JSON-LD: GTIN on every offer, Brand object, category | offers had no gtin |
+| BreadcrumbList (collections, products), BlogPosting (articles), Organization logo | none before |
+| Shoe review images carry their dimensions | CLS 0.358 to 0.061 |
+| Home panel images by srcset; search collection cards at 48/96px | 1200px shown at 413px |
+| `trh-site-match.css` (every page): House Call strip, tile, card and help line restyled; collection filter labels readable; phone tap targets; text under 12px raised | filter labels had 4.32px tracking at 11px |
+
+**THE TEAM STORE IMAGE MAP NEEDS A RE-RUN WHEN STORES CHANGE.**
+`node tools/team-store-card-images.mjs --apply` rewrites
+`custom.team_store_images` on the team-stores page. A store missing from it
+still renders, through the old per-store lookup, so a stale map costs speed,
+never a broken card.
+
+Not theme fixable, for the owner: the Redo script loads twice (app embed plus
+a legacy script tag the app adds), the size-recommendation app throws on
+product pages, Klaviyo's analytics call is blocked by CORS, and the home page
+title is set in Online Store > Preferences.
+
 ## Where it used to live, and why that was a problem
 
 All 112KB of it sat in the `body_html` field of page `167233192191`. A
