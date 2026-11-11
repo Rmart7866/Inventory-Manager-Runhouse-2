@@ -13,6 +13,13 @@
   This section reads page.metafields, so it must sit on the page whose handle
   the Worker writes to (default: team-stores).
 
+  CARD IMAGES
+  Each card shows the collection's own image when it is a logo file (PNG, SVG,
+  WEBP, GIF). JPG collection images are usually photos, so those cards use the
+  first product's image instead (no team photos on this page). No image at all
+  falls back to the big initial. To change a card's picture, change the
+  collection image in Shopify admin.
+
   LOAD-IN DISABLED
 {% endcomment %}
 
@@ -28,6 +35,36 @@
   {%- if block.type == 'team_store' -%}{%- assign feature_count = feature_count | plus: 1 -%}{%- endif -%}
 {%- endfor -%}
 
+{%- comment -%} Logo wall: sample logos evenly across the whole A-Z list. {%- endcomment -%}
+{%- assign ts_wall_n = 0 -%}
+{%- assign ts_wall_a = '' -%}
+{%- assign ts_wall_b = '' -%}
+{%- assign ts_wall_c = '' -%}
+{%- assign ts_wall_d = '' -%}
+{%- if section.settings.show_logo_wall and ts_count > 0 -%}
+  {%- assign ts_step = ts_count | divided_by: 48 | at_least: 1 -%}
+  {%- for store in ts_stores -%}
+    {%- if ts_wall_n >= 20 -%}{%- break -%}{%- endif -%}
+    {%- assign ts_mod = forloop.index0 | modulo: ts_step -%}
+    {%- if ts_mod != 0 -%}{%- continue -%}{%- endif -%}
+    {%- assign wc = collections[store.h] -%}
+    {%- if wc == blank or wc.image == blank -%}{%- continue -%}{%- endif -%}
+    {%- assign w_ext = wc.image.src | split: '?' | first | split: '.' | last | downcase -%}
+    {%- if w_ext == 'jpg' or w_ext == 'jpeg' -%}{%- continue -%}{%- endif -%}
+    {%- capture ts_tile -%}<a href="/collections/{{ store.h }}" class="ts-wall-tile" tabindex="-1"><img src="{{ wc.image | image_url: width: 260 }}" alt="" width="130" height="130"></a>{%- endcapture -%}
+    {%- assign ts_col = ts_wall_n | modulo: 4 -%}
+    {%- case ts_col -%}
+      {%- when 0 -%}{%- assign ts_wall_a = ts_wall_a | append: ts_tile -%}
+      {%- when 1 -%}{%- assign ts_wall_b = ts_wall_b | append: ts_tile -%}
+      {%- when 2 -%}{%- assign ts_wall_c = ts_wall_c | append: ts_tile -%}
+      {%- else -%}{%- assign ts_wall_d = ts_wall_d | append: ts_tile -%}
+    {%- endcase -%}
+    {%- assign ts_wall_n = ts_wall_n | plus: 1 -%}
+  {%- endfor -%}
+{%- endif -%}
+{%- assign ts_has_wall = false -%}
+{%- if ts_wall_n >= 12 -%}{%- assign ts_has_wall = true -%}{%- endif -%}
+
 <style>
 
   #ts-{{ sid }} {
@@ -37,12 +74,16 @@
     --ts-deep:   {{ section.settings.dark_color }};
     --ts-accent: {{ section.settings.accent_color }};
     --ts-glow:   {{ section.settings.highlight_color }};
+    --ts-pop:    {{ section.settings.pop_color | default: '#f47b20' }};
     --ts-accent-wash: {{ section.settings.accent_color | color_modify: 'alpha', 0.09 }};
+    --ts-glow-soft:   {{ section.settings.highlight_color | color_modify: 'alpha', 0.22 }};
+    --ts-accent-soft: {{ section.settings.accent_color | color_modify: 'alpha', 0.30 }};
 
     --ts-mid:   #55637a;
     --ts-low:   #97a2b3;
     --ts-rule:  #d5dae2;
     --ts-wash:  #f2f4f7;
+    --ts-tile:  #f6f8fb;
     --ts-paper: #ffffff;
 
     font-family: 'Chivo', system-ui, sans-serif;
@@ -72,7 +113,6 @@
     padding: 0 40px;
   }
 
-  /* Kicker on light. */
   #ts-{{ sid }} .ts-kicker {
     display: inline-block;
     padding: 6px 11px;
@@ -85,20 +125,21 @@
     margin-bottom: 18px !important;
   }
 
-  /* Kicker on dark flips: volt slab, dark type. */
   #ts-{{ sid }} .ts-dark .ts-kicker {
     background: var(--ts-glow);
     color: var(--ts-deep) !important;
   }
 
   #ts-{{ sid }} .ts-h2 {
-    font-size: clamp(28px, 3.4vw, 40px) !important;
+    font-size: clamp(28px, 3.4vw, 42px) !important;
     font-weight: 900 !important;
     letter-spacing: -0.028em;
     line-height: 1.05 !important;
     color: var(--ts-ink) !important;
     margin-bottom: 36px !important;
   }
+
+  #ts-{{ sid }} .ts-h2 em { font-style: normal; color: var(--ts-accent); }
 
   /* -------------------------------------------------------------- hero */
 
@@ -119,7 +160,6 @@
     filter: saturate(1.15) contrast(1.08) brightness(0.86);
   }
 
-  /* A hard slab, not a soft gradient. */
   #ts-{{ sid }} .ts-hero-plate {
     position: absolute;
     left: 40px;
@@ -144,111 +184,85 @@
     color: rgba(255,255,255,0.72) !important;
   }
 
-  /* -------------------------------------------------- CTA (now on top) */
+  /* ------------------------------------------------ CTA / opening band */
 
   #ts-{{ sid }} .ts-cta {
+    position: relative;
+    overflow: hidden;
     background: var(--ts-deep);
     border-bottom: 3px solid var(--ts-deep);
-    padding: 72px 0 78px;
+    padding: 84px 0 92px;
+  }
+
+  /* Glow plus diagonal speed lines, so the band is never a flat slab. */
+  #ts-{{ sid }} .ts-cta::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(55% 75% at 88% 18%, var(--ts-glow-soft), transparent 70%),
+      radial-gradient(45% 60% at 8% 100%, var(--ts-accent-soft), transparent 70%),
+      repeating-linear-gradient(115deg, rgba(255,255,255,0.035) 0 2px, transparent 2px 26px);
+    pointer-events: none;
   }
 
   #ts-{{ sid }} .ts-cta-inner {
+    position: relative;
     display: grid;
-    grid-template-columns: 1.35fr 1fr;
-    gap: 56px;
+    grid-template-columns: 1.08fr 1fr;
+    gap: 64px;
     align-items: center;
   }
 
+  #ts-{{ sid }} .ts-cta.no-wall .ts-cta-inner { grid-template-columns: 1fr; max-width: 820px; }
+
   #ts-{{ sid }} .ts-cta h2 {
-    font-size: clamp(30px, 3.8vw, 46px) !important;
+    font-size: clamp(36px, 5vw, 66px) !important;
     font-weight: 900 !important;
-    letter-spacing: -0.032em;
-    line-height: 1.02 !important;
+    letter-spacing: -0.035em;
+    line-height: 0.98 !important;
     color: #fff !important;
-    margin-bottom: 16px !important;
+    margin-bottom: 20px !important;
   }
 
-  /* The bright bit. */
+  /* No underline under the title, owner 2026-11-11. */
   #ts-{{ sid }} .ts-cta h2 em {
     font-style: normal;
     color: var(--ts-glow);
   }
 
   #ts-{{ sid }} .ts-cta p {
-    font-size: 16px !important;
+    font-size: 17px !important;
     line-height: 1.6 !important;
-    color: rgba(255,255,255,0.7) !important;
-    max-width: 62ch;
+    color: rgba(255,255,255,0.74) !important;
+    max-width: 58ch;
   }
 
-  #ts-{{ sid }} .ts-mail {
+  #ts-{{ sid }} .ts-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 32px;
+  }
+
+  #ts-{{ sid }} .ts-mail,
+  #ts-{{ sid }} .ts-jump {
     display: inline-flex;
     align-items: center;
     gap: 12px;
-    padding: 20px 26px;
-    background: var(--ts-glow);
-    border: 2px solid var(--ts-glow);
+    padding: 18px 24px;
     font-size: 16px;
     font-weight: 900;
     letter-spacing: -0.01em;
-    color: var(--ts-deep) !important;
     text-decoration: none !important;
     word-break: break-word;
-    transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
   }
 
-  /* The builder button. Deliberately the same shape and the same hard
-     offset hover as .ts-mail, because it takes over as the primary
-     action and the page has already taught the eye what that button
-     looks like. */
-  #ts-{{ sid }} .ts-build {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    padding: 20px 26px;
+  #ts-{{ sid }} .ts-mail {
     background: var(--ts-glow);
-    color: var(--ts-deep) !important;
     border: 2px solid var(--ts-glow);
-    font-size: 16px;
-    font-weight: 900;
-    text-decoration: none !important;
-    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
-  }
-  #ts-{{ sid }} .ts-build::after { content: '\2192'; font-weight: 900; transition: transform 0.12s ease; }
-  #ts-{{ sid }} .ts-build:hover {
-    background: transparent;
-    color: var(--ts-glow) !important;
-    box-shadow: 6px 6px 0 0 var(--ts-accent);
-    transform: translate(-2px, -2px);
-    text-decoration: none !important;
-  }
-  #ts-{{ sid }} .ts-build:hover::after { transform: translateX(4px); }
-
-  #ts-{{ sid }} .ts-cta-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
-
-  #ts-{{ sid }} .ts-build-note {
-    font-size: 13px !important;
-    line-height: 1.5 !important;
-    color: rgba(255,255,255,0.62) !important;
-    margin: 0 !important;
-    max-width: 34ch;
-  }
-
-  /* Demoted to an outline so the two actions cannot compete. */
-  #ts-{{ sid }} .ts-mail--alt {
-    background: transparent;
-    border-color: rgba(255,255,255,0.35);
-    color: #fff !important;
-    font-weight: 700;
-    padding: 14px 20px;
-    font-size: 14px;
-  }
-  #ts-{{ sid }} .ts-mail--alt:hover {
-    background: transparent;
-    border-color: var(--ts-glow);
-    color: var(--ts-glow) !important;
-    box-shadow: none;
-    transform: none;
+    color: var(--ts-deep) !important;
   }
 
   #ts-{{ sid }} .ts-mail::after {
@@ -258,14 +272,185 @@
   }
 
   #ts-{{ sid }} .ts-mail:hover {
-    background: transparent;
-    color: var(--ts-glow) !important;
-    box-shadow: 6px 6px 0 0 var(--ts-accent);
+    background: var(--ts-glow);
+    color: var(--ts-deep) !important;
+    box-shadow: 6px 6px 0 0 var(--ts-pop);
     transform: translate(-2px, -2px);
-    text-decoration: none !important;
   }
 
   #ts-{{ sid }} .ts-mail:hover::after { transform: translateX(4px); }
+
+  #ts-{{ sid }} .ts-jump {
+    background: transparent;
+    border: 2px solid rgba(255,255,255,0.32);
+    color: #fff !important;
+  }
+
+  #ts-{{ sid }} .ts-jump::after { content: '\2193'; font-weight: 900; transition: transform 0.12s ease; }
+
+  #ts-{{ sid }} .ts-jump:hover { border-color: #fff; }
+  #ts-{{ sid }} .ts-jump:hover::after { transform: translateY(3px); }
+
+  /* When the builder button leads, the email steps down to the same outline
+     as "Find your team" so the row has one primary action, not two. */
+  #ts-{{ sid }} .ts-mail-alt {
+    background: transparent;
+    border: 2px solid rgba(255,255,255,0.32);
+    color: #fff !important;
+  }
+  #ts-{{ sid }} .ts-mail-alt::after { content: none; }
+  #ts-{{ sid }} .ts-mail-alt:hover { border-color: #fff; background: transparent; box-shadow: none; transform: none; }
+
+  #ts-{{ sid }} .ts-stats {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    justify-content: start;
+    gap: 40px;
+    margin-top: 44px;
+    padding-top: 26px;
+    border-top: 1px solid rgba(255,255,255,0.14);
+  }
+
+  #ts-{{ sid }} .ts-stat b {
+    display: block;
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #ts-{{ sid }} .ts-stat:first-child b { color: var(--ts-pop); }
+
+  #ts-{{ sid }} .ts-stat span {
+    display: block;
+    margin-top: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+  }
+
+  /* Logo wall: real team logos drifting past, tilted like a stack of tags. */
+  #ts-{{ sid }} .ts-wall {
+    position: relative;
+    height: 540px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    transform: rotate(-6deg);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+            mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+  }
+
+  #ts-{{ sid }} .ts-wall-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 16px;
+    animation: ts-rise-{{ sid }} 42s linear infinite;
+    will-change: transform;
+  }
+
+  #ts-{{ sid }} .ts-wall-col:nth-child(2) { animation-duration: 54s; animation-direction: reverse; }
+  #ts-{{ sid }} .ts-wall-col:nth-child(3) { animation-duration: 48s; }
+  #ts-{{ sid }} .ts-wall:hover .ts-wall-col { animation-play-state: paused; }
+
+  @keyframes ts-rise-{{ sid }} {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-50%); }
+  }
+
+  #ts-{{ sid }} .ts-wall-tile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    padding: 16%;
+    background: #fff;
+    border: 2px solid #fff;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  #ts-{{ sid }} .ts-wall-tile:nth-child(3n+1) { box-shadow: 6px 6px 0 0 var(--ts-glow); }
+  #ts-{{ sid }} .ts-wall-tile:nth-child(3n+2) { box-shadow: 6px 6px 0 0 var(--ts-pop); }
+  #ts-{{ sid }} .ts-wall-tile:hover { transform: scale(1.04); }
+
+  #ts-{{ sid }} .ts-wall-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    mix-blend-mode: multiply;
+  }
+
+  /* ----------------------------------------------------- how it works */
+
+  #ts-{{ sid }} .ts-steps-band { padding: 84px 0 88px; }
+
+  #ts-{{ sid }} .ts-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
+    counter-reset: ts-step;
+  }
+
+  #ts-{{ sid }} .ts-step {
+    position: relative;
+    padding: 30px 28px 32px;
+    background: var(--ts-paper);
+    border: 2px solid var(--ts-deep);
+    transition: box-shadow 0.12s ease, transform 0.12s ease;
+  }
+
+  #ts-{{ sid }} .ts-step:hover {
+    box-shadow: 8px 8px 0 0 var(--ts-glow);
+    transform: translate(-3px, -3px);
+  }
+
+  #ts-{{ sid }} .ts-step::before {
+    counter-increment: ts-step;
+    content: '0' counter(ts-step);
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    padding: 8px 12px;
+    background: var(--ts-deep);
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    color: var(--ts-glow);
+  }
+
+  #ts-{{ sid }} .ts-step-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 22px;
+    background: var(--ts-accent-wash);
+    color: var(--ts-accent);
+  }
+
+  #ts-{{ sid }} .ts-step:nth-child(2) .ts-step-icon { color: var(--ts-pop); background: rgba(244, 123, 32, 0.1); }
+
+  #ts-{{ sid }} .ts-step-icon svg { width: 28px; height: 28px; }
+
+  #ts-{{ sid }} .ts-step h3 {
+    font-size: 21px !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.02em;
+    line-height: 1.15 !important;
+    color: var(--ts-ink) !important;
+    margin-bottom: 10px !important;
+  }
+
+  #ts-{{ sid }} .ts-step p {
+    font-size: 15px !important;
+    line-height: 1.6 !important;
+    color: var(--ts-mid) !important;
+  }
 
   /* ----------------------------------------------------------- gallery */
 
@@ -359,8 +544,37 @@
   /* --------------------------------------------------------- directory */
 
   #ts-{{ sid }} .ts-dir-band {
+    background: var(--ts-wash);
     border-top: 3px solid var(--ts-deep);
-    padding: 72px 0 88px;
+    padding: 80px 0 96px;
+    scroll-margin-top: var(--ts-header-offset);
+  }
+
+  #ts-{{ sid }} .ts-dir-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 26px;
+  }
+
+  #ts-{{ sid }} .ts-dir-head .ts-h2 { margin-bottom: 0 !important; }
+
+  #ts-{{ sid }} .ts-dir-help {
+    flex: none;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+    color: var(--ts-mid) !important;
+    text-align: right;
+  }
+
+  #ts-{{ sid }} .ts-dir-help a {
+    color: var(--ts-ink) !important;
+    font-weight: 700;
+    text-decoration: underline !important;
+    text-decoration-color: var(--ts-pop) !important;
+    text-decoration-thickness: 2px !important;
+    text-underline-offset: 3px;
   }
 
   #ts-{{ sid }} .ts-search {
@@ -368,7 +582,7 @@
     top: var(--ts-header-offset);
     z-index: 20;
     padding: 12px 0;
-    background: {{ section.settings.section_bg }};
+    background: var(--ts-wash);
   }
 
   #ts-{{ sid }} .ts-field {
@@ -391,7 +605,7 @@
 
   #ts-{{ sid }} .ts-input {
     width: 100% !important;
-    height: 62px;
+    height: 64px;
     padding: 0 60px 0 54px !important;
     font-family: 'Chivo', system-ui, sans-serif !important;
     font-size: 17px !important;
@@ -402,14 +616,14 @@
     border-radius: 0 !important;
     outline: none !important;
     margin: 0 !important;
-    box-shadow: none !important;
+    box-shadow: 5px 5px 0 0 var(--ts-deep) !important;
     transition: border-color 0.12s ease, box-shadow 0.12s ease;
   }
 
   #ts-{{ sid }} .ts-input::placeholder { color: var(--ts-low) !important; font-weight: 400 !important; }
 
   #ts-{{ sid }} .ts-input:focus {
-    border-color: var(--ts-accent) !important;
+    border-color: var(--ts-deep) !important;
     box-shadow: 5px 5px 0 0 var(--ts-glow) !important;
   }
 
@@ -447,68 +661,131 @@
 
   #ts-{{ sid }} .ts-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 18px;
   }
 
-  /* No image data: a huge ghosted initial IS the field, name set on top. */
+  /* Card: logo tile on top, name bar below. */
   #ts-{{ sid }} .ts-card {
     position: relative;
     display: flex;
-    align-items: flex-end;
-    min-height: 132px;
-    padding: 18px 20px;
+    flex-direction: column;
     overflow: hidden;
     background: var(--ts-paper);
     border: 2px solid var(--ts-deep);
     text-decoration: none !important;
     color: var(--ts-ink) !important;
-    transition: box-shadow 0.12s ease, transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+    transition: box-shadow 0.12s ease, transform 0.12s ease;
   }
 
   #ts-{{ sid }} .ts-card.is-hidden { display: none; }
 
+  #ts-{{ sid }} .ts-media {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 4 / 3;
+    padding: 13% 16%;
+    overflow: hidden;
+    background: var(--ts-tile);
+    border-bottom: 2px solid var(--ts-deep);
+  }
+
+  #ts-{{ sid }} .ts-media img {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    mix-blend-mode: multiply;
+    transition: transform 0.2s ease;
+  }
+
+  /* Ghosted initial sits behind every logo; it carries the tile when there is no image. */
   #ts-{{ sid }} .ts-initial {
     position: absolute;
-    top: -22px;
-    right: -8px;
-    font-size: 108px;
+    right: -6px;
+    bottom: -30px;
+    font-size: 132px;
     font-weight: 900;
     line-height: 1;
     letter-spacing: -0.06em;
     color: var(--ts-accent);
-    opacity: 0.16;
+    opacity: 0.05;
     pointer-events: none;
     user-select: none;
     transition: color 0.12s ease, opacity 0.12s ease, transform 0.12s ease;
   }
 
-  #ts-{{ sid }} .ts-card-name {
+  #ts-{{ sid }} .ts-media.is-blank {
+    background:
+      repeating-linear-gradient(115deg, var(--ts-accent-wash) 0 2px, transparent 2px 18px),
+      var(--ts-tile);
+  }
+
+  #ts-{{ sid }} .ts-media.is-blank .ts-initial {
+    right: auto;
+    bottom: auto;
     position: relative;
-    z-index: 1;
-    font-size: 15px;
+    font-size: 96px;
+    opacity: 0.28;
+  }
+
+  #ts-{{ sid }} .ts-card-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 14px 15px 16px;
+    transition: background 0.12s ease, color 0.12s ease;
+  }
+
+  #ts-{{ sid }} .ts-card-name {
+    font-size: 14.5px;
     font-weight: 700;
     line-height: 1.3;
     letter-spacing: -0.005em;
   }
 
-  /* Hover: the card goes dark, the initial lights up volt. */
+  #ts-{{ sid }} .ts-card-go {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    font-size: 15px;
+    font-weight: 900;
+    background: var(--ts-wash);
+    color: var(--ts-deep);
+    transition: background 0.12s ease, transform 0.12s ease;
+  }
+
   #ts-{{ sid }} .ts-card:hover,
   #ts-{{ sid }} .ts-card:focus-visible {
-    background: var(--ts-deep);
-    color: #fff !important;
-    box-shadow: 8px 8px 0 0 var(--ts-glow);
+    box-shadow: 8px 8px 0 0 var(--ts-pop);
     transform: translate(-3px, -3px);
     text-decoration: none !important;
     outline: none;
   }
 
-  #ts-{{ sid }} .ts-card:hover .ts-initial,
-  #ts-{{ sid }} .ts-card:focus-visible .ts-initial {
-    color: var(--ts-glow);
-    opacity: 0.9;
-    transform: translate(-4px, 4px);
+  #ts-{{ sid }} .ts-card:hover .ts-card-body,
+  #ts-{{ sid }} .ts-card:focus-visible .ts-card-body {
+    background: var(--ts-deep);
+    color: #fff;
   }
+
+  #ts-{{ sid }} .ts-card:hover .ts-card-go,
+  #ts-{{ sid }} .ts-card:focus-visible .ts-card-go {
+    background: var(--ts-pop);
+    transform: translateX(2px);
+  }
+
+  #ts-{{ sid }} .ts-card:hover .ts-media img { transform: scale(1.06); }
+
+  #ts-{{ sid }} .ts-card:hover .ts-initial,
+  #ts-{{ sid }} .ts-card:focus-visible .ts-initial { opacity: 0.16; transform: translate(-4px, 4px); }
 
   /* ------------------------------------------------------------- empty */
 
@@ -517,7 +794,7 @@
     padding: 80px 24px;
     text-align: center;
     border: 2px solid var(--ts-deep);
-    background: var(--ts-wash);
+    background: var(--ts-paper);
   }
 
   #ts-{{ sid }} .ts-empty.is-on { display: block; }
@@ -534,6 +811,8 @@
     color: var(--ts-mid) !important;
   }
 
+  #ts-{{ sid }} .ts-empty-sub a { color: var(--ts-ink) !important; font-weight: 700; }
+
   #ts-{{ sid }} .ts-pending {
     padding: 80px 24px;
     text-align: center;
@@ -544,9 +823,20 @@
   /* -------------------------------------------------------- responsive */
 
   @media (max-width: 1100px) {
-    #ts-{{ sid }} .ts-cta-inner { grid-template-columns: 1fr; gap: 32px; }
-    #ts-{{ sid }} .ts-grid { grid-template-columns: repeat(3, 1fr); }
+    #ts-{{ sid }} .ts-cta-inner { grid-template-columns: 1fr; gap: 48px; }
+    #ts-{{ sid }} .ts-wall { height: 300px; grid-template-columns: repeat(4, 1fr); transform: rotate(-4deg); margin: 0 -20px; }
+    #ts-{{ sid }} .ts-wall-col:nth-child(4) { animation-duration: 50s; animation-direction: reverse; }
+    #ts-{{ sid }} .ts-grid { grid-template-columns: repeat(4, 1fr); }
     #ts-{{ sid }} .ts-gallery { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 900px) {
+    #ts-{{ sid }} .ts-grid { grid-template-columns: repeat(3, 1fr); }
+    #ts-{{ sid }} .ts-steps { grid-template-columns: 1fr; gap: 16px; }
+  }
+
+  @media (min-width: 1101px) {
+    #ts-{{ sid }} .ts-wall-col:nth-child(4) { display: none; }
   }
 
   @media (max-width: 768px) {
@@ -561,19 +851,34 @@
       padding: 24px 20px;
     }
 
-    #ts-{{ sid }} .ts-cta { padding: 48px 0 54px; }
-    #ts-{{ sid }} .ts-mail { font-size: 15px; padding: 16px 20px; }
+    #ts-{{ sid }} .ts-cta { padding: 52px 0 40px; }
+    #ts-{{ sid }} .ts-cta p { font-size: 16px !important; }
+    #ts-{{ sid }} .ts-actions { margin-top: 26px; }
+    #ts-{{ sid }} .ts-mail,
+    #ts-{{ sid }} .ts-jump { font-size: 15px; padding: 15px 18px; }
+    #ts-{{ sid }} .ts-stats { gap: 22px; margin-top: 32px; padding-top: 20px; }
+    #ts-{{ sid }} .ts-stat b { font-size: 22px; }
+    #ts-{{ sid }} .ts-stat span { font-size: 10px; letter-spacing: 0.1em; }
+    #ts-{{ sid }} .ts-wall { height: 220px; gap: 12px; }
+    #ts-{{ sid }} .ts-wall-col { gap: 12px; padding-bottom: 12px; }
+
+    #ts-{{ sid }} .ts-steps-band { padding: 56px 0; }
+    #ts-{{ sid }} .ts-step { padding: 24px 22px 26px; }
 
     #ts-{{ sid }} .ts-gallery { grid-template-columns: 1fr; padding: 48px 0; }
     #ts-{{ sid }} .ts-feature { height: 340px; }
     #ts-{{ sid }} .ts-feature-plate { max-width: none; right: 0; padding: 22px 20px; }
     #ts-{{ sid }} .ts-feature-plate h3 { font-size: 22px !important; }
 
-    #ts-{{ sid }} .ts-dir-band { padding: 48px 0 60px; }
+    #ts-{{ sid }} .ts-dir-band { padding: 52px 0 64px; }
+    #ts-{{ sid }} .ts-dir-head { flex-direction: column; align-items: flex-start; gap: 10px; }
+    #ts-{{ sid }} .ts-dir-help { text-align: left; }
     #ts-{{ sid }} .ts-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    #ts-{{ sid }} .ts-card { min-height: 110px; padding: 14px 16px; }
+    #ts-{{ sid }} .ts-card-body { padding: 11px 10px 12px 12px; }
     #ts-{{ sid }} .ts-card-name { font-size: 13px; }
-    #ts-{{ sid }} .ts-initial { font-size: 84px; top: -16px; }
+    #ts-{{ sid }} .ts-card-go { display: none; }
+    #ts-{{ sid }} .ts-initial { font-size: 96px; bottom: -22px; }
+    #ts-{{ sid }} .ts-media.is-blank .ts-initial { font-size: 72px; }
     #ts-{{ sid }} .ts-input { height: 56px; font-size: 16px !important; }
   }
 
@@ -602,8 +907,27 @@
     </div>
   {%- endif -%}
 
+  {%- comment -%}
+    THE BUILDER IS THE PRIMARY WAY TO START A STORE, the email is the
+    fallback. The link resolves through the pages object rather than a typed
+    path, so an unpublished or renamed page yields blank and the button is
+    simply not rendered, and every "Start a store" link falls back to the
+    email, rather than becoming a dead link. builder_link overrides it.
+  {%- endcomment -%}
+  {%- assign builder_url = section.settings.builder_link -%}
+  {%- if builder_url == blank -%}
+    {%- assign builder_url = pages['build-your-store'].url -%}
+  {%- endif -%}
+  {%- if builder_url != blank -%}
+    {%- assign start_url = builder_url -%}
+  {%- elsif section.settings.contact_email != blank -%}
+    {%- assign start_url = 'mailto:' | append: section.settings.contact_email -%}
+  {%- else -%}
+    {%- assign start_url = '' -%}
+  {%- endif -%}
+
   <!-- Create your team store -->
-  <div class="ts-cta ts-dark">
+  <div class="ts-cta ts-dark{% unless ts_has_wall %} no-wall{% endunless %}">
     <div class="ts-wrap">
       <div class="ts-cta-inner">
         <div>
@@ -612,40 +936,75 @@
           {%- if section.settings.contact_blurb != blank -%}
             <p>{{ section.settings.contact_blurb }}</p>
           {%- endif -%}
-        </div>
-        {%- comment -%}
-          THE BUILDER IS THE PRIMARY ACTION HERE, the email is the fallback.
-          This block used to offer a mailto and nothing else, so the only
-          way to start a store was to write to somebody and wait. The
-          builder lets an organiser pick products and colours themselves
-          and get a preview back, so it leads, and the address stays for
-          the ones who would rather just ask.
-
-          The link resolves through the pages object rather than a typed
-          path, so an unpublished or renamed page yields blank and the
-          button is simply not rendered rather than becoming a dead link.
-          builder_link overrides it if the builder ever moves.
-        {%- endcomment -%}
-        {%- assign builder_url = section.settings.builder_link -%}
-        {%- if builder_url == blank -%}
-          {%- assign builder_url = pages['build-your-store'].url -%}
-        {%- endif -%}
-
-        <div class="ts-cta-actions">
-          {%- if builder_url != blank -%}
-            <a href="{{ builder_url }}" class="ts-build">{{ section.settings.builder_label | default: 'Build your store' }}</a>
-            {%- if section.settings.builder_note != blank -%}
-              <p class="ts-build-note">{{ section.settings.builder_note }}</p>
+          <div class="ts-actions">
+            {%- if builder_url != blank -%}
+              <a href="{{ builder_url }}" class="ts-mail ts-build">{{ section.settings.builder_label | default: 'Build your store' }}</a>
             {%- endif -%}
-          {%- endif -%}
-
-          {%- if section.settings.contact_email != blank -%}
-            <a href="mailto:{{ section.settings.contact_email }}" class="ts-mail ts-mail--alt">{{ section.settings.contact_email }}</a>
+            {%- if section.settings.contact_email != blank -%}
+              <a href="mailto:{{ section.settings.contact_email }}" class="ts-mail{% if builder_url != blank %} ts-mail-alt{% endif %}">{{ section.settings.contact_email }}</a>
+            {%- endif -%}
+            {%- if section.settings.show_directory and ts_count > 0 -%}
+              <a href="#ts-dir-{{ sid }}" class="ts-jump">Find your team</a>
+            {%- endif -%}
+          </div>
+          {%- if section.settings.show_stats -%}
+            <div class="ts-stats">
+              {%- if ts_count > 0 -%}
+                <div class="ts-stat"><b>{{ ts_count }}</b><span>Team stores</span></div>
+              {%- endif -%}
+              {%- if section.settings.stat_2_value != blank -%}
+                <div class="ts-stat"><b>{{ section.settings.stat_2_value }}</b><span>{{ section.settings.stat_2_label }}</span></div>
+              {%- endif -%}
+              {%- if section.settings.stat_3_value != blank -%}
+                <div class="ts-stat"><b>{{ section.settings.stat_3_value }}</b><span>{{ section.settings.stat_3_label }}</span></div>
+              {%- endif -%}
+            </div>
           {%- endif -%}
         </div>
+        {%- if ts_has_wall -%}
+          <div class="ts-wall" aria-hidden="true">
+            <div class="ts-wall-col">{{ ts_wall_a }}{{ ts_wall_a }}</div>
+            <div class="ts-wall-col">{{ ts_wall_b }}{{ ts_wall_b }}</div>
+            <div class="ts-wall-col">{{ ts_wall_c }}{{ ts_wall_c }}</div>
+            <div class="ts-wall-col">{{ ts_wall_d }}{{ ts_wall_d }}</div>
+          </div>
+        {%- endif -%}
       </div>
     </div>
   </div>
+
+  <!-- How it works -->
+  {%- if section.settings.show_steps -%}
+    <div class="ts-steps-band">
+      <div class="ts-wrap">
+        <p class="ts-kicker">How It Works</p>
+        <h2 class="ts-h2">{{ section.settings.steps_heading }}</h2>
+        <div class="ts-steps">
+          <div class="ts-step">
+            <div class="ts-step-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="m3 7 9 6 9-6"/></svg>
+            </div>
+            <h3>{{ section.settings.step_1_title }}</h3>
+            <p>{{ section.settings.step_1_text }}</p>
+          </div>
+          <div class="ts-step">
+            <div class="ts-step-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 5.5 2.5 10l3 1.2V21h13v-9.8l3-1.2L20 5.5 16 3c-.6 1.6-2.2 2.6-4 2.6S8.6 4.6 8 3Z"/><path d="M9.5 13h5M12 13v4"/></svg>
+            </div>
+            <h3>{{ section.settings.step_2_title }}</h3>
+            <p>{{ section.settings.step_2_text }}</p>
+          </div>
+          <div class="ts-step">
+            <div class="ts-step-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6h11v10H2zM13 9h4.5l3.5 3.5V16h-8z"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>
+            </div>
+            <h3>{{ section.settings.step_3_title }}</h3>
+            <p>{{ section.settings.step_3_text }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  {%- endif -%}
 
   <div class="ts-wrap">
 
@@ -696,12 +1055,17 @@
 
   <!-- Directory -->
   {%- if section.settings.show_directory -%}
-    <div class="ts-dir-band">
+    <div class="ts-dir-band" id="ts-dir-{{ sid }}">
       <div class="ts-wrap">
         <p class="ts-kicker">Directory</p>
-        {%- if section.settings.directory_heading != blank -%}
-          <h2 class="ts-h2">{{ section.settings.directory_heading }}</h2>
-        {%- endif -%}
+        <div class="ts-dir-head">
+          {%- if section.settings.directory_heading != blank -%}
+            <h2 class="ts-h2">{{ section.settings.directory_heading }}</h2>
+          {%- endif -%}
+          {%- if start_url != blank -%}
+            <p class="ts-dir-help">Don't see your team? <a href="{{ start_url }}">Start a store</a></p>
+          {%- endif -%}
+        </div>
 
         {%- if ts_count > 0 -%}
 
@@ -727,18 +1091,39 @@
 
           <div class="ts-grid" data-ts-grid>
             {%- for store in ts_stores -%}
+              {%- assign c = collections[store.h] -%}
+              {%- assign ts_img = nil -%}
+              {%- if c != blank -%}
+                {%- if c.image != blank -%}
+                  {%- assign ts_ext = c.image.src | split: '?' | first | split: '.' | last | downcase -%}
+                  {%- unless ts_ext == 'jpg' or ts_ext == 'jpeg' -%}
+                    {%- assign ts_img = c.image -%}
+                  {%- endunless -%}
+                {%- endif -%}
+                {%- if ts_img == blank and c.products_count > 0 -%}
+                  {%- assign ts_img = c.products.first.featured_image -%}
+                {%- endif -%}
+              {%- endif -%}
               <a href="/collections/{{ store.h }}"
                  class="ts-card"
                  data-search="{{ store.t | downcase | append: ' ' | append: store.h | replace: '-', ' ' | escape }}">
-                <span class="ts-initial" aria-hidden="true">{{ store.t | slice: 0 | upcase }}</span>
-                <span class="ts-card-name">{{ store.t }}</span>
+                <span class="ts-media{% if ts_img == blank %} is-blank{% endif %}">
+                  <span class="ts-initial" aria-hidden="true">{{ store.t | slice: 0 | upcase }}</span>
+                  {%- if ts_img != blank -%}
+                    <img src="{{ ts_img | image_url: width: 420 }}" alt="" loading="lazy" width="210" height="158">
+                  {%- endif -%}
+                </span>
+                <span class="ts-card-body">
+                  <span class="ts-card-name">{{ store.t }}</span>
+                  <span class="ts-card-go" aria-hidden="true">&rarr;</span>
+                </span>
               </a>
             {%- endfor -%}
           </div>
 
           <div class="ts-empty" data-ts-empty>
             <p class="ts-empty-head">No teams match <span data-ts-term></span></p>
-            <p class="ts-empty-sub">Try the school name, the town, or the sport.</p>
+            <p class="ts-empty-sub">Try the school name, the town, or the sport.{% if start_url != blank %} Still nothing? <a href="{{ start_url }}">Start a store</a>.{% endif %}</p>
           </div>
 
         {%- else -%}
@@ -904,16 +1289,22 @@
       "content": "Contact"
     },
     {
+      "type": "textarea",
+      "id": "contact_blurb",
+      "label": "Contact Blurb",
+      "default": "Chat with us today to set up a custom team store for your organization. We offer customization options like names and numbers, and a wide range of products including apparel, hats, water bottles, and more. Custom orders typically ship within 5–7 business days."
+    },
+    {
+      "type": "text",
+      "id": "contact_email",
+      "label": "Contact Email",
+      "default": "teamstores@therunhouse.com"
+    },
+    {
       "type": "text",
       "id": "builder_label",
       "label": "Builder button label",
       "default": "Build your store"
-    },
-    {
-      "type": "text",
-      "id": "builder_note",
-      "label": "Builder button note",
-      "default": "Pick your products and colors, and see a free preview before anything goes live."
     },
     {
       "type": "url",
@@ -922,16 +1313,94 @@
       "info": "Leave blank and the Build Your Team Store page is linked automatically."
     },
     {
-      "type": "textarea",
-      "id": "contact_blurb",
-      "label": "Contact Blurb",
-      "default": "Chat with us today to set up a custom team store for your organization. We offer customization options like names and numbers, and a wide range of products including apparel, hats, water bottles, and more. Typically 2-week shipping for all orders."
+      "type": "checkbox",
+      "id": "show_logo_wall",
+      "label": "Show moving logo wall",
+      "info": "Pulls logos from the team store collections. Only logo files (PNG/SVG) are used, never JPG photos.",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_stats",
+      "label": "Show quick stats",
+      "info": "The first stat is the live team store count.",
+      "default": true
     },
     {
       "type": "text",
-      "id": "contact_email",
-      "label": "Contact Email",
-      "default": "teamstores@therunhouse.com"
+      "id": "stat_2_value",
+      "label": "Stat 2 value",
+      "default": "Names & #s"
+    },
+    {
+      "type": "text",
+      "id": "stat_2_label",
+      "label": "Stat 2 label",
+      "default": "Personalization"
+    },
+    {
+      "type": "text",
+      "id": "stat_3_value",
+      "label": "Stat 3 value",
+      "default": "5–7 days"
+    },
+    {
+      "type": "text",
+      "id": "stat_3_label",
+      "label": "Stat 3 label",
+      "default": "Typical ship time"
+    },
+    {
+      "type": "header",
+      "content": "How It Works"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_steps",
+      "label": "Show How It Works",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "steps_heading",
+      "label": "Heading",
+      "default": "From your logo to their doorstep"
+    },
+    {
+      "type": "text",
+      "id": "step_1_title",
+      "label": "Step 1 title",
+      "default": "Send us your logo"
+    },
+    {
+      "type": "textarea",
+      "id": "step_1_text",
+      "label": "Step 1 text",
+      "default": "Email us your logo and the gear you have in mind. We'll mock up your store so you can see every piece before it goes live."
+    },
+    {
+      "type": "text",
+      "id": "step_2_title",
+      "label": "Step 2 title",
+      "default": "We build your store"
+    },
+    {
+      "type": "textarea",
+      "id": "step_2_text",
+      "label": "Step 2 text",
+      "default": "Your team gets its own online store: apparel, hats, water bottles and more, with optional names and numbers."
+    },
+    {
+      "type": "text",
+      "id": "step_3_title",
+      "label": "Step 3 title",
+      "default": "Your team orders, we ship"
+    },
+    {
+      "type": "textarea",
+      "id": "step_3_text",
+      "label": "Step 3 text",
+      "default": "Members order whenever they like. We print every piece in-house and ship it within 5–7 business days."
     },
     {
       "type": "header",
@@ -968,6 +1437,13 @@
       "label": "Highlight",
       "info": "The bright one. Deep cyan by default. Used sparingly on dark.",
       "default": "#06b6d4"
+    },
+    {
+      "type": "color",
+      "id": "pop_color",
+      "label": "Pop",
+      "info": "Run House orange. Hover shadows, the store count, underline accents.",
+      "default": "#f47b20"
     }
   ],
   "blocks": [
@@ -1017,6 +1493,3 @@
   ]
 }
 {% endschema %}
-
-
-

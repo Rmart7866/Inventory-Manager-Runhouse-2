@@ -1,0 +1,218 @@
+{%- comment -%}
+  HOME PAGE: "Create your team store", 2026-11-11, Todays Draft Theme.
+
+  The same banner as the Team Stores page (sections/team-stores-search,
+  the .ts-cta block), lifted out so the home page can carry it. It replaced
+  the old "Create Your Store With Us" text-and-image section and sits right
+  above New Arrivals, owner's placement.
+
+  Kept deliberately identical in look to the Team Stores page version, so
+  a shopper who clicks through lands on the same banner they just saw.
+  Two differences, both because this is not that page:
+    - "Find your team" LINKS to the Team Stores page instead of jumping
+      to a directory, since the directory is not on the home page.
+    - The logo wall and the store count read the same custom.team_stores
+      list, from the team-stores page's metafield rather than this page's.
+
+  No underline under the title (owner, 2026-11-11).
+{%- endcomment -%}
+
+{%- assign sid = section.id -%}
+{%- assign ts_page = pages['team-stores'] -%}
+{%- assign ts_stores = ts_page.metafields.custom.team_stores.value.stores -%}
+{%- assign ts_count = ts_stores | size -%}
+{%- assign builder_url = pages['build-your-store'].url -%}
+{%- assign dir_url = ts_page.url -%}
+
+{%- assign ts_wall_n = 0 -%}
+{%- assign ts_wall_a = '' -%}
+{%- assign ts_wall_b = '' -%}
+{%- assign ts_wall_c = '' -%}
+{%- assign ts_wall_d = '' -%}
+{%- if section.settings.show_logo_wall and ts_count > 0 -%}
+  {%- assign ts_step = ts_count | divided_by: 48 | at_least: 1 -%}
+  {%- for store in ts_stores -%}
+    {%- if ts_wall_n >= 20 -%}{%- break -%}{%- endif -%}
+    {%- assign ts_mod = forloop.index0 | modulo: ts_step -%}
+    {%- if ts_mod != 0 -%}{%- continue -%}{%- endif -%}
+    {%- assign wc = collections[store.h] -%}
+    {%- if wc == blank or wc.image == blank -%}{%- continue -%}{%- endif -%}
+    {%- assign w_ext = wc.image.src | split: '?' | first | split: '.' | last | downcase -%}
+    {%- if w_ext == 'jpg' or w_ext == 'jpeg' -%}{%- continue -%}{%- endif -%}
+    {%- capture ts_tile -%}<a href="/collections/{{ store.h }}" class="hts-tile" tabindex="-1"><img src="{{ wc.image | image_url: width: 260 }}" alt="" width="130" height="130" loading="lazy"></a>{%- endcapture -%}
+    {%- assign ts_col = ts_wall_n | modulo: 4 -%}
+    {%- case ts_col -%}
+      {%- when 0 -%}{%- assign ts_wall_a = ts_wall_a | append: ts_tile -%}
+      {%- when 1 -%}{%- assign ts_wall_b = ts_wall_b | append: ts_tile -%}
+      {%- when 2 -%}{%- assign ts_wall_c = ts_wall_c | append: ts_tile -%}
+      {%- else -%}{%- assign ts_wall_d = ts_wall_d | append: ts_tile -%}
+    {%- endcase -%}
+    {%- assign ts_wall_n = ts_wall_n | plus: 1 -%}
+  {%- endfor -%}
+{%- endif -%}
+{%- assign ts_has_wall = false -%}
+{%- if ts_wall_n >= 12 -%}{%- assign ts_has_wall = true -%}{%- endif -%}
+
+<style>
+  #hts-{{ sid }} {
+    --ts-deep: {{ section.settings.dark_color }};
+    --ts-accent: {{ section.settings.accent_color }};
+    --ts-glow: {{ section.settings.highlight_color }};
+    --ts-pop: {{ section.settings.pop_color }};
+    --ts-glow-soft: {{ section.settings.highlight_color | color_modify: 'alpha', 0.22 }};
+    --ts-accent-soft: {{ section.settings.accent_color | color_modify: 'alpha', 0.30 }};
+    font-family: 'Chivo', system-ui, sans-serif;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--ts-deep);
+    padding: 84px 0 92px;
+  }
+  #hts-{{ sid }} *, #hts-{{ sid }} *::before, #hts-{{ sid }} *::after { box-sizing: border-box; }
+  #hts-{{ sid }}::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(55% 75% at 88% 18%, var(--ts-glow-soft), transparent 70%),
+      radial-gradient(45% 60% at 8% 100%, var(--ts-accent-soft), transparent 70%),
+      repeating-linear-gradient(115deg, rgba(255,255,255,0.035) 0 2px, transparent 2px 26px);
+    pointer-events: none;
+  }
+  #hts-{{ sid }} h2, #hts-{{ sid }} p { margin: 0; padding: 0; font-family: 'Chivo', system-ui, sans-serif !important; }
+  #hts-{{ sid }} .hts-wrap { max-width: 1320px; margin: 0 auto; padding: 0 40px; }
+  #hts-{{ sid }} .hts-inner { position: relative; display: grid; grid-template-columns: 1.08fr 1fr; gap: 64px; align-items: center; }
+  #hts-{{ sid }}.no-wall .hts-inner { grid-template-columns: 1fr; max-width: 820px; }
+  #hts-{{ sid }} .hts-kicker {
+    display: inline-block; padding: 6px 11px; background: var(--ts-glow); color: var(--ts-deep) !important;
+    font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.16em; text-transform: uppercase;
+    margin-bottom: 18px !important;
+  }
+  #hts-{{ sid }} h2 {
+    font-size: clamp(36px, 5vw, 66px) !important; font-weight: 900 !important; letter-spacing: -0.035em;
+    line-height: 0.98 !important; color: #fff !important; margin-bottom: 20px !important; text-transform: none !important;
+  }
+  #hts-{{ sid }} h2 em { font-style: normal; color: var(--ts-glow); text-decoration: none; }
+  #hts-{{ sid }} .hts-blurb { font-size: 17px !important; line-height: 1.6 !important; color: rgba(255,255,255,0.74) !important; max-width: 58ch; }
+  #hts-{{ sid }} .hts-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
+  #hts-{{ sid }} .hts-btn {
+    display: inline-flex; align-items: center; gap: 12px; padding: 18px 24px;
+    font-size: 16px; font-weight: 900; letter-spacing: -0.01em; text-decoration: none !important; word-break: break-word;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+  }
+  #hts-{{ sid }} .hts-build { background: var(--ts-glow); border: 2px solid var(--ts-glow); color: var(--ts-deep) !important; }
+  #hts-{{ sid }} .hts-build::after { content: '\2192'; font-weight: 900; transition: transform 0.12s ease; }
+  #hts-{{ sid }} .hts-build:hover { box-shadow: 6px 6px 0 0 var(--ts-pop); transform: translate(-2px, -2px); }
+  #hts-{{ sid }} .hts-build:hover::after { transform: translateX(4px); }
+  #hts-{{ sid }} .hts-alt { background: transparent; border: 2px solid rgba(255,255,255,0.32); color: #fff !important; }
+  #hts-{{ sid }} .hts-alt:hover { border-color: #fff; }
+  #hts-{{ sid }} .hts-find::after { content: '\2192'; font-weight: 900; transition: transform 0.12s ease; }
+  #hts-{{ sid }} .hts-find:hover::after { transform: translateX(3px); }
+  #hts-{{ sid }} .hts-stats { display: flex; flex-wrap: wrap; gap: 40px; margin-top: 44px; padding-top: 26px; border-top: 1px solid rgba(255,255,255,0.14); }
+  #hts-{{ sid }} .hts-stat b { display: block; font-size: 28px; font-weight: 900; line-height: 1; color: #fff; letter-spacing: -0.02em; }
+  #hts-{{ sid }} .hts-stat:first-child b { color: var(--ts-pop); }
+  #hts-{{ sid }} .hts-stat span { display: block; margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.55); }
+
+  #hts-{{ sid }} .hts-wall {
+    position: relative; height: 540px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; transform: rotate(-6deg);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+            mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+  }
+  #hts-{{ sid }} .hts-col { display: flex; flex-direction: column; gap: 16px; padding-bottom: 16px; animation: hts-rise-{{ sid }} 42s linear infinite; will-change: transform; }
+  #hts-{{ sid }} .hts-col:nth-child(2) { animation-duration: 54s; animation-direction: reverse; }
+  #hts-{{ sid }} .hts-col:nth-child(3) { animation-duration: 48s; }
+  #hts-{{ sid }} .hts-wall:hover .hts-col { animation-play-state: paused; }
+  @keyframes hts-rise-{{ sid }} { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+  #hts-{{ sid }} .hts-tile { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; padding: 16%; background: #fff; border: 2px solid #fff; transition: transform 0.15s ease; }
+  #hts-{{ sid }} .hts-tile:nth-child(3n+1) { box-shadow: 6px 6px 0 0 var(--ts-glow); }
+  #hts-{{ sid }} .hts-tile:nth-child(3n+2) { box-shadow: 6px 6px 0 0 var(--ts-pop); }
+  #hts-{{ sid }} .hts-tile:hover { transform: scale(1.04); }
+  #hts-{{ sid }} .hts-tile img { width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; }
+
+  @media (min-width: 1101px) { #hts-{{ sid }} .hts-col:nth-child(4) { display: none; } }
+  @media (max-width: 1100px) {
+    #hts-{{ sid }} .hts-inner { grid-template-columns: 1fr; gap: 48px; }
+    #hts-{{ sid }} .hts-wall { height: 300px; grid-template-columns: repeat(4, 1fr); transform: rotate(-4deg); margin: 0 -20px; }
+    #hts-{{ sid }} .hts-col:nth-child(4) { animation-duration: 50s; animation-direction: reverse; }
+  }
+  @media (max-width: 768px) {
+    #hts-{{ sid }} { padding: 52px 0 40px; }
+    #hts-{{ sid }} .hts-wrap { padding: 0 18px; }
+    #hts-{{ sid }} .hts-blurb { font-size: 16px !important; }
+    #hts-{{ sid }} .hts-actions { margin-top: 26px; }
+    #hts-{{ sid }} .hts-btn { font-size: 15px; padding: 15px 18px; }
+    #hts-{{ sid }} .hts-stats { gap: 22px; margin-top: 32px; padding-top: 20px; }
+    #hts-{{ sid }} .hts-stat b { font-size: 22px; }
+    #hts-{{ sid }} .hts-stat span { font-size: 10px; letter-spacing: 0.1em; }
+    #hts-{{ sid }} .hts-wall { height: 220px; gap: 12px; }
+    #hts-{{ sid }} .hts-col { gap: 12px; padding-bottom: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #hts-{{ sid }} *, #hts-{{ sid }} *::before, #hts-{{ sid }} *::after { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div id="hts-{{ sid }}" class="hts{% unless ts_has_wall %} no-wall{% endunless %}">
+  <div class="hts-wrap">
+    <div class="hts-inner">
+      <div>
+        {%- if section.settings.kicker != blank -%}<p class="hts-kicker">{{ section.settings.kicker }}</p>{%- endif -%}
+        <h2>{{ section.settings.heading_lead }} <em>{{ section.settings.heading_highlight }}</em></h2>
+        {%- if section.settings.blurb != blank -%}<p class="hts-blurb">{{ section.settings.blurb }}</p>{%- endif -%}
+        <div class="hts-actions">
+          {%- if builder_url != blank -%}
+            <a href="{{ builder_url }}" class="hts-btn hts-build">{{ section.settings.builder_label }}</a>
+          {%- endif -%}
+          {%- if section.settings.contact_email != blank -%}
+            <a href="mailto:{{ section.settings.contact_email }}" class="hts-btn hts-alt">{{ section.settings.contact_email }}</a>
+          {%- endif -%}
+          {%- if dir_url != blank -%}
+            <a href="{{ dir_url }}" class="hts-btn hts-alt hts-find">Find your team</a>
+          {%- endif -%}
+        </div>
+        {%- if section.settings.show_stats -%}
+          <div class="hts-stats">
+            {%- if ts_count > 0 -%}<div class="hts-stat"><b>{{ ts_count }}</b><span>Team stores</span></div>{%- endif -%}
+            {%- if section.settings.stat_2_value != blank -%}<div class="hts-stat"><b>{{ section.settings.stat_2_value }}</b><span>{{ section.settings.stat_2_label }}</span></div>{%- endif -%}
+            {%- if section.settings.stat_3_value != blank -%}<div class="hts-stat"><b>{{ section.settings.stat_3_value }}</b><span>{{ section.settings.stat_3_label }}</span></div>{%- endif -%}
+          </div>
+        {%- endif -%}
+      </div>
+      {%- if ts_has_wall -%}
+        <div class="hts-wall" aria-hidden="true">
+          <div class="hts-col">{{ ts_wall_a }}{{ ts_wall_a }}</div>
+          <div class="hts-col">{{ ts_wall_b }}{{ ts_wall_b }}</div>
+          <div class="hts-col">{{ ts_wall_c }}{{ ts_wall_c }}</div>
+          <div class="hts-col">{{ ts_wall_d }}{{ ts_wall_d }}</div>
+        </div>
+      {%- endif -%}
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Team store banner",
+  "tag": "section",
+  "class": "home-team-store-cta",
+  "settings": [
+    { "type": "text", "id": "kicker", "label": "Small label", "default": "Get Started" },
+    { "type": "text", "id": "heading_lead", "label": "Heading", "default": "Create your" },
+    { "type": "text", "id": "heading_highlight", "label": "Heading, highlighted words", "default": "team store" },
+    { "type": "textarea", "id": "blurb", "label": "Text", "default": "Chat with us today to set up a custom team store for your organization. We offer customization options like names and numbers, and a wide range of products including apparel, hats, water bottles, and more. Custom orders typically ship within 5–7 business days." },
+    { "type": "text", "id": "builder_label", "label": "Builder button label", "default": "Build your store" },
+    { "type": "text", "id": "contact_email", "label": "Contact email", "default": "teamstores@therunhouse.com" },
+    { "type": "checkbox", "id": "show_logo_wall", "label": "Show moving logo wall", "default": true },
+    { "type": "checkbox", "id": "show_stats", "label": "Show quick stats", "info": "The first stat is the live team store count.", "default": true },
+    { "type": "text", "id": "stat_2_value", "label": "Stat 2 value", "default": "Names & #s" },
+    { "type": "text", "id": "stat_2_label", "label": "Stat 2 label", "default": "Personalization" },
+    { "type": "text", "id": "stat_3_value", "label": "Stat 3 value", "default": "5–7 days" },
+    { "type": "text", "id": "stat_3_label", "label": "Stat 3 label", "default": "Typical ship time" },
+    { "type": "color", "id": "dark_color", "label": "Dark background", "default": "#05101d" },
+    { "type": "color", "id": "accent_color", "label": "Accent", "default": "#2b7fff" },
+    { "type": "color", "id": "highlight_color", "label": "Highlight", "default": "#06b6d4" },
+    { "type": "color", "id": "pop_color", "label": "Pop", "default": "#f47b20" }
+  ],
+  "presets": [{ "name": "Team store banner" }]
+}
+{% endschema %}
