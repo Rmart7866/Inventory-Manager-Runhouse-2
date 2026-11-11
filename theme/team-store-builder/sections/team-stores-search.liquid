@@ -353,7 +353,13 @@
   }
 
   /* Logo wall: real team logos drifting past, tilted like a stack of tags. */
+  /* A mask fades the scrolling logos but does not stop taps: each column is
+     twice the wall height and scrolls up past the top, so on phones (wall
+     under the buttons) invisible tiles sat over the buttons and a tap opened a
+     team store. Clip the wall to its box, and keep the buttons on top. */
+  #ts-{{ sid }} .ts-actions { position: relative; z-index: 2; }
   #ts-{{ sid }} .ts-wall {
+    overflow: hidden;
     position: relative;
     height: 540px;
     display: grid;

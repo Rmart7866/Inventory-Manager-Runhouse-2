@@ -125,7 +125,13 @@
   #hts-{{ sid }} .hts-stat:first-child b { color: var(--ts-pop); }
   #hts-{{ sid }} .hts-stat span { display: block; margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.55); }
 
+  /* A mask fades the scrolling logos but does not stop taps: each column is
+     twice the wall height and scrolls up past the top, so on phones (wall
+     under the buttons) invisible tiles sat over the buttons and a tap opened a
+     team store. Clip the wall to its box, and keep the buttons on top. */
+  #hts-{{ sid }} .hts-actions { position: relative; z-index: 2; }
   #hts-{{ sid }} .hts-wall {
+    overflow: hidden;
     position: relative; height: 540px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; transform: rotate(-6deg);
     -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
             mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
