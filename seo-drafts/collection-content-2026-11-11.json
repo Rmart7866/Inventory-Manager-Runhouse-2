@@ -1,0 +1,160 @@
+{
+ "_note": "Main menu collections missing content, 2026-11-11. Written from each collection's real top vendors and product types (coll_targets.json). Facts only: no prices, counts or shipping claims. Stores named are the open ones: Needham, Walpole, Falmouth (Scituate is closed). Applied ADD ONLY: a field that already has content is never touched.",
+ "collections": {
+  "new-arrivals": {
+   "seoTitle": "New Arrivals: Running Shoes & Gear | The Run House",
+   "meta": "The newest running shoes and gear from Brooks, HOKA, ASICS, Saucony, On and New Balance. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "desc": "The latest running shoes and gear to land at The Run House, from Brooks, HOKA, ASICS, Saucony, On, New Balance and more. New colorways and new versions arrive every week, so check back often."
+  },
+  "mens-1": {
+   "desc": "Men's running and walking shoes, apparel, socks and accessories from ASICS, Brooks, HOKA, Saucony, Feetures and more. Need help choosing? Get fitted in store in Needham, Walpole or Falmouth."
+  },
+  "womens": {
+   "desc": "Women's running and walking shoes, apparel, socks and accessories from ASICS, Brooks, HOKA, Saucony, Feetures and more. Need help choosing? Get fitted in store in Needham, Walpole or Falmouth."
+  },
+  "insoles": {
+   "seoTitle": "Running Shoe Insoles & Orthotic Inserts | The Run House",
+   "meta": "Insoles and arch support inserts from Aetrex, PowerStep, Currex and more for running and walking shoes. Fitted in Needham, Walpole and Falmouth.",
+   "desc": "Insoles and inserts from Aetrex, PowerStep, Currex, Tega and more, for added arch support, cushioning and a better fit in your running and everyday shoes. Our fitters can help you find the right support in store."
+  },
+  "socks-1": {
+   "desc": "Running and compression socks from Crazy Compression, Balega, Feetures, Wrightsock, Brooks and Falke. Cushioned, lightweight and compression styles for daily miles, race day and recovery."
+  },
+  "headwear": {
+   "seoTitle": "Running Hats, Visors & Headwear | The Run House",
+   "meta": "Running hats, visors and headwear from Sprints, SAAKA, Saucony and The Run House. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "desc": "Running hats, visors and headwear from Sprints, SAAKA, Saucony and our own Run House gear. Lightweight styles that keep sun and sweat out of your eyes, mile after mile."
+  },
+  "gift-cards": {
+   "seoTitle": "Gift Cards | The Run House",
+   "meta": "Give the gift of new running shoes and gear with a Run House gift card, good online and in our Needham, Walpole and Falmouth stores.",
+   "desc": "Not sure which shoe or size? A Run House gift card lets them pick their own running shoes, apparel and gear, online or in our stores."
+  },
+  "accessories": {
+   "seoTitle": "Running Accessories & Sunglasses | The Run House",
+   "meta": "Running accessories from Goodr, Amphipod, Aetrex and Detour: sunglasses, hydration, insoles, storage, recovery and visibility gear.",
+   "desc": "Everything that goes with the shoes: sunglasses from Goodr and Detour, hydration and storage from Amphipod, insoles from Aetrex, plus recovery tools and visibility gear for early and late runs."
+  },
+  "hydration": {
+   "seoTitle": "Running Hydration: Bottles, Vests & Packs | The Run House",
+   "meta": "Handheld bottles, hydration vests and drinkware from Orange Mud, Amphipod, FITLY and Stanley. Shop online or in Needham, Walpole and Falmouth.",
+   "desc": "Hydration for every distance: handheld bottles, vests and running packs from Orange Mud, Amphipod and FITLY, plus everyday drinkware from Stanley and Coldest."
+  },
+  "visibility": {
+   "seoTitle": "Running Lights & Visibility Gear | The Run House",
+   "meta": "Headlamps, clip lights and reflective gear from Ledlenser, Amphipod and more, so you see and are seen on early morning and evening runs.",
+   "desc": "Headlamps, clip on lights and reflective gear from Ledlenser, Amphipod and more. See the road and stay visible to traffic on early morning and evening runs."
+  },
+  "storage-belts": {
+   "seoTitle": "Running Belts & Storage | The Run House",
+   "meta": "Running belts and storage from SPIbelt, Pingora, Amphipod and more. Carry your phone, keys and gels without the bounce. Shop online or in store.",
+   "desc": "Running belts, pouches and packs from SPIbelt, Pingora, Amphipod and more. Carry your phone, keys and fuel comfortably, with no bounce."
+  },
+  "charles-river-apparel": {
+   "seoTitle": "Charles River Apparel | The Run House",
+   "meta": "Charles River Apparel half zips, full zips and jackets for runs, sidelines and everyday wear. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "desc": "Charles River Apparel half zips, full zips and jackets, built for cool morning runs, the sidelines and everyday wear."
+  },
+  "stanley": {
+   "seoTitle": "Stanley Tumblers & Drinkware | The Run House",
+   "meta": "Stanley tumblers and insulated drinkware to keep drinks cold after the run and hot before it. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "desc": "Stanley tumblers and insulated drinkware, to keep drinks cold after the run and hot on the way to it."
+  },
+  "reebok": {
+   "seoTitle": "Reebok Shoes | The Run House",
+   "meta": "Reebok men's and women's shoes at The Run House. Shop online or try a pair on in Needham, Walpole and Falmouth, MA."
+  },
+  "mens-apparel-2": {
+   "seoTitle": "Men's Running Apparel | The Run House",
+   "meta": "Men's running apparel from On, Brooks, Cozy Earth, New Balance, ASICS and Puma: tees, shorts, pants, hoodies, tanks and jackets. Shop online or in store."
+  },
+  "speedland": {
+   "seoTitle": "Speedland Trail Running Shoes | The Run House",
+   "meta": "Speedland running shoes at The Run House. Shop online or try a pair on in Needham, Walpole and Falmouth, MA."
+  },
+  "watches": {
+   "seoTitle": "Watches | The Run House",
+   "meta": "Watches at The Run House. Shop online or visit our stores in Needham, Walpole and Falmouth, MA.",
+   "desc": "Watches to pair with your running and everyday gear."
+  },
+  "on-apparel": {
+   "seoTitle": "On Running Apparel | The Run House",
+   "meta": "On running apparel for men and women: tees, shorts, sports bras, pants, hoodies and tights. Shop online or in Needham, Walpole and Falmouth, MA."
+  },
+  "asics-apparel": {
+   "seoTitle": "ASICS Running Apparel | The Run House",
+   "meta": "ASICS running apparel: tanks, tees, jackets, shorts and hoodies for training and race day. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "desc": "ASICS running apparel, from tanks and tees to jackets, shorts and hoodies, for training days and race day."
+  },
+  "new-balance-apparel": {
+   "seoTitle": "New Balance Running Apparel | The Run House",
+   "meta": "New Balance running apparel: shorts, half zips, tees and more. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "desc": "New Balance running apparel, including shorts, half zips and tees for every season of training."
+  },
+  "puma-apparel": {
+   "seoTitle": "Puma Running Apparel | The Run House",
+   "meta": "Puma running apparel: shorts, tees, tanks and tights. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "desc": "Puma running apparel, including shorts, tees, tanks and tights."
+  },
+  "saucony-apparel": {
+   "seoTitle": "Saucony Running Apparel | The Run House",
+   "meta": "Saucony running apparel and accessories: half zips, gloves, headwear, shorts and tights. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "desc": "Saucony running apparel and accessories, from half zips and tights to gloves and headwear for cold weather miles."
+  },
+  "fitglutes": {
+   "seoTitle": "FitGlutes Activewear | The Run House",
+   "meta": "FitGlutes activewear: sports bras, matching sets, leggings, shorts and tanks for running, the gym and every day. Shop online at The Run House.",
+   "desc": "FitGlutes activewear, including sports bras, matching sets, leggings, shorts and tanks for running, training and every day."
+  },
+  "goal-five": {
+   "seoTitle": "Goal Five Running Apparel | The Run House",
+   "meta": "Goal Five running apparel: shorts, pants, tights, tanks and long sleeves. Shop online at The Run House.",
+   "desc": "Goal Five running apparel, including shorts, pants, tights, tanks and long sleeves."
+  },
+  "minus33": {
+   "seoTitle": "Minus33 Merino Wool Socks & Layers | The Run House",
+   "meta": "Minus33 merino wool socks, base layers, hoodies and gloves for cold weather running and everyday warmth. Shop online at The Run House.",
+   "desc": "Minus33 merino wool socks, base layers, hoodies and gloves, for warm, breathable comfort on cold weather runs and every day."
+  },
+  "mudgear": {
+   "seoTitle": "MudGear Socks & Compression | The Run House",
+   "meta": "MudGear trail and obstacle race socks and compression wear. Shop online at The Run House.",
+   "desc": "MudGear socks and compression wear, made for trail running and obstacle racing."
+  },
+  "people-of-leisure": {
+   "seoTitle": "People of Leisure | The Run House",
+   "meta": "People of Leisure pants and jackets at The Run House. Shop online.",
+   "desc": "People of Leisure pants and jackets for after the run."
+  },
+  "pynrs": {
+   "seoTitle": "PYNRS Performance Streetwear | The Run House",
+   "meta": "PYNRS performance streetwear: half zips, shorts, pants, socks and more for runs and everyday wear. Shop online at The Run House.",
+   "desc": "PYNRS performance streetwear, with half zips, shorts, pants, socks and more that work on the run and off it."
+  },
+  "saaka": {
+   "seoTitle": "SAAKA Running Hats | The Run House",
+   "meta": "SAAKA running hats and headwear at The Run House. Shop online or in Needham, Walpole and Falmouth, MA.",
+   "desc": "SAAKA running hats and headwear, light and breathable for hot days and long miles."
+  },
+  "trophy-yoga": {
+   "seoTitle": "Trophy Yoga Activewear | The Run House",
+   "meta": "Trophy Yoga activewear: tanks, leggings, shorts, skirts and sports bras. Shop online at The Run House.",
+   "desc": "Trophy Yoga activewear, including tanks, leggings, shorts, skirts and sports bras."
+  },
+  "varlo": {
+   "seoTitle": "Varlo Running Apparel | The Run House",
+   "meta": "Varlo running apparel: tees, shorts, skirts, tights and sports bras. Shop online at The Run House.",
+   "desc": "Varlo running apparel, including tees, shorts, skirts, tights and sports bras."
+  },
+  "vim-vigr": {
+   "seoTitle": "VIM & VIGR Compression Socks | The Run House",
+   "meta": "VIM & VIGR compression socks for running, travel and long days on your feet. Shop online at The Run House.",
+   "desc": "VIM & VIGR compression socks, for recovery after runs, travel and long days on your feet."
+  },
+  "worn": {
+   "seoTitle": "WORN Running Apparel | The Run House",
+   "meta": "WORN running apparel: tees, hoodies, layers and socks. Shop online at The Run House.",
+   "desc": "WORN running apparel, with tees, hoodies, base layers and socks for every season."
+  }
+ }
+}
