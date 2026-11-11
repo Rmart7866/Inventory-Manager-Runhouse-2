@@ -170,6 +170,14 @@
 </div>
   <h3>Your store preview</h3>
   <div class="calm placenote"><b>We'll get every logo placement right.</b> These previews are a starting point. Before your store goes live, our team sets the size, position and angle of your logo on each product, then emails you a proof PDF to approve. Nothing goes live until you say yes.</div>
+  <div class="bnw" id="bnw">
+<label class="f">Store banner <span style="font-weight:400;text-transform:none">(optional)</span></label><div class="up" id="up-banner">
+<div class="pv" id="pv-banner"><span class="sbn">Optional</span></div>
+<div style="flex:1;min-width:0">
+<input type="file" id="file-banner" accept=".png,.jpg,.jpeg,.webp"><div class="st2" id="st-banner">A wide photo for the top of your store page. It shows on the preview below.</div>
+</div>
+</div>
+</div>
   <div id="rev"></div>
   <div class="det">
 <h4>Store details <span class="sbn">(optional)</span>
@@ -186,7 +194,7 @@
   <label class="f" style="margin-top:16px">Anything else we should know?<textarea id="f-notes" rows="3" placeholder="Sizes you expect, deadlines, extra logo locations..."></textarea></label>
   <p class="sbn newonly">Previews are digital mockups; final logo size and placement follow our decoration standards. Prices include one logo; each additional logo location adds $3 (plus any fundraising).</p>
 <p class="sbn updonly">Previews are digital mockups; final logo size and placement follow our decoration standards. Prices shown are MSRP with one logo (each additional logo location adds $3). New items will follow your store's current pricing.</p>
-  <p class="calm2">✓ Sending this doesn't charge anything or open your store. We'll review every item and email you a free preview first.</p>
+  <p class="calm2">✓ Sending this doesn't charge anything or open your store.</p>
   <p id="sb3-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="btn alt" id="back2">← Keep shopping</button><button class="btn or" id="send">Send my store request</button></p>
   <p class="err" id="e-3" hidden></p>
 </section>
@@ -233,6 +241,7 @@ try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');if(sv&&sv.sel){S=sv;S.l
    forever and Send would refuse on it forever. It failed: say so, and
    the customer can pick the file again. */
 for(var k0 in S.logos){if(S.logos[k0]&&S.logos[k0].state==='up')S.logos[k0].state='err'}
+if(S.banner&&S.banner.state==='up')S.banner.state='err';
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){try{var c=JSON.parse(JSON.stringify(S));for(var k in c.logos){delete c.logos[k].img;delete c.logos[k].wimg}localStorage.setItem(KEY,JSON.stringify(c))}catch(e2){}}}
 var P={};D.cats.forEach(function(c){c.p.forEach(function(p){P[p.s]=p;p.cat=c.name})});
 var fields=['team','name','email','phone','date','logo','logonote','fund'];
@@ -294,6 +303,29 @@ LK.forEach(function(k){$('file-'+k).onchange=function(){pick(k)}});$('addlogo').
 if(S.opt.rmbg===true||S.opt.rmbg===false||!S.opt.rmbg)S.opt.rmbg='auto';$('opt-rmbg').value=S.opt.rmbg;
 $('opt-rmbg').onchange=function(){S.opt.rmbg=this.value;save();LK.forEach(function(k){if(RAW[k])processLogo(RAW[k],S.opt.rmbg,function(i,w,sm){S.logos[k].img=i;S.logos[k].smp=sm;save();showLogo(k);recReset()})})};
 LK.forEach(showLogo);showSlots();
+
+/* ---------- store banner (2026-11-11) ----------
+   An optional wide image for the top of the team's collection page. It
+   goes up through the same cart line item property as the logos (upload()),
+   is shown across the top of the step 3 preview, and travels in the request
+   as banner_file, which the staff Build step sets as the collection image.
+   BURL is a local object URL so the preview appears before the upload
+   finishes; only the uploaded CDN url is saved or sent. Images only: a PDF
+   or AI file cannot be a collection image. */
+var BURL=null,BNDEF=$('st-banner')?$('st-banner').innerHTML:'';
+function bannerSrc(){return S.banner?(S.banner.url||BURL):null}
+function showBanner(){var B=S.banner,pv=$('pv-banner'),st=$('st-banner');if(!pv)return;
+  if(!B){pv.innerHTML='<span class="sbn">Optional</span>';st.className='st2';st.innerHTML=BNDEF;return}
+  var src=bannerSrc();pv.innerHTML=src?'<img src="'+esc(src)+'" alt="">':'<span class="sbn">Banner</span>';
+  st.className='st2'+(B.state==='ok'?' ok2':B.state==='err'?' bad':'');
+  st.innerHTML=esc(B.name)+' &middot; '+(B.state==='ok'?'Uploaded &#10003;':B.state==='err'?'Upload failed. Try again, or email it to teamstores@therunhouse.com':'Uploading...')+' <a href="#" data-rm="banner">Remove</a>';
+  var a=st.querySelector('[data-rm]');if(a)a.onclick=function(e){e.preventDefault();delete S.banner;BURL=null;$('file-banner').value='';save();showBanner();if(!$('sb-3').hidden)review()}}
+if($('file-banner'))$('file-banner').onchange=function(){var f=this.files[0];if(!f)return;var st=$('st-banner');
+  if(!/^image\/(png|jpe?g|webp)$/i.test(f.type)){st.className='st2 bad';st.textContent='Please use a PNG, JPG or WEBP image for the banner.';this.value='';return}
+  if(f.size>20*1024*1024){st.className='st2 bad';st.textContent='That file is over 20MB. Please use a smaller file.';this.value='';return}
+  var rec={name:f.name,state:'up'};S.banner=rec;try{BURL=URL.createObjectURL(f)}catch(e){BURL=null}save();showBanner();if(!$('sb-3').hidden)review();
+  upload(f,function(u){if(S.banner!==rec)return;rec.url=u;rec.state=u?'ok':'err';save();showBanner();if(!$('sb-3').hidden)review()})};
+showBanner();
 
 /* ---------- team colors ---------- */
 var FAM={},FORD=[];(D.fam||[]).forEach(function(f){FAM[f[0]]={n:f[1],h:f[2]};FORD.push(f[0])});
@@ -360,7 +392,7 @@ function starter(){var g=grpOf();if(!g)return;var n=0;g.s.forEach(function(st){v
     r.slice(0,k).forEach(function(i){var nm=p.c[i][0];if(s.c.indexOf(nm)<0){s.c.push(nm);n++}});S.pv[st]=r[0]});save();render();
   note(n?'Added your '+g.n+' starter store: '+g.s.length+' products in your colors. Change anything below, or tap Review & send.':'Those items are already in your store')}
 function qs(){var el=$('qs');if(!el)return;if(S.mode==='upd'){el.className='qs mini';el.innerHTML='Adding to <b>'+esc(S.store?S.store.n:'your store')+'</b>. Items already in your store are marked <b>In your store</b>. Pick the new products and colors you want, then tap Review &amp; send.';return}var g=grpOf(),k=count()[0];
-  if(k){el.className='qs mini';el.innerHTML='&#10003; Nothing is final. We\'ll check every item and send you a free preview before your store opens. <span class="sbn">Want to raise money for your team? Add it on the last step.</span>';return}
+  if(k){el.className='qs mini';el.innerHTML='&#10003; Nothing is final. <span class="sbn">Want to raise money for your team? Add it on the last step.</span>';return}
   el.className='qs';var h='<h4><span class="opt">Fastest</span>Start with a recommended store</h4><div class="sbn">Pick your group and we\'ll add our most popular products for it in your team colors. You can change anything after. Nothing is final until you approve your preview.</div>';
   h+='<div class="fams grp" id="grp2" style="margin-top:10px"></div>';
   if(g){h+='<div class="qsp">'+g.s.map(function(st){var p=P[st];if(!p)return'';var r=rec(p),i=r.length?r[0]:0;return'<img src="'+esc(p.c[i][2]||p.img)+'" alt="'+esc(p.n)+'" title="'+esc(p.n)+'">'}).join('')+'</div>'}
@@ -577,7 +609,7 @@ function review(shared){var r=rows();var t=S.team,m=S.logos[haveLogos()[0]]||S.l
   var tiles='';r.forEach(function(x){x.s.c.forEach(function(nm){var i=cidx(x.p,nm);tiles+='<div class="tile"><div class="im">'+mock(x.p,i,x.s)+'</div><div class="nm">'+esc(x.p.n)+'</div><div class="cl">'+esc(nm)+' &middot; '+esc(x.p.s)+'</div><div class="cl">Logo: '+esc(plabel(x.p)||'Front')+esc(lname(x.p,x.p.c[i],'f'))+(xlabel(x)?' + '+esc(xlabel(x))+esc(lname(x.p,x.p.c[i],'x')):'')+'</div><div class="pr2">'+money(price(x.p,x.s.x))+'</div></div>'})});
   var nolog=!haveLogos().length?'<p class="sbn" style="margin:0 0 10px">Upload a PNG, JPG or SVG logo on the Team step to see it on every item.</p>':'';
   var share=r.length?'<div class="share"><button type="button" class="btn alt" id="dl">Download preview image</button><button type="button" class="btn alt" id="pr">Print / save PDF</button>'+(shared?'':'<button type="button" class="btn alt" id="lnk">Copy share link</button>')+'<span class="sbn" id="shmsg"></span></div>':'';
-  $('rev').innerHTML=r.length?share+'<div id="shareable">'+head+nolog+'<div class="gal">'+tiles+'</div></div>'+(shared?'':'<table><tr><th>Product</th><th>Colors</th><th>Price</th><th></th></tr>'+r.map(function(x){return'<tr><td><b>'+esc(x.p.n)+'</b><br><span class="sbn">'+esc(x.p.s)+' &middot; '+esc(x.p.cat)+'</span></td><td>'+esc(x.s.c.join(', '))+(plabel(x.p)?'<br><span class="sbn">Logo: '+plabel(x.p)+(pdesc(x.p,'f')&&pdesc(x.p,'f')!=='auto'?' ('+pdesc(x.p,'f')+')':'')+'</span>':'')+(xlabel(x)?'<br><span class="sbn">+ second logo: '+esc(xlabel(x))+(pdesc(x.p,'x')&&pdesc(x.p,'x')!=='auto'?' ('+pdesc(x.p,'x')+')':'')+'</span>':'')+'</td><td>'+money(price(x.p,x.s.x))+(fpct()?'<br><span class="sbn">MSRP '+money(x.p.m+(loc2(x.p,x.s)?3:0))+'</span>':'')+'</td><td><button class="x" data-s="'+esc(x.p.s)+'">Remove</button></td></tr>'}).join('')+'</table>'):'<p>No products selected yet.</p>';
+  $('rev').innerHTML=r.length?share+'<div id="shareable">'+(bannerSrc()?'<div class="storebanner"><img src="'+esc(bannerSrc())+'" alt=""></div>':'')+head+nolog+'<div class="gal">'+tiles+'</div></div>'+(shared?'':'<table><tr><th>Product</th><th>Colors</th><th>Price</th><th></th></tr>'+r.map(function(x){return'<tr><td><b>'+esc(x.p.n)+'</b><br><span class="sbn">'+esc(x.p.s)+' &middot; '+esc(x.p.cat)+'</span></td><td>'+esc(x.s.c.join(', '))+(plabel(x.p)?'<br><span class="sbn">Logo: '+plabel(x.p)+(pdesc(x.p,'f')&&pdesc(x.p,'f')!=='auto'?' ('+pdesc(x.p,'f')+')':'')+'</span>':'')+(xlabel(x)?'<br><span class="sbn">+ second logo: '+esc(xlabel(x))+(pdesc(x.p,'x')&&pdesc(x.p,'x')!=='auto'?' ('+pdesc(x.p,'x')+')':'')+'</span>':'')+'</td><td>'+money(price(x.p,x.s.x))+(fpct()?'<br><span class="sbn">MSRP '+money(x.p.m+(loc2(x.p,x.s)?3:0))+'</span>':'')+'</td><td><button class="x" data-s="'+esc(x.p.s)+'">Remove</button></td></tr>'}).join('')+'</table>'):'<p>No products selected yet.</p>';
   $('rev').querySelectorAll('.x').forEach(function(b){b.onclick=function(){delete S.sel[b.dataset.s];save();review()}});if($('send'))$('send').disabled=SENDING||!r.length;
   if($('dl'))$('dl').onclick=dlImage;if($('pr'))$('pr').onclick=function(){root.classList.add('printing');window.print();setTimeout(function(){root.classList.remove('printing')},500)};if($('lnk'))$('lnk').onclick=copyLink}
 
@@ -652,6 +684,7 @@ function sendReq(bfm){if(SENDING)return;if(!valid()){step(1);$('e-1').hidden=fal
      nothing visible. It goes beside whichever button was pressed. */
   var eu=bfm?$('e-bfm'):$('e-3');
   for(var k in S.logos){if(S.logos[k].state==='up'){eu.hidden=false;eu.textContent='Your logo is still uploading. Please wait a moment and try again.';return}}
+  if(S.banner&&S.banner.state==='up'){eu.hidden=false;eu.textContent='Your banner is still uploading. Please wait a moment and try again.';return}
   $('e-3').hidden=true;$('e-bfm').hidden=true;var t=S.team,r=rows(),L=S.logos;
   var UPD=S.mode==='upd';var NEWL=LK.some(function(k){return L[k]&&!L[k].fromStore});var lstat=(UPD&&!NEWL&&L.main&&L.main.fromStore?'Store logos on file (loaded automatically)':'')||(L.main&&L.main.url?(UPD?'New logo uploaded':'Uploaded'):'')||(UPD?'Use the logos already on the store':'')||t.logo||'not provided';
   var G0=UPD?null:grpOf();var lines=UPD?['TEAM STORE UPDATE - ADD ITEMS TO EXISTING STORE','Store: '+S.store.n+' (https://therunhouse.com/collections/'+S.store.h+')','Products in store now: '+(S.haveN||0)]:['TEAM STORE REQUEST'+(bfm?' - BUILD IT FOR ME (no products picked)':''),'Team: '+t.team,'Group type: '+(G0?G0.n:'not given'),'Contact: '+t.name+' ('+t.email+(t.phone?', '+t.phone:'')+')','Store opening: '+(t.date||'not given'),'Logos: '+lstat+(t.logonote?' | '+t.logonote:'')];
@@ -664,6 +697,7 @@ function sendReq(bfm){if(SENDING)return;if(!valid()){step(1);$('e-1').hidden=fal
   r.forEach(function(x){lines.push('- '+x.p.s+' | '+x.p.n+' | '+money(price(x.p,x.s.x))+(fpct()?' (MSRP '+money(x.p.m+(loc2(x.p,x.s)?3:0))+')':'')+' | Colors: '+x.s.c.join(', ')+(plabel(x.p)?' | Logo: '+plabel(x.p):'')+(xlabel(x)?' | 2nd logo: '+xlabel(x):'')+(twoLogos()?' | Logo files: '+x.s.c.map(function(nm){var c=x.p.c[cidx(x.p,nm)];return nm+'='+LN[lkey(c,pk(x.p,'f'))]+(xlabel(x)?' / '+LN[lkey(c,pk(x.p,'x'))]:'')}).join('; '):''))});
   var notes=bfm?$('bfm-notes').value:$('f-notes').value;if(notes)lines.push('','NOTES: '+notes);
   var js={v:D.v,mode:UPD?'update':'new',store:UPD?{name:S.store.n,handle:S.store.h,url:'https://therunhouse.com/collections/'+S.store.h,existing_styles:Object.keys(S.have||{})}:null,team:t.team,contact:{name:t.name,email:t.email,phone:t.phone||''},date:t.date||'',logos:lstat,logo_files:LK.reduce(function(o,k){if(L[k])o[k]=L[k].url||'';return o},{main:L.main&&L.main.url||'',dark:L.dark&&L.dark.url||''}),logo_names:LK.reduce(function(o,k){if(L[k])o[k]=LN[k];return o},{}),logo_notes:t.logonote||'',fundraising_pct:fpct(),build_for_me:!!bfm,group:G0?G0.n:'',team_colors:{main:TC.m?cdesc('m',EM):'',second:TC.s?cdesc('s',ES):'',main_custom:TC.m==='X'?(TC.mx||{}):null,second_custom:TC.s==='X'?(TC.sx||{}):null,neutrals:(TC.n||[]).map(function(k){return FAM[k].n})},notes:notes,items:r.map(function(x){return{style:x.p.s,colors:x.s.c,second_logo:xlabel(x),placement:plabel(x.p),logo_choice:twoLogos()?{front:pdesc(x.p,'f'),second:xlabel(x)?pdesc(x.p,'x'):'',by_color:x.s.c.reduce(function(o,nm){var c=x.p.c[cidx(x.p,nm)];o[nm]={front:LN[lkey(c,pk(x.p,'f'))]||'',second:xlabel(x)?LN[lkey(c,pk(x.p,'x'))]||'':''};return o},{})}:null,msrp:x.p.m+(loc2(x.p,x.s)?3:0),price:price(x.p,x.s.x)}})};
+  if(S.banner&&S.banner.url){js.banner_file=S.banner.url;lines.splice(lines.indexOf('PRODUCTS ('+r.length+'):')-1,0,'Banner file: '+S.banner.url+' ('+S.banner.name+')')}
   lines.push('','--- machine-readable (do not edit) ---','TRHSB'+JSON.stringify(js)+'TRHSB');
   $('h-name').value=t.name;$('h-email').value=t.email;$('h-phone').value=t.phone||'';$('h-subj').value=UPD?'Team Store Update: '+S.store.n:'Team Store Request'+(bfm?' (build for me)':'')+': '+t.team;$('h-body').value=lines.join('\n');
   $('h-ret').value=location.pathname+'?submitted=1';var sb=bfm?$('bfm-send'):$('send');SENDING=true;[$('send'),$('bfm-send')].forEach(function(b){b.disabled=true});sb.textContent='Sending...';var f=$('sb-form');

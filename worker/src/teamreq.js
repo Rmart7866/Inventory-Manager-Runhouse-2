@@ -121,6 +121,9 @@ export function workFrom(req) {
     // The team slug, as the back office automation tags its stores.
     tag: team ? team.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : '',
     logos,
+    // The customer's optional store banner (builder step 3, 2026-11-11).
+    // Build sets it as the collection image on a NEW store.
+    banner: String((req && req.banner_file) || ''),
     items: ((req && req.items) || []).map((it) => ({
       style: String(it.style || ''),
       colors: Array.isArray(it.colors) ? it.colors.map(String) : [],

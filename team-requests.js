@@ -1134,7 +1134,16 @@ var TR = {
     paneLogos: function () {
         var w = TR.st.rec.work, slots = Object.keys(w.logos || {});
         var pane = TR.$('pane');
-        pane.innerHTML = (slots.length ? '<div class="logos">' + slots.map(function (k) {
+        // The customer's store banner (builder step 3, 2026-11-11). Build sets
+        // it as the collection image on a new store; an existing store keeps
+        // its own. Older records only have it on the original request.
+        var bn = w.banner || (TR.st.rec.req && TR.st.rec.req.banner_file) || '';
+        if (bn && bn.indexOf('//') === 0) bn = 'https:' + bn;
+        var bnHtml = bn ? '<h3 style="margin:0 0 6px;font-size:15px">Store banner</h3>' +
+            '<img src="' + TR.esc(bn) + '" alt="" style="display:block;width:100%;max-width:720px;aspect-ratio:4/1;object-fit:cover;background:#eef3f9">' +
+            '<p class="sub" style="margin:6px 0 4px">Becomes the collection image when you Build a new store.</p>' +
+            '<a class="btn" style="text-decoration:none;display:inline-flex;align-items:center;margin-bottom:18px" target="_blank" rel="noopener" href="' + TR.esc(bn) + '">Open file</a>' : '';
+        pane.innerHTML = bnHtml + (slots.length ? '<div class="logos">' + slots.map(function (k) {
             var L = w.logos[k];
             return '<div class="logo" data-k="' + k + '"><div class="checker" id="lg-pv-' + k + '"><span>Loading</span></div>' +
                 '<b>' + TR.esc(L.label || k) + '</b><div class="sub">' + TR.esc(L.name || (L.url ? L.url.split('/').pop().split('?')[0] : '')) + ' · ' + (L.from === 'staff' ? 'replaced by staff' : 'from the customer') + '</div>' +

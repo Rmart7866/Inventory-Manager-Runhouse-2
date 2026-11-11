@@ -15,8 +15,8 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import worker from '../src/index.js';
-import { planProduct, productSetInputFor, slug, spellSize, existingStoreInfo } from '../src/teamreq-build.js';
-import { clean } from '../src/teamreq.js';
+import { planProduct, productSetInputFor, slug, spellSize, existingStoreInfo, bannerUrl } from '../src/teamreq-build.js';
+import { clean, workFrom } from '../src/teamreq.js';
 
 let failures = 0;
 const check = (name, cond, detail) => {
@@ -279,6 +279,18 @@ r = await call('/team-requests/delete', { method: 'POST', headers: { Authorizati
 check('delete needs the write secret', r.status === 403);
 r = await call('/team-requests/delete', { method: 'POST', headers: STAFF, body: { id } });
 check('with it, the request is gone', r.status === 200 && !KV.m.has('treq:' + id));
+
+console.log('\nStore banner (2026-11-11)');
+// The banner becomes a collection image, so Build must only ever hand
+// Shopify a file on Shopify's own CDN, never an address a customer typed.
+check('a protocol relative cart upload url is made https', bannerUrl('//cdn.shopify.com/s/files/1/0631/banner.jpg') === 'https://cdn.shopify.com/s/files/1/0631/banner.jpg');
+check('an https Shopify CDN url passes', bannerUrl('https://cdn.shopify.com/s/files/x.png') === 'https://cdn.shopify.com/s/files/x.png');
+check('any other host is refused', bannerUrl('https://example.com/x.png') === '');
+check('a lookalike host is refused', bannerUrl('https://cdn.shopify.com.evil.test/x.png') === '');
+check('plain http is refused', bannerUrl('http://cdn.shopify.com/x.png') === '');
+check('blank and junk are refused', bannerUrl('') === '' && bannerUrl(null) === '' && bannerUrl('not a url') === '');
+check('the request carries the banner into the work copy', workFrom({ team: 'T', banner_file: '//cdn.shopify.com/b.jpg' }).banner === '//cdn.shopify.com/b.jpg');
+check('no banner is an empty string, not undefined', workFrom({ team: 'T' }).banner === '');
 
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

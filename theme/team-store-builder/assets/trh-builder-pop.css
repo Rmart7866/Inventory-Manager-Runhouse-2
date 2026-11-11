@@ -1,38 +1,63 @@
 /* ==========================================================================
-   TEAM STORE BUILDER, THE BRIGHTER LAYER. 2026-11-11, Todays Draft Theme.
+   TEAM STORE BUILDER, THE BRIGHTER LAYER. Todays Draft Theme.
 
-   Loaded AFTER trh-builder.css and only on /pages/build-your-store. The
-   owner's brief: too cluttered with text, not enough colour or motion, look
-   at the Team Stores page and how much it pops. So this borrows that page's
-   palette and its one effect, the hard offset block:
+   Loaded AFTER trh-builder.css and only on /pages/build-your-store.
 
-     deep #05101d   cyan #06b6d4   electric #2b7fff   orange #f47b20
+   Round one (2026-11-11) brought in the Team Stores page's palette and its
+   hard offset block. Round two, the same day, is the owner's correction and
+   it overrides round one wherever they disagree:
+
+     - NO UNDERLINES ANYWHERE. Links, tabs and the step rail all used one.
+       Active tabs are a filled block now, never a rule under the text.
+     - No gradients, no shimmer, no accent lines above headings.
+     - No offset shadows in the colour picker or on the choice buttons; it
+       read as clutter with twenty chips on screen. The one offset block
+       left is on the orange commit buttons, where there is only one.
+     - Plain frame on the shirt preview, flat background on the bundles.
+
+   Palette, measured off the Team Stores page:
+     deep #05101d   ink #0a1a2f   cyan #06b6d4   orange #f47b20
 
    trh-builder.css carries 360 !important rules, so every rule here is
-   html body #trh-sb ... with !important. That is the cost of layering over
-   it rather than editing a 135 KB file nobody can review; the builder's own
-   markup and JS are not touched at all.
+   html body #trh-sb ... with !important. The builder's markup and JS are
+   not touched by this file.
 
-   TEXT THAT IS HIDDEN, and why each is safe: only sentences that restate
-   what the control beside them already says. Prices, upload status
-   (#st-main), lookup messages, error lines and the pricing notes on step 3
-   are deliberately left alone.
+   TEXT THAT IS HIDDEN: only sentences that restate what the control beside
+   them already says. Prices, upload status, lookup messages, error lines and
+   the pricing notes on step 3 are left alone.
    ========================================================================== */
 
 html body #trh-sb {
   --p-deep: #05101d;
   --p-ink: #0a1a2f;
   --p-glow: #06b6d4;
-  --p-blue: #2b7fff;
   --p-pop: #f47b20;
   --p-line: #dbe3ee;
   --navy: #0a1a2f !important;
   background: #fff !important;
 }
 
-/* The old static photo header: replaced by snippets/trh-builder-hero.
-   Kept in the DOM, its video button is what the new header presses. */
+/* The old static photo header, replaced by snippets/trh-builder-hero. Kept
+   in the DOM because its video button is what the new header presses. */
 html body #trh-sb .trh-hero { display: none !important; }
+
+/* ---------------------------------------------------------- no underlines */
+html body #trh-sb a,
+html body #trh-sb a:hover,
+html body #trh-sb button,
+html body #trh-sb summary { text-decoration: none !important; }
+html body #trh-sb .tabs,
+html body #trh-sb .ys-tabs { border-bottom: 0 !important; box-shadow: none !important; }
+html body #trh-sb .tabs button,
+html body #trh-sb .ys-tabs button,
+html body #trh-sb .steps span { border-bottom: 0 !important; }
+html body #trh-sb .tabs button::after,
+html body #trh-sb .ys-tabs button::after,
+html body #trh-sb .steps span::after { content: none !important; display: none !important; }
+/* A link still has to look like one without a rule under it. */
+html body #trh-sb #bfm,
+html body #trh-sb #nolog,
+html body #trh-sb .faq a { color: #1f6fd1 !important; font-weight: 700 !important; }
 
 /* ---------------------------------------------------------------- less text */
 html body #trh-sb #sb-1 > .calm,
@@ -51,18 +76,15 @@ html body #trh-sb .steps {
   padding: 0 !important;
   border: 0 !important;
   background: #eef3f9 !important;
-  box-shadow: 6px 6px 0 0 var(--p-deep) !important;
+  box-shadow: none !important;
 }
 html body #trh-sb .steps span {
-  position: relative !important;
-  overflow: hidden !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  min-height: 58px !important;
+  min-height: 54px !important;
   padding: 0 14px !important;
   margin: 0 !important;
-  border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
   color: #5b6b82 !important;
@@ -74,21 +96,7 @@ html body #trh-sb .steps span {
 }
 html body #trh-sb .steps span + span { border-left: 2px solid #fff !important; }
 html body #trh-sb .steps span:hover { color: var(--p-ink) !important; background: #e2ebf6 !important; }
-html body #trh-sb .steps span.on {
-  color: #fff !important;
-  background: linear-gradient(100deg, var(--p-glow), var(--p-blue)) !important;
-}
-/* A sheen that runs across the active split, the one bit of motion in the
-   working part of the page. */
-html body #trh-sb .steps span.on::after {
-  content: '' !important;
-  position: absolute !important;
-  inset: 0 !important;
-  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%) !important;
-  transform: translateX(-100%);
-  animation: pop-sheen 3.2s ease-in-out infinite !important;
-}
-@keyframes pop-sheen { 60%, 100% { transform: translateX(100%); } }
+html body #trh-sb .steps span.on { color: #fff !important; background: var(--p-ink) !important; }
 
 /* ------------------------------------------------------------ the panels */
 html body #trh-sb .card,
@@ -100,8 +108,8 @@ html body #trh-sb #sb-2 {
   padding-left: 0 !important;
   padding-right: 0 !important;
 }
-html body #trh-sb section[id^="sb-"]:not([hidden]) { animation: pop-in 0.45s ease both; }
-@keyframes pop-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+html body #trh-sb section[id^="sb-"]:not([hidden]) { animation: pop-in 0.4s ease both; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
 html body #trh-sb h3,
 html body #trh-sb h4.browseh {
@@ -110,15 +118,10 @@ html body #trh-sb h4.browseh {
   text-transform: none !important;
   letter-spacing: -0.015em !important;
 }
+/* No accent line above a heading, the builder's own included. */
 html body #trh-sb h3::before,
-html body #trh-sb h4.browseh::before {
-  content: '' !important;
-  display: block !important;
-  width: 46px !important;
-  height: 6px !important;
-  margin: 0 0 12px !important;
-  background: linear-gradient(90deg, var(--p-glow), var(--p-blue) 55%, var(--p-pop)) !important;
-}
+html body #trh-sb h4.browseh::before,
+html body #trh-sb .bar { display: none !important; content: none !important; }
 
 html body #trh-sb label.f {
   color: var(--p-ink) !important;
@@ -137,7 +140,7 @@ html body #trh-sb label.f select {
   min-height: 50px !important;
   font-size: 16px !important;
   box-shadow: none !important;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  transition: border-color 0.15s ease !important;
 }
 html body #trh-sb label.f input:hover,
 html body #trh-sb label.f textarea:hover { border-color: #b9c7da !important; }
@@ -146,40 +149,40 @@ html body #trh-sb label.f textarea:focus,
 html body #trh-sb label.f select:focus {
   outline: none !important;
   border-color: var(--p-glow) !important;
-  box-shadow: 5px 5px 0 0 var(--p-glow) !important;
+  box-shadow: none !important;
 }
 
 /* ---------------------------------------------------- new store / existing */
 html body #trh-sb #mode {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
-  gap: 16px !important;
+  gap: 12px !important;
   margin-bottom: 26px !important;
 }
 html body #trh-sb #mode button {
-  min-height: 64px !important;
+  min-height: 60px !important;
   border: 2px solid var(--p-line) !important;
   border-radius: 0 !important;
   background: #fff !important;
   color: var(--p-ink) !important;
   box-shadow: none !important;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease !important;
+  transition: border-color 0.12s ease, background 0.12s ease !important;
 }
 html body #trh-sb #mode button b { font: 900 17px/1.2 Chivo, system-ui, sans-serif !important; color: inherit !important; }
-html body #trh-sb #mode button:hover { border-color: var(--p-ink) !important; transform: translate(-2px, -2px) !important; box-shadow: 5px 5px 0 0 var(--p-pop) !important; }
+html body #trh-sb #mode button:hover { border-color: var(--p-ink) !important; }
 html body #trh-sb #mode button.on {
-  background: var(--p-deep) !important;
-  border-color: var(--p-deep) !important;
+  background: var(--p-ink) !important;
+  border-color: var(--p-ink) !important;
   color: #fff !important;
-  box-shadow: 6px 6px 0 0 var(--p-glow) !important;
 }
 html body #trh-sb #mode button.on b { color: #fff !important; }
 
 /* ------------------------------------------------ group + colour chips */
-html body #trh-sb .fams { gap: 10px !important; }
+/* Flat on purpose: twenty chips each throwing a shadow was the clutter. */
+html body #trh-sb .fams { gap: 8px !important; }
 html body #trh-sb .fams button {
-  min-height: 46px !important;
-  padding: 6px 16px 6px 8px !important;
+  min-height: 44px !important;
+  padding: 6px 14px 6px 8px !important;
   border: 2px solid var(--p-line) !important;
   border-radius: 0 !important;
   background: #fff !important;
@@ -187,74 +190,66 @@ html body #trh-sb .fams button {
   font-weight: 700 !important;
   font-size: 14px !important;
   box-shadow: none !important;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease !important;
+  transition: border-color 0.12s ease, background 0.12s ease !important;
 }
-html body #trh-sb .fams.grp button { padding: 6px 18px !important; }
-html body #trh-sb .fams button i { width: 26px !important; height: 26px !important; }
-html body #trh-sb .fams button:hover {
-  border-color: var(--p-ink) !important;
-  transform: translate(-2px, -2px) !important;
-  box-shadow: 4px 4px 0 0 var(--p-pop) !important;
-}
+html body #trh-sb .fams.grp button { padding: 6px 16px !important; }
+html body #trh-sb .fams button i { width: 24px !important; height: 24px !important; }
+html body #trh-sb .fams button:hover { border-color: var(--p-ink) !important; box-shadow: none !important; }
 html body #trh-sb .fams button.on {
-  background: var(--p-deep) !important;
-  border-color: var(--p-deep) !important;
+  background: var(--p-ink) !important;
+  border-color: var(--p-ink) !important;
   color: #fff !important;
-  box-shadow: 4px 4px 0 0 var(--p-glow) !important;
-  animation: pop-pick 0.28s ease !important;
+  box-shadow: none !important;
 }
 html body #trh-sb .fams button.on i { box-shadow: 0 0 0 2px #fff !important; }
-html body #trh-sb .fams button.off { opacity: 0.45 !important; }
-@keyframes pop-pick { 40% { transform: scale(1.08); } }
+html body #trh-sb .fams button.off { opacity: 0.45 !important; text-decoration: none !important; }
 
 html body #trh-sb .tcl { color: var(--p-ink) !important; font-weight: 800 !important; }
 
-/* -------------------------------------------------------- logo upload */
+/* -------------------------------------------------------- uploads */
 html body #trh-sb .up {
   border: 2px dashed #b9c7da !important;
   border-radius: 0 !important;
   background: #f6f9fd !important;
-  transition: border-color 0.15s ease, background 0.15s ease !important;
+  transition: border-color 0.15s ease !important;
 }
-html body #trh-sb .up:hover { border-color: var(--p-glow) !important; background: #eefbfd !important; }
+html body #trh-sb .up:hover { border-color: var(--p-glow) !important; }
 
 /* ------------------------------------------------- the commit buttons */
+/* The one place the offset block stays: there is only ever one of these on
+   screen, and it is the thing the page exists to get pressed. */
 html body #trh-sb #go2,
 html body #trh-sb .btn.or {
   display: inline-flex !important;
   align-items: center !important;
   gap: 10px !important;
-  min-height: 58px !important;
-  padding: 0 30px !important;
+  min-height: 56px !important;
+  padding: 0 28px !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: var(--p-pop) !important;
   color: #fff !important;
   font: 900 17px/1 Chivo, system-ui, sans-serif !important;
-  box-shadow: 6px 6px 0 0 var(--p-deep) !important;
+  box-shadow: 5px 5px 0 0 var(--p-deep) !important;
   transition: transform 0.12s ease, box-shadow 0.12s ease !important;
 }
 html body #trh-sb #go2:hover,
-html body #trh-sb .btn.or:hover { transform: translate(-2px, -2px) !important; box-shadow: 8px 8px 0 0 var(--p-glow) !important; }
+html body #trh-sb .btn.or:hover { transform: translate(-2px, -2px) !important; box-shadow: 7px 7px 0 0 var(--p-deep) !important; }
 html body #trh-sb #go2:active,
-html body #trh-sb .btn.or:active { transform: translate(4px, 4px) !important; box-shadow: 2px 2px 0 0 var(--p-deep) !important; }
+html body #trh-sb .btn.or:active { transform: translate(3px, 3px) !important; box-shadow: 2px 2px 0 0 var(--p-deep) !important; }
 html body #trh-sb #go2 { margin-top: 10px !important; }
-/* The Next row was a navy band holding a white button; the button is the
-   colour now, so the band goes. */
 html body #trh-sb #sb-1 > p:has(#go2) { background: transparent !important; padding: 0 !important; }
 
 /* -------------------------------------------------- the shirt preview */
 html body #trh-sb .ys-stage {
-  border: 0 !important;
+  border: 2px solid var(--p-line) !important;
   border-radius: 0 !important;
   background: #fff !important;
-  padding: 3px !important;
-  background-image: linear-gradient(#fff, #fff), linear-gradient(135deg, var(--p-glow), var(--p-blue) 50%, var(--p-pop)) !important;
-  background-origin: border-box !important;
-  background-clip: content-box, border-box !important;
-  box-shadow: 10px 10px 0 0 rgba(6, 182, 212, 0.18) !important;
+  background-image: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
 }
-html body #trh-sb .ys-tabs { gap: 8px !important; border: 0 !important; margin-top: 16px !important; }
+html body #trh-sb .ys-tabs { gap: 8px !important; margin-top: 14px !important; }
 html body #trh-sb .ys-tabs button {
   border: 2px solid var(--p-line) !important;
   border-radius: 0 !important;
@@ -263,55 +258,64 @@ html body #trh-sb .ys-tabs button {
   color: var(--p-ink) !important;
   font-weight: 800 !important;
 }
-html body #trh-sb .ys-tabs button.on,
-html body #trh-sb .ys-tabs button[aria-selected="true"] {
+html body #trh-sb .ys-tabs button[aria-pressed="true"],
+html body #trh-sb .ys-tabs button.on {
   background: var(--p-ink) !important;
   border-color: var(--p-ink) !important;
   color: #fff !important;
 }
 
-/* ----------------------------------------------------------------- FAQ */
-/* The new heading bar replaces the FAQ's own .bar, and the subtitle was
-   inheriting the heading's tight tracking (-1.84px measured). */
-html body #trh-sb .faqhead .bar { display: none !important; }
-html body #trh-sb .faqhead p { letter-spacing: normal !important; color: rgba(255,255,255,0.7) !important; }
-html body #trh-sb #faq-h { color: #fff !important; }
+/* ------------------------------------------------- step 2 product tabs */
+html body #trh-sb .tabs button {
+  border-radius: 0 !important;
+  font-weight: 800 !important;
+}
+html body #trh-sb .tabs button.on,
+html body #trh-sb .tabs button[aria-pressed="true"],
+html body #trh-sb .tabs button[aria-selected="true"] {
+  background: var(--p-ink) !important;
+  color: #fff !important;
+}
 
-/* ------------------------------------------------------- step 2 bits */
-/* The bundle band (.bund) gets the header's deep-to-electric sweep, and
-   the cards pick up the offset block on hover, cyan, orange, blue in turn. */
+/* ------------------------------------------------- ready-made bundles */
 html body #trh-sb .bund {
-  background: radial-gradient(600px 300px at 90% 0%, rgba(6,182,212,0.35), transparent 70%),
-              linear-gradient(120deg, var(--p-deep), #0b2a52 60%, #1f4fa8) !important;
+  background: var(--p-ink) !important;
+  background-image: none !important;
 }
 html body #trh-sb .bund .bc {
   border: 0 !important;
   border-radius: 0 !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  box-shadow: none !important;
 }
-html body #trh-sb .bund .bc:hover { transform: translate(-3px, -3px) !important; }
-html body #trh-sb .bund .bc:nth-child(3n+1):hover { box-shadow: 8px 8px 0 0 var(--p-glow) !important; }
-html body #trh-sb .bund .bc:nth-child(3n+2):hover { box-shadow: 8px 8px 0 0 var(--p-pop) !important; }
-html body #trh-sb .bund .bc:nth-child(3n):hover   { box-shadow: 8px 8px 0 0 var(--p-blue) !important; }
 html body #trh-sb .bund .btn.add {
   border-radius: 0 !important;
   background: var(--p-glow) !important;
   color: var(--p-deep) !important;
   font-weight: 900 !important;
 }
-html body #trh-sb .bund .btn.add:hover { background: var(--p-deep) !important; color: #fff !important; }
-html body #trh-sb .prods > * {
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+html body #trh-sb .bund .btn.add:hover { background: #fff !important; }
+
+/* ------------------------------------------------- step 3: store banner */
+html body #trh-sb .bnw { margin: 0 0 18px !important; }
+html body #trh-sb #sb-3:has(#sharedbar:not([hidden])) .bnw { display: none !important; }
+html body #trh-sb #pv-banner img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+html body #trh-sb .storebanner { margin: 0 0 12px !important; background: #eef3f9 !important; }
+html body #trh-sb .storebanner img {
+  display: block !important;
+  width: 100% !important;
+  aspect-ratio: 4 / 1 !important;
+  object-fit: cover !important;
 }
-html body #trh-sb .prods > *:hover {
-  transform: translateY(-3px) !important;
-  box-shadow: 0 3px 0 0 var(--p-glow) !important;
-}
+
+/* ----------------------------------------------------------------- FAQ */
+html body #trh-sb .faqhead p { letter-spacing: normal !important; color: rgba(255,255,255,0.7) !important; }
+html body #trh-sb #faq-h { color: #fff !important; }
+html body #trh-sb .faq a { color: #7fd3e6 !important; }
 
 @media (max-width: 700px) {
   html body #trh-sb #mode { grid-template-columns: 1fr !important; }
-  html body #trh-sb .steps span { font-size: 12px !important; min-height: 50px !important; padding: 0 6px !important; }
+  html body #trh-sb .steps span { font-size: 12px !important; min-height: 48px !important; padding: 0 6px !important; }
 }
 @media (prefers-reduced-motion: reduce) {
-  html body #trh-sb *, html body #trh-sb *::after { animation: none !important; }
+  html body #trh-sb section[id^="sb-"] { animation: none !important; }
 }

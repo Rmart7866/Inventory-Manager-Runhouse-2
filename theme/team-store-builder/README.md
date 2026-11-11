@@ -44,9 +44,29 @@ Palette is the Team Stores page's, measured off it: deep `#05101d`, cyan
 `.trh-hero` is hidden, not removed, because its video button is what the
 new "Watch how it works" presses.
 
-Checked in preview on steps 1 and 2 with no console errors. Step 3 needs a
-product in the request before it opens and was not rendered. Mobile was
-not rendered either.
+**Round two, same day, overrides round one.** The owner's correction: NO
+UNDERLINES anywhere (top priority; links, the tabs and the step rail all
+used one, active tabs are filled blocks now), no gradients, no shimmer, no
+accent lines above headings, no offset shadows in the colour picker, a
+plain frame on the shirt preview, a flat bundle background, no blue "team
+store" in the headline, no stats row, "Free to set up" said ONCE (the
+header), and no "free preview" wording (two lines trimmed in the snippet).
+The header's motion is now the gear wall and the faint lanes only. A
+computed-style sweep over steps 1 and 2 found no underline left.
+
+**The store banner.** Step 3 has an optional "Store banner" upload. It goes
+up through the same cart property path as the logos, shows full width
+across the top of the store preview, and is sent as `banner_file` in the
+request. The Worker keeps it on the work copy (`workFrom` -> `banner`), the
+staff inbox shows it in the Logos pane, and Build sets it as the
+COLLECTION IMAGE on a NEW store only (an existing store's image is never
+replaced). `bannerUrl()` in `teamreq-build.js` accepts https on
+`cdn.shopify.com` only, so Build cannot hand Shopify an arbitrary address,
+and if Shopify refuses the image the collection is still created without
+it and `bannerError` says why. Pinned in `worker/test/team-requests.mjs`.
+
+Checked in preview on steps 1, 2 and 3, including a real banner upload.
+Mobile was not rendered.
 
 ## Where it used to live, and why that was a problem
 

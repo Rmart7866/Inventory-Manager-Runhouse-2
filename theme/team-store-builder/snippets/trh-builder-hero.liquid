@@ -14,8 +14,9 @@
   cyan and orange offset blocks, a tilt) so the two pages read as one,
   but horizontal, so it is not a copy of it.
 
-  Text is kept deliberately short: one line under the headline. The owner's
-  brief was more colour and motion, and not a wall of text.
+  Text is kept deliberately short: one line under the headline. Round two
+  of owner feedback (same day) took out the glows, the underline, the blue
+  "team store" and the stats row: the motion is the gear wall and the lanes.
 {%- endcomment -%}
 
 {%- assign tbh_data = pages['team-stores'].metafields.custom.team_stores.value -%}
@@ -53,26 +54,6 @@
     color: #fff;
     isolation: isolate;
   }
-  /* Drifting light: three soft glows on slow, out of step loops, so the
-     background is never quite the same twice and never busy. */
-  .tbh::before, .tbh::after {
-    content: '';
-    position: absolute;
-    z-index: -1;
-    width: 720px;
-    height: 720px;
-    border-radius: 50%;
-    filter: blur(90px);
-    opacity: 0.42;
-    pointer-events: none;
-  }
-  .tbh::before { background: var(--tbh-glow); top: -340px; left: -220px; animation: tbh-drift-a 18s ease-in-out infinite alternate; }
-  .tbh::after  { background: var(--tbh-blue); bottom: -420px; right: -180px; animation: tbh-drift-b 22s ease-in-out infinite alternate; }
-  .tbh-ember {
-    position: absolute; z-index: -1; width: 380px; height: 380px; border-radius: 50%;
-    background: var(--tbh-pop); filter: blur(110px); opacity: 0.28; top: 30%; left: 42%;
-    animation: tbh-drift-c 16s ease-in-out infinite alternate; pointer-events: none;
-  }
   /* Track lanes: faint diagonal stripes that slide, the one nod to running. */
   .tbh-lanes {
     position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0.07;
@@ -80,9 +61,6 @@
     background-size: 200% 200%;
     animation: tbh-lanes 14s linear infinite;
   }
-  @keyframes tbh-drift-a { to { transform: translate(140px, 90px) scale(1.15); } }
-  @keyframes tbh-drift-b { to { transform: translate(-160px, -60px) scale(0.9); } }
-  @keyframes tbh-drift-c { to { transform: translate(-120px, 70px) scale(1.2); } }
   @keyframes tbh-lanes { to { background-position: 172px 0; } }
 
   .tbh-in {
@@ -100,12 +78,6 @@
     font: 900 clamp(42px, 6.2vw, 78px)/0.98 Chivo, system-ui, sans-serif;
     animation: tbh-rise 0.6s 0.08s ease both;
   }
-  .tbh h1 em {
-    font-style: normal; color: var(--tbh-glow);
-    background: linear-gradient(var(--tbh-pop), var(--tbh-pop)) left 92% / 0 7px no-repeat;
-    animation: tbh-underline 0.7s 0.55s ease forwards;
-  }
-  @keyframes tbh-underline { to { background-size: 100% 7px; } }
   .tbh-lead {
     margin: 22px 0 0; max-width: 46ch; color: rgba(255,255,255,0.78);
     font-size: 18px; line-height: 1.5; animation: tbh-rise 0.6s 0.16s ease both;
@@ -123,10 +95,6 @@
   .tbh-vid { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,0.32); }
   .tbh-vid::before { content: '\25B6'; font-size: 12px; color: var(--tbh-glow); }
   .tbh-vid:hover { border-color: #fff; }
-  .tbh-stats { display: flex; flex-wrap: wrap; gap: 34px; margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.14); animation: tbh-rise 0.6s 0.32s ease both; }
-  .tbh-stat b { display: block; font: 900 30px/1 Chivo, system-ui, sans-serif; color: #fff; }
-  .tbh-stat:first-child b { color: var(--tbh-pop); }
-  .tbh-stat span { display: block; margin-top: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.55); }
   @keyframes tbh-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 
   /* The gear wall. Two rows drifting opposite ways, tilted like a stack of
@@ -155,7 +123,7 @@
   /* Once someone is past step 1 they have bought in: the header shrinks to
      a slim band so the products sit high on the screen. */
   .tbh-page:has(#trh-sb .steps span:first-child:not(.on)) .tbh-in { padding: 26px 28px; grid-template-columns: 1fr; }
-  .tbh-page:has(#trh-sb .steps span:first-child:not(.on)) :is(.tbh-kicker, .tbh-lead, .tbh-actions, .tbh-stats, .tbh-wall) { display: none; }
+  .tbh-page:has(#trh-sb .steps span:first-child:not(.on)) :is(.tbh-kicker, .tbh-lead, .tbh-actions, .tbh-wall) { display: none; }
   .tbh-page:has(#trh-sb .steps span:first-child:not(.on)) .tbh h1 { font-size: clamp(28px, 3.4vw, 40px); animation: none; }
 
   @media (max-width: 989px) {
@@ -165,32 +133,23 @@
   }
   @media (max-width: 600px) {
     .tbh-lead { font-size: 16px; }
-    .tbh-stats { gap: 22px; }
-    .tbh-stat b { font-size: 24px; }
     .tbh-go, .tbh-vid { padding: 15px 18px; font-size: 15px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .tbh *, .tbh::before, .tbh::after { animation: none !important; }
-    .tbh h1 em { background-size: 100% 7px; }
+    .tbh * { animation: none !important; }
   }
 </style>
 
 <div class="tbh">
-  <span class="tbh-ember" aria-hidden="true"></span>
   <span class="tbh-lanes" aria-hidden="true"></span>
   <div class="tbh-in">
     <div>
-      <p class="tbh-kicker">Free to set up &middot; No minimums</p>
-      <h1>Build your <em>team store</em></h1>
-      <p class="tbh-lead">Your logo on real gear, in your colors. We send a free preview before anything goes live.</p>
+      <p class="tbh-kicker">Free to set up</p>
+      <h1>Build your team store</h1>
+      <p class="tbh-lead">Your logo on real gear, in your team colors.</p>
       <div class="tbh-actions">
         <a href="#sb-1" class="tbh-go" data-tbh-go>Start building</a>
         <button type="button" class="tbh-vid" data-tbh-vid>Watch how it works</button>
-      </div>
-      <div class="tbh-stats">
-        {%- if tbh_count > 0 -%}<div class="tbh-stat"><b>{{ tbh_count }}</b><span>Team stores</span></div>{%- endif -%}
-        <div class="tbh-stat"><b>$0</b><span>To set up</span></div>
-        <div class="tbh-stat"><b>Free</b><span>Preview first</span></div>
       </div>
     </div>
     {%- if tbh_n >= 8 -%}

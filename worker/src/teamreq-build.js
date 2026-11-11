@@ -42,6 +42,15 @@ mutation collectionCreate($input: CollectionInput!) {
   }
 }`;
 
+// A banner url the collection image may use: https on Shopify's own CDN
+// only (cart uploads come back protocol relative, "//cdn.shopify.com/...").
+// Anything else is '' so Build never hands Shopify an arbitrary address.
+export function bannerUrl(u) {
+  let s = String(u || '').trim();
+  if (s.startsWith('//')) s = 'https:' + s;
+  try { const x = new URL(s); return x.protocol === 'https:' && x.hostname === 'cdn.shopify.com' ? x.href : ''; } catch { return ''; }
+}
+
 export function slug(s) {
   return String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
     .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 200);
@@ -208,6 +217,12 @@ export async function handleBuild(request, env) {
     ? { title: update.title, handle: update.handle, tag, existing: true }
     : { title: (b.collectionTitle || team).slice(0, 250), handle: slug(b.collectionHandle || team), tag };
   const searchable = !!b.searchable;
+  // The customer's banner becomes the collection image, NEW stores only: an
+  // existing store's image is somebody's earlier decision and is never
+  // replaced from here. Only a Shopify CDN file is accepted, which is the
+  // only place the builder's upload (a cart line item property) puts one.
+  const banner = update ? '' : bannerUrl((rec.work && rec.work.banner) || (rec.req && rec.req.banner_file));
+  if (banner) collection.banner = banner;
 
   // Create-only, fail CLOSED. If we cannot tell what exists, build nothing.
   let existing, colExisting = null;
@@ -246,14 +261,25 @@ export async function handleBuild(request, env) {
   } else if (colExisting) {
     col = { handle: colExisting.handle, id: colExisting.id, skipped: true, reason: 'A collection with this handle already exists, so it was left alone. Products carry the tag ' + tag + '.' };
   } else {
+    const input = {
+      title: collection.title,
+      handle: collection.handle,
+      ruleSet: { appliedDisjunctively: false, rules: [{ column: 'TAG', relation: 'EQUALS', condition: tag }] },
+    };
+    const create = async (withBanner) => {
+      const body = await client.graphql(COLLECTION_CREATE, { input: withBanner ? { ...input, image: { src: banner, altText: collection.title } } : input });
+      return body.data.collectionCreate;
+    };
     try {
-      const body = await client.graphql(COLLECTION_CREATE, { input: {
-        title: collection.title,
-        handle: collection.handle,
-        ruleSet: { appliedDisjunctively: false, rules: [{ column: 'TAG', relation: 'EQUALS', condition: tag }] },
-      } });
-      const r = body.data.collectionCreate;
-      col = r.userErrors.length ? { ok: false, errors: r.userErrors.map((e) => e.message) } : { ok: true, id: r.collection.id, handle: r.collection.handle, title: r.collection.title };
+      let r = await create(!!banner);
+      let bannerError = null;
+      // A banner Shopify will not take must not cost the store its
+      // collection: create it without the image and say why.
+      if (banner && r.userErrors.length) {
+        bannerError = r.userErrors.map((e) => e.message).join('; ');
+        r = await create(false);
+      }
+      col = r.userErrors.length ? { ok: false, errors: r.userErrors.map((e) => e.message) } : { ok: true, id: r.collection.id, handle: r.collection.handle, title: r.collection.title, banner: banner && !bannerError ? banner : null, bannerError };
     } catch (e) {
       col = { ok: false, errors: [String(e && e.message || e)] };
     }
