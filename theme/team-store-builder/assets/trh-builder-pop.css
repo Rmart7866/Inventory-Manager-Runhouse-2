@@ -317,9 +317,52 @@ html body #trh-sb .faqhead p { letter-spacing: normal !important; color: rgba(25
 html body #trh-sb #faq-h { color: #fff !important; }
 html body #trh-sb .faq a { color: #7fd3e6 !important; }
 
+/* ------------------------------------------------------------- PHONES
+   Owner, 2026-11-11: simpler on mobile, desktop unchanged. Measured in a
+   390px phone emulation before writing any of this:
+     - the step labels wrapped to two lines and were clipped
+     - the two store-type buttons were each about 60px tall, stacked
+     - the panels carried a 20px side margin ON TOP of the page's 17px,
+       so every field sat 37px in from the edge
+   Everything below only applies under 700px. */
 @media (max-width: 700px) {
-  html body #trh-sb #mode { grid-template-columns: 1fr !important; }
-  html body #trh-sb .steps span { font-size: 12px !important; min-height: 48px !important; padding: 0 6px !important; }
+  html body #trh-sb section[id^="sb-"] { margin-left: 0 !important; margin-right: 0 !important; }
+
+  /* Short step labels: the numbers do the work, one word each. */
+  html body #trh-sb .steps { margin: 16px 0 18px !important; }
+  html body #trh-sb .steps span { font-size: 0 !important; min-height: 44px !important; padding: 0 4px !important; }
+  html body #trh-sb .steps span::before { font: 900 13px/1 Chivo, system-ui, sans-serif; letter-spacing: 0.03em; }
+  html body #trh-sb .steps span[data-s="1"]::before { content: "1 Team"; }
+  html body #trh-sb .steps span[data-s="2"]::before { content: "2 Products"; }
+  html body #trh-sb .steps span[data-s="3"]::before { content: "3 Send"; }
+
+  /* minmax(0, 1fr) and wrapping text: "Add to my existing store" does not
+     wrap by default, and at its natural width it pushed the page to 465px,
+     dragging the store header's icons off the right edge. */
+  html body #trh-sb #mode { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: 8px !important; margin-bottom: 18px !important; }
+  html body #trh-sb #mode button { min-width: 0 !important; min-height: 50px !important; padding: 6px 8px !important; white-space: normal !important; }
+  html body #trh-sb #mode button b { font-size: 13px !important; line-height: 1.2 !important; white-space: normal !important; }
+
+  html body #trh-sb h3,
+  html body #trh-sb h4.browseh { font-size: 26px !important; }
+  html body #trh-sb label.f { font-size: 12px !important; }
+  html body #trh-sb label.f input,
+  html body #trh-sb label.f textarea,
+  html body #trh-sb label.f select { min-height: 46px !important; }
+
+  html body #trh-sb .fams { gap: 6px !important; }
+  html body #trh-sb .fams button { min-height: 40px !important; padding: 4px 10px 4px 6px !important; font-size: 13px !important; }
+  html body #trh-sb .fams.grp button { padding: 4px 12px !important; }
+  html body #trh-sb .fams button i { width: 20px !important; height: 20px !important; }
+
+  html body #trh-sb .up { padding: 10px !important; }
+  html body #trh-sb .st2 { font-size: 12px !important; line-height: 1.4 !important; }
+
+  /* The shirt preview stays, smaller and centred, so the form leads. */
+  html body #trh-sb .ys { max-width: 300px !important; margin-left: auto !important; margin-right: auto !important; }
+
+  html body #trh-sb #go2,
+  html body #trh-sb .btn.or { width: 100% !important; justify-content: center !important; min-height: 52px !important; font-size: 16px !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   html body #trh-sb section[id^="sb-"] { animation: none !important; }

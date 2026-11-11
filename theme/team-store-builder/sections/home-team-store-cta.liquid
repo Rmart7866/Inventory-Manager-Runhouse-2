@@ -137,17 +137,25 @@
     #hts-{{ sid }} .hts-wall { height: 300px; grid-template-columns: repeat(4, 1fr); transform: rotate(-4deg); margin: 0 -20px; }
     #hts-{{ sid }} .hts-col:nth-child(4) { animation-duration: 50s; animation-direction: reverse; }
   }
+  /* PHONES (owner, 2026-11-11: simpler on mobile, desktop unchanged): the
+     title, two buttons and a short strip of logos. The paragraph, the email
+     button and the stats were a full screen of scrolling before New
+     Arrivals; the email is still one tap away on the Team Stores page. */
   @media (max-width: 768px) {
-    #hts-{{ sid }} { padding: 52px 0 40px; }
+    #hts-{{ sid }} { padding: 36px 0 28px; }
     #hts-{{ sid }} .hts-wrap { padding: 0 18px; }
-    #hts-{{ sid }} .hts-blurb { font-size: 16px !important; }
-    #hts-{{ sid }} .hts-actions { margin-top: 26px; }
-    #hts-{{ sid }} .hts-btn { font-size: 15px; padding: 15px 18px; }
-    #hts-{{ sid }} .hts-stats { gap: 22px; margin-top: 32px; padding-top: 20px; }
-    #hts-{{ sid }} .hts-stat b { font-size: 22px; }
-    #hts-{{ sid }} .hts-stat span { font-size: 10px; letter-spacing: 0.1em; }
-    #hts-{{ sid }} .hts-wall { height: 220px; gap: 12px; }
-    #hts-{{ sid }} .hts-col { gap: 12px; padding-bottom: 12px; }
+    #hts-{{ sid }} .hts-inner { grid-template-columns: minmax(0, 1fr); gap: 26px; }
+    #hts-{{ sid }} .hts-inner > * { min-width: 0; }
+    #hts-{{ sid }} h2 { font-size: 38px !important; margin-bottom: 0 !important; }
+    #hts-{{ sid }} .hts-blurb,
+    #hts-{{ sid }} .hts-stats,
+    #hts-{{ sid }} .hts-btn[href^="mailto:"] { display: none !important; }
+    #hts-{{ sid }} .hts-actions { margin-top: 20px; flex-direction: column; gap: 10px; }
+    #hts-{{ sid }} .hts-btn { width: 100%; justify-content: center; font-size: 16px; padding: 15px 18px; }
+    #hts-{{ sid }} .hts-wall { height: 150px; gap: 10px; margin: 0 -18px; transform: rotate(-4deg); }
+    #hts-{{ sid }} .hts-col { gap: 10px; padding-bottom: 10px; }
+    #hts-{{ sid }} .hts-tile:nth-child(n) { box-shadow: 4px 4px 0 0 var(--ts-glow); }
+    #hts-{{ sid }} .hts-tile:nth-child(2n) { box-shadow: 4px 4px 0 0 var(--ts-pop); }
   }
   @media (prefers-reduced-motion: reduce) {
     #hts-{{ sid }} *, #hts-{{ sid }} *::before, #hts-{{ sid }} *::after { transition: none !important; animation: none !important; }

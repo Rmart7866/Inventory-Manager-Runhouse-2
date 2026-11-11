@@ -126,14 +126,31 @@
   .tbh-page:has(#trh-sb .steps span:first-child:not(.on)) :is(.tbh-kicker, .tbh-lead, .tbh-actions, .tbh-wall) { display: none; }
   .tbh-page:has(#trh-sb .steps span:first-child:not(.on)) .tbh h1 { font-size: clamp(28px, 3.4vw, 40px); animation: none; }
 
+  /* minmax(0, ...) and min-width 0 are load bearing: the gear wall's rows
+     are max-content wide, and a plain 1fr track grew to fit them, about
+     2,470px on a phone, so the headline and buttons were laid out on that
+     and clipped ("Build your team sto"). Measured 2026-11-11 at 390px. */
+  .tbh-in > * { min-width: 0; }
   @media (max-width: 989px) {
-    .tbh-in { grid-template-columns: 1fr; padding: 48px 20px 40px; gap: 34px; }
+    .tbh-in { grid-template-columns: minmax(0, 1fr); padding: 48px 20px 40px; gap: 34px; }
     .tbh-wall { margin: 0 -40px; }
     .tbh-tile { width: 120px; }
   }
+  /* PHONES: one message, one button, a short strip of gear. */
   @media (max-width: 600px) {
-    .tbh-lead { font-size: 16px; }
-    .tbh-go, .tbh-vid { padding: 15px 18px; font-size: 15px; }
+    .tbh-in { padding: 28px 18px 24px; gap: 22px; }
+    .tbh-kicker { margin-bottom: 14px; font-size: 11px; padding: 7px 10px; }
+    .tbh h1 { font-size: 38px; line-height: 1; }
+    .tbh-lead { font-size: 16px; margin-top: 12px; }
+    .tbh-actions { margin-top: 20px; }
+    .tbh-go { width: 100%; justify-content: center; padding: 16px 18px; font-size: 16px; }
+    .tbh-vid { display: none; }
+    .tbh-wall { margin: 0 -18px; gap: 12px; transform: rotate(-5deg); }
+    .tbh-row { gap: 12px; }
+    .tbh-row + .tbh-row { display: none; }
+    .tbh-tile { width: 92px; padding: 6px; }
+    .tbh-tile:nth-child(n) { box-shadow: 4px 4px 0 0 var(--tbh-glow); }
+    .tbh-tile:nth-child(2n) { box-shadow: 4px 4px 0 0 var(--tbh-pop); }
   }
   @media (prefers-reduced-motion: reduce) {
     .tbh * { animation: none !important; }
