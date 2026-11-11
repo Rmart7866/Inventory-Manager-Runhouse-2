@@ -21,6 +21,7 @@
 
 {%- assign sid = section.id -%}
 {%- assign ts_page = pages['team-stores'] -%}
+{%- assign ts_imgs = ts_page.metafields.custom.team_store_images.value -%}
 {%- assign ts_stores = ts_page.metafields.custom.team_stores.value.stores -%}
 {%- assign ts_count = ts_stores | size -%}
 {%- assign builder_url = pages['build-your-store'].url -%}
@@ -37,11 +38,20 @@
     {%- if ts_wall_n >= 20 -%}{%- break -%}{%- endif -%}
     {%- assign ts_mod = forloop.index0 | modulo: ts_step -%}
     {%- if ts_mod != 0 -%}{%- continue -%}{%- endif -%}
-    {%- assign wc = collections[store.h] -%}
-    {%- if wc == blank or wc.image == blank -%}{%- continue -%}{%- endif -%}
-    {%- assign w_ext = wc.image.src | split: '?' | first | split: '.' | last | downcase -%}
-    {%- if w_ext == 'jpg' or w_ext == 'jpeg' -%}{%- continue -%}{%- endif -%}
-    {%- capture ts_tile -%}<a href="/collections/{{ store.h }}" class="hts-tile" tabindex="-1"><img src="{{ wc.image | image_url: width: 260 }}" alt="" width="130" height="130" loading="lazy"></a>{%- endcapture -%}
+    {%- assign ts_m = nil -%}
+    {%- if ts_imgs -%}{%- assign ts_m = ts_imgs[store.h] -%}{%- endif -%}
+    {%- if ts_m -%}
+      {%- assign ts_kind = ts_m | slice: 0 -%}
+      {%- if ts_kind != 'L' -%}{%- continue -%}{%- endif -%}
+      {%- assign ts_wurl = ts_m | remove_first: 'L|' | append: '?width=260' -%}
+    {%- else -%}
+      {%- assign wc = collections[store.h] -%}
+      {%- if wc == blank or wc.image == blank -%}{%- continue -%}{%- endif -%}
+      {%- assign w_ext = wc.image.src | split: '?' | first | split: '.' | last | downcase -%}
+      {%- if w_ext == 'jpg' or w_ext == 'jpeg' -%}{%- continue -%}{%- endif -%}
+      {%- assign ts_wurl = wc.image | image_url: width: 260 -%}
+    {%- endif -%}
+    {%- capture ts_tile -%}<a href="/collections/{{ store.h }}" class="hts-tile" tabindex="-1"><img src="{{ ts_wurl }}" alt="" width="130" height="130" loading="lazy"></a>{%- endcapture -%}
     {%- assign ts_col = ts_wall_n | modulo: 4 -%}
     {%- case ts_col -%}
       {%- when 0 -%}{%- assign ts_wall_a = ts_wall_a | append: ts_tile -%}

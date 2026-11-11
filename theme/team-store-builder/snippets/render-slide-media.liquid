@@ -1,0 +1,93 @@
+{% comment %}
+  Renders one slide's media (image OR video with mobile fallback).
+  
+  Parameters:
+    media_type     - 'image' or 'video'
+    image          - desktop image_picker
+    mobile_image   - optional mobile image_picker
+    video_provider - 'youtube' | 'vimeo' | 'mp4'
+    video_url      - string
+    video_start    - number (seconds)
+    video_end      - number (seconds, 0 = full)
+    vertical       - bool, vertical video format
+    alt            - alt text
+{% endcomment %}
+
+{% if media_type == 'image' and image != blank %}
+  
+  {% comment %} Image slide - desktop + optional mobile variant {% endcomment %}
+  <img
+    class="cp__image cp__image--desktop"
+    src="{{ image | img_url: '1200x1200', crop: 'center' }}"
+    srcset="{{ image | img_url: '600x600', crop: 'center' }} 600w, {{ image | img_url: '900x900', crop: 'center' }} 900w, {{ image | img_url: '1200x1200', crop: 'center' }} 1200w"
+    sizes="(min-width: 990px) 33vw, 100vw"
+    alt="{{ alt | escape }}"
+    width="1200" height="1200"
+    loading="lazy"
+  >
+  {% if mobile_image != blank %}
+    <img
+      class="cp__image cp__image--mobile"
+      src="{{ mobile_image | img_url: '800x800', crop: 'center' }}"
+      alt="{{ alt | escape }}"
+      width="800" height="800"
+      loading="lazy"
+    >
+  {% endif %}
+  
+{% elsif media_type == 'video' and video_url != blank %}
+  
+  {% comment %} Video slide - desktop video, mobile image fallback if provided {% endcomment %}
+  <div class="cp__video-wrap">
+    <div class="cp__video-overlay"></div>
+    
+    {% case video_provider %}
+      {% when 'youtube' %}
+        {% assign yt_id = video_url | split: '/' | last | split: '=' | last | split: '&' | first %}
+        <iframe
+          class="{% if vertical %}is-vertical{% endif %}"
+          src="https://www.youtube.com/embed/{{ yt_id }}?autoplay=1&mute=1&loop=1&playlist={{ yt_id }}&controls=0&showinfo=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&start={{ video_start }}&end={{ video_end }}"
+          allow="autoplay; encrypted-media"
+          loading="lazy"
+        ></iframe>
+      
+      {% when 'vimeo' %}
+        {% assign vimeo_id = video_url | split: '/' | last %}
+        <iframe
+          class="{% if vertical %}is-vertical{% endif %}"
+          src="https://player.vimeo.com/video/{{ vimeo_id }}?background=1&autoplay=1&loop=1&byline=0&title=0&muted=1{% if video_start > 0 %}&t={{ video_start }}s{% endif %}"
+          allow="autoplay; fullscreen"
+          loading="lazy"
+        ></iframe>
+      
+      {% when 'mp4' %}
+        {%- comment -%}
+          No autoplay attribute and preload="metadata", on purpose. With
+          autoplay + preload="auto" the browser pulled every mp4 on the page at
+          once, including slides below the fold, which is what made scrolling
+          stutter. assets/lazy-video.js starts each one when it scrolls into
+          view and pauses it when it leaves.
+        {%- endcomment -%}
+        <video
+          class="{% if vertical %}is-vertical{% endif %}"
+          src="{{ video_url }}"
+          playsinline muted loop preload="metadata"
+          data-inview-play
+          data-start-time="{{ video_start }}"
+          data-end-time="{{ video_end }}"
+        ></video>
+    {% endcase %}
+  </div>
+  
+  {% comment %} Mobile fallback image (CSS hides desktop video, shows this on mobile) {% endcomment %}
+  {% if mobile_image != blank %}
+    <img
+      class="cp__image cp__image--mobile"
+      src="{{ mobile_image | img_url: '800x800', crop: 'center' }}"
+      alt="{{ alt | escape }}"
+      width="800" height="800"
+      loading="lazy"
+    >
+  {% endif %}
+  
+{% endif %}
