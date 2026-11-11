@@ -8,6 +8,24 @@ Live at `/pages/build-your-store`. Draft theme **168562360575**,
 the work was done on: **every tool resolves a theme by ROLE or by name,
 never by a hardcoded id**, because ids on this shop change.
 
+## Ported into "Todays Draft Theme", 2026-11-11
+
+The builder now also lives in **Todays Draft Theme**, the draft of the
+current site. `snippets/team-store-builder.liquid` and
+`assets/trh-builder.css` were copied byte for byte (both match the files
+here), and `sections/main-page.liquid` replaced that theme's original,
+which was identical to this one's `else` branch.
+
+`sections/team-stores-search.liquid` was NOT copied: Todays Draft had
+redesigned that page (logo wall, stats, How It Works band, a "Find your
+team" button), and this folder's copy predates all of it. The builder link
+was added INTO the redesign instead: "Build your store" leads the
+`.ts-actions` row in the existing `.ts-mail` style, the email steps down to
+an outline (`.ts-mail-alt`), and both "Start a store" links in the
+directory open the builder, falling back to the email if the
+`build-your-store` page is ever missing. Backups of the overwritten files
+are in `theme-backups/` (gitignored).
+
 ## Where it used to live, and why that was a problem
 
 All 112KB of it sat in the `body_html` field of page `167233192191`. A
