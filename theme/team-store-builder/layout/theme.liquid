@@ -1,0 +1,1407 @@
+<!doctype html>
+<html class="no-js loading" lang="{{ request.locale.iso_code }}" dir="{{ settings.text_direction }}">
+<head>
+  {{ 'collection-filters.css' | asset_url | stylesheet_tag }}
+  <!-- Critical CSS with simplified selector handling -->
+  <style>
+    /* Add padding to section header to prevent overlap with the fixed header */
+.section-header,
+h1.section-header__title {
+  padding-top: 20px; /* Adjust this value as needed */
+  margin-top: 10px; /* Add some margin too for spacing */
+}
+/* If the header is specifically overlapping just at the top */
+.section-header {
+  position: relative; /* Ensure positioning context */
+  z-index: 1; /* Lower than header z-index to prevent overlap issues */
+}
+    
+    /* Impulse draws its own page loading indicator with theme.css:
+         .loading:after/.before { width:100px; height:3px; top:50%; left:50%;
+         background: var(--colorBody) } which is a short black bar in the dead
+         centre of the viewport. <html> carries .loading on every page load, and
+         .unload on every navigation away, so it appeared everywhere. It was
+         invisible only because html.loading used to hide the whole document.
+         Now that the page paints immediately, the bar paints too. */
+    html.loading::before, html.loading::after,
+    html.unload::before, html.unload::after {
+      content: none;
+    }
+
+    /* iOS Safari zooms the entire page when a form control whose font-size is
+       under 16px takes focus, and it does not zoom back out. Tapping the search
+       box or the newsletter field on a phone therefore leaves the shopper
+       looking at a magnified, horizontally scrolled page. 16px is the exact
+       threshold. !important is deliberate: these controls are styled from
+       section <style> blocks further down the document (.search-input at 14px,
+       the footer newsletter at 15.2px, the locale picker at 13.6px), so source
+       order alone would not win. Phones only, desktop keeps its type scale. */
+    @media (max-width: 749px) {
+      input:not([type=checkbox]):not([type=radio]):not([type=range]),
+      select,
+      textarea {
+        font-size: 16px !important;
+      }
+    }
+
+    /* Prevent FOUC (Flash of Unstyled Content).
+       Scoped to the variant selectors that actually flicker. This used to hide
+       <html> itself, which left the whole page blank until DOMContentLoaded
+       plus a 300ms timer, on every page load. */
+    html.loading .product-single__variants,
+    html.loading [data-product-select] {
+      visibility: hidden;
+    }
+/* REMOVE SELECTION DISPLAY CAUSE VO PRODUCT */
+    .product-single__variants.no-js {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+    .snize-sticky-searchbox,
+.snize-custom-widget-opener {
+  display: none !important;
+}
+    
+    /* Modified approach for selectors - less aggressive hiding */
+    .product-form.loading .product-form__controls-group {
+      min-height: 50px;
+      position: relative;
+    }
+    
+    /* Create a less aggressive hiding approach for variant selectors */
+    .product-single__variants,
+    [data-product-select] {
+      /* These are hidden but will be revealed by JS */
+      opacity: 0.1;
+      height: auto !important;
+      overflow: visible !important;
+      pointer-events: auto !important;
+      transition: opacity 0.5s ease;
+    }
+    
+    /* Subtle styling for sold-out variants */
+    .bcpo-disabled, 
+    .gsw-prg-item-sold-out .swatch-anchor {
+      opacity: 0.4;
+      filter: grayscale(80%);
+      position: relative;
+    }
+    
+    /* Add subtle overlay to sold-out items */
+    .gsw-prg-item-sold-out .swatch-anchor::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.3);
+      z-index: 2;
+    }
+    
+    /* Add subtle diagonal line */
+    .gsw-prg-item-sold-out .swatch-anchor::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      background: linear-gradient(to top right, 
+                               transparent 48%, 
+                               rgba(200, 200, 200, 0.4) 49%,
+                               rgba(200, 200, 200, 0.4) 51%, 
+                               transparent 52%);
+      z-index: 3;
+    }
+    
+    /* Same styling for button-based variants */
+    .bcpo-front-button-label.bcpo-disabled {
+      opacity: 0.6;
+      position: relative;
+    }
+    
+    .bcpo-front-button-label.bcpo-disabled::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      background: linear-gradient(to top right, 
+                               transparent 48%, 
+                               rgba(150, 150, 150, 0.5) 49%,
+                               rgba(150, 150, 150, 0.5) 51%, 
+                               transparent 52%);
+      pointer-events: none;
+    }
+  </style>
+  <!-- Font faces -->
+  <style>
+    @font-face {
+      font-family: 'Chivo';
+      src: url('{{ "Poppins-Regular.woff2" | asset_url }}') format('woff2');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    
+    @font-face {
+      font-family: 'Chivo';
+      src: url('{{ "Poppins-Medium.woff2" | asset_url }}') format('woff2');
+      font-weight: 500;
+      font-style: normal;
+      font-display: swap;
+    }
+    
+    @font-face {
+      font-family: 'Chivo';
+      src: url('{{ "Poppins-SemiBold.woff2" | asset_url }}') format('woff2');
+      font-weight: 600;
+      font-style: normal;
+      font-display: swap;
+    }
+    
+    .bcpo-front-button-label.bcpo-continue {
+      letter-spacing: normal !important;
+    }
+    
+    .cart-item {
+      position: relative;
+    }
+  </style>
+  <!-- Runkeeper script -->
+  <script>
+    if (window.location.pathname.includes('/collections/asics-runkeeper')) {
+      window._klOnsite = false;
+      window._klTrace = [];
+      window._klTracker = { track: function() { return false; } };
+    }
+  </script>
+  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-TRQLQ6WL');</script>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="{{ settings.color_button }}">
+  <link rel="canonical" href="{%- render 'trh-canonical', product: product -%}">
+  <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
+
+  {%- comment -%}
+    All Google Fonts in one request. They used to be pulled in by 38 separate CSS
+    @import lines inside individual sections, which is the slowest way to load a
+    font: the browser cannot see them until it has parsed that CSS, they cannot be
+    preloaded, and the same family was fetched several times at different weights
+    (Chivo five ways, Inter four). Preconnect first so the TLS handshake to both
+    Google hosts overlaps the HTML parse.
+  {%- endcomment -%}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chivo:ital,wght@0,300;0,400;0,500;0,600;0,700;0,900;1,400&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@400;500;600;700;800;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chivo:ital,wght@0,300;0,400;0,500;0,600;0,700;0,900;1,400&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@400;500;600;700;800;900&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chivo:ital,wght@0,300;0,400;0,500;0,600;0,700;0,900;1,400&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@400;500;600;700;800;900&display=swap"></noscript>
+
+  <link rel="preconnect" href="https://fonts.shopifycdn.com" crossorigin>
+  <link rel="dns-prefetch" href="https://productreviews.shopifycdn.com">
+  <link rel="dns-prefetch" href="https://ajax.googleapis.com">
+  <link rel="dns-prefetch" href="https://maps.googleapis.com">
+  <link rel="dns-prefetch" href="https://maps.gstatic.com">
+  {%- if settings.favicon != blank -%}
+    <link rel="shortcut icon" href="{{ settings.favicon | img_url: '32x32' }}" type="image/png" />
+  {%- endif -%}
+  {%- render 'seo-title' -%}
+  {%- if page_description -%}
+    <meta name="description" content="{{ page_description | escape }}">
+  {%- endif -%}
+  {%- render 'social-meta-tags' -%}
+  {%- render 'font-face' -%}
+  {{ 'theme.css' | asset_url | stylesheet_tag: preload: true }}
+  {%- render 'css-variables' -%}
+ 
+  <script>
+    document.documentElement.className = document.documentElement.className.replace('no-js', 'js');
+    window.theme = window.theme || {};
+    theme.routes = {
+      home: "{{ routes.root_url }}",
+      cart: "{{ routes.cart_url | append: '.js' }}",
+      cartPage: "{{ routes.cart_url }}",
+      cartAdd: "{{ routes.cart_add_url | append: '.js' }}",
+      cartChange: "{{ routes.cart_change_url | append: '.js' }}",
+      search: "{{ routes.search_url }}",
+      predictiveSearch: "{{ routes.predictive_search_url }}"
+    };
+    theme.strings = {
+      soldOut: {{ 'products.product.sold_out' | t | json }},
+      unavailable: {{ 'products.product.unavailable' | t | json }},
+      inStockLabel: {{ 'products.product.in_stock_label' | t | json }},
+      oneStockLabel: {{ 'products.product.stock_label.one' | t: count: '[count]' | json }},
+      otherStockLabel: {{ 'products.product.stock_label.other' | t: count: '[count]' | json }},
+      willNotShipUntil: {{ 'products.product.will_not_ship_until' | t: date: '[date]' | json }},
+      willBeInStockAfter: {{ 'products.product.will_be_in_stock_after' | t: date: '[date]' | json }},
+      waitingForStock: {{ 'products.product.waiting_for_stock' | t | json }},
+      savePrice: {{ 'products.general.save_html' | t: saved_amount: '[saved_amount]' | json }},
+      cartEmpty: {{ 'cart.general.empty' | t | json }},
+      cartTermsConfirmation: {{ 'cart.general.terms_confirm' | t | json }},
+      searchCollections: {{ 'general.search.collections' | t | json }},
+      searchPages: {{ 'general.search.pages' | t | json }},
+      searchArticles: {{ 'general.search.articles' | t | json }},
+      productFrom: {{ 'products.general.from_text_html' | t: price: '' | json }},
+      maxQuantity: {{ 'cart.general.max_quantity' | t: quantity: '[quantity]', title: '[title]' | json }}
+    };
+    theme.settings = {
+      cartType: {{ settings.cart_type | json }},
+      isCustomerTemplate: {% if request.page_type contains 'customers/' %}true{% else %}false{% endif %},
+      moneyFormat: {{ shop.money_format | json }},
+      saveType: {{ settings.product_save_type | json }},
+      productImageSize: {{ settings.product_grid_image_size | json }},
+      productImageCover: {{ settings.product_grid_image_fill }},
+      predictiveSearch: {{ settings.predictive_search_enabled }},
+      predictiveSearchType: {{ settings.search_type | json }},
+      predictiveSearchVendor: {{ settings.predictive_search_show_vendor | json }},
+      predictiveSearchPrice: {{ settings.predictive_search_show_price | json }},
+      quickView: {{ settings.quick_shop_enable }},
+      themeName: 'Impulse',
+      themeVersion: "7.4.0"
+    };
+  </script>
+  {{ content_for_header }}
+  <script src="{{ 'vendor-scripts-v11.js' | asset_url | split: '?' | first }}" defer="defer"></script>
+  {%- if shop.enabled_currencies.size > 1 -%}
+    <link rel="stylesheet" href="{{ 'country-flags.css' | asset_url | split: '?' | first }}">
+  {%- endif -%}
+  <script src="{{ 'theme.js' | asset_url }}" defer="defer"></script>
+  {%- if request.page_type contains 'customers/' -%}
+    <script src="{{ 'shopify_common.js' | shopify_asset_url }}" defer="defer"></script>
+  {%- endif -%}
+  {% if request.design_mode %}
+    <script src="https://api.archetypethemes.co/design-mode.js" defer="defer"></script>
+  {% endif %}
+  
+  {%- comment -%}
+    Removed 2026-08-11: section 'product-card-colors' shipped about 14 KB of
+    inline JavaScript on every page to colour swatches it could never find. Its
+    selectors (.color-swatch, .product-colors, .dropdown-color-swatch,
+    select[name="Color"]) return zero elements in the rendered markup of the
+    home, collection and product pages. Colourways are rendered from images by
+    snippets/colorway-swatches.liquid on product pages and by the cw-swatches in
+    shoe-collection-grid.liquid on collection pages, neither of which touches it.
+    The theme editor UI it also provided was gated behind request.design_mode.
+    Backed up in the session scratchpad under removed-sections/.
+  {%- endcomment -%}
+  
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const currentPath = window.location.pathname;
+      if (!currentPath.includes('/cart') && 
+          (currentPath.includes('/collections/') || currentPath.includes('/products/'))) {
+        const currentUrl = window.location.href;
+        sessionStorage.setItem('previousPageUrl', currentUrl);
+      }
+    });
+  </script>
+{{ 'clean-product-card.css' | asset_url | stylesheet_tag }}
+{{ 'trh-site-match.css' | asset_url | stylesheet_tag }}
+
+  {%- if settings.disable_animations -%}
+    <style>
+      /* The theme gates only 4 of its 74 [data-aos] rules behind the disable switch.
+         These are the rest that hold content back: image fades and the staggered
+         grid delays that make a row of products appear one at a time. */
+      [data-disable-animations="true"] .image-element,
+      [data-disable-animations="true"] [data-aos] .image-element { opacity: 1; animation: none; }
+      [data-disable-animations="true"] [data-aos^="row-of-"] .image-wrap img { animation-delay: 0s; }
+    </style>
+  {%- endif -%}
+
+  {%- comment -%}
+    Home page only. The Organization and WebSite blocks describe the site as a
+    whole, and repeating them on every page adds weight without adding meaning.
+  {%- endcomment -%}
+  {%- if template.name == 'index' -%}
+    {%- render 'structured-data' -%}
+  {%- endif -%}
+</head>
+<body class="template-{{ template | replace: '.', ' ' | truncatewords: 1, '' | handle }}{% if request.path == '/challenge' %} template-challange{% endif %}" 
+    data-center-text="{{ settings.type_body_align_text }}" 
+    data-button_style="{{ settings.button_style }}" 
+    data-type_header_capitalize="{{ settings.type_header_capitalize }}" 
+    data-type_headers_align_text="{{ settings.type_headers_align_text }}" 
+    data-type_product_capitalize="{{ settings.type_product_capitalize }}" 
+    data-swatch_style="{{ settings.swatch_style }}" 
+    {% if settings.disable_animations %}data-disable-animations="true" data-animate_images="false"{% endif %}>
+  {%- if template.name == 'index' -%}
+    {%- comment -%}
+      Visually hidden, because the hero is a full bleed image and a visible
+      heading would sit on top of it. This is not a trick: a screen reader
+      currently lands on this page with no heading at all, so it helps a real
+      person as much as it helps a crawler.
+    {%- endcomment -%}
+    <h1 class="visually-hidden">The Run House, running shoes and expert fitting in Needham, Walpole and Falmouth, Massachusetts</h1>
+  {%- endif -%}
+
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TRQLQ6WL" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <a class="in-page-link visually-hidden skip-link" href="#MainContent">{{ 'general.accessibility.skip_to_content' | t }}</a>
+  <div id="PageContainer" class="page-container">
+    <div class="transition-body">
+
+      {%- comment -%} ================================================
+        RACE EVENT HANDLE + PATH ARRAYS
+      ================================================ {%- endcomment -%}
+
+      {%- assign mccourt_handles = "2027-asics-los-angeles-marathon,official-2026-asics-los-angeles-marathon-finisher-gear,los-angeles-marathon,boston-waterfront-5k,los-angeles-road-runners,rose-bowl-half-marathon-5k,mccourt-foundation-together-la,los-angeles-marathon-finisher-store,rose-bowl-half-marathon-5k-finisher-store,santa-monica-classic,team-tmf" | split: "," -%}
+      {%- assign mccourt_paths = "/collections/2027-asics-los-angeles-marathon,/collections/official-2026-asics-los-angeles-marathon-finisher-gear,/collections/mccourt-foundation-together-la,/collections/los-angeles-road-runners,/collections/tmf-shop-all,/collections/the-mccourt-foundation-shop-1,/collections/boston-waterfront-5k,/collections/los-angeles-marathon,/collections/rose-bowl-half-marathon-5k,/collections/los-angeles-marathon-finisher-store,/collections/tour-de-south-shore,/collections/rose-bowl-half-marathon-5k-finisher-store,/collections/santa-monica-classic,/collections/team-tmf" | split: "," -%}
+
+      {%- assign boston_10k_handles = "boston-10k-for-women" | split: "," -%}
+      {%- assign boston_10k_paths = "/collections/boston-10k-for-women" | split: "," -%}
+
+      {%- assign st_pete_paths = "/collections/st-pete-run-fest" | split: "," -%}
+      {%- assign st_pete_handles = "st-pete-run-fest" | split: "," -%}
+
+      {%- comment -%} All Falmouth variants consolidated into one flag + one header {%- endcomment -%}
+      {%- assign falmouth_handles = "shop-falmouth-road-race,asics-falmouth-road-race-2026,falmouth-road-race-2025,nfnp-new-collection,falmouth-road-race-2025-finisher-store,fitf,asics-falmouth-road-race-prior-collections" | split: "," -%}
+      {%- assign falmouth_paths = "/pages/shop-falmouth-road-race,/collections/asics-falmouth-road-race-2026,/collections/falmouth-road-race-2025,/collections/nfnp-new-collection,/collections/falmouth-road-race-2025-finisher-store,/collections/fitf,/collections/asics-falmouth-road-race-prior-collections,/pages/falmouth-collections" | split: "," -%}
+
+      {%- assign crim_handles = "crim-michigan-mile,crim-5k-on-the-runway,crim-winter-warm-up,crim-pot-o-gold,crim-railrun-5,crim-half-marathon,crim-bobby-challenge,crim-mott-miles,crim-neighborhood-streets,crim-halloween-hustle,crim-teddy-bear-trot,the-crim-everyday-collection,the-crim-48-collection,the-hap-caresource-collection,crim-atwood-stadium-races,crim-festival-of-races-finisher-store" | split: "," -%}
+      {%- assign crim_paths = "/collections/crim-michigan-mile,/collections/crim-winter-warm-up,/collections/crim-railrun-5k,/collections/crim-5k-on-the-runway,/collections/crim-pot-o-gold,/collections/crim-half-marathon,/collections/crim-bobby-challenge,/collections/crim-neighborhood-streets,/collections/crim-mott-miles,/collections/crim-halloween-hustle,/collections/crim-teddy-bear-trot,/collections/the-crim-everyday-collection,/collections/the-crim-48-collection,/collections/the-hap-caresource-collection,/collections/crim-atwood-stadium-races,/pages/shop-all-crim-merchandise,/pages/crim-festival-of-races,/collections/crim-festival-of-races-finisher-store" | split: "," -%}
+
+      {%- assign madison_handles = "madison-marathon-2025" | split: "," -%}
+      {%- assign madison_paths = "/collections/madison-marathon-2025" | split: "," -%}
+
+      {%- assign dallas_handles = "bmw-dallas-marathon" | split: "," -%}
+      {%- assign dallas_paths = "/collections/bmw-dallas-marathon" | split: "," -%}
+
+      {%- assign gasparilla_handles = "2026-gasparilla-distance-classic,gasparilla-sale,publix-gasparilla-distance-classic,gasparilla-15k,gasparilla-5k,gasparilla-8k,gasparilla-half-marathon,publix-gasparilla-distance-class-finisher-collection" | split: "," -%}
+      {%- assign gasparilla_paths = "/collections/2026-gasparilla-distance-classic,/collections/gasparilla-sale,/collections/publix-gasparilla-distance-classic,/collections/publix-gasparilla-distance-class-finisher-collection" | split: "," -%}
+
+      {%- assign max_performance_handles = "max-performance" | split: "," -%}
+      {%- assign max_performance_paths = "/collections/max-performance" | split: "," -%}
+
+      {%- assign cim_handles = "california-international-marathon" | split: "," -%}
+      {%- assign cim_paths = "/collections/california-international-marathon" | split: "," -%}
+
+      {%- assign antarctica_handles = "antarctica-marathon,antarctica-marathon-2026" | split: "," -%}
+      {%- assign antarctica_paths = "/collections/antarctica-marathon,/collections/antarctica-marathon-2026" | split: "," -%}
+
+      {%- assign oc_marathon_handles = "oc-marathon" | split: "," -%}
+      {%- assign oc_marathon_paths = "/collections/oc-marathon" | split: "," -%}
+
+      {%- assign srla_handles = "srla-students-run-la" | split: "," -%}
+      {%- assign srla_paths = "/collections/srla-students-run-la" | split: "," -%}
+
+      {%- comment -%} CONFIRM THESE HANDLES against the actual QCM collections before launch {%- endcomment -%}
+      {%- assign quad_cities_handles = "quad-cities-marathon,tbk-bank-quad-cities-marathon,2026-quad-cities-marathon,quad-cities-marathon-finisher-store" | split: "," -%}
+      {%- assign quad_cities_paths = "/collections/quad-cities-marathon,/collections/tbk-bank-quad-cities-marathon,/collections/2026-quad-cities-marathon,/collections/quad-cities-marathon-finisher-store" | split: "," -%}
+
+      {%- comment -%} Wanderlust Running. Add the main hub collection/page handle + path here once confirmed {%- endcomment -%}
+      {%- assign wanderlust_handles = "grindstone-trail-runs,ruidoso-run-fest,land-of-enchantment,franklin-mountain-trail-runs,wanderlust-running,wanderlust-state-47,las-cruces-half-marathon,cactus-to-cloud,cloudcroft-ultra,day-of-the-dead-series" | split: "," -%}
+      {%- comment -%} Run Project, DFW race series. Add each new race to BOTH lists below. {%- endcomment -%}
+      {%- assign run_project_handles = "fort-worth-oktoberfest-5k,big-texas-run,run-project" | split: "," -%}
+      {%- assign wanderlust_paths = "/collections/grindstone-trail-runs,/collections/ruidoso-run-fest,/collections/land-of-enchantment,/collections/franklin-mountain-trail-runs,/collections/wanderlust-running,/pages/wanderlust-running,/collections/wanderlust-state-47,/collections/las-cruces-half-marathon,/collections/cactus-to-cloud,/collections/cloudcroft-ultra,/collections/day-of-the-dead-series" | split: "," -%}
+      {%- assign run_project_paths = "/collections/fort-worth-oktoberfest-5k,/collections/big-texas-run,/pages/run-project" | split: "," -%}
+
+      {%- comment -%} Berkshire Running Camp. CONFIRM the finisher/secondary handles before launch {%- endcomment -%}
+      {%- assign berkshire_handles = "berkshire-running-camp,berkshire-running-camp-finisher-store" | split: "," -%}
+      {%- assign berkshire_paths = "/collections/berkshire-running-camp,/collections/berkshire-running-camp-finisher-store,/pages/berkshire-running-camp" | split: "," -%}
+
+      {%- comment -%} ================================================
+        RACE EVENT FLAGS — all default false
+      ================================================ {%- endcomment -%}
+
+      {%- assign is_mccourt = false -%}
+      {%- assign is_crim = false -%}
+      {%- assign is_madison = false -%}
+      {%- assign is_dallas = false -%}
+      {%- assign is_gasparilla = false -%}
+      {%- assign is_max_performance = false -%}
+      {%- assign is_cim = false -%}
+      {%- assign is_antarctica = false -%}
+      {%- assign is_runkeeper = false -%}
+      {%- assign is_boston_10k = false -%}
+      {%- assign is_st_pete = false -%}
+      {%- assign is_falmouth = false -%}
+      {%- assign is_oc_marathon = false -%}
+      {%- assign is_srla = false -%}
+      {%- assign is_quad_cities = false -%}
+      {%- assign is_wanderlust = false -%}
+      {%- assign is_run_project = false -%}
+      {%- assign is_berkshire = false -%}
+
+      {%- comment -%} ================================================
+        FLAG DETECTION — product pages
+      ================================================ {%- endcomment -%}
+
+      {%- if request.path contains '/products/' -%}
+        {%- for collection in product.collections -%}
+
+          {%- if mccourt_handles contains collection.handle -%}
+            {%- assign is_mccourt = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if crim_handles contains collection.handle -%}
+            {%- assign is_crim = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if madison_handles contains collection.handle -%}
+            {%- assign is_madison = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if dallas_handles contains collection.handle -%}
+            {%- assign is_dallas = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if gasparilla_handles contains collection.handle -%}
+            {%- assign is_gasparilla = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if max_performance_handles contains collection.handle -%}
+            {%- assign is_max_performance = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if cim_handles contains collection.handle -%}
+            {%- assign is_cim = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if antarctica_handles contains collection.handle -%}
+            {%- assign is_antarctica = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if collection.handle == 'asics-runkeeper' -%}
+            {%- assign is_runkeeper = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if boston_10k_handles contains collection.handle -%}
+            {%- assign is_boston_10k = true -%}
+            {%- break -%}
+          {%- endif -%}
+
+          {%- if st_pete_handles contains collection.handle -%}
+            {%- assign is_st_pete = true -%}
+            {%- break -%}
+          {%- endif -%}
+          
+          {%- if falmouth_handles contains collection.handle -%}
+            {%- assign is_falmouth = true -%}
+            {%- break -%}
+          {%- endif -%}
+
+          {%- if oc_marathon_handles contains collection.handle -%}
+            {%- assign is_oc_marathon = true -%}
+            {%- break -%}
+          {%- endif -%}
+
+          {%- if srla_handles contains collection.handle -%}
+            {%- assign is_srla = true -%}
+            {%- break -%}
+          {%- endif -%}
+
+          {%- if quad_cities_handles contains collection.handle -%}
+            {%- assign is_quad_cities = true -%}
+            {%- break -%}
+          {%- endif -%}
+
+          {%- if wanderlust_handles contains collection.handle -%}
+            {%- assign is_wanderlust = true -%}
+            {%- break -%}
+          {%- endif -%}
+
+          {%- if run_project_handles contains collection.handle -%}
+            {%- assign is_run_project = true -%}
+            {%- break -%}
+          {%- endif -%}
+
+          {%- if berkshire_handles contains collection.handle -%}
+            {%- assign is_berkshire = true -%}
+            {%- break -%}
+          {%- endif -%}
+
+        {%- endfor -%}
+
+      {%- comment -%} ================================================
+        FLAG DETECTION — cart page
+      ================================================ {%- endcomment -%}
+
+      {%- elsif template == 'cart' -%}
+        {%- for item in cart.items -%}
+          {%- for collection in item.product.collections -%}
+
+            {%- if mccourt_handles contains collection.handle or mccourt_paths contains collection.url -%}
+              {%- assign is_mccourt = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if crim_handles contains collection.handle -%}
+              {%- assign is_crim = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if madison_handles contains collection.handle or madison_paths contains collection.url -%}
+              {%- assign is_madison = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if dallas_handles contains collection.handle or dallas_paths contains collection.url -%}
+              {%- assign is_dallas = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if gasparilla_handles contains collection.handle or gasparilla_paths contains collection.url -%}
+              {%- assign is_gasparilla = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if max_performance_handles contains collection.handle or max_performance_paths contains collection.url -%}
+              {%- assign is_max_performance = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if cim_handles contains collection.handle or cim_paths contains collection.url -%}
+              {%- assign is_cim = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if antarctica_handles contains collection.handle or antarctica_paths contains collection.url -%}
+              {%- assign is_antarctica = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if collection.handle == 'asics-runkeeper' -%}
+              {%- assign is_runkeeper = true -%}
+              {%- break -%}
+            {%- endif -%}
+
+            {%- if boston_10k_handles contains collection.handle or boston_10k_paths contains collection.url -%}
+              {%- assign is_boston_10k = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if st_pete_handles contains collection.handle -%}
+              {%- assign is_st_pete = true -%}
+              {%- break -%}
+            {%- endif -%}
+            
+            {%- if falmouth_handles contains collection.handle -%}
+              {%- assign is_falmouth = true -%}
+              {%- break -%}
+            {%- endif -%}
+
+            {%- if oc_marathon_handles contains collection.handle or oc_marathon_paths contains collection.url -%}
+              {%- assign is_oc_marathon = true -%}
+              {%- break -%}
+            {%- endif -%}
+
+            {%- if srla_handles contains collection.handle or srla_paths contains collection.url -%}
+              {%- assign is_srla = true -%}
+              {%- break -%}
+            {%- endif -%}
+
+            {%- if quad_cities_handles contains collection.handle or quad_cities_paths contains collection.url -%}
+              {%- assign is_quad_cities = true -%}
+              {%- break -%}
+            {%- endif -%}
+
+            {%- if wanderlust_handles contains collection.handle or wanderlust_paths contains collection.url -%}
+              {%- assign is_wanderlust = true -%}
+              {%- break -%}
+            {%- endif -%}
+
+            {%- if run_project_handles contains collection.handle or run_project_paths contains collection.url -%}
+              {%- assign is_run_project = true -%}
+              {%- break -%}
+            {%- endif -%}
+
+            {%- if berkshire_handles contains collection.handle or berkshire_paths contains collection.url -%}
+              {%- assign is_berkshire = true -%}
+              {%- break -%}
+            {%- endif -%}
+
+          {%- endfor -%}
+          {%- if is_mccourt or is_crim or is_madison or is_dallas or is_runkeeper or is_boston_10k or is_st_pete or is_falmouth or is_gasparilla or is_max_performance or is_cim or is_antarctica or is_oc_marathon or is_srla or is_quad_cities or is_wanderlust or is_berkshire or is_run_project -%}
+            {%- break -%}
+          {%- endif -%}
+        {%- endfor -%}
+
+      {%- comment -%} ================================================
+        FLAG DETECTION — collection / page paths
+      ================================================ {%- endcomment -%}
+
+      {%- elsif mccourt_paths contains request.path -%}
+        {%- assign is_mccourt = true -%}
+      {%- elsif crim_paths contains request.path -%}
+        {%- assign is_crim = true -%}
+      {%- elsif madison_paths contains request.path -%}
+        {%- assign is_madison = true -%}
+      {%- elsif dallas_paths contains request.path -%}
+        {%- assign is_dallas = true -%}
+      {%- elsif gasparilla_paths contains request.path -%}
+        {%- assign is_gasparilla = true -%}
+      {%- elsif max_performance_paths contains request.path -%}
+        {%- assign is_max_performance = true -%}
+      {%- elsif cim_paths contains request.path -%}
+        {%- assign is_cim = true -%}
+      {%- elsif antarctica_paths contains request.path -%}
+        {%- assign is_antarctica = true -%}
+      {%- elsif request.path contains '/collections/asics-runkeeper' -%}
+        {%- assign is_runkeeper = true -%}
+      {%- elsif boston_10k_paths contains request.path -%}
+        {%- assign is_boston_10k = true -%}
+      {%- elsif st_pete_paths contains request.path -%}
+        {%- assign is_st_pete = true -%}
+      {%- elsif falmouth_paths contains request.path -%}
+        {%- assign is_falmouth = true -%}
+      {%- elsif oc_marathon_paths contains request.path -%}
+        {%- assign is_oc_marathon = true -%}
+      {%- elsif srla_paths contains request.path -%}
+        {%- assign is_srla = true -%}
+      {%- elsif quad_cities_paths contains request.path -%}
+        {%- assign is_quad_cities = true -%}
+      {%- elsif wanderlust_paths contains request.path -%}
+        {%- assign is_wanderlust = true -%}
+      {%- elsif run_project_paths contains request.path -%}
+        {%- assign is_run_project = true -%}
+      {%- elsif berkshire_paths contains request.path -%}
+        {%- assign is_berkshire = true -%}
+      {%- endif -%}
+
+      {%- comment -%} ================================================
+        SECTION RENDERING
+      ================================================ {%- endcomment -%}
+
+      {%- if is_max_performance -%}
+        {%- section 'max-performance-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'main-collection-max-performance' -%}
+        {%- endif -%}
+
+      {%- elsif is_gasparilla -%}
+        {%- section 'gasparilla-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'main-collection-gasparilla' -%}
+        {%- endif -%}
+
+      {%- elsif is_quad_cities -%}
+        {%- section 'quad-cities-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'main-collection-quad-cities' -%}
+        {%- endif -%}
+
+      {%- elsif is_oc_marathon -%}
+        {%- section 'oc-marathon-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'main-collection-oc-marathon' -%}
+        {%- endif -%}
+
+      {%- elsif is_cim -%}
+        {%- section 'cim-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'main-collection-cim' -%}
+        {%- endif -%}
+
+      {%- elsif is_berkshire -%}
+        {%- section 'berkshire-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'main-collection-berkshire' -%}
+        {%- endif -%}
+
+      {%- elsif is_antarctica -%}
+        {%- section 'antarctica-marathon-header' -%}
+        <main class="main-content" id="MainContent">
+          {{ content_for_layout }}
+        </main>
+
+      {%- elsif is_falmouth -%}
+        {%- comment -%} All Falmouth paths use the single falmouth-header section {%- endcomment -%}
+        {%- section 'falmouth-header' -%}
+        <main class="main-content" id="MainContent">
+          {{ content_for_layout }}
+        </main>
+
+      {%- elsif is_st_pete -%}
+        {%- section 'saint-pete-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'saint-pete-collection' -%}
+        {%- endif -%}
+
+      {%- elsif is_runkeeper -%}
+        {%- section 'runkeeper-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'runkeeper-collection' -%}
+        {%- endif -%}
+
+      {%- elsif is_crim -%}
+        {%- section 'Crim-header' -%}
+        <main class="main-content" id="MainContent">
+          {{ content_for_layout }}
+        </main>
+
+      {%- elsif is_madison -%}
+        {%- section 'madison-header' -%}
+        <main class="main-content" id="MainContent">
+          {{ content_for_layout }}
+        </main>
+
+      {%- elsif is_mccourt -%}
+        {%- section 'mccourt-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'main-collection-mccourt' -%}
+        {%- endif -%}
+
+      {%- elsif is_boston_10k -%}
+        {%- section 'boston-10k-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'main-collection-boston-10k' -%}
+        {%- endif -%}
+
+      {%- elsif is_dallas -%}
+        {%- section 'dallas-header' -%}
+        <main class="main-content" id="MainContent">
+          {{ content_for_layout }}
+        </main>
+
+      {%- elsif is_srla -%}
+        {%- section 'srla-header' -%}
+        {%- if request.path contains '/products/' or template == 'cart' -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- else -%}
+          {%- section 'main-collection-srla' -%}
+        {%- endif -%}
+
+      {%- elsif is_wanderlust -%}
+        {%- section 'wanderlust-header' -%}
+        {%- if request.page_type == 'collection' -%}
+          {%- section 'main-collection-wanderlust' -%}
+        {%- else -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- endif -%}
+
+      {%- elsif is_run_project -%}
+        {%- section 'run-project-header' -%}
+        {%- if request.page_type == 'collection' -%}
+          {%- section 'main-collection-run-project' -%}
+        {%- else -%}
+          <main class="main-content" id="MainContent">
+            {{ content_for_layout }}
+          </main>
+        {%- endif -%}
+
+      {%- else -%}
+        {%- section 'header' -%}
+        <main class="main-content" id="MainContent">
+          {{ content_for_layout }}
+        </main>
+      {%- endif -%}
+      {%- if request.page_type == 'collection' -%}{%- render 'trh-collection-seo', collection: collection -%}{%- render 'trh-collection-enhance', collection: collection -%}{%- render 'trh-newer-collection', collection: collection -%}{%- endif -%}
+{%- if request.page_type == 'product' and product.metafields.custom.newer_version -%}{%- render 'trh-newer-version', product: product -%}{%- endif -%}
+
+      {% unless is_runkeeper %}
+        {%- sections 'popup-group' -%}
+      {% endunless %}
+      {%- sections 'footer-group' -%}
+    </div>
+  </div>
+  {%- liquid
+    render 'video-modal'
+    render 'photoswipe-template'
+    render 'tool-tip'
+  -%}
+  <template id="naturalImageMarkup">
+    <div class="image-wrap" style="height: 0;">
+      <image-element data-aos="image-fade-in" data-aos-offset="150">
+        <img class="grid-product__image image-element" width height src srcset loading="lazy" alt>
+      </image-element>
+    </div>
+  </template>
+  <template id="fixedRatioImageMarkup">
+    <div class="grid__image-ratio">
+      <image-element data-aos="image-fade-in" data-aos-offset="150">
+        <img class="image-element" width height src srcset loading="lazy" alt>
+      </image-element>
+    </div>
+  </template>
+  <script>
+    // Simplified Variant Selector Handler with Fix for Flickering
+    document.addEventListener('DOMContentLoaded', function() {
+      // Show page content immediately
+      setTimeout(function() {
+        document.documentElement.classList.remove('loading');
+      }, 300);
+      
+      // Simple function to show all variant selectors
+      function showAllSelectors() {
+        // Remove any hiding styles that might be causing flickering
+        const selectors = document.querySelectorAll('.product-single__variants, [data-product-select], select[data-index], .single-option-selector');
+        selectors.forEach(function(selector) {
+          selector.style.opacity = '1';
+          selector.style.display = 'block';
+          selector.style.visibility = 'visible';
+          selector.style.height = 'auto';
+          selector.style.overflow = 'visible';
+          selector.style.pointerEvents = 'auto';
+        });
+        
+        // Ensure product forms are not in a loading state
+        document.querySelectorAll('.product-form').forEach(function(form) {
+          form.classList.remove('loading');
+        });
+      }
+      
+      
+      // Special handling for Runkeeper pages
+      if (window.location.pathname.includes('/collections/asics-runkeeper')) {
+        window.addEventListener('load', function() {
+          const klaviyoSelectors = [
+            '.needsclick.klaviyo-form',
+            '[data-testid^="klaviyo-form"]',
+            'style[data-klaviyo]',
+            '#klaviyo-bis-iframe',
+            '[class*="kl-private-"]'
+          ];
+          
+          klaviyoSelectors.forEach(selector => {
+            document.querySelectorAll(selector).forEach(el => el.remove());
+          });
+        });
+      }
+      
+      // Call immediately to start showing selectors
+      showAllSelectors();
+      
+      // Call again after a delay to ensure they're shown
+      setTimeout(showAllSelectors, 500);
+      
+      // And one final time after page is fully loaded
+      window.addEventListener('load', function() {
+        showAllSelectors();
+        
+        // Make native selectors visible as a fallback
+        setTimeout(function() {
+          const style = document.createElement('style');
+          style.innerHTML = `
+            .product-single__variants,
+            [data-product-select],
+            select[data-index="option1"],
+            select[data-index="option2"],
+            select[data-index="option3"],
+            .single-option-selector:not([id^="bcpo-select-option"]),
+            .selector-wrapper:not(.bcpo-buttons) {
+              display: block !important;
+              visibility: visible !important;
+              opacity: 1 !important;
+              height: auto !important;
+              overflow: visible !important;
+              pointer-events: auto !important;
+            }
+            
+            .bcpo, .gsw-list-product-groups {
+              opacity: 1 !important;
+              visibility: visible !important;
+            }
+          `;
+          document.head.appendChild(style);
+        }, 1000);
+      });
+      
+      // Save session storage for navigation
+      const currentPath = window.location.pathname;
+      if (!currentPath.includes('/cart') && 
+          (currentPath.includes('/collections/') || currentPath.includes('/products/'))) {
+        sessionStorage.setItem('previousPageUrl', window.location.href);
+      }
+    });
+// Add this to your theme.liquid file in the script section
+document.addEventListener('DOMContentLoaded', function() {
+  // Cache to store product variant data to avoid repeated API calls
+  const productVariantsCache = {};
+  
+  function enhanceProductCards() {
+    // Look for products with variants and add the indicator
+    document.querySelectorAll('.spf-product-card__inner').forEach(card => {
+      const productHandle = getProductHandleFromCard(card);
+      if (!productHandle) return;
+      
+      // First check if we already have color variants data in the DOM
+      const existingVariantsData = getExistingVariantsData(card);
+      if (existingVariantsData && existingVariantsData.length > 1) {
+        processVariantData(card, productHandle, existingVariantsData);
+        return;
+      }
+      
+      // If no existing data, fetch it from the API
+      if (productVariantsCache[productHandle]) {
+        // Use cached data if available
+        processVariantData(card, productHandle, productVariantsCache[productHandle]);
+      } else {
+        // Otherwise fetch from the API
+        fetchProductVariants(productHandle).then(variants => {
+          productVariantsCache[productHandle] = variants;
+          processVariantData(card, productHandle, variants);
+        });
+      }
+    });
+  }
+  
+  function processVariantData(card, productHandle, variants) {
+    if (variants && variants.length > 1) {
+      // Add class to the card to indicate it has multiple colors
+      card.classList.add('has-multiple-colors');
+      
+      // Add "more colors available" text
+      addVariantCountText(card, variants.length);
+      
+      // Add color swatch preview
+      addColorSwatchPreview(card, variants);
+      
+      // Add "See all colors" button that links to product page
+      addSeeAllColorsButton(card, productHandle);
+    }
+  }
+  
+  // Try to get existing variants data from the DOM first
+  function getExistingVariantsData(card) {
+    // Try GLO Swatch data attribute
+    const swatchContainer = card.querySelector('[data-gsw-variants]');
+    if (swatchContainer) {
+      try {
+        const variantsData = JSON.parse(swatchContainer.getAttribute('data-gsw-variants'));
+        if (Array.isArray(variantsData) && variantsData.length) {
+          return variantsData;
+        }
+      } catch (e) {
+        console.log('Error parsing swatch variants data', e);
+      }
+    }
+    
+    // Try Globo image data attribute
+    const imageElement = card.querySelector('.spf-product-card__image');
+    if (imageElement && imageElement.dataset.variants) {
+      const variants = imageElement.dataset.variants.split(',').filter(v => v.trim());
+      if (variants.length) {
+        return variants;
+      }
+    }
+    
+    return null;
+  }
+  
+  // Extract product handle from card (adjust selectors as needed)
+  function getProductHandleFromCard(card) {
+    // Try multiple selectors to find the product handle
+    const link = card.querySelector('a[href*="/products/"]');
+    if (!link) return null;
+    
+    const href = link.getAttribute('href');
+    const match = href.match(/\/products\/([a-z0-9-]+)/);
+    return match ? match[1] : null;
+  }
+  
+  // Fetch product variants data
+  function fetchProductVariants(handle) {
+    return fetch(`/products/${handle}.js`)
+      .then(response => response.json())
+      .then(product => {
+        // Extract color variants (adjust based on your option naming)
+        const colorOption = product.options.find(option => 
+          option.name.toLowerCase().includes('color') || 
+          option.name.toLowerCase().includes('colour')
+        );
+        
+        if (colorOption) {
+          const optionIndex = product.options.findIndex(option => 
+            option.name.toLowerCase().includes('color') || 
+            option.name.toLowerCase().includes('colour')
+          );
+          
+          // Return unique color values with their hex codes if available
+          return [...new Set(product.variants.map(v => {
+            const optionValue = v[`option${optionIndex + 1}`];
+            // Try to extract color info
+            let colorInfo = { name: optionValue };
+            
+            // Look for color swatch in variant's image URL or featured_image
+            if (v.featured_image && v.featured_image.src) {
+              // In some cases, color may be represented in the image URL
+              colorInfo.image = v.featured_image.src;
+            }
+            
+            return colorInfo;
+          }))];
+        } else {
+          // If no color option found, check if product has variants at all
+          return product.variants.length > 1 ? 
+            product.variants.map(v => ({ name: `Option ${v.title}` })) : 
+            [];
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching product data:', err);
+        return [];
+      });
+  }
+  
+  // Add variant count text to product card
+  function addVariantCountText(card, variantCount) {
+    const infoSection = card.querySelector('.spf-product__info');
+    if (!infoSection) return;
+    
+    // Remove any existing variant text to avoid duplicates
+    const existing = infoSection.querySelectorAll('.color-variant-count');
+    existing.forEach(el => el.remove());
+    
+    // Find price wrapper to insert after
+    const priceWrapper = infoSection.querySelector('.spf-product-card__price-wrapper');
+    if (!priceWrapper) return;
+    
+    // Create variant text element
+    const variantText = document.createElement('div');
+    variantText.className = 'color-variant-count';
+    
+    // Show number of colors available
+    variantText.innerHTML = `Available in <span>${variantCount} colors</span>`;
+    
+    // Insert after price wrapper
+    priceWrapper.insertAdjacentElement('afterend', variantText);
+  }
+  
+  // Add a preview of color swatches
+  function addColorSwatchPreview(card, variants) {
+    // Only show up to 3 color previews
+    const previewVariants = variants.slice(0, 3);
+    
+    const variantCount = card.querySelector('.color-variant-count');
+    if (!variantCount) return;
+    
+    const previewContainer = document.createElement('div');
+    previewContainer.className = 'color-variant-preview';
+    
+    // Add color dots
+    previewVariants.forEach((variant, index) => {
+      const colorDot = document.createElement('div');
+      colorDot.className = 'color-preview-dot';
+      
+      // Try to use actual color information if available
+      if (variant.hasOwnProperty('color_code')) {
+        colorDot.style.backgroundColor = variant.color_code;
+      } else {
+        // Default colors if no color codes available
+        const dummyColors = ['#FFA000', '#4682B4', '#228B22', '#8B4513', '#6A5ACD', '#FF6347'];
+        colorDot.style.backgroundColor = dummyColors[index % dummyColors.length];
+      }
+      
+      // Add title attribute for hover tooltip
+      if (variant.name) {
+        colorDot.title = variant.name;
+      }
+      
+      previewContainer.appendChild(colorDot);
+    });
+    
+    // Add more indicator if there are more variants
+    if (variants.length > 3) {
+      const moreDot = document.createElement('div');
+      moreDot.className = 'color-preview-dot';
+      moreDot.style.backgroundColor = '#ccc';
+      moreDot.style.position = 'relative';
+      
+      // Add "+" symbol inside the dot
+      moreDot.innerHTML = '<span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 6px; line-height: 1; color: #fff;">+</span>';
+      moreDot.title = `${variants.length - 3} more colors`;
+      
+      previewContainer.appendChild(moreDot);
+    }
+    
+    variantCount.appendChild(previewContainer);
+  }
+  
+  // Add a button to see all colors (linking to product page)
+  function addSeeAllColorsButton(card, productHandle) {
+    const infoSection = card.querySelector('.spf-product__info');
+    if (!infoSection) return;
+    
+    // Remove any existing buttons to avoid duplicates
+    const existing = infoSection.querySelectorAll('.more-colors-btn');
+    existing.forEach(el => el.remove());
+    
+    const variantCount = infoSection.querySelector('.color-variant-count');
+    
+    const moreColorsBtn = document.createElement('a');
+    moreColorsBtn.className = 'more-colors-btn';
+    moreColorsBtn.href = `/products/${productHandle}`;
+    moreColorsBtn.textContent = 'See all colors';
+    
+    // Insert after variant count or price wrapper
+    if (variantCount) {
+      variantCount.insertAdjacentElement('afterend', moreColorsBtn);
+    } else {
+      const priceWrapper = infoSection.querySelector('.spf-product-card__price-wrapper');
+      if (priceWrapper) {
+        priceWrapper.insertAdjacentElement('afterend', moreColorsBtn);
+      }
+    }
+  }
+  
+  // Run initially
+  enhanceProductCards();
+  
+  // Also run after a short delay to catch dynamically loaded content
+  setTimeout(enhanceProductCards, 1000);
+  
+  // Monitor for dynamically added content 
+  const observer = new MutationObserver(function(mutations) {
+    let shouldRun = false;
+    
+    for (const mutation of mutations) {
+      if (mutation.addedNodes.length) {
+        // Check if any of added nodes are product cards or contain product cards
+        for (let i = 0; i < mutation.addedNodes.length; i++) {
+          const node = mutation.addedNodes[i];
+          if (node.nodeType === 1) { // Element node
+            if (node.classList && (
+                node.classList.contains('spf-product-card') || 
+                node.classList.contains('spf-product-card__inner') ||
+                node.querySelector('.spf-product-card')
+              )) {
+              shouldRun = true;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (shouldRun) break;
+    }
+    
+    if (shouldRun) {
+      // Debounce the execution to avoid multiple rapid calls
+      if (window.variantDisplayTimeout) {
+        clearTimeout(window.variantDisplayTimeout);
+      }
+      window.variantDisplayTimeout = setTimeout(enhanceProductCards, 100);
+    }
+  });
+  
+  observer.observe(document.body, { 
+    childList: true, 
+    subtree: true 
+  });
+  
+  // Handle pagination or infinite scroll
+  document.addEventListener('spf:updated', enhanceProductCards);
+  document.addEventListener('spf:renderend', enhanceProductCards);
+  
+// For Shopify's section:load event (theme refreshes)
+document.addEventListener('shopify:section:load', enhanceProductCards);
+
+// Clean product titles by removing parenthetical text
+function cleanProductTitles() {
+  document.querySelectorAll('.spf-product-card__title').forEach(titleElement => {
+    if (titleElement) {
+      const text = titleElement.textContent;
+      // Remove parenthetical text EXCEPT those containing "wide" or "narrow"
+      const cleanedText = text.replace(/\s*\((?![^)]*\b(?:wide|narrow)\b)[^)]*\)/gi, '');
+      titleElement.textContent = cleanedText;
+    }
+  });
+}
+  
+  // Add savings amount to price section
+  function addSavingsAmount() {
+    document.querySelectorAll('.spf-product-card__inner').forEach(card => {
+      const priceWrapper = card.querySelector('.spf-product-card__price-wrapper');
+      const oldPriceElement = card.querySelector('.spf-product-card__oldprice');
+      const salePriceElement = card.querySelector('.spf-product-card__saleprice');
+      
+      if (priceWrapper && oldPriceElement && salePriceElement && !priceWrapper.querySelector('.savings-amount')) {
+        // Try to extract prices
+        const oldPriceText = oldPriceElement.textContent.trim();
+        const salePriceText = salePriceElement.textContent.trim();
+        
+        // Basic check for currency symbols and numbers
+        const oldPriceMatch = oldPriceText.match(/[\$€£]?\s?(\d+(\.\d+)?)/);
+        const salePriceMatch = salePriceText.match(/[\$€£]?\s?(\d+(\.\d+)?)/);
+        
+        if (oldPriceMatch && salePriceMatch) {
+          const oldPrice = parseFloat(oldPriceMatch[1]);
+          const salePrice = parseFloat(salePriceMatch[1]);
+          
+          if (!isNaN(oldPrice) && !isNaN(salePrice) && oldPrice > salePrice) {
+            const savings = oldPrice - salePrice;
+            const savingsElement = document.createElement('span');
+            savingsElement.className = 'savings-amount';
+            
+            // Format currency based on locale detected from price text
+            let currency = '$';
+            if (oldPriceText.includes('€')) currency = '€';
+            else if (oldPriceText.includes('£')) currency = '£';
+            
+            savingsElement.textContent = `Save ${currency}${savings.toFixed(2)}`;
+            priceWrapper.appendChild(savingsElement);
+          }
+        }
+      }
+    });
+  }
+  
+  // Convert standard sale badges to percentage format
+  function updateSaleBadges() {
+    document.querySelectorAll('.spf-product__label').forEach(badge => {
+      if (!badge.textContent.includes('%') && !badge.classList.contains('spf-product__label-soldout')) {
+        const productCard = badge.closest('.spf-product-card__inner');
+        const oldPrice = productCard?.querySelector('.spf-product-card__oldprice');
+        const salePrice = productCard?.querySelector('.spf-product-card__saleprice');
+        
+        if (oldPrice && salePrice) {
+          // Extract prices
+          const oldPriceText = oldPrice.textContent.trim();
+          const salePriceText = salePrice.textContent.trim();
+          
+          const oldPriceMatch = oldPriceText.match(/[\$€£]?\s?(\d+(\.\d+)?)/);
+          const salePriceMatch = salePriceText.match(/[\$€£]?\s?(\d+(\.\d+)?)/);
+          
+          if (oldPriceMatch && salePriceMatch) {
+            const oldPriceValue = parseFloat(oldPriceMatch[1]);
+            const salePriceValue = parseFloat(salePriceMatch[1]);
+            
+            if (oldPriceValue && salePriceValue) {
+              const savingsPercent = Math.round((oldPriceValue - salePriceValue) / oldPriceValue * 100);
+              badge.textContent = `${savingsPercent}%`;
+            }
+          }
+        }
+      }
+    });
+  }
+  
+  // Run all the enhancement functions
+  function setupAllProductCardFeatures() {
+    enhanceProductCards();
+    cleanProductTitles();
+    addSavingsAmount();
+    updateSaleBadges();
+  }
+  
+  // Run initially
+  setupAllProductCardFeatures();
+  
+  // Run after a delay to catch any lazy-loaded content
+  setTimeout(setupAllProductCardFeatures, 1000);
+});
+  </script>
+  {%- comment -%} Asks before checkout when the cart holds the smallest size, which the product page pre-selects. See the snippet. {%- endcomment -%}
+  {%- comment -%}
+    REMEMBER WHERE THEY WERE, for the cart page's back link.
+
+    Adding to cart now lands the shopper on the cart, so the way back has to
+    name a real place. The first version recorded that place only at the moment
+    of an add, which went stale immediately: remove the item, browse somewhere
+    else, and the cart still offered "Back to Boyden Elementary Pom Pom",
+    because nothing had added anything since. Clicking the cart icon straight
+    from a collection had the same problem, offering the last thing added
+    rather than the collection on screen.
+
+    So record on EVERY page instead of at the moment of an add. Two keys:
+      rhLastBrowse  a collection or search page, the best answer, and the one
+                    the shopper most likely means by "back"
+      rhLastPage    any non cart page, the fallback when this trip has not
+                    been through a collection
+    Both are sessionStorage, so they belong to one shopping trip.
+  {%- endcomment -%}
+  {%- unless template.name == 'cart' -%}
+    {%- liquid
+      assign back_label = ''
+      assign back_kind = 'page'
+      if template.name == 'collection' and collection.title != blank
+        assign back_label = collection.title
+        assign back_kind = 'browse'
+      elsif template.name == 'search'
+        assign back_label = 'search results'
+        assign back_kind = 'browse'
+      elsif template.name == 'product' and product.title != blank
+        assign back_label = product.title
+      elsif page_title != blank
+        assign back_label = page_title
+      endif
+    -%}
+    {%- if back_label != blank -%}
+      <script>
+        try {
+          var rhHere = {
+            url: window.location.pathname + window.location.search,
+            label: {{ back_label | json }}
+          };
+          if ({{ back_kind | json }} === 'browse') {
+            sessionStorage.setItem('rhLastBrowse', JSON.stringify(rhHere));
+          }
+          sessionStorage.setItem('rhLastPage', JSON.stringify(rhHere));
+        } catch (e) { /* private mode, the history fallback still works */ }
+      </script>
+    {%- endif -%}
+  {%- endunless -%}
+  {%- render 'smallest-size-guard' -%}
+
+  {%- comment -%} Plays slide videos only while they are on screen, see the file for why. {%- endcomment -%}
+  <script src="{{ 'lazy-video.js' | asset_url }}" defer></script>
+  {%- render 'trh-menu-icons' -%}
+  {%- if template.name == 'collection' -%}{%- render 'trh-collection-header' -%}{%- endif -%}
+</body>
+</html>
