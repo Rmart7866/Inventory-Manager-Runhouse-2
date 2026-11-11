@@ -1,0 +1,929 @@
+{% comment %}
+  Modern Contact Page Template for The Run House
+  Features:
+  - Contemporary, clean design with modern UI elements
+  - Consistent use of Chivo font throughout
+  - Hero banner with overlay and clear call to action
+  - Streamlined contact information and form
+  - Responsive store location cards with maps integration
+  - Social media links with modern styling
+{% endcomment %}
+
+<div class="run-house-contact">
+  <!-- Chivo Font Import -->
+  {{ 'https://fonts.googleapis.com/css2?family=Chivo:wght@300;400;500;600;700&display=swap' | stylesheet_tag }}
+
+  <!-- Hero Section -->
+  <section class="rh-hero">
+    <div class="rh-hero__overlay"></div>
+    <div class="rh-container">
+      <div class="rh-hero__content">
+        <h1 class="rh-hero__title">Let's Connect</h1>
+        <p class="rh-hero__subtitle">We're here to help with all your running needs</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content Section -->
+  <section class="rh-content">
+    <div class="rh-container">
+      <div class="rh-grid">
+        <!-- Contact Information Column -->
+        <div class="rh-contact-info">
+          <div class="rh-card">
+            <h2 class="rh-heading">Contact Information</h2>
+            
+            <!-- Email Block -->
+            <div class="rh-info-block">
+              <div class="rh-info-block__item">
+                <div class="rh-info-block__icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6C2 4.9 2.9 4 4 4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M22 6L12 13L2 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <div class="rh-info-block__content">
+                  <h3 class="rh-info-block__title">Email Us</h3>
+                  <a href="mailto:help@therunhouse.com" class="rh-link">help@therunhouse.com</a>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Careers Button -->
+            <div class="rh-careers">
+              <a href="/pages/job-openings" class="rh-button rh-button--secondary">
+                <span class="rh-button__icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 7H4C2.89543 7 2 7.89543 2 9V19C2 20.1046 2.89543 21 4 21H20C21.1046 21 22 20.1046 22 19V9C22 7.89543 21.1046 7 20 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M16 21V5C16 3.89543 15.1046 3 14 3H10C8.89543 3 8 3.89543 8 5V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                View Job Openings
+              </a>
+            </div>
+            
+            <!-- Social Media -->
+            <div class="rh-social">
+              <h3 class="rh-info-block__title">Connect With Us</h3>
+              <a href="https://www.facebook.com/TheRunHouseMA" target="_blank" class="rh-social__button">
+                <span class="rh-social__icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
+                  </svg>
+                </span>
+                Facebook
+              </a>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Contact Form Column -->
+        <div class="rh-contact-form">
+          <div class="rh-card">
+            <h2 class="rh-heading">Send Us a Message</h2>
+            
+            {% form 'contact' %}
+              {% if form.posted_successfully? %}
+                <div class="rh-alert rh-alert--success">
+                  <p>Thanks for your message! We'll get back to you shortly.</p>
+                </div>
+              {% endif %}
+
+              {% if form.errors %}
+                <div class="rh-alert rh-alert--error">
+                  <p>Please correct the following errors:</p>
+                  <ul>
+                    {% for field in form.errors %}
+                      <li>{{ field | capitalize }}: {{ form.errors.messages[field] }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+              
+              <div class="rh-form">
+                <div class="rh-form__row">
+                  <div class="rh-form__group">
+                    <label for="ContactFormFirstName" class="rh-form__label">First Name</label>
+                    <input 
+                      type="text" 
+                      id="ContactFormFirstName"
+                      name="contact[first_name]" 
+                      placeholder="Your first name"
+                      class="rh-form__input">
+                  </div>
+                  
+                  <div class="rh-form__group">
+                    <label for="ContactFormLastName" class="rh-form__label">Last Name</label>
+                    <input 
+                      type="text" 
+                      id="ContactFormLastName"
+                      name="contact[last_name]" 
+                      placeholder="Your last name"
+                      class="rh-form__input">
+                  </div>
+                </div>
+                
+                <div class="rh-form__group">
+                  <label for="ContactFormEmail" class="rh-form__label">Email<span class="rh-form__required">*</span></label>
+                  <input 
+                    type="email" 
+                    id="ContactFormEmail"
+                    name="contact[email]" 
+                    placeholder="Your email address"
+                    required
+                    class="rh-form__input">
+                </div>
+                
+                <div class="rh-form__group">
+                  <label for="ContactFormMessage" class="rh-form__label">Message</label>
+                  <textarea 
+                    id="ContactFormMessage"
+                    name="contact[body]" 
+                    rows="5"
+                    placeholder="How can we help you?"
+                    class="rh-form__textarea"></textarea>
+                </div>
+                
+                <div class="rh-form__group">
+                  <label class="rh-form__checkbox">
+                    <input type="checkbox" name="contact[note][Notify]" value="Checked">
+                    <span class="rh-form__checkbox-text">I'd like to receive store updates and promotions</span>
+                  </label>
+                </div>
+                
+                <div class="rh-form__action">
+                  <button type="submit" class="rh-button rh-button--primary">
+                    Send Message
+                  </button>
+                </div>
+              </div>
+            {% endform %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Locations Section -->
+  <section class="rh-locations">
+    <div class="rh-container">
+      <h2 class="rh-heading rh-heading--center">Our Locations</h2>
+      
+      <div class="rh-locations__grid">
+        <!-- Falmouth Location -->
+        <div class="rh-location-card">
+          <div class="rh-location-card__header">
+            <h3>Falmouth</h3>
+          </div>
+          <div class="rh-location-card__body">
+            <div class="rh-location-card__address">227 Main St, Falmouth, MA 02540</div>
+            <div class="rh-location-card__phone">(508) 444-6432</div>
+            <div class="rh-location-card__hours">
+              <div class="rh-hours-item">Mon-Wed: 10am-5pm</div>
+              <div class="rh-hours-item">Thurs-Sat: 10am-6pm</div>
+              <div class="rh-hours-item">Sun: 11am-5pm</div>
+            </div>
+            <a href="https://maps.google.com/maps?q=227+Main+Street,+Falmouth,+MA" target="_blank" class="rh-button rh-button--map">
+              <span class="rh-button__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </span>
+              View on Maps
+            </a>
+          </div>
+        </div>
+        
+        <!-- Needham Location -->
+        <div class="rh-location-card">
+          <div class="rh-location-card__header">
+            <h3>Needham</h3>
+          </div>
+          <div class="rh-location-card__body">
+            <div class="rh-location-card__address">943 Great Plain Ave, Needham, MA 02492</div>
+            <div class="rh-location-card__phone">(781) 400-1327</div>
+            <div class="rh-location-card__hours">
+              <div class="rh-hours-item">Mon: Closed</div>
+              <div class="rh-hours-item">Tues-Fri: 10am-6pm</div>
+              <div class="rh-hours-item">Sat: 10am-5pm</div>
+              <div class="rh-hours-item">Sun: 11am-5pm</div>
+            </div>
+            <a href="https://maps.google.com/maps?q=943+Great+Plain+Ave,+Needham+MA" target="_blank" class="rh-button rh-button--map">
+              <span class="rh-button__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </span>
+              View on Maps
+            </a>
+          </div>
+        </div>
+        
+        {% comment %}
+         <!-- Scituate Location -->
+        <div class="rh-location-card">
+          <div class="rh-location-card__header">
+            <h3>Scituate</h3>
+          </div>
+          <div class="rh-location-card__body">
+            <div class="rh-location-card__address">101 Front St, Scituate, MA 02066</div>
+            <div class="rh-location-card__phone">(781) 378-3802</div>
+            <div class="rh-location-card__hours">
+              <div class="rh-hours-item">Closed</div>
+            </div>
+            <a href="https://maps.google.com/maps?q=101+FRONT+st,+scituate,+ma" target="_blank" class="rh-button rh-button--map">
+              <span class="rh-button__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </span>
+              View on Maps
+            </a>
+          </div>
+        </div>
+        {% endcomment %}
+        
+        <!-- Walpole Location -->
+        <div class="rh-location-card">
+          <div class="rh-location-card__header">
+            <h3>Walpole</h3>
+          </div>
+          <div class="rh-location-card__body">
+            <div class="rh-location-card__address">15 West St, Walpole, MA 02081</div>
+            <div class="rh-location-card__phone">(508) 734-5283</div>
+            <div class="rh-location-card__hours">
+              <div class="rh-hours-item">Mon-Fri: 10am-6pm</div>
+              <div class="rh-hours-item">Sat: 10am-5pm</div>
+              <div class="rh-hours-item">Sun: 11am-5pm</div>
+            </div>
+            <a href="https://maps.google.com/maps?q=15+West+Street,+Walpole,+MA" target="_blank" class="rh-button rh-button--map">
+              <span class="rh-button__icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </span>
+              View on Maps
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Footer CTA Section -->
+  <section class="rh-footer-cta">
+    <div class="rh-container">
+      <a href="https://www.facebook.com/TheRunHouseMA" target="_blank" class="rh-button rh-button--facebook">
+        <span class="rh-button__icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
+          </svg>
+        </span>
+        Follow us on Facebook
+      </a>
+    </div>
+  </section>
+</div>
+
+<style>
+  /* Modern CSS with BEM naming convention */
+  .run-house-contact {
+    --rh-primary: #4A6F9B;
+    --rh-primary-light: #5a80ac;
+    --rh-primary-dark: #3a5b80;
+    --rh-text: #2d3748;
+    --rh-text-light: #4a5568;
+    --rh-text-lighter: #718096;
+    --rh-white: #ffffff;
+    --rh-bg-light: #f8fafc;
+    --rh-border: #e2e8f0;
+    --rh-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+    --rh-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+    --rh-shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.05), 0 4px 6px rgba(0, 0, 0, 0.05);
+    --rh-radius: 0.5rem;
+    --rh-radius-lg: 0.75rem;
+    --rh-space-1: 0.25rem;
+    --rh-space-2: 0.5rem;
+    --rh-space-3: 0.75rem;
+    --rh-space-4: 1rem;
+    --rh-space-6: 1.5rem;
+    --rh-space-8: 2rem;
+    --rh-space-12: 3rem;
+    --rh-space-16: 4rem;
+    --rh-space-24: 6rem;
+    
+    font-family: 'Chivo', sans-serif;
+    color: var(--rh-text);
+    line-height: 1.6;
+    background-color: var(--rh-bg-light);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Layout elements */
+  .rh-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 var(--rh-space-4);
+  }
+
+  .rh-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--rh-space-8);
+  }
+
+  .rh-contact-info {
+    grid-column: span 4;
+  }
+
+  .rh-contact-form {
+    grid-column: span 8;
+  }
+
+  /* Hero section */
+  .rh-hero {
+    position: relative;
+    background-image: url('{{ 'fp3-1666812290642.jpg' | file_url }}');
+    background-size: cover;
+    background-position: center;
+    padding: var(--rh-space-24) 0;
+    margin-bottom: var(--rh-space-16);
+  }
+
+  .rh-hero__overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, rgba(44, 83, 131, 0.85) 0%, rgba(74, 111, 155, 0.85) 100%);
+    z-index: 1;
+  }
+
+  .rh-hero__content {
+    position: relative;
+    z-index: 2;
+    max-width: 700px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .rh-hero__title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: var(--rh-white);
+    margin: 0;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  
+  .rh-hero__subtitle {
+    font-size: 1.25rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin-top: var(--rh-space-4);
+    font-weight: 400;
+  }
+
+  /* Common elements */
+  .rh-card {
+    background: var(--rh-white);
+    border-radius: var(--rh-radius-lg);
+    box-shadow: var(--rh-shadow);
+    padding: var(--rh-space-8);
+    height: 100%;
+    transition: box-shadow 0.3s ease;
+  }
+
+  .rh-card:hover {
+    box-shadow: var(--rh-shadow-lg);
+  }
+
+  .rh-heading {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--rh-text);
+    margin-top: 0;
+    margin-bottom: var(--rh-space-6);
+    position: relative;
+    padding-bottom: var(--rh-space-3);
+  }
+
+  .rh-heading::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 3rem;
+    height: 3px;
+    background-color: var(--rh-primary);
+    border-radius: 1.5px;
+  }
+
+  .rh-heading--center {
+    text-align: center;
+  }
+
+  .rh-heading--center::after {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* Contact info section */
+  .rh-info-block {
+    margin-bottom: var(--rh-space-6);
+  }
+
+  .rh-info-block__item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: var(--rh-space-4);
+  }
+
+  .rh-info-block__icon {
+    color: var(--rh-primary);
+    margin-right: var(--rh-space-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .rh-info-block__content {
+    flex-grow: 1;
+  }
+
+  .rh-info-block__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0 0 var(--rh-space-2) 0;
+    color: var(--rh-text);
+  }
+
+  .rh-link {
+    color: var(--rh-primary);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s, border-color 0.2s;
+    border-bottom: 1px solid transparent;
+    display: inline-block;
+  }
+
+  .rh-link:hover {
+    color: var(--rh-primary-dark);
+    border-color: var(--rh-primary-dark);
+  }
+
+  /* Careers section */
+  .rh-careers {
+    margin: var(--rh-space-8) 0;
+    padding: var(--rh-space-6);
+    background: var(--rh-bg-light);
+    border-radius: var(--rh-radius);
+    text-align: center;
+  }
+
+  /* Social section */
+  .rh-social {
+    margin-top: var(--rh-space-8);
+  }
+
+  .rh-social__button {
+    display: inline-flex;
+    align-items: center;
+    background-color: #4267B2; /* Facebook blue */
+    color: var(--rh-white);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    padding: var(--rh-space-3) var(--rh-space-4);
+    border-radius: var(--rh-radius);
+    transition: background-color 0.2s, transform 0.2s;
+  }
+
+  .rh-social__button:hover {
+    background-color: #365899; /* Darker Facebook blue */
+    transform: translateY(-1px);
+  }
+
+  .rh-social__icon {
+    margin-right: var(--rh-space-2);
+    display: flex;
+    align-items: center;
+  }
+
+  /* Form elements */
+  .rh-form {
+    margin-top: var(--rh-space-6);
+  }
+
+  .rh-form__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--rh-space-4);
+    margin-bottom: var(--rh-space-4);
+  }
+
+  .rh-form__group {
+    margin-bottom: var(--rh-space-4);
+  }
+
+  .rh-form__label {
+    display: block;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    margin-bottom: var(--rh-space-2);
+    color: var(--rh-text);
+  }
+
+  .rh-form__required {
+    color: #e53e3e;
+    margin-left: var(--rh-space-1);
+  }
+
+  .rh-form__input,
+  .rh-form__textarea {
+    width: 100%;
+    padding: var(--rh-space-3) var(--rh-space-4);
+    font-size: 0.9375rem;
+    border: 1px solid var(--rh-border);
+    border-radius: var(--rh-radius);
+    font-family: 'Chivo', sans-serif;
+    transition: all 0.2s;
+    background-color: var(--rh-bg-light);
+  }
+
+  .rh-form__input:focus,
+  .rh-form__textarea:focus {
+    outline: none;
+    border-color: var(--rh-primary);
+    box-shadow: 0 0 0 3px rgba(74, 111, 155, 0.1);
+    background-color: var(--rh-white);
+  }
+
+  .rh-form__textarea {
+    resize: vertical;
+    min-height: 120px;
+  }
+
+  .rh-form__checkbox {
+    display: flex;
+    align-items: flex-start;
+    cursor: pointer;
+  }
+
+  .rh-form__checkbox input[type="checkbox"] {
+    margin: 0.25rem var(--rh-space-2) 0 0;
+    cursor: pointer;
+  }
+  
+  .rh-form__checkbox-text {
+    font-size: 0.875rem;
+    color: var(--rh-text-lighter);
+  }
+
+  .rh-form__action {
+    margin-top: var(--rh-space-6);
+  }
+
+  /* Alerts */
+  .rh-alert {
+    padding: var(--rh-space-4);
+    border-radius: var(--rh-radius);
+    margin-bottom: var(--rh-space-6);
+    font-size: 0.9375rem;
+  }
+
+  .rh-alert--success {
+    background-color: #e6fffa;
+    border: 1px solid #b2f5ea;
+    color: #234e52;
+  }
+
+  .rh-alert--error {
+    background-color: #fff5f5;
+    border: 1px solid #fed7d7;
+    color: #c53030;
+  }
+  
+  .rh-alert p {
+    margin: 0 0 var(--rh-space-2) 0;
+  }
+  
+  .rh-alert ul {
+    margin: 0;
+    padding-left: var(--rh-space-6);
+  }
+  
+  .rh-alert li {
+    margin-bottom: var(--rh-space-2);
+  }
+
+  /* Buttons */
+  .rh-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--rh-space-3) var(--rh-space-6);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    border-radius: var(--rh-radius);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    border: none;
+    font-family: 'Chivo', sans-serif;
+  }
+
+  .rh-button__icon {
+    margin-right: var(--rh-space-2);
+    display: flex;
+    align-items: center;
+  }
+
+  .rh-button--primary {
+    background-color: var(--rh-primary);
+    color: var(--rh-white);
+    box-shadow: var(--rh-shadow-sm);
+  }
+
+  .rh-button--primary:hover {
+    background-color: var(--rh-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--rh-shadow);
+  }
+
+  .rh-button--secondary {
+    background-color: var(--rh-white);
+    color: var(--rh-primary);
+    border: 1px solid var(--rh-primary);
+  }
+
+  .rh-button--secondary:hover {
+    background-color: var(--rh-bg-light);
+    color: var(--rh-primary-dark);
+    border-color: var(--rh-primary-dark);
+    transform: translateY(-1px);
+  }
+
+  .rh-button--map {
+    background-color: var(--rh-bg-light);
+    color: var(--rh-text);
+    font-size: 0.875rem;
+    padding: var(--rh-space-2) var(--rh-space-4);
+  }
+
+  .rh-button--map:hover {
+    background-color: var(--rh-primary-light);
+    color: var(--rh-white);
+  }
+
+  .rh-button--facebook {
+    background-color: #4267B2;
+    color: var(--rh-white);
+    padding: var(--rh-space-4) var(--rh-space-8);
+    font-size: 1rem;
+    box-shadow: var(--rh-shadow);
+  }
+
+  .rh-button--facebook:hover {
+    background-color: #365899;
+    transform: translateY(-1px);
+    box-shadow: var(--rh-shadow-lg);
+  }
+
+  /* Locations section */
+  .rh-locations {
+    padding: var(--rh-space-16) 0;
+  }
+
+  .rh-locations__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--rh-space-6);
+    margin-top: var(--rh-space-8);
+  }
+
+  .rh-location-card {
+    background-color: var(--rh-white);
+    border-radius: var(--rh-radius-lg);
+    overflow: hidden;
+    box-shadow: var(--rh-shadow);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .rh-location-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--rh-shadow-lg);
+  }
+
+  .rh-location-card__header {
+    background-color: var(--rh-primary);
+    color: var(--rh-white);
+    padding: var(--rh-space-4);
+    text-align: center;
+  }
+
+  .rh-location-card__header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .rh-location-card__body {
+    padding: var(--rh-space-6);
+  }
+
+  .rh-location-card__address {
+    font-weight: 500;
+    margin-bottom: var(--rh-space-3);
+    color: var(--rh-text);
+  }
+
+  .rh-location-card__phone {
+    color: var(--rh-text-light);
+    margin-bottom: var(--rh-space-4);
+  }
+
+  .rh-location-card__hours {
+    background-color: var(--rh-bg-light);
+    padding: var(--rh-space-3) var(--rh-space-4);
+    border-radius: var(--rh-radius);
+    margin-bottom: var(--rh-space-4);
+    border-left: 3px solid var(--rh-primary);
+  }
+
+  .rh-hours-item {
+    margin: var(--rh-space-1) 0;
+    font-size: 0.875rem;
+    color: var(--rh-text-light);
+  }
+
+  /* Footer CTA */
+  .rh-footer-cta {
+    background-color: var(--rh-white);
+    padding: var(--rh-space-12) 0;
+    text-align: center;
+    border-top: 1px solid var(--rh-border);
+  }
+
+  /* Responsive design */
+  @media (max-width: 1024px) {
+    .rh-contact-info,
+    .rh-contact-form {
+      grid-column: span 6;
+    }
+    
+    .rh-hero__title {
+      font-size: 3rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .rh-contact-info,
+    .rh-contact-form {
+      grid-column: span 12;
+    }
+    
+    .rh-form__row {
+      grid-template-columns: 1fr;
+      gap: var(--rh-space-3);
+    }
+    
+    .rh-hero__title {
+      font-size: 2.5rem;
+    }
+    
+    .rh-hero__subtitle {
+      font-size: 1.125rem;
+    }
+    
+    .rh-hero {
+      padding: var(--rh-space-16) 0;
+    }
+    
+    .rh-card {
+      padding: var(--rh-space-6);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .rh-hero__title {
+      font-size: 2rem;
+    }
+    
+    .rh-hero__subtitle {
+      font-size: 1rem;
+    }
+    
+    .rh-hero {
+      padding: var(--rh-space-12) 0;
+      margin-bottom: var(--rh-space-8);
+    }
+    
+    .rh-button--primary,
+    .rh-button--facebook {
+      width: 100%;
+    }
+    
+    .rh-heading {
+      font-size: 1.5rem;
+    }
+    
+    .rh-locations {
+      padding: var(--rh-space-8) 0;
+    }
+  }
+</style>
+<style>
+/* ==========================================================================
+   CONTACT PAGE, MATCHED TO THE CURRENT THEME. 2026-11-11, Todays Draft.
+   Same palette and moves as the home page and the membership page. STYLE
+   ONLY: the form markup is untouched on purpose, because the team store
+   builder reads this page's contact form setup to send its requests.
+   ========================================================================== */
+html body .run-house-contact {
+  --rh-primary: #0a1a2f !important;
+  --rh-primary-light: #0f2f66 !important;
+  --rh-primary-dark: #05101d !important;
+  --rh-text: #0a1a2f !important;
+  --rh-text-light: #26303d !important;
+  --rh-text-lighter: #4a5568 !important;
+  --rh-bg-light: #f1f5fa !important;
+  --rh-border: #e3e9f2 !important;
+  --rh-radius: 0px !important;
+  --rh-radius-lg: 0px !important;
+}
+html body .run-house-contact a { text-decoration: none !important; }
+html body .run-house-contact p,
+html body .run-house-contact li,
+html body .run-house-contact label,
+html body .run-house-contact input,
+html body .run-house-contact textarea,
+html body .run-house-contact .rh-location-card__address,
+html body .run-house-contact .rh-location-card__phone,
+html body .run-house-contact .rh-hours-item {
+  font-family: var(--typeBasePrimary, 'Noto Sans Display'), sans-serif !important;
+  letter-spacing: normal !important;
+}
+
+/* The header: the shared deep band. */
+html body .run-house-contact .rh-hero {
+  background-color: #05101d !important;
+  background-image:
+    radial-gradient(55% 75% at 88% 18%, rgba(6,182,212,.22), transparent 70%),
+    radial-gradient(45% 60% at 8% 100%, rgba(43,127,255,.30), transparent 70%),
+    repeating-linear-gradient(115deg, rgba(255,255,255,.035) 0 2px, transparent 2px 26px) !important;
+}
+html body .run-house-contact .rh-hero__overlay { display: none !important; }
+html body .run-house-contact .rh-hero__title {
+  font-family: 'Chivo', sans-serif !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.035em !important;
+  font-size: clamp(40px, 5.5vw, 66px) !important;
+  color: #fff !important;
+}
+html body .run-house-contact .rh-hero__subtitle { color: rgba(255,255,255,.78) !important; font-size: 18px !important; }
+
+/* Headings: Chivo, no underline bar. */
+html body .run-house-contact .rh-heading { font-family: 'Chivo', sans-serif !important; font-weight: 900 !important; letter-spacing: -0.02em !important; color: #0a1a2f !important; }
+html body .run-house-contact .rh-heading::after { display: none !important; content: none !important; }
+
+/* Cards, square with a soft lift. */
+html body .run-house-contact .rh-card,
+html body .run-house-contact .rh-location-card {
+  border-radius: 0 !important;
+  border: 1px solid #e3e9f2 !important;
+  box-shadow: 0 1px 2px rgba(10,26,47,.05), 0 8px 24px rgba(10,26,47,.06) !important;
+}
+html body .run-house-contact .rh-location-card__header { background: #0a1a2f !important; border-radius: 0 !important; font-family: 'Chivo', sans-serif !important; }
+html body .run-house-contact .rh-location-card__hours { border-left: 0 !important; border-radius: 0 !important; background: #f1f5fa !important; }
+html body .run-house-contact .rh-location-card__address { font-size: 16px !important; color: #0a1a2f !important; }
+
+/* Form. */
+html body .run-house-contact .rh-form__input,
+html body .run-house-contact .rh-form__textarea {
+  border-radius: 0 !important;
+  border: 2px solid #dbe3ee !important;
+  background: #fff !important;
+  font-size: 16px !important;
+  box-shadow: none !important;
+}
+html body .run-house-contact .rh-form__input:focus,
+html body .run-house-contact .rh-form__textarea:focus { border-color: #06b6d4 !important; outline: none !important; box-shadow: none !important; }
+html body .run-house-contact .rh-form__label { color: #0a1a2f !important; font-weight: 700 !important; letter-spacing: .02em !important; }
+
+/* Buttons: cyan primary with the orange block, the rest square. */
+html body .run-house-contact .rh-button { border-radius: 0 !important; font-family: 'Chivo', sans-serif !important; font-weight: 900 !important; transition: transform .12s ease, box-shadow .12s ease !important; }
+html body .run-house-contact .rh-button--primary { background: #06b6d4 !important; border-color: #06b6d4 !important; color: #05101d !important; }
+html body .run-house-contact .rh-button--primary:hover { transform: translate(-2px, -2px) !important; box-shadow: 6px 6px 0 0 #f47b20 !important; }
+html body .run-house-contact .rh-button--facebook,
+html body .run-house-contact .rh-social__button { background: #0a1a2f !important; border-radius: 0 !important; }
+html body .run-house-contact .rh-button--secondary,
+html body .run-house-contact .rh-button--map { border-radius: 0 !important; }
+</style>
