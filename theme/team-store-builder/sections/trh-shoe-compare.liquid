@@ -162,5 +162,78 @@ html body #trh-compare .sec-h { margin-bottom: 26px !important; }
   html body #trh-compare .fitnote { padding: 18px !important; }
   html body #trh-compare .wrap > .sec { padding-top: 36px !important; padding-bottom: 36px !important; }
 }
+
+/* ==========================================================================
+   ROUND TWO, same day. Owner: no glow on the short answer, and the text is
+   still not readable enough. Measured on Superblast 3 vs Endorphin Speed 6:
+     - the short answer set whole SENTENCES as 36px Chivo 800 headlines;
+     - 24 kinds of text still sat under 15px: uppercase labels at 10.5 to
+       12px, the spec labels at 13px in pale grey, the "Who it's for"
+       runner descriptions at 14.5px grey, stock lines and chips at 13px.
+   A floor of 13px for labels and 15 to 17px for anything you read.
+   ========================================================================== */
+
+/* The short answer: no glow, and sentences set as sentences. The shoe's
+   name keeps the headline face and its colour, so it still pops. */
+html body #trh-compare .verdict::before { display: none !important; content: none !important; }
+html body #trh-compare .verdict .say {
+  font-family: var(--typeBasePrimary, 'Noto Sans Display'), sans-serif !important;
+  font-weight: 500 !important;
+  font-size: clamp(20px, 2.2vw, 25px) !important;
+  line-height: 1.4 !important;
+  letter-spacing: normal !important;
+}
+html body #trh-compare .verdict .say a.shoplink {
+  font-family: 'Chivo', sans-serif !important;
+  font-weight: 800 !important;
+  font-size: inherit !important;
+  letter-spacing: -0.01em !important;
+}
+html body #trh-compare .verdict .eyebrow { font-size: 13px !important; }
+html body #trh-compare .verdict { gap: 16px !important; }
+
+/* Labels: uppercase, so 13px is the floor, and darker than before. */
+html body #trh-compare .sub-h,
+html body #trh-compare .bf-who,
+html body #trh-compare h3.grp span,
+html body #trh-compare .newcol h4,
+html body #trh-compare .morecol h4,
+html body #trh-compare .dial-k,
+html body #trh-compare summary h4,
+html body #trh-compare .cat-more,
+html body #trh-compare .allpairs > summary { font-size: 13px !important; color: #3b4a63 !important; }
+html body #trh-compare .scale span,
+html body #trh-compare .odo-t b { font-size: 12.5px !important; }
+
+/* Spec by spec: the middle labels and the small notes under values. */
+html body #trh-compare .trow .lab { font-size: 14.5px !important; color: #3b4a63 !important; }
+html body #trh-compare .v small { font-size: 13px !important; color: #4a5568 !important; }
+
+/* Who it's for: each runner reads as its own short block. */
+html body #trh-compare #who .rt { margin-bottom: 22px !important; }
+html body #trh-compare #who .rt b,
+html body #trh-compare #who .rt strong,
+html body #trh-compare #who .rt h4 { font-size: 18px !important; color: #0a1a2f !important; }
+html body #trh-compare #who .rt p.rw { font-size: 16px !important; line-height: 1.55 !important; color: #26303d !important; }
+html body #trh-compare #who p.why,
+html body #trh-compare #who p.why span { font-size: 16px !important; line-height: 1.55 !important; }
+
+/* Everything else that sat at 13 to 14px. */
+html body #trh-compare .mu-stock,
+html body #trh-compare .mu-links a,
+html body #trh-compare .t-note,
+html body #trh-compare .chip,
+html body #trh-compare .pick-cta { font-size: 14px !important; }
+html body #trh-compare .dial-diff,
+html body #trh-compare .dial-r .who,
+html body #trh-compare .st-c a,
+html body #trh-compare label.tog { font-size: 15px !important; }
+html body #trh-compare .morelist a,
+html body #trh-compare #more li a { font-size: 16px !important; }
+/* The last four under the 13px floor, found by sweeping every text node. */
+html body #trh-compare .mu-brand,
+html body #trh-compare .buy-open,
+html body #trh-compare .t-cap,
+html body #trh-compare .wl { font-size: 13px !important; }
 </style>
 {% schema %}{"name":"Shoe compare","settings":[]}{% endschema %}
