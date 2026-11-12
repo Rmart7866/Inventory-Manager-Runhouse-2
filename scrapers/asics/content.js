@@ -2451,7 +2451,15 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         return out;
     }
 
-    async fetchInventoryFromApi(onProgress) {
+    // opts.scope === 'all' is the OVERNIGHT FULL CATALOG (tools/asics-headless-
+    // run.mjs --full-catalog, built 2026-11-12): every style ASICS lists, shoes
+    // and apparel, no running or season cut, every style retried once, and a
+    // single failure after that refuses the file. Measured that day, a stock
+    // call took 8 to 60 SECONDS against under one in October, so a full sweep
+    // is hours and only makes sense with nobody waiting on it. Called with no
+    // options, the Scrape All Shoes button behaves exactly as before.
+    async fetchInventoryFromApi(onProgress, opts = {}) {
+        const FULL = opts.scope === 'all';
         const basketNo = await this.apiBasketNo();
         const cat = await this.apiGet('/aac/products?basketNo=' + encodeURIComponent(basketNo));
         const rows = (cat && cat.data) || [];
@@ -2486,12 +2494,14 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         // SONICBLAST 2 alone. This is the At Once journey, in stock by
         // definition, so there is no not-yet-shippable problem to filter for.
         const C = EnhancedASICSInventoryExtractor;
-        const allFootwear = rows.filter((r) => Number(r.collection) === C.API_FOOTWEAR_COLLECTION);
+        // In full mode "allFootwear" is every row ASICS lists, garments too:
+        // the names below stay as they are so the button path reads unchanged.
+        const allFootwear = FULL ? rows.slice() : rows.filter((r) => Number(r.collection) === C.API_FOOTWEAR_COLLECTION);
         let footwear = allFootwear;
-        if (C.API_RUNNING_ONLY) {
+        if (C.API_RUNNING_ONLY && !FULL) {
             footwear = footwear.filter((r) => Object.keys(r.category || {}).indexOf('running') !== -1);
         }
-        if (C.API_SEASONS && C.API_SEASONS.length) {
+        if (C.API_SEASONS && C.API_SEASONS.length && !FULL) {
             footwear = footwear.filter((r) => C.API_SEASONS.indexOf(r.season) !== -1);
         }
 
@@ -2536,7 +2546,10 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             byStyle.get(r.itemCode).push(r);
         }
 
-        const styles = [...byStyle.keys()];
+        let styles = [...byStyle.keys()];
+        // opts.maxStyles: a smoke test of the full path on a few styles. The
+        // runner names that file SMOKETEST and always blocks it.
+        if (FULL && opts.maxStyles > 0) styles = styles.slice(0, opts.maxStyles);
         const records = [];
         let done = 0;
         let failed = 0;
@@ -2548,6 +2561,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         EnhancedASICSInventoryExtractor._lastStart = 0;
         EnhancedASICSInventoryExtractor._okStreak = 0;
 
+        const failedCodes = [];
         const worker = async () => {
             while (queue.length) {
                 const code = queue.shift();
@@ -2557,10 +2571,15 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                     const url = '/aac/products/' + encodeURIComponent(code) +
                         '/availability?basketNo=' + encodeURIComponent(basketNo) +
                         '&colorCodeDistributorNo=' + colorCodes;
-                    const av = await this.apiGet(url);
+                    // Full mode bounds every call: a stock call that never
+                    // answers would otherwise hold a worker for the rest of the
+                    // night. Two minutes, against the 60 second worst seen.
+                    const av = FULL ? await Promise.race([this.apiGet(url), new Promise((_, rej) => setTimeout(() => rej(new Error('no answer in 120s')), 120000))])
+                        : await this.apiGet(url);
                     records.push(...this.recordsFromAvailability(av, colorways));
                 } catch (e) {
                     failed++;
+                    failedCodes.push(code);
                     console.warn('ASICS API: style ' + code + ' failed:', e.message);
                 }
                 done++;
@@ -2570,6 +2589,22 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
 
         const pool = Math.min(EnhancedASICSInventoryExtractor.API_CONCURRENCY, queue.length) || 1;
         await Promise.all(Array.from({ length: pool }, () => worker()));
+
+        // FULL MODE: one more pass over whatever failed, slowly, then ZERO
+        // tolerance. A slow night is fine; a file missing a style zeroes it.
+        if (FULL && failedCodes.length) {
+            console.warn('ASICS API: retrying ' + failedCodes.length + ' failed styles once');
+            const retry = failedCodes.splice(0);
+            failed = 0;
+            queue.push(...retry);
+            EnhancedASICSInventoryExtractor._gapMs = EnhancedASICSInventoryExtractor.API_MAX_GAP_MS / 2;
+            await Promise.all(Array.from({ length: Math.min(2, queue.length) || 1 }, () => worker()));
+            if (failed) {
+                throw new Error(failed + ' of ' + styles.length + ' ASICS styles still failed after a retry (' +
+                    failedCodes.slice(0, 10).join(', ') + (failedCodes.length > 10 ? ', ...' : '') +
+                    '). Refusing the full catalog: those styles would read as removed and zero their stock.');
+            }
+        }
 
         const hits = EnhancedASICSInventoryExtractor._throttleHits || 0;
         console.log('ASICS API: ' + styles.length + ' footwear styles, ' + records.length +

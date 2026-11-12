@@ -212,8 +212,159 @@ function profileUrlCount() {
   } catch (e) { return -1; }
 }
 
+// ---------------------------------------------------- the full catalog -----
+// --full-catalog, built 2026-11-12 on owner request ("build the overnight
+// one"). Every style ASICS lists, shoes and apparel, read from the portal's
+// stock feed by the extension's OWN fetchInventoryFromApi in its full mode,
+// written as ONE file the inventory tool takes like HOKA's ATS report.
+//
+// WHY OVERNIGHT. Measured the same day, one stock call took 8 to 60 seconds
+// (under one in October), there is no multi style call for a retailer, and
+// ASICS throttles past about one a second. 1,285 styles is therefore hours,
+// fine for a job nobody waits on and useless for one somebody does.
+//
+// THE SAME RULES AS THE LINK RUN, plus two of its own:
+//   - any style that still fails after one retry refuses the file (the
+//     extension throws), because a missing style reads as removed;
+//   - print on demand singlets go to the Warehouse by STYLE here, there being
+//     no link to carry a location, and the guardrail checks it again;
+//   - it is judged against its OWN baseline. A full catalog is several times
+//     a link list's rows, so comparing it to the link baseline would block on
+//     size alone, every night.
+// The sweep runs inside the page and is polled, since a single CDP call has a
+// 60 second deadline and the sweep takes hours.
+const FULL_BASELINE = () => path.join(ROOT, 'inventory-guardrail-baseline-fullcatalog.json');
+
+// Judge a full catalog CSV and, with accept, record it as the baseline. The
+// one block accept may clear is the missing baseline, exactly as the
+// guardrail's own --accept: a first run has nothing to compare against.
+function judgeFullCatalog(csv, file, accept) {
+  const BASE = FULL_BASELINE();
+  const baseline = fs.existsSync(BASE) ? JSON.parse(fs.readFileSync(BASE, 'utf8')) : null;
+  const res = check(rowsFromCSV(csv), baseline);
+  console.log('');
+  res.warnings.forEach((w) => console.log('  WARN   ' + w));
+  res.blocks.forEach((b) => console.log('  BLOCK  ' + b));
+  console.log('\n' + (res.ok ? 'PASS. Safe to import ' + path.basename(file) : 'BLOCKED. Do not import this file.'));
+  verdictReached = true;
+  const onlyNoBaseline = !res.ok && res.blocks.length > 0 && res.blocks.every((b) => /^NO BASELINE/.test(b));
+  if (accept && (res.ok || onlyNoBaseline)) {
+    const groupZeroShare = {};
+    for (const [b, s] of Object.entries(res.summary.brands)) {
+      if (s.rows >= 20 && s.rows / res.summary.rows >= LIMITS.minGroupShare) groupZeroShare[b] = s.zeros / s.rows;
+    }
+    fs.writeFileSync(BASE, JSON.stringify({ v: BASELINE_VERSION, at: new Date().toISOString(), file: path.basename(file),
+      rows: res.summary.rows, units: res.summary.units, atCapShare: res.summary.atCapShare, cap: res.summary.cap,
+      zeroShare: res.summary.zeroShare, groupZeroShare, locations: res.summary.locations }, null, 2));
+    console.log('full catalog baseline recorded: later nights are judged against ' + path.basename(file) + '.');
+  } else if (accept) console.log('NOT recorded as the baseline: a blocked run must not become the new normal.');
+  return res.ok ? 0 : 1;
+}
+
+async function runFullCatalog() {
+  // --accept-file <csv>: record a night's file you have checked, without a
+  // new sweep that takes hours.
+  const acceptFile = arg('--accept-file', '');
+  if (acceptFile) return judgeFullCatalog(fs.readFileSync(acceptFile, 'utf8'), acceptFile, true);
+  let chrome = null;
+  const killOwn = () => { if (chrome) { try { chrome.kill(); } catch (e) {} chrome = null; } };
+  process.once('exit', killOwn);
+  process.once('SIGINT', () => { killOwn(); process.exit(130); });
+  process.once('SIGTERM', () => { killOwn(); process.exit(143); });
+
+  let target = await findExisting(PORT + 1);
+  if (target) console.log('chrome   : reusing the browser already open on this profile');
+  else {
+    console.log('chrome   : launching headless on ' + PROFILE);
+    chrome = spawn(CHROME, ['--headless=new', '--remote-debugging-port=' + PORT,
+      '--user-data-dir=' + PROFILE, '--no-first-run', '--no-default-browser-check',
+      '--disable-gpu', '--window-size=1600,1200', 'about:blank'], { stdio: 'ignore' });
+    for (let i = 0; i < 40 && !target; i++) { await wait(300); target = await findExisting(PORT); }
+  }
+  if (!target) { console.error('No browser available. Close any Chrome window open on ' + PROFILE + '.'); return 1; }
+
+  const ws = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise((r, j) => { ws.addEventListener('open', r); ws.addEventListener('error', j); });
+  const send = cdp(ws);
+  await send('Page.enable'); await send('Runtime.enable');
+  await send('Page.navigate', { url: 'https://b2b.asics.com/dashboard' });
+  // Settled means a complete document that is either the dashboard or a
+  // login page; the portal redirects a dead session straight to the latter.
+  let where = '';
+  for (let t = 0; t < 60; t++) {
+    await wait(1000);
+    const r = await send('Runtime.evaluate', { returnByValue: true, expression: 'document.readyState + " " + location.href' });
+    where = r.result.value || '';
+    if (/^complete /.test(where) && /dashboard|authentication|login|signin/i.test(where)) break;
+  }
+  if (/authentication|login|signin/i.test(where)) {
+    console.error('SESSION EXPIRED: the profile is logged out of b2b.asics.com. Run --setup, log in, then run again.');
+    verdictReached = true; killOwn(); return 1;
+  }
+
+  const csrc = fs.readFileSync(path.join(ROOT, 'scrapers/asics/content.js'), 'utf8');
+  const cut = csrc.indexOf('function initializeExtractor()');
+  if (cut < 0) throw new Error('content.js no longer has initializeExtractor, the injection cut point moved');
+  const ev = await send('Runtime.evaluate', { expression: csrc.slice(0, cut) + '\nwindow.__RH = EnhancedASICSInventoryExtractor;' });
+  if (ev.exceptionDetails) throw new Error('injecting content.js: ' + ev.exceptionDetails.text);
+
+  // --smoke N: the whole path on N styles, to prove it works without a sweep
+  // that takes hours. Its file is named SMOKETEST and always BLOCKED.
+  const SMOKE = Math.max(0, Number(arg('--smoke', '0')) || 0);
+  if (SMOKE) console.log('SMOKE TEST: ' + SMOKE + ' styles only. The file will be blocked by design.');
+  const t0 = Date.now();
+  await send('Runtime.evaluate', { expression: `window.__RHFULL = { done: 0, total: 0, rows: 0, finished: false, error: null, records: null };
+    (async () => { const S = window.__RHFULL; try {
+      const x = Object.create(window.__RH.prototype);
+      S.records = await x.fetchInventoryFromApi((d, t, n) => { S.done = d; S.total = t; S.rows = n; }, { scope: 'all', maxStyles: ${SMOKE} });
+    } catch (e) { S.error = String(e && e.message || e); } S.finished = true; })(); 'started'` });
+
+  let last = '';
+  for (;;) {
+    await wait(30000);
+    const r = await send('Runtime.evaluate', { returnByValue: true, expression:
+      'JSON.stringify({ d: __RHFULL.done, t: __RHFULL.total, n: __RHFULL.rows, f: __RHFULL.finished, e: __RHFULL.error, href: location.href })' });
+    const s = JSON.parse(r.result.value);
+    const line = 'progress : ' + s.d + ' / ' + s.t + ' styles, ' + s.n + ' rows, ' + Math.round((Date.now() - t0) / 60000) + ' min';
+    if (line !== last) { console.log(line); last = line; }
+    if (/authentication|login|signin/i.test(s.href)) { console.error('SESSION EXPIRED mid run. No file written.'); verdictReached = true; killOwn(); return 1; }
+    if (s.f) { if (s.e) { console.error('\nREFUSED: ' + s.e + '\nNo file written.'); verdictReached = true; killOwn(); return 1; } break; }
+  }
+
+  // Pull the records out in slices: one CDP reply of tens of thousands of
+  // rows is a needless risk when slices cost nothing.
+  const count = (await send('Runtime.evaluate', { returnByValue: true, expression: '__RHFULL.records.length' })).result.value;
+  const records = [];
+  for (let i = 0; i < count; i += 5000) {
+    const r = await send('Runtime.evaluate', { returnByValue: true, expression: 'JSON.stringify(__RHFULL.records.slice(' + i + ',' + (i + 5000) + '))' });
+    records.push(...JSON.parse(r.result.value));
+  }
+  try { ws.close(); } catch (e) {}
+  killOwn();
+  if (!records.length) { console.error('Nothing captured. No file written.'); verdictReached = true; return 1; }
+
+  let pod = 0;
+  for (const rec of records) if (POD_STYLES.includes(String(rec.styleId).toUpperCase())) { rec.locationName = POD_LOCATION; pod++; }
+  const styles = new Set(records.map((r) => r.styleId)).size;
+  console.log('\ncaptured : ' + records.length + ' rows, ' + styles + ' styles, ' + pod + ' print on demand rows to ' +
+    POD_LOCATION + ', in ' + Math.round((Date.now() - t0) / 60000) + ' min');
+
+  const csv = loadBackgroundConverter().convertToInventoryCSV(records);
+  const stamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '');
+  const out = path.join(os.homedir(), 'Downloads', 'asics-fullcatalog-' + (SMOKE ? 'SMOKETEST-' : '') + stamp + '.csv');
+  fs.writeFileSync(out, csv);
+  console.log('csv      : ' + out);
+  if (SMOKE) {
+    console.log('\nBLOCKED. Smoke test of ' + SMOKE + ' styles: never import this file, every other style would read as removed.');
+    verdictReached = true;
+    return 0;
+  }
+  return judgeFullCatalog(csv, out, has('--accept'));
+}
+
 // ------------------------------------------------------------- the run -----
 async function main() {
+  if (has('--full-catalog')) return runFullCatalog();
   if (has('--setup')) {
     // macOS hands a url to a RUNNING Chrome and ignores --user-data-dir, so a
     // distinct debugging port is what forces a genuinely separate browser.

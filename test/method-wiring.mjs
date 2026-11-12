@@ -171,6 +171,11 @@ const files = [];
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {
     if (e.name === 'node_modules' || e.name === '.git' || e.name.startsWith('.')) continue;
     const p = path.join(d, e.name);
+    // theme/ holds COPIES of the live Shopify theme's files (the Impulse
+    // theme.js among them), kept for the record. Its web components extend
+    // HTMLElement, so querySelector and friends are inherited from the
+    // browser, which this lexer cannot see: 12 false findings, 2026-11-12.
+    if (path.relative(ROOT, p) === 'theme') continue;
     if (e.isDirectory()) walk(p);
     else if (e.name.endsWith('.js') && !e.name.includes('.min.') && e.name !== 'barcode-data.js') files.push(p);
   }

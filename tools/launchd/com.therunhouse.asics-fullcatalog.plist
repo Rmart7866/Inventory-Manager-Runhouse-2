@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Nightly ASICS full catalog, 1:00 AM local. A Mac asleep at 1:00 runs it on
+  the next wake. Install:
+    cp tools/launchd/com.therunhouse.asics-fullcatalog.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.therunhouse.asics-fullcatalog.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.therunhouse.asics-fullcatalog.plist
+    rm ~/Library/LaunchAgents/com.therunhouse.asics-fullcatalog.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.therunhouse.asics-fullcatalog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/tools/asics-fullcatalog-nightly.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>1</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-asics-fullcatalog.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-asics-fullcatalog.log</string>
+</dict>
+</plist>

@@ -112,6 +112,17 @@ node tools/asics-headless-run.mjs --setup     # log the profile in, once
 node tools/asics-headless-run.mjs             # capture, check, write a CSV
 node tools/asics-headless-run.mjs --limit 3   # the first 3 links, for a smoke test
 
+# ASICS FULL CATALOG, overnight (2026-11-12). Every style, shoes and apparel,
+# from the stock feed, one file in Downloads, refused if any style fails after
+# a retry. HOURS, not minutes: measured that day a stock call took 8 to 60s
+# and there is no multi style call for a retailer. Judged against its OWN
+# baseline (inventory-guardrail-baseline-fullcatalog.json, gitignored).
+node tools/asics-headless-run.mjs --full-catalog --smoke 3   # whole path, 3 styles, always blocked
+node tools/asics-headless-run.mjs --full-catalog             # the real sweep
+node tools/asics-headless-run.mjs --full-catalog --accept-file <csv>  # record a checked night as the baseline
+# nightly at 1 AM: tools/asics-fullcatalog-nightly.sh via
+# tools/launchd/com.therunhouse.asics-fullcatalog.plist (install steps inside)
+
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
 
