@@ -410,6 +410,92 @@ var BrooksConverter = {
         return (item && map[item]) || '';
     },
 
+    // ========== A BROOKS SKU'S IDENTITY, WHATEVER ITS SPELLING ==========
+    // style|colour|size|width. The store spells one Brooks variant three ways:
+    //   110496015-015-750-D   scraper style; the 9 digit PREFIX is whatever
+    //                         link created the listing, not the colour
+    //   1105111D066.070       Brooks's own item number (width "1D" = D)
+    //   221754001-368-M       a garment: size is a word, no width
+    // The same rules as brooksLine in extensions/order-prep/common.js, plus
+    // the garment form. A SKU that does not decode returns null and is simply
+    // never aligned, so an unreadable SKU can only fail to match, never match
+    // the wrong shoe. A colourway level code ("1104181D090", one SKU on every
+    // size) does not decode, on purpose: it names no size.
+    _brooksKey: function(sku) {
+        var s = String(sku || '').trim().toUpperCase();
+        var m = /^(\d{6})\d*-(\d{3})-(\d+)-([A-Z0-9]{1,2})$/.exec(s);
+        if (m) {
+            var whole = m[3].slice(0, -2), tail = m[3].slice(-2);
+            if (!whole || (tail !== '50' && tail !== '55')) return null;
+            return m[1] + '|' + m[2] + '|' + (parseInt(whole, 10) + (tail === '55' ? 0.5 : 0)).toFixed(1) + '|' + m[4].replace(/^1(?=[A-Z]$)/, '');
+        }
+        m = /^(\d{6})(\d[A-Z])(\d{3})\.(\d{3})$/.exec(s);
+        if (m) return m[1] + '|' + m[3] + '|' + (parseInt(m[4], 10) / 10).toFixed(1) + '|' + m[2].replace(/^1(?=[A-Z]$)/, '');
+        m = /^(\d{6})\d*-(\d{3})-([A-Z0-9]+)$/.exec(s);
+        if (m && /[A-Z]/.test(m[3])) return m[1] + '|' + m[2] + '|' + m[3] + '|';
+        return null;
+    },
+
+    // ========== ALIGN A FILE'S SKUS TO THE STORE'S ==========
+    // A feed row carries the SKU the SCRAPER built; a live listing carries the
+    // SKU its creator built, and for Brooks those differ by prefix. Measured
+    // 2026-11-12: the live Ghost Max 4 men's listings are split across
+    // 110496004-... (7 listings) and 110496015-... (6), so ANY one link reaches
+    // only part of the model, and a full catalog file (brooks-fullcatalog-,
+    // which uses each colourway's own code) would match almost nothing. A
+    // mismatch is not harmless here: InventoryTracker reads a carried
+    // colourway whose SKUs are absent from the file as REMOVED and zeroes it,
+    // and calls the same shoe new.
+    //
+    // So each row is matched on its identity (_brooksKey) against every Brooks
+    // SKU on Shopify, and written out under the store's own SKU, once per
+    // listing that carries it (two listings of one shoe both show the supplier
+    // stock, which is what a dropship listing is for). A store SKU the file
+    // already carries exactly keeps that exact row; a translated row never
+    // overrides it. Rows that match nothing stay as they are: those are the
+    // new products. Footwear and garments alike.
+    alignToStore: function(rows) {
+        var self = this;
+        var store = (typeof CatalogClient !== 'undefined' && CatalogClient.existingSkus) ? CatalogClient.existingSkus('brooks') : null;
+        var stats = { rows: rows.length, exact: 0, translated: 0, extraListings: 0, unmatched: 0 };
+        this.alignStats = stats;
+        if (!store || !store.size) return rows;
+        var byKey = new Map();
+        store.forEach(function(sku) {
+            var k = self._brooksKey(sku);
+            if (!k) return;
+            if (!byKey.has(k)) byKey.set(k, []);
+            byKey.get(k).push(sku);
+        });
+        var exact = new Map();
+        rows.forEach(function(row) {
+            var up = String(row.SKU || '').trim().toUpperCase();
+            if (up && store.has(up) && !exact.has(up)) exact.set(up, row);
+        });
+        var out = [];
+        var written = new Set();
+        rows.forEach(function(row) {
+            var up = String(row.SKU || '').trim().toUpperCase();
+            var k = self._brooksKey(up);
+            var targets = (k && byKey.get(k)) || [];
+            if (!targets.length) { out.push(row); if (store.has(up)) stats.exact++; else stats.unmatched++; return; }
+            var first = true;
+            targets.forEach(function(t) {
+                if (written.has(t)) return;
+                written.add(t);
+                var src = exact.get(t) || row;   // the exact row wins its own SKU
+                if (src === row && up === t) stats.exact++;
+                else if (first) stats.translated++;
+                else stats.extraListings++;
+                first = false;
+                out.push(src === row && up === t ? row : Object.assign({}, src, { SKU: t }));
+            });
+        });
+        console.log('[Brooks] aligned to the store: ' + stats.exact + ' exact, ' + stats.translated + ' translated, ' +
+            stats.extraListings + ' extra rows for a second listing of the same shoe, ' + stats.unmatched + ' new (no listing)');
+        return out;
+    },
+
     // ========== PARSE TITLE ==========
     parseTitle: function(title, handle) {
         if (!title) return { gender: '', model: '', color: '', width: '' };
@@ -523,9 +609,9 @@ var BrooksConverter = {
         return new Promise(function(resolve, reject) {
             file.text().then(function(csvText) {
                 var parsed = Papa.parse(csvText, { header: true });
-                var allRows = parsed.data.filter(function(row) {
+                var allRows = self.alignToStore(parsed.data.filter(function(row) {
                     return row.Handle && row.Handle.trim() !== '';
-                });
+                }));
 
                 self._rawRows = allRows;
 
@@ -608,9 +694,11 @@ var BrooksConverter = {
         return new Promise(function(resolve, reject) {
             file.text().then(function(csvText) {
                 var parsed = Papa.parse(csvText, { header: true });
-                var allRows = parsed.data.filter(function(row) {
+                // Aligned BEFORE allFeedSkus is built, so removal detection
+                // sees the store's own SKUs (see alignToStore).
+                var allRows = self.alignToStore(parsed.data.filter(function(row) {
                     return row.Handle && row.Handle.trim() !== '';
-                });
+                }));
 
                 var inventory = [];
                 var productVariantData = [];

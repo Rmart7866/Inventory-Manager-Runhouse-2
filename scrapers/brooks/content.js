@@ -51,6 +51,105 @@ function brooksHeaderStyle() {
 function brooksHeaderMatchesUrl() { const u = brooksUrlStyle(); return !u || brooksHeaderStyle() === u; }
 
 // ============================================================================
+// FULL CATALOG, read from FastTrack's own stock feed (built 2026-11-12).
+// The grid on every product page is drawn from two calls the page makes with
+// a bearer token it holds in memory:
+//   POST /api/v2/products/search        {accountId, start, num, preset:'now'}
+//   GET  /api/products/brooks/<style>/<account>/combined/slim
+// Asked from inside a logged-in tab with that token, the whole "ship now"
+// catalog (298 styles, 14,436 sizes, measured 2026-11-12) reads in about 75
+// seconds, against about 15 minutes for 89 pages. Measured against page
+// scrapes of the same styles: 68 of 68 sizes agreed once the two rules below
+// were applied.
+//
+// THE RULES, each one load bearing:
+// - Only NOW stock counts. Every size also carries a FUTURE entry (a later
+//   delivery window); summing them is the ASICS delivery-window bug, which
+//   zeroed 3,066 shoes in one file.
+// - Only NOW stock available within the hour counts. A NOW entry is stamped
+//   with the moment the server answered, but stock arriving next week is also
+//   typed NOW with a later date (Hyperion Elite MD 2 White/Spark, from
+//   2026-11-16). The page shows that as 0, and so must this. The cutoff is
+//   taken per request, because a fixed cutoff from the start of the sweep
+//   threw away every entry stamped after it (3,866 units read as 1.7 million).
+// - The page's 100 ceiling and the low stock masking are applied exactly as
+//   the grid path applies them (owner decision 2026-11-12: keep the cap), so
+//   a full catalog file and a link file mean the same thing.
+// - The retail price only. The price call also returns wholesale fields; they
+//   are never read, because this repo is public and so is the file's shape.
+function brooksNowQuantity(items, cutoffMs) {
+    return (items || []).filter((i) => i && i.orderType === 'NOW' && !(Date.parse(i.availableFromDateUtc) > cutoffMs))
+        .reduce((a, i) => a + (Number(i.quantity) || 0), 0);
+}
+function brooksFeedQuantity(raw) {
+    let q = Math.max(0, parseInt(raw, 10) || 0);
+    if (q > 100) q = 100;            // the grid prints "100+", read as 100
+    if (q <= 3) return 0;            // applyInventorySecurity, same thresholds
+    if (q <= 10) return 1;
+    return q;
+}
+function brooksFeedGender(g) {
+    const s = String(g || '').toUpperCase();
+    if (/WOMEN|WOMAN/.test(s)) return 'WOMEN';   // WOMEN contains MEN, so first
+    if (/^MEN|\bMEN\b|^MAN/.test(s)) return 'MEN';
+    return 'UNISEX';
+}
+// The retail price in force now, from the price call's entries for a style.
+// '' when there is none, never a guess.
+function brooksRetailPrice(entries, nowMs) {
+    for (const e of entries || []) {
+        for (const v of (e && e.value) || []) {
+            const from = Date.parse(v.validityDateFromUtc), to = Date.parse(v.validityDateToUtc);
+            if ((isFinite(from) && from > nowMs) || (isFinite(to) && to < nowMs)) continue;
+            const p = Number(v.rrpMin != null ? v.rrpMin : v.rrpMax);
+            if (isFinite(p) && p > 0) return p.toFixed(2);
+        }
+    }
+    return '';
+}
+// One product reply to the SAME records a page scrape produces, so the
+// background's CSV builder writes an identical file. The SKU prefix is each
+// colourway's own code (110496020 for colour 020); which prefix a live
+// listing happens to use is the inventory tool's job (BrooksConverter
+// alignToStore), because only the tool can see the store. A colour and
+// width with no stock in any size is left out, as the page leaves out an
+// unavailable colour: absent and zero mean the same to the tool.
+function brooksCatalogRecords(product, retail, nowMs) {
+    const out = [];
+    const style = String((product && product.productId) || '').slice(0, 6);
+    if (!/^\d{6}$/.test(style)) return out;
+    const gender = brooksFeedGender(product.attributes && product.attributes.gender);
+    const cutoff = (nowMs || Date.now()) + 3600e3;
+    for (const col of product.children || []) {
+        const code = String(col.colorCode || (col.attributes && col.attributes.colorcode) || '').padStart(3, '0');
+        const name = (col.attributes && col.attributes.color) || String(col.title || '').replace(/^\d{3}\s*-\s*/, '');
+        const byWidth = new Map();
+        for (const leaf of col.children || []) {
+            const a = leaf.attributes || {};
+            const size = String(a.size || '').trim();
+            if (!size) continue;
+            const width = String(a.width || '').trim();
+            const raw = brooksNowQuantity(leaf.inventoryItems, cutoff);
+            if (!byWidth.has(width)) byWidth.set(width, []);
+            byWidth.get(width).push({ size, raw });
+        }
+        byWidth.forEach((sizes, width) => {
+            if (!sizes.some((s) => s.raw > 0)) return;
+            for (const s of sizes) {
+                const q = brooksFeedQuantity(s.raw);
+                out.push({
+                    styleId: style + code, productName: product.title || '', gender, msrp: retail || '',
+                    colorCode: code, colorName: name, width, size: s.size, sizeUS: s.size,
+                    availableQuantity: q, quantity: q,
+                    rawData: { originalInventory: Math.min(s.raw, 100), source: 'feed' }
+                });
+            }
+        });
+    }
+    return out;
+}
+
+// ============================================================================
 // AUTO-CLICKER: Automatically clicks "At once" buttons to reveal inventory
 // ============================================================================
 class BrooksAutoClicker {
@@ -693,6 +792,139 @@ class EnhancedBrooksInventoryExtractor {
         if (this.isProductPage()) {
             this.addAutoScraperButton();
             this.addSettingsButton();
+        }
+        if (window.location.hostname.includes('fasttrack.brooksrunning.com')) {
+            this.listenForBrooksToken();
+            this.addFullCatalogButton();
+        }
+    }
+
+    // The page's bearer token, relayed by token.js, which runs in the PAGE's
+    // world (a content script cannot see the page's own requests). FastTrack
+    // sends it on its basket check every few seconds, so the latest one is
+    // always fresh; nothing here logs in or refreshes anything.
+    listenForBrooksToken() {
+        this.brooksToken = null;
+        window.addEventListener('message', (e) => {
+            if (e.source !== window || !e.data || e.data.source !== 'rh-brooks-token') return;
+            if (typeof e.data.token === 'string' && /^Bearer \S+$/.test(e.data.token)) this.brooksToken = e.data.token;
+        });
+    }
+
+    async waitForBrooksToken(ms) {
+        const end = Date.now() + ms;
+        while (!this.brooksToken && Date.now() < end) await new Promise((r) => setTimeout(r, 500));
+        return this.brooksToken;
+    }
+
+    addFullCatalogButton() {
+        if (document.getElementById('brooks-full-catalog-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'brooks-full-catalog-btn';
+        btn.textContent = 'Full catalog';
+        btn.title = 'Every Brooks style in stock to ship now, shoes and apparel, in one file (about 90 seconds)';
+        btn.style.cssText = `
+            position: fixed; top: 70px; right: 150px; z-index: 10000;
+            background: #15803d; color: #fff; border: none; padding: 10px 16px;
+            border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        `;
+        btn.onclick = () => this.runFullCatalog(btn);
+        document.body.appendChild(btn);
+    }
+
+    // FULL CATALOG RUN. Reads every style FastTrack lists as shippable now,
+    // builds page-identical records (brooksCatalogRecords) and has the
+    // background write them as ONE file, brooks-fullcatalog-<stamp>.csv.
+    // One file on purpose: the chunked path splits at 10,000 rows, and the
+    // tool reads a dropped file as the whole feed, so half a catalog dropped
+    // alone would read the other half as removed and zero it.
+    //
+    // A PARTIAL SWEEP WRITES NOTHING. If any style fails, or the login runs
+    // out, there is no file, only a banner saying which. The ASICS headless
+    // runner's rule: a missing file is recoverable, a file missing styles is a
+    // wrongful zero for every listing in them.
+    async runFullCatalog(btn) {
+        if (this._fullCatalogRunning) return;
+        this._fullCatalogRunning = true;
+        const say = (t, failed) => this.showCompletionBanner(t, !!failed);
+        const label = btn ? btn.textContent : '';
+        const t0 = Date.now();
+        try {
+            if (btn) { btn.disabled = true; btn.textContent = 'Reading catalog...'; }
+            if (!(await this.waitForBrooksToken(20000))) {
+                say('Full catalog: FastTrack has not sent its login token. Reload the page (log in again if asked) and press the button again. No file was written.', true);
+                return;
+            }
+            let account = '9284';
+            try { const a = JSON.parse(localStorage.getItem('accountId')); if (/^\d+$/.test(String(a))) account = String(a); } catch (e) { /* keep default */ }
+
+            const call = async (url, body) => {
+                for (let attempt = 0; attempt < 3; attempt++) {
+                    const r = await fetch(url, {
+                        method: body ? 'POST' : 'GET',
+                        headers: { Authorization: this.brooksToken, Accept: 'application/json', 'Content-Type': 'application/json' },
+                        body: body ? JSON.stringify(body) : undefined
+                    });
+                    if (r.ok) return r.json();
+                    if (r.status === 401) { await new Promise((res) => setTimeout(res, 4000)); continue; }   // token rotated, the page sends a new one
+                    if (r.status === 429 || r.status >= 500) { await new Promise((res) => setTimeout(res, 2000 * (attempt + 1))); continue; }
+                    throw new Error('HTTP ' + r.status);
+                }
+                throw new Error('gave up after 3 tries');
+            };
+
+            // 1. Every colourway listed as shippable now, collapsed to styles.
+            const styles = new Set();
+            let total = null;
+            for (let start = 0; start < 5000; start += 100) {
+                const page = await call('/api/v2/products/search', { accountId: account, start, num: 100, preset: 'now' });
+                total = page.total;
+                for (const p of page.products || []) { const st = String(p.productId || '').slice(0, 6); if (/^\d{6}$/.test(st)) styles.add(st); }
+                if (!page.products || page.products.length < 100 || start + 100 >= total) break;
+            }
+            if (!styles.size) { say('Full catalog: FastTrack listed no styles. No file was written.', true); return; }
+
+            // 2. Retail prices, 20 styles a call.
+            const list = [...styles];
+            const retail = {};
+            for (let i = 0; i < list.length; i += 20) {
+                const batch = list.slice(i, i + 20);
+                const entries = await call('/api/v2/prices/api/prices/' + account, batch.map((s) => ({ brandId: 'brooks', productId: s })));
+                const byStyle = {};
+                for (const e of entries || []) { const st = String((e.key && e.key.productId) || '').slice(0, 6); (byStyle[st] = byStyle[st] || []).push(e); }
+                for (const s of batch) retail[s] = brooksRetailPrice(byStyle[s], Date.now());
+            }
+
+            // 3. Stock, one style at a time, gently.
+            const records = [];
+            const failed = [];
+            for (let i = 0; i < list.length; i++) {
+                if (btn) btn.textContent = `Reading ${i + 1} of ${list.length}...`;
+                try {
+                    const product = await call(`/api/products/brooks/${list[i]}/${account}/combined/slim`);
+                    records.push(...brooksCatalogRecords(product, retail[list[i]], Date.now()));
+                } catch (e) {
+                    failed.push(list[i] + ' (' + e.message + ')');
+                }
+            }
+            if (failed.length) {
+                say(`Full catalog REFUSED: ${failed.length} of ${list.length} styles could not be read (${failed.slice(0, 5).join(', ')}${failed.length > 5 ? ', ...' : ''}). A file missing styles would zero real stock, so no file was written. Try again in a minute.`, true);
+                return;
+            }
+            if (!records.length) { say('Full catalog: no style had stock. No file was written.', true); return; }
+
+            // 4. One file, written by the background's own CSV builder.
+            const res = await this.sendToBackground('downloadFullCatalog', { records });
+            if (!res || !res.success) { say('Full catalog: the file could not be written (' + ((res && res.error) || 'no reply') + ').', true); return; }
+            const secs = Math.round((Date.now() - t0) / 1000);
+            const units = records.reduce((a, r) => a + (r.availableQuantity || 0), 0);
+            say(`Full catalog done in ${secs}s: ${list.length} styles, ${records.length.toLocaleString()} sizes, ${units.toLocaleString()} units (100 cap and low stock rounding applied). File: ${res.filename}. Drop it on the Brooks card.`);
+        } catch (e) {
+            say('Full catalog stopped: ' + e.message + '. No file was written.', true);
+        } finally {
+            this._fullCatalogRunning = false;
+            if (btn) { btn.disabled = false; btn.textContent = label || 'Full catalog'; }
         }
     }
 

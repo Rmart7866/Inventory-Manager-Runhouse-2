@@ -750,6 +750,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
     
+    // FULL CATALOG: every record in ONE file, never chunked. The tool reads a
+    // dropped file as the whole feed, so a catalog split at 10,000 rows and
+    // dropped half at a time would read the other half as removed and zero
+    // it. Same CSV builder as the page path, so the columns cannot drift.
+    if (message.action === 'downloadFullCatalog') {
+        (async () => {
+            const records = (message.data && message.data.records) || [];
+            if (!records.length) return { success: false, error: 'no rows' };
+            const csv = brooksCSVManager.convertToBrooksInventoryCSV(records);
+            const filename = `brooks-fullcatalog-${stampForFilename()}.csv`;
+            await chrome.downloads.download({ url: 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv), filename, saveAs: false });
+            return { success: true, filename, rows: records.length };
+        })().then(sendResponse).catch((error) => sendResponse({ success: false, error: error.message }));
+        return true;
+    }
+
     if (message.action === 'ping') {
         sendResponse({ success: true, message: 'Brooks background script is responsive' });
         return true;
