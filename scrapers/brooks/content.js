@@ -871,7 +871,10 @@ class EnhancedBrooksInventoryExtractor {
                     if (r.status === 429 || r.status >= 500) { await new Promise((res) => setTimeout(res, 2000 * (attempt + 1))); continue; }
                     throw new Error('HTTP ' + r.status);
                 }
-                throw new Error('gave up after 3 tries');
+                // Three 401s in a row: the token went stale while the tab sat
+                // idle (seen 2026-11-12, a reload fixed it at once), and an
+                // idle page sends no new one. Say the one thing that fixes it.
+                throw new Error('FastTrack’s login has gone stale in this tab. Reload the page, then press Full catalog again');
             };
 
             // 1. Every colourway listed as shippable now, collapsed to styles.
