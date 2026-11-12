@@ -122,6 +122,11 @@ node tools/asics-headless-run.mjs --full-catalog             # the real sweep
 node tools/asics-headless-run.mjs --full-catalog --accept-file <csv>  # record a checked night as the baseline
 # nightly at 1 AM: tools/asics-fullcatalog-nightly.sh via
 # tools/launchd/com.therunhouse.asics-fullcatalog.plist (install steps inside)
+# THE ASICS SESSION DIES 2 HOURS AFTER ITS LAST USE (measured 2026-11-12: the
+# b2b_sap_session cookie is reissued on every request with expiry +2h). A
+# scheduled run after an idle evening lands on the login page and refuses,
+# correctly. A run in progress keeps itself alive. Smoke test passed that day
+# from a cold headless start: 3 styles, 85 rows, about a minute.
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
