@@ -1533,7 +1533,40 @@ https://fasttrack.brooksrunning.com/overlay:cs/brooks/120432/120432001/?..."></t
             ? 'Import to: Products → Inventory → Import'
             : 'Import to: Products → Import';
         
-        alert(`${formatUpper} CSV Auto-scraping completed in ${totalTime} seconds!\n\nSuccessful: ${successfulResults.length}\nFailed: ${failedResults.length}\n✅ Width-based handles: Each width creates separate product\n🔒 Security: ${totalSecuritySummary.hidden} hidden, ${totalSecuritySummary.masked} masked, ${totalSecuritySummary.shown} actual\n${formatUpper} CSV files downloaded\n\n${importInstructions}\nReady for Shopify import!`);
+        // A BANNER, NOT alert(). A modal alert blocks the renderer, so the tab
+        // stops taking events until a person clicks OK: the next run cannot
+        // start and anything driving the page (the headless runner, a test)
+        // hangs. Same fault and same fix as the ASICS scraper, 2026-10-26.
+        // Found here 2026-11-12 when a finished run froze the FastTrack tab.
+        this.showCompletionBanner(
+            `${formatUpper} CSV scraping finished in ${totalTime}s: ` +
+            `${successfulResults.length} succeeded, ${failedResults.length} failed. ` +
+            `${totalSecuritySummary.shown} actual, ${totalSecuritySummary.masked} masked, ${totalSecuritySummary.hidden} hidden. ` +
+            `Files are in Downloads. ${importInstructions}.`,
+            failedResults.length > 0
+        );
+    }
+
+    showCompletionBanner(text, hadFailures) {
+        const old = document.getElementById('brooks-completion-banner');
+        if (old) old.remove();
+        const el = document.createElement('div');
+        el.id = 'brooks-completion-banner';
+        el.setAttribute('role', 'status');
+        el.style.cssText = `
+            position: fixed; left: 20px; right: 20px; bottom: 20px; z-index: 10001;
+            background: ${hadFailures ? '#b45309' : '#15803d'}; color: #fff;
+            padding: 14px 48px 14px 18px; font: 600 14px/1.45 system-ui, sans-serif;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        `;
+        el.textContent = text;
+        const close = document.createElement('button');
+        close.textContent = '×';
+        close.setAttribute('aria-label', 'Close');
+        close.style.cssText = 'position:absolute;top:8px;right:12px;background:none;border:0;color:#fff;font-size:22px;cursor:pointer;';
+        close.onclick = () => el.remove();
+        el.appendChild(close);
+        document.body.appendChild(el);
     }
 
     setupExtractionAfterNavigationBackground(config, modal, url) {
