@@ -84,7 +84,7 @@ async function gql(query, variables = {}, attempt = 0) {
 const Q = `query($q: String!, $cursor: String) {
   products(first: 50, after: $cursor, query: $q) {
     pageInfo { hasNextPage endCursor }
-    nodes { id handle title status productType
+    nodes { id handle title status productType tags
       metafields(first: 30, namespace: "custom") { nodes { key value type } } }
   }
 }`;
@@ -124,7 +124,15 @@ const colorOf = (p) => {
   return parts.length > 1 ? parts[parts.length - 1].trim() : '';
 };
 
-const garments = all.filter((p) => p.productType && !isFootwearType(p.productType));
+// --tag-prefix limits the run to garments carrying a tag that starts with it,
+// e.g. "apparel:" for the supplier garments tools/apparel-collections.mjs has
+// grouped. Needed for any vendor but ON (2026-11-12): "not a shoe type" alone
+// let a mistyped Brooks Glycerin 20 shoe and a team store singlet listed under
+// vendor Brooks into the run, and writing a garment row onto a real shoe would
+// REPLACE its colourway swatches with a row of one. Unset, nothing changes.
+const TAG_PREFIX = arg('tag-prefix', '');
+const garments = all.filter((p) => p.productType && !isFootwearType(p.productType) &&
+  (!TAG_PREFIX || (p.tags || []).some((t) => t.startsWith(TAG_PREFIX))));
 console.log(`${VENDOR} products (${STATUS}): ${all.length}  |  garments: ${garments.length}`);
 
 const noGender = garments.filter((p) => !genderOf(p));
