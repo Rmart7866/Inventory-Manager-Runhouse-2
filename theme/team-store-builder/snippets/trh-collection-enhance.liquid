@@ -1,0 +1,850 @@
+{%- comment -%}
+  Shoppable collection upgrades. Turned on per collection handle below.
+  - Slim header, quick-filter chips (built automatically from the filters), "Start here" staff picks
+  - One card per model: width variants merge into Standard / Wide / X-Wide links, colorways become swatches
+  - Cleaner card titles, sort menu, filters reordered, "Need help choosing?" block
+  To turn on for another collection, add a "when" block. Picks are optional.
+  Picks format: family-collection (optional)|label|mens-handle|womens-handle|model name|one-line blurb|extra meta (optional)|unisex (optional) ;; next pick
+{%- endcomment -%}
+{%- liquid
+  assign trh_on = false
+  assign trh_picks = ''
+  assign trh_picks_title = ''
+  assign trh_tiles = false
+  case collection.handle
+    when 'stability-running-walking-shoes'
+      assign trh_on = true
+      assign trh_picks_title = "Start here: our fitters' favorite stability shoes"
+      assign trh_help_title = 'Not sure which stability shoe is right for you?'
+      assign trh_picks = "brooks-adrenaline-gts|Best all-around|brooks-mens-adrenaline-gts-26-white-spellbound-orange|brooks-womens-adrenaline-gts-26-blanc-violetice-hyperiris|Brooks Adrenaline GTS 26|Soft, smooth GuideRails support that works for almost everyone.|Narrow to extra wide;;hoka-arahi|Light & cushioned|hoka-mens-arahi-9-black-white|hoka-womens-arahi-9-black-white|HOKA Arahi 9|HOKA cushioning with steady support that never feels stiff.|Standard, wide & extra wide;;asics-gel-kayano|Plush & premium|asics-mens-gel-kayano-33-black-white|asics-womens-gel-kayano-33-piedmont-grey-taro-purple|ASICS Gel-Kayano 33|ASICS' most cushioned stability shoe, with gentle guidance.|Standard & wide;;hoka-gaviota|Most support|men-s-gaviota-6-black-white|women-s-gaviota-6-black-white|HOKA Gaviota 6|Deep cushion and maximum stability for walkers and long days.|Standard, wide & extra wide"
+    when 'mens-running-walking-footwear'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which men's shoe is right for you?"
+      assign trh_picks_title = "Start here: our fitters' favorites"
+      assign trh_picks = "brooks-ghost|Everyday cushion|brooks-mens-ghost-18-black-black-ebony||Brooks Ghost 18|Smooth, soft daily trainer that suits almost every runner.||;;hoka-bondi|Most cushion|hoka-mens-bondi-9-barley-flour-barley||HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;suacony-guide|Light support|guide-19-black-silver-men||Saucony Guide 19|Gentle stability that never feels stiff or heavy.||;;altra-lone-peak|Trail favorite|mens-lone-peak-9-basalt-al0a85rg91j||Altra Lone Peak 9|Roomy toe box, zero drop, and grippy on any trail.||"
+    when 'womens-road-running-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which women's shoe is right for you?"
+      assign trh_picks_title = "Start here: our fitters' favorites"
+      assign trh_picks = "brooks-ghost|Everyday cushion||brooks-womens-ghost-18-black-black-ebony|Brooks Ghost 18|Smooth, soft daily trainer that suits almost every runner.||;;hoka-bondi|Most cushion||hoka-womens-bondi-9-alabaster-mineral-blue|HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;suacony-guide|Light support||guide-19-birch-women|Saucony Guide 19|Gentle stability that never feels stiff or heavy.||;;altra-lone-peak|Trail favorite||womens-lone-peak-9-black-al0a85pr000|Altra Lone Peak 9|Roomy toe box, zero drop, and grippy on any trail.||"
+    when 'mens-road-running-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which road shoe is right for you?"
+      assign trh_picks_title = "Start here: our fitters' favorite road shoes"
+      assign trh_picks = "brooks-ghost|Everyday cushion|brooks-mens-ghost-18-black-black-ebony||Brooks Ghost 18|Smooth, soft daily trainer that suits almost every runner.||;;hoka-bondi|Most cushion|hoka-mens-bondi-9-barley-flour-barley||HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;suacony-guide|Light support|guide-19-black-silver-men||Saucony Guide 19|Gentle stability that never feels stiff or heavy.||;;hoka-mach|Fast & fun|hoka-mens-mach-7-alabaster-soaring-blue||HOKA Mach 7|Light and springy for tempo runs and race day.||"
+    when 'womens-road-running'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which road shoe is right for you?"
+      assign trh_picks_title = "Start here: our fitters' favorite road shoes"
+      assign trh_picks = "brooks-ghost|Everyday cushion||brooks-womens-ghost-18-black-black-ebony|Brooks Ghost 18|Smooth, soft daily trainer that suits almost every runner.||;;hoka-bondi|Most cushion||hoka-womens-bondi-9-alabaster-mineral-blue|HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;suacony-guide|Light support||guide-19-birch-women|Saucony Guide 19|Gentle stability that never feels stiff or heavy.||;;hoka-mach|Fast & fun||hoka-womens-mach-7-bell-pepper-bell-pepper|HOKA Mach 7|Light and springy for tempo runs and race day.||"
+    when 'mens-trail'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which trail shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite trail shoes"
+      assign trh_picks = "altra-lone-peak|Trail favorite|mens-lone-peak-9-basalt-al0a85rg91j||Altra Lone Peak 9|Roomy toe box, zero drop, and grippy on any trail.||;;hoka-speedgoat|Grippy & cushioned|hoka-mens-speedgoat-7-asteroid-galactic-grey||HOKA Speedgoat 7|Big cushion and sticky grip for technical trails.||;;|Road to trail|hoka-mens-challenger-8-barley-barley-flour||HOKA Challenger 8|Smooth on pavement, sure-footed on dirt paths.||;;|Light & cushioned|mens-experience-wild-3-black-black-al0a85u6001||Altra Experience Wild 3|A softer, lighter Altra trail shoe with a normal heel drop.||"
+    when 'womens-trail'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which trail shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite trail shoes"
+      assign trh_picks = "altra-lone-peak|Trail favorite||womens-lone-peak-9-black-al0a85pr000|Altra Lone Peak 9|Roomy toe box, zero drop, and grippy on any trail.||;;hoka-speedgoat|Grippy & cushioned||hoka-womens-speedgoat-7-alabaster-morning-dew|HOKA Speedgoat 7|Big cushion and sticky grip for technical trails.||;;|Road to trail||hoka-womens-challenger-8-ambient-blue-blueberry|HOKA Challenger 8|Smooth on pavement, sure-footed on dirt paths.||;;|Light & cushioned||womens-experience-wild-3-black-black-al0a85uz001|Altra Experience Wild 3|A softer, lighter Altra trail shoe with a normal heel drop.||"
+    when 'trail-running-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which trail shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite trail shoes"
+      assign trh_picks = "altra-lone-peak|Trail favorite|mens-lone-peak-9-basalt-al0a85rg91j|womens-lone-peak-9-black-al0a85pr000|Altra Lone Peak 9|Roomy toe box, zero drop, and grippy on any trail.||;;hoka-speedgoat|Grippy & cushioned|hoka-mens-speedgoat-7-asteroid-galactic-grey|hoka-womens-speedgoat-7-alabaster-morning-dew|HOKA Speedgoat 7|Big cushion and sticky grip for technical trails.||;;|Road to trail|hoka-mens-challenger-8-barley-barley-flour|hoka-womens-challenger-8-ambient-blue-blueberry|HOKA Challenger 8|Smooth on pavement, sure-footed on dirt paths.||;;|Light & cushioned|mens-experience-wild-3-black-black-al0a85u6001|womens-experience-wild-3-black-black-al0a85uz001|Altra Experience Wild 3|A softer, lighter Altra trail shoe with a normal heel drop.||"
+    when 'mens-waterproof-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which waterproof shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite waterproof shoes"
+      assign trh_picks = "altra-lone-peak|Waterproof trail|mens-lone-peak-9-gtx-black-black-al0a85uj001||Altra Lone Peak 9 GTX|The trail favorite, now with a GORE-TEX waterproof upper.||;;hoka-clifton|Waterproof everyday|hoka-mens-clifton-11-gtx-black-black||HOKA Clifton 11 GTX|Clifton comfort that keeps your feet dry on wet walks and runs.||;;|Waterproof road to trail|hoka-mens-challenger-8-gtx-antique-olive-black||HOKA Challenger 8 GTX|Dry feet from wet sidewalks to muddy trails.||;;merrell|Waterproof hiker|merrell-mens-moab-3-mid-wp-black-beluga||Merrell Moab 3 Mid WP|A comfortable, waterproof hiking boot built to last.||"
+    when 'womens-waterproof-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which waterproof shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite waterproof shoes"
+      assign trh_picks = "altra-lone-peak|Waterproof trail||womens-lone-peak-9-gtx-black-black-al0a85sn001|Altra Lone Peak 9 GTX|The trail favorite, now with a GORE-TEX waterproof upper.||;;hoka-clifton|Waterproof everyday||hoka-womens-clifton-11-gtx-black-black|HOKA Clifton 11 GTX|Clifton comfort that keeps your feet dry on wet walks and runs.||;;|Waterproof road to trail||hoka-womens-challenger-8-gtx-black-carbon-black|HOKA Challenger 8 GTX|Dry feet from wet sidewalks to muddy trails.||;;merrell|Waterproof hiker||merrell-womens-moab-3-mid-wp-alloy|Merrell Moab 3 Mid WP|A comfortable, waterproof hiking boot built to last.||"
+    when 'gore-tex-and-waterproof-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which waterproof shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite waterproof shoes"
+      assign trh_picks = "altra-lone-peak|Waterproof trail|mens-lone-peak-9-gtx-black-black-al0a85uj001|womens-lone-peak-9-gtx-black-black-al0a85sn001|Altra Lone Peak 9 GTX|The trail favorite, now with a GORE-TEX waterproof upper.||;;hoka-clifton|Waterproof everyday|hoka-mens-clifton-11-gtx-black-black|hoka-womens-clifton-11-gtx-black-black|HOKA Clifton 11 GTX|Clifton comfort that keeps your feet dry on wet walks and runs.||;;|Waterproof road to trail|hoka-mens-challenger-8-gtx-antique-olive-black|hoka-womens-challenger-8-gtx-black-carbon-black|HOKA Challenger 8 GTX|Dry feet from wet sidewalks to muddy trails.||;;merrell|Waterproof hiker|merrell-mens-moab-3-mid-wp-black-beluga|merrell-womens-moab-3-mid-wp-alloy|Merrell Moab 3 Mid WP|A comfortable, waterproof hiking boot built to last.||"
+    when 'mens-walking-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which walking shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite walking shoes"
+      assign trh_picks = "hoka-bondi|Most cushion|hoka-mens-bondi-9-barley-flour-barley||HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;hoka-clifton|Light everyday comfort|hoka-mens-clifton-11-antique-olive-river-rock-grey||HOKA Clifton 11|Light, cushioned and easy to wear all day.||;;hoka-gaviota|Most support|hoka-mens-gaviota-6-baby-kale-nettle-leaf||HOKA Gaviota 6|Deep cushion and maximum stability for long days on your feet.||;;asics-gel-nimbus-family|Plush & soft|1011c127-001||ASICS Gel-Nimbus 28|ASICS' softest ride, with a plush, comfortable fit.||"
+    when 'womens-walking-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which walking shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite walking shoes"
+      assign trh_picks = "hoka-bondi|Most cushion||hoka-womens-bondi-9-alabaster-mineral-blue|HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;hoka-clifton|Light everyday comfort||hoka-womens-clifton-11-alabaster-oat-milk|HOKA Clifton 11|Light, cushioned and easy to wear all day.||;;hoka-gaviota|Most support||hoka-womens-gaviota-6-birch-yellow-gold|HOKA Gaviota 6|Deep cushion and maximum stability for long days on your feet.||;;asics-gel-nimbus-family|Plush & soft||1012b899-001|ASICS Gel-Nimbus 28|ASICS' softest ride, with a plush, comfortable fit.||"
+    when 'mens-wide-running-and-walking-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which wide shoe is right for you?"
+      assign trh_picks_title = "Start here: favorite wide-width shoes"
+      assign trh_picks = "hoka-bondi|Most cushion|hoka-mens-bondi-9-black-river-rock-grey-wide||HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;brooks-ghost|Everyday cushion|brooks-mens-ghost-18-wide-black-black-ebony||Brooks Ghost 18|Smooth, soft daily trainer that suits almost every runner.||;;hoka-gaviota|Most support|hoka-mens-gaviota-6-black-white-wide||HOKA Gaviota 6|Deep cushion and maximum stability for long days on your feet.||;;new-balance-1080-family|Plush & roomy|men-fresh-foam-x-1080v15-black-wide||New Balance Fresh Foam X 1080v15|Soft, smooth cushion with plenty of width options.||"
+    when 'womens-wide-running-and-walking-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which wide shoe is right for you?"
+      assign trh_picks_title = "Start here: favorite wide-width shoes"
+      assign trh_picks = "hoka-bondi|Most cushion||hoka-womens-bondi-9-alabaster-mineral-blue-wide|HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;brooks-ghost|Everyday cushion||brooks-womens-ghost-18-wide-black-black-ebony|Brooks Ghost 18|Smooth, soft daily trainer that suits almost every runner.||;;hoka-gaviota|Most support||hoka-womens-gaviota-6-birch-yellow-gold-wide|HOKA Gaviota 6|Deep cushion and maximum stability for long days on your feet.||;;new-balance-1080-family|Plush & roomy||women-fresh-foam-x-1080v15-black-wide|New Balance Fresh Foam X 1080v15|Soft, smooth cushion with plenty of width options.||"
+    when 'mens-extra-wide-running-and-walking-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which extra-wide shoe is right for you?"
+      assign trh_picks_title = "Start here: favorite extra-wide shoes"
+      assign trh_picks = "|Most room & support|mens-fresh-foam-x-1540-v4-made-in-usa-aluminum-grey-m1540gr4-4e-extra-wide||New Balance 1540 v4|Supportive and roomy, made in the USA, up to extra-extra wide.||;;hoka-bondi|Most cushion|men-s-bondi-9-black-black-extra-wide||HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;hoka-gaviota|Most support|hoka-mens-gaviota-6-black-white-extra-wide||HOKA Gaviota 6|Deep cushion and maximum stability for long days on your feet.||;;new-balance-1080-family|Plush & roomy|men-fresh-foam-x-1080v15-black-extra-wide||New Balance Fresh Foam X 1080v15|Soft, smooth cushion with plenty of width options.||"
+    when 'womens-extra-wide-running-and-walking-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which extra-wide shoe is right for you?"
+      assign trh_picks_title = "Start here: favorite extra-wide shoes"
+      assign trh_picks = "|Most room & support||womens-fresh-foam-x-1540-v4-made-in-usa-black-w1540bk4-2e-extra-wide|New Balance 1540 v4|Supportive and roomy, made in the USA, up to extra-extra wide.||;;hoka-bondi|Most cushion||hoka-womens-bondi-9-river-rock-grey-mineral-ore-extra-wide|HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;hoka-gaviota|Most support||hoka-womens-gaviota-6-black-white-extra-wide|HOKA Gaviota 6|Deep cushion and maximum stability for long days on your feet.||;;new-balance-1080-family|Plush & roomy||women-fresh-foam-x-1080v15-black-extra-wide|New Balance Fresh Foam X 1080v15|Soft, smooth cushion with plenty of width options.||"
+    when 'narrow-mens-running-and-walking-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which narrow shoe is right for you?"
+      assign trh_picks_title = "Start here: favorite narrow-width shoes"
+      assign trh_picks = "new-balance-1080-family|Plush & roomy|men-fresh-foam-x-1080v15-black-narrow||New Balance Fresh Foam X 1080v15|Soft, smooth cushion with plenty of width options.||;;new-balance-860|Stability|mens-fresh-foam-x-860-v15-fairweather-blue-narrow||New Balance Fresh Foam X 860 v15|Dependable support with a soft, comfortable ride.||;;|Everyday|mens-880v15-black-narrow||New Balance Fresh Foam X 880 v15|A balanced daily trainer for runs, walks and everything in between.||"
+    when 'narrow-womens-running-walking-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which narrow shoe is right for you?"
+      assign trh_picks_title = "Start here: favorite narrow-width shoes"
+      assign trh_picks = "new-balance-1080-family|Plush & roomy||women-fresh-foam-x-1080v15-black-narrow|New Balance Fresh Foam X 1080v15|Soft, smooth cushion with plenty of width options.||;;|Max support||brooks-womens-addiction-gts-15-narrow-black-ebony-mauvewood|Brooks Addiction GTS 15|Brooks' most supportive shoe, great for overpronation.||;;brooks-adrenaline-gts|Support||brooks-womens-adrenaline-gts-25-narrow-black-black-ebony|Brooks Adrenaline GTS 25|Soft, smooth GuideRails support that works for most people.||;;|Everyday||womens-880v15-nb-103-white-narrow|New Balance Fresh Foam X 880 v15|A balanced daily trainer for runs, walks and everything in between.||"
+    when 'maximum-cushion-running-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which cushioned shoe is right for you?"
+      assign trh_picks_title = "Start here: our fitters' favorite cushioned shoes"
+      assign trh_picks = "hoka-bondi|Most cushion|hoka-mens-bondi-9-barley-flour-barley|hoka-womens-bondi-9-alabaster-mineral-blue|HOKA Bondi 9|Deep, protective cushion for long miles and tired legs.||;;asics-gel-nimbus-family|Plush & soft|1011c127-001|1012b899-001|ASICS Gel-Nimbus 28|ASICS' softest ride, with a plush, comfortable fit.||;;saucony-triumph|Bouncy & soft|saucony-mens-triumph-24-black-silver|saucony-womens-triumph-24-black-silver|Saucony Triumph 24|Lively, bouncy cushion that stays comfortable for hours.||;;brooks-glycerin|Smooth & soft|brooks-mens-glycerin-23-black-black-ebony|brooks-womens-glycerin-23-black-black-ebony|Brooks Glycerin 23|Brooks' softest neutral shoe, smooth from heel to toe.||"
+    when 'carbon-plate-running-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which carbon-plate shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite carbon-plate shoes"
+      assign trh_picks = "|Race day|endorphin-pro-5-black-silver-men|endorphin-pro-5-black-shock-women|Saucony Endorphin Pro 5|A fast, bouncy carbon racer for 5K to the marathon.||;;puma-deviate-nitro|Plated trainer|mens-deviate-nitro-4-buttercream-inky-depths|puma-womens-deviate-nitro-4-alpine-snow-misty-pink|Puma Deviate Nitro 4|A carbon-plated trainer that also works on race day.||;;|Marathon racer|hoka-unisex-rocket-x-3-alabaster-frost||HOKA Rocket X 3|Light, propulsive and built for fast long races.||unisex;;|Max-cushion plated|hoka-mens-skyward-x-2-alabaster-black|hoka-womens-skyward-x-2-alabaster-black|HOKA Skyward X 2|Huge cushion with a carbon plate for easy long runs.||"
+    when 'race-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which race shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite race shoes"
+      assign trh_picks = "|Race day|endorphin-pro-5-black-silver-men|endorphin-pro-5-black-shock-women|Saucony Endorphin Pro 5|A fast, bouncy carbon racer for 5K to the marathon.||;;|Marathon racer|hoka-unisex-rocket-x-3-alabaster-frost||HOKA Rocket X 3|Light, propulsive and built for fast long races.||unisex;;|Tempo & long runs|hoka-mens-mach-x-3-white-alabaster|hoka-womens-mach-x-3-white-alabaster|HOKA Mach X 3|A plated, springy trainer for workouts and long runs.||;;|Elite racer|1013a162-101||ASICS Metaspeed Sky Tokyo|ASICS' top carbon racer for chasing a PR.||unisex"
+    when 'pickleball-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which pickleball shoe is right for you?"
+    when 'mens-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which spike is right for you?"
+    when 'womens-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which spike is right for you?"
+    when 'track-spikes'
+      assign trh_tiles = true
+      assign trh_on = true
+      assign trh_help_title = "Not sure which spike is right for your event?"
+      assign trh_picks_title = "Start here: our fitters' favorite track spikes"
+      assign trh_picks = "|Best all-around|asics-hypermd-8-unisex-spike-black-gunmetal-1093a198-001||ASICS HyperMD 8|Comfortable mid-distance spike that also handles the 400m and 3,200m.||unisex;;|Best value|new-balance-mens-fuelcell-sd100-v5-black-msd100b5|new-balance-womens-fuelcell-sd100v5-cyber-jade-wsd100t5|New Balance FuelCell SD100 v5|Affordable sprint spike with a stiff, responsive plate.||;;|Best first pair|saucony-mens-spitfire-5-track-spike-black-infrared-s29055-33|saucony-womens-spitfire-5-track-spike-indigo-grape-s19055-33|Saucony Spitfire 5|Easy-fitting do-it-all spike for middle school and freshman athletes.||"
+    when 'sprint-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which sprint spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite sprint spikes"
+      assign trh_picks = "|Best overall|asics-hypersprint-8-unisex-sprint-spike-flash-red-black-1093a197-600||ASICS Hypersprint 8|Light, stiff and aggressive for the 60m to 200m.||unisex;;|Best value|new-balance-mens-fuelcell-sd100-v5-black-msd100b5|new-balance-womens-fuelcell-sd100v5-cyber-jade-wsd100t5|New Balance FuelCell SD100 v5|Affordable sprint spike with a stiff, responsive plate.||;;|Best for the 400m|puma-evospeed-sprint-14-sprinting-spike-37700102||Puma evoSPEED Sprint 14|A touch more forgiving for the 200m and 400m.||unisex"
+    when 'mid-distance-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which mid-distance spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite mid-distance spikes"
+      assign trh_picks = "|Best overall|asics-unisex-metaspeed-md-1093a207-100||ASICS Metaspeed MD|Firm, fast plate built for the 800m and mile.||unisex;;|Best value|new-balance-unisex-fuelcell-md500-v9-umd500g9||New Balance FuelCell MD500 v9|Durable, comfortable and priced for a first pair.||unisex;;|Most versatile|asics-hypermd-8-unisex-spike-black-gunmetal-1093a198-001||ASICS HyperMD 8|Handles everything from the 400m to the 3,200m.||unisex"
+    when 'distance-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which distance spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite distance spikes"
+      assign trh_picks = "|Best overall|asics-unisex-metaspeed-ld-le-2-distance-spike-1093a255-600||ASICS Metaspeed LD|Foam-and-plate super spike for the 1600m to 5,000m.||unisex;;|Best for 5K and 10K|brooks-hyperion-elite-ld-2-unisex-spike-luminary-cyber-yellow-black-10001d724||Brooks Hyperion Elite LD 2|Cushioned racing spike that stays comfortable for 25 laps.||unisex;;|Best value|saucony-mens-endorphin-3-spike-vizigold-vizired-s29070-16|saucony-womens-endorphin-3-distance-spike-vizigld-vizired-s19070-16|Saucony Endorphin 3|Smooth, durable distance spike for training and racing.||"
+    when 'cross-country-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which XC spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite XC spikes"
+      assign trh_picks = "|Best overall|hoka-unisex-crescendo-xc-2-glimmering-bue-skyward-blue||HOKA Crescendo XC 2|Cushioned, grippy and comfortable for a full 5K.||unisex;;|Best value|saucony-kilkenny-xc-10-spikes-black-white-s31000-200||Saucony Kilkenny XC 10|A durable, budget-friendly XC classic.||unisex;;|Best for championship races|new-balance-unisex-fuelcell-supercomp-xc-x-black-green-uxcelre1||New Balance SuperComp XC-X|Carbon-plated racer for the biggest meets.||unisex"
+    when 'hurdle-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which hurdle spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite spikes for hurdlers"
+      assign trh_picks = "|Short hurdles|asics-unisex-metaspeed-md-1093a207-100||ASICS Metaspeed MD|Firm, fast plate for the 55m to 110m hurdles.||unisex;;|300m and 400m hurdles|asics-hypermd-8-unisex-spike-black-gunmetal-1093a198-001||ASICS HyperMD 8|More forgiving under the forefoot for the long hurdles.||unisex;;|Best value|new-balance-unisex-fuelcell-md500-v9-umd500g9||New Balance FuelCell MD500 v9|Durable, comfortable and priced for a first pair.||unisex"
+    when 'javelin-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which javelin spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite spikes for javelin"
+      assign trh_picks = "|Most versatile|asics-hypermd-8-unisex-spike-black-gunmetal-1093a198-001||ASICS HyperMD 8|A firm plate for the runway and a heel to brace on.||unisex;;|Best value|new-balance-unisex-fuelcell-md500-v9-umd500g9||New Balance FuelCell MD500 v9|Durable enough for runway work and priced for a first pair.||unisex"
+    when 'high-jump-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which high jump spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite high jump spikes"
+      assign trh_picks = "|Best overall|under-armour-unisex-hovr-skyline-high-jump-track-spikes-jet-grey-3022518-100||Under Armour HOVR Skyline HJ|Heel pins and a stable upper for the curve and plant.||unisex;;|Left-foot takeoff|asics-high-jump-pro-3-l-unisex-spike-black-pure-silver-1093a214-001||ASICS High Jump Pro 3 (L)|Event-specific high jump spike. Also available for right-foot takeoff.||unisex;;|Multi-jumper|saucony-soarin-j3-black-white-s29107-01||Saucony Soarin J3|A jump spike for high, long and triple jump.||unisex"
+    when 'long-jump-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which long jump spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite long jump spikes"
+      assign trh_picks = "|Long jump-specific|under-armour-unisex-skyline-long-jump-track-spike-jet-grey-white-metallic-victory-gold-3021863-102||Under Armour Skyline LJ|A stiff plate with a firmer heel for the board.||unisex;;|Multi-jumper|saucony-soarin-j3-black-white-s29107-01||Saucony Soarin J3|A jump spike for long, triple and pole vault.||unisex;;|Sprint spike option|asics-hypersprint-8-unisex-sprint-spike-flash-red-black-1093a197-600||ASICS Hypersprint 8|A stiff sprint spike many long jumpers race in.||unisex"
+    when 'triple-jump-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which triple jump spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite triple jump spikes"
+      assign trh_picks = "|Triple jump-specific|under-armour-unisex-hovr-skyline-triple-jump-track-spike-jet-grey-white-metallic-victory-3021864-101||Under Armour HOVR Skyline TJ|Heel cushioning for the hop and step landings.||unisex;;|Multi-jumper|saucony-soarin-j3-black-white-s29107-01||Saucony Soarin J3|A jump spike for triple, long and pole vault.||unisex;;|Mid-distance option|asics-hypermd-8-unisex-spike-black-gunmetal-1093a198-001||ASICS HyperMD 8|Our pick if you want a mid-distance spike for triple jump.||unisex"
+    when 'pole-vault-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which pole vault spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite pole vault spikes"
+      assign trh_picks = "|Vault-ready|saucony-soarin-j3-black-white-s29107-01||Saucony Soarin J3|A jump spike built for the runway and plant.||unisex;;|Sprint spike option|asics-hypersprint-8-unisex-sprint-spike-flash-red-black-1093a197-600||ASICS Hypersprint 8|A stiff sprint spike many vaulters use.||unisex;;|More forgiving|puma-evospeed-sprint-14-sprinting-spike-37700102||Puma evoSPEED Sprint 14|A slightly softer sprint spike for runway work.||unisex"
+    when 'jumping-spikes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which jumping spike is right for you?"
+      assign trh_picks_title = "Start here: our favorite jumping spikes"
+      assign trh_picks = "|High jump|under-armour-unisex-hovr-skyline-high-jump-track-spikes-jet-grey-3022518-100||Under Armour HOVR Skyline HJ|Heel pins and a stable upper for the curve and plant.||unisex;;|High jump|asics-high-jump-pro-3-l-unisex-spike-black-pure-silver-1093a214-001||ASICS High Jump Pro 3|Event-specific high jump spike with heel pins. Check your takeoff foot.||unisex"
+    when 'throwing-shoes'
+      assign trh_on = true
+      assign trh_help_title = "Not sure which throwing shoe is right for you?"
+      assign trh_picks_title = "Start here: our favorite throwing shoes"
+      assign trh_picks = "|Shot, discus and hammer|asics-throw-pro-3-unisex-spike-black-pure-silver-1093a215-001||ASICS Throw Pro 3|Smooth sole and a secure strap for spinning in the ring.||unisex;;|Shot, discus and hammer|puma-unisex-evospeed-throw-10-spike-white-black-red-37700602||Puma evoSPEED Throw 10|Grippy, supportive throwing shoe for rotational and glide.||unisex"
+  endcase
+-%}
+{%- if trh_on -%}
+<div id="trh-enh-top" class="trh-enh">
+  {%- if trh_tiles -%}
+  <section class="trh-sf" id="spike-finder" aria-label="Spike Finder">
+    <div class="trh-sf__head">
+      <p class="trh-sf__eyebrow">Spike Finder</p>
+      <h2 class="trh-sf__title">Find the right spikes for your events</h2>
+      <p class="trh-sf__lede">Answer three quick questions and we'll pull the spikes we'd fit you in at the store.</p>
+    </div>
+    <div class="trh-sf__steps">
+      <div class="trh-sf__step">
+        <p class="trh-sf__q"><span class="trh-sf__n">1</span><span>Your events<small>Pick all that apply</small></span></p>
+        <div class="trh-sf__opts" data-q="events">
+          <button type="button" data-v="sprint">55m to 200m</button>
+          <button type="button" data-v="400">400m</button>
+          <button type="button" data-v="hurdles">Hurdles</button>
+          <button type="button" data-v="md">800m / mile</button>
+          <button type="button" data-v="dist">3200m, 5K, 10K, steeple</button>
+          <button type="button" data-v="xc">Cross country</button>
+          <button type="button" data-v="hj">High jump</button>
+          <button type="button" data-v="lj">Long jump</button>
+          <button type="button" data-v="tj">Triple jump</button>
+          <button type="button" data-v="pv">Pole vault</button>
+          <button type="button" data-v="throws">Shot, discus, hammer</button>
+          <button type="button" data-v="jav">Javelin</button>
+        </div>
+      </div>
+      <div class="trh-sf__step">
+        <p class="trh-sf__q"><span class="trh-sf__n">2</span><span>Your level</span></p>
+        <div class="trh-sf__opts" data-q="level" data-single="1">
+          <button type="button" data-v="new">First pair / middle school</button>
+          <button type="button" data-v="hs" class="is-on" aria-pressed="true">High school regular</button>
+          <button type="button" data-v="elite">Championship racer</button>
+        </div>
+      </div>
+      <div class="trh-sf__step">
+        <p class="trh-sf__q"><span class="trh-sf__n">3</span><span>Your budget</span></p>
+        <div class="trh-sf__opts" data-q="budget" data-single="1">
+          <button type="button" data-v="90">Under $90</button>
+          <button type="button" data-v="130">Up to $130</button>
+          <button type="button" data-v="0" class="is-on" aria-pressed="true">Show me everything</button>
+        </div>
+      </div>
+    </div>
+    <div class="trh-sf__go"><button type="button" class="trh-sf__btn" disabled>Find my spikes</button><span class="trh-sf__err">Pick at least one event to get started.</span></div>
+    <div class="trh-sf__out" aria-live="polite"></div>
+  </section>
+  <style>
+    .trh-sf{--sf-navy:#1e3a8a;--sf-orange:#f97316;--sf-ink:#111827;--sf-mute:#6b7280;--sf-line:#e5e7eb;--sf-soft:#f3f4f6;background:#fff;border:1px solid var(--sf-line);border-radius:16px;box-shadow:0 1px 3px rgba(17,24,39,.06);padding:28px 32px;margin:8px 0 32px;color:var(--sf-ink)}
+    .trh-sf__head{margin:0 0 22px}
+    .trh-sf__eyebrow{margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--sf-orange)}
+    .trh-sf__title{margin:0 0 6px;font-size:24px;line-height:1.2;font-weight:800;letter-spacing:-.01em;text-transform:none;color:var(--sf-ink)}
+    .trh-sf__lede{margin:0;font-size:15px;color:var(--sf-mute)}
+    .trh-sf__steps{border-top:1px solid var(--sf-line)}
+    .trh-sf__step{display:grid;grid-template-columns:200px 1fr;gap:16px;align-items:start;padding:16px 0;border-bottom:1px solid var(--sf-line)}
+    .trh-sf__q{display:flex;gap:10px;align-items:flex-start;margin:0;padding-top:7px;font-size:15px;font-weight:700;line-height:1.3}
+    .trh-sf__q small{display:block;font-size:12.5px;font-weight:400;color:var(--sf-mute);margin-top:2px}
+    .trh-sf__n{flex:none;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--sf-navy);color:#fff;font-size:12px;font-weight:700}
+    .trh-sf__opts{display:flex;flex-wrap:wrap;gap:8px}
+    .trh-sf__opts button{appearance:none;border:1px solid transparent;background:var(--sf-soft);border-radius:999px;padding:8px 15px;font:inherit;font-size:14px;line-height:1.2;color:var(--sf-ink);cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+    .trh-sf__opts button:hover{border-color:#c7d2fe;background:#eef2ff}
+    .trh-sf__opts button.is-on{background:var(--sf-navy);border-color:var(--sf-navy);color:#fff}
+    .trh-sf__opts button:focus-visible,.trh-sf__btn:focus-visible{outline:2px solid var(--sf-orange);outline-offset:2px}
+    .trh-sf__go{display:flex;align-items:center;gap:14px;padding-top:20px}
+    .trh-sf__btn{appearance:none;background:var(--sf-orange);color:#fff;border:0;border-radius:10px;padding:13px 26px;font:inherit;font-weight:800;font-size:15px;cursor:pointer;transition:filter .15s}
+    .trh-sf__btn:hover{filter:brightness(.95)}
+    .trh-sf__btn:disabled{background:#fdba74;cursor:not-allowed}
+    .trh-sf__err{font-size:13.5px;color:var(--sf-mute)}
+    .trh-sf__btn:not(:disabled)+.trh-sf__err{display:none}
+    .trh-sf__out{scroll-margin-top:110px}
+    .trh-sf__out:not(:empty){margin-top:28px;padding-top:24px;border-top:1px solid var(--sf-line)}
+    .trh-sf__loading{margin:0;color:var(--sf-mute);font-size:14px}
+    .trh-sf__fit{margin:0 0 28px;padding:2px 0 2px 14px;border-left:3px solid var(--sf-orange);font-size:14.5px;line-height:1.5}
+    .trh-sf__fit a,.trh-sf__note a{color:var(--sf-navy);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+    .trh-sf__group+.trh-sf__group{margin-top:36px}
+    .trh-sf__gh{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 4px}
+    .trh-sf__gt{margin:0;font-size:19px;font-weight:800;text-transform:none;letter-spacing:-.01em;color:var(--sf-ink)}
+    .trh-sf__all{flex:none;font-size:14px;font-weight:700;color:var(--sf-navy);text-decoration:none;white-space:nowrap}
+    .trh-sf__all:hover{text-decoration:underline}
+    .trh-sf__why{margin:0 0 6px;font-size:14px;color:var(--sf-mute);line-height:1.5}
+    .trh-sf__note{margin:8px 0 0;padding-left:12px;border-left:3px solid var(--sf-navy);font-size:14px;line-height:1.5;color:var(--sf-ink)}
+    .trh-sf__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin-top:16px}
+    .trh-sf__card{display:flex;flex-direction:column;text-decoration:none;color:var(--sf-ink)}
+    .trh-sf__img{display:block;aspect-ratio:4/3;background:#fff;border:1px solid #eef0f3;border-radius:12px;overflow:hidden;margin-bottom:10px;transition:border-color .15s,box-shadow .15s}
+    .trh-sf__img img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .2s}
+    .trh-sf__card:hover .trh-sf__img{border-color:#c7d2fe;box-shadow:0 4px 14px rgba(30,58,138,.08)}
+    .trh-sf__card:hover .trh-sf__img img{transform:scale(1.03)}
+    .trh-sf__v{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sf-mute)}
+    .trh-sf__name{margin:2px 0 4px;font-size:14.5px;font-weight:700;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .trh-sf__card:hover .trh-sf__name{text-decoration:underline;text-underline-offset:2px}
+    .trh-sf__meta{font-size:14px;font-weight:700}
+    .trh-sf__meta span{font-weight:400;color:var(--sf-mute)}
+    @media (max-width:989px){.trh-sf__grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media (max-width:749px){.trh-sf{padding:22px 18px;border-radius:12px}.trh-sf__title{font-size:21px}.trh-sf__step{grid-template-columns:1fr;gap:10px}.trh-sf__q{padding-top:0}.trh-sf__grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.trh-sf__go{flex-direction:column;align-items:stretch;text-align:center}}
+  </style>
+  {% raw %}
+  <script>
+  (function(){
+    var root=document.getElementById('spike-finder'); if(!root||root.dataset.ready) return; root.dataset.ready='1';
+    var state={events:[],level:'hs',budget:0};
+    var btn=root.querySelector('.trh-sf__btn'), out=root.querySelector('.trh-sf__out');
+    root.querySelectorAll('.trh-sf__opts').forEach(function(g){
+      var q=g.dataset.q, single=!!g.dataset.single;
+      g.addEventListener('click',function(e){
+        var b=e.target.closest('button'); if(!b) return; var v=b.dataset.v;
+        if(single){ g.querySelectorAll('button').forEach(function(x){x.classList.remove('is-on');x.setAttribute('aria-pressed','false');}); b.classList.add('is-on'); b.setAttribute('aria-pressed','true'); state[q]=(q==='budget')?parseInt(v,10):v; }
+        else { var i=state.events.indexOf(v); if(i>-1){state.events.splice(i,1);b.classList.remove('is-on');b.setAttribute('aria-pressed','false');} else {state.events.push(v);b.classList.add('is-on');b.setAttribute('aria-pressed','true');} btn.disabled=!state.events.length; }
+      });
+    });
+    var cache={};
+    function load(h){ if(!cache[h]) cache[h]=fetch('/collections/'+h+'/products.json?limit=250').then(function(r){return r.json();}).then(function(j){return j.products||[];}).catch(function(){return [];}); return cache[h]; }
+    var GROUPS={
+      sprint:{t:'Sprint spikes',c:'sprint-spikes',why:'A stiff plate and aggressive pins keep you up on your toes from the blocks.'},
+      mid:{t:'Mid-distance spikes',c:'mid-distance-spikes',why:'A firm plate for speed plus a cushioned heel.'},
+      dist:{t:'Distance spikes',c:'distance-spikes',why:'Cushioned and flexible enough to stay comfortable for 8 to 25 laps.'},
+      xc:{t:'Cross country spikes',c:'cross-country-spikes',why:'A rubber outsole that grips grass, dirt and mud, built to last a full 5K.'},
+      hj:{t:'High jump spikes',c:'high-jump-spikes',tag:'high jump',why:'Heel pins and a stable upper for the curve and plant. Many are made for a left- or right-foot takeoff (L or R in the name), so check yours.'},
+      lj:{t:'Long jump spikes',c:'long-jump-spikes',tag:'long jump',why:'A stiff, sprint-like plate for a fast approach and takeoff.'},
+      tj:{t:'Triple jump spikes',c:'triple-jump-spikes',tag:'triple jump',why:'A cushioned heel for the hop and step landings.'},
+      pv:{t:'Pole vault spikes',c:'pole-vault-spikes',tag:'pole vault',why:'Close to a sprint spike, with a bit more cushion for the runway and plant.'},
+      throws:{t:'Throwing shoes',c:'throwing-shoes',not:/javelin/i,why:'A smooth, durable sole for spinning or gliding in the ring.'}
+    };
+    function has(ev,v){ return ev.indexOf(v)>-1; }
+    function needs(ev){
+      var n=[], add=function(k,extra){ var f=n.filter(function(x){return x.k===k;})[0]; if(f){ if(extra) f.extra+=(f.extra?' ':'')+extra; } else n.push({k:k,extra:extra||''}); };
+      var sprinter=has(ev,'sprint')||has(ev,'400');
+      if(sprinter&&!has(ev,'hurdles')) add('sprint', has(ev,'400')&&!has(ev,'sprint')?'Many 400m runners also like a mid-distance spike for the last 100m.':'');
+      if(has(ev,'hurdles')) add('mid','Hurdlers land on their heels coming off every barrier, so we fit hurdlers in mid-distance spikes, not sprint spikes.');
+      if(has(ev,'hurdles')&&sprinter) add('mid','The same pair works for your sprint races too, so one pair of mid-distance spikes covers it all.');
+      if(has(ev,'md')) add('mid');
+      if(has(ev,'dist')) add('dist');
+      if(has(ev,'xc')) add('xc');
+      if(has(ev,'hj')) add('hj');
+      if(has(ev,'lj')) add('lj');
+      if(has(ev,'tj')) add('tj','No triple jump-specific pair? Go with a <a href="/collections/mid-distance-spikes">mid-distance spike</a>, not a sprint or long jump spike, because you need the heel.');
+      if(has(ev,'pv')) add('pv');
+      if(has(ev,'throws')) add('throws');
+      if(has(ev,'jav')) add('mid','Javelin throwers need heel pins to brace on the block, so we fit javelin in mid-distance spikes.');
+      return n;
+    }
+    function price(p){ var a=p.variants.filter(function(v){return v.available;}); var v=(a.length?a:p.variants).map(function(v){return parseFloat(v.price);}); return Math.min.apply(null,v); }
+    function base(t){ return t.replace(/\s*[-–]\s+.*$/,'').replace(/\s*\(.*$/,'').replace(/\b(mens|men's|womens|women's|unisex)\b/ig,'').replace(/\s+/g,'').toLowerCase(); }
+    function pick(list,g){
+      list=list.filter(function(p){ return p.variants.some(function(v){return v.available;}); });
+      if(g.tag) list=list.filter(function(p){ return (p.tags||[]).some(function(t){return t.toLowerCase()===g.tag;}); });
+      if(g.not) list=list.filter(function(p){ return !g.not.test(p.title); });
+      var seen={}, models=[];
+      list.forEach(function(p){ var k=base(p.title); if(seen[k]){seen[k].n++;return;} seen[k]={p:p,n:1,price:price(p)}; models.push(seen[k]); });
+      var cap=state.budget, inBudget=cap?models.filter(function(m){return m.price<cap;}):models, over=false;
+      if(cap&&!inBudget.length&&models.length){ inBudget=models.slice(); over=true; }
+      inBudget.sort(function(a,b){ return state.level==='elite'?b.price-a.price:a.price-b.price; });
+      if(state.level==='hs') inBudget.sort(function(a,b){ return Math.abs(a.price-110)-Math.abs(b.price-110); });
+      return {items:inBudget.slice(0,4),over:over};
+    }
+    function money(n){ return '$'+(n%1?n.toFixed(2):n.toFixed(0)); }
+    function cleanName(p){
+      var name=p.title.replace(/\s*\(.*?\)\s*$/,'');
+      if(/-\s*[^-]*\/[^-]*$/.test(name)) name=name.replace(/\s*-\s*[^-]*$/,'');
+      var v=(p.vendor||'').trim();
+      if(v&&name.toLowerCase().indexOf(v.toLowerCase()+' ')===0) name=name.slice(v.length+1);
+      name=name.replace(/(\S)-\s+[^-]*$/,'$1').replace(/^unisex\s+/i,'');
+      return name.replace(/\s+-\s*$/,'').trim();
+    }
+    function card(m){
+      var p=m.p, img=p.images&&p.images[0]?p.images[0].src.replace(/(\.[a-z]+)(\?|$)/i,'_500x$1$2'):'';
+      return '<a class="trh-sf__card" href="/products/'+p.handle+'"><span class="trh-sf__img">'+(img?'<img src="'+img+'" alt="" loading="lazy">':'')+'</span><span class="trh-sf__v">'+(p.vendor||'')+'</span><span class="trh-sf__name">'+cleanName(p)+'</span><span class="trh-sf__meta">'+money(m.price)+(m.n>1?' <span>· '+m.n+' colors</span>':'')+'</span></a>';
+    }
+    btn.addEventListener('click',function(){
+      if(!state.events.length) return;
+      var n=needs(state.events); out.innerHTML='<p class="trh-sf__loading">Finding your spikes…</p>';
+      Promise.all(n.map(function(x){return load(GROUPS[x.k].c);})).then(function(lists){
+        var html='';
+        if(n.length>2){ html+='<p class="trh-sf__fit"><strong>Want one pair for everything?</strong> A <a href="/collections/mid-distance-spikes">mid-distance spike</a> is the most versatile spike we sell. Or stop into Walpole, Needham or Falmouth and we\'ll fit you for your main event.</p>'; }
+        n.forEach(function(x,i){
+          var g=GROUPS[x.k], r=pick(lists[i],g);
+          html+='<div class="trh-sf__group"><div class="trh-sf__gh"><h3 class="trh-sf__gt">'+g.t+'</h3><a class="trh-sf__all" href="/collections/'+g.c+'">Shop all →</a></div><p class="trh-sf__why">'+g.why+'</p>';
+          if(x.extra) html+='<p class="trh-sf__note">'+x.extra+'</p>';
+          if(r.over) html+='<p class="trh-sf__note">Nothing in stock under your budget right now. Here are the closest options.</p>';
+          if(!r.items.length){ html+='<p class="trh-sf__note">We don\'t have these online right now. Call or stop into any of our stores and we\'ll find you a pair.</p>'; }
+          else html+='<div class="trh-sf__grid">'+r.items.map(card).join('')+'</div>';
+          html+='</div>';
+        });
+        out.innerHTML=html;
+        out.scrollIntoView({behavior:'smooth',block:'start'});
+      });
+    });
+  })();
+  </script>
+  {% endraw %}
+  {%- endif -%}
+  {%- if trh_tiles -%}
+  <section class="trh-tiles" aria-label="Shop spikes by event">
+    <h2 class="trh-tiles__title">Shop spikes by event</h2>
+    <div class="trh-tiles__row">
+      {%- assign tile_list = "sprint-spikes|Sprint|55m to 400m;;mid-distance-spikes|Mid-Distance|400m to 1600m and hurdles;;distance-spikes|Distance|1600m to 10K and steeple;;cross-country-spikes|Cross Country|Grass, dirt and mud;;jumping-spikes|Jumps|High, long, triple jump, vault;;throwing-shoes|Throws|Shot, discus, hammer, javelin" | split: ';;' -%}
+      {%- for tl in tile_list -%}
+        {%- assign tf = tl | split: '|' -%}
+        {%- assign tc = collections[tf[0]] -%}
+        {%- assign timg = tc.image -%}
+        {%- if timg == blank -%}{%- assign timg = tc.products.first.featured_image -%}{%- endif -%}
+        <a class="trh-tile" href="/collections/{{ tf[0] }}">
+          <span class="trh-tile__img">{%- if timg -%}<img src="{{ timg | image_url: width: 400 }}" alt="{{ tf[1] }} spikes" loading="lazy" width="400" height="400">{%- endif -%}</span>
+          <span class="trh-tile__name">{{ tf[1] }}</span>
+          <span class="trh-tile__sub">{{ tf[2] }}</span>
+        </a>
+      {%- endfor -%}
+    </div>
+  </section>
+  <style>
+    .trh-tiles{margin:8px 0 28px}
+    .trh-tiles__title{font-size:20px;font-weight:800;margin:0 0 14px;color:#111;text-transform:none;letter-spacing:-.01em}
+    .trh-tiles__row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
+    .trh-tile{display:flex;flex-direction:column;border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:10px 10px 14px;text-decoration:none;color:#111;transition:border-color .15s,box-shadow .15s}
+    .trh-tile:hover{border-color:#2563eb;box-shadow:0 2px 10px rgba(37,99,235,.12)}
+    .trh-tile__img{display:block;aspect-ratio:1/1;background:#f6f7f9;border-radius:8px;overflow:hidden;margin-bottom:10px}
+    .trh-tile__img img{width:100%;height:100%;object-fit:contain;display:block}
+    .trh-tile__name{font-weight:800;font-size:15px;line-height:1.2}
+    .trh-tile__sub{font-size:12.5px;color:#555;margin-top:4px;line-height:1.35}
+    @media (max-width:989px){.trh-tiles__row{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media (max-width:589px){.trh-tiles__row{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.trh-tile__name{font-size:14px}}
+  </style>
+  {%- endif -%}
+  <div class="trh-chips" role="group" aria-label="Quick filters" hidden>
+    <span class="trh-chips__label">Quick picks:</span>
+  </div>
+  {%- if trh_picks != blank -%}
+  <section class="trh-picks" aria-label="{{ trh_picks_title | escape }}">
+    <h2 class="trh-picks__title">{{ trh_picks_title }}</h2>
+    <div class="trh-picks__row">
+      {%- assign picks = trh_picks | split: ';;' -%}
+      {%- for pk in picks -%}
+        {%- assign f = pk | split: '|' -%}
+        {%- assign pm = blank -%}
+        {%- if f[2] != blank -%}{%- assign pm = all_products[f[2]] -%}{%- endif -%}
+        {%- assign pw = blank -%}
+        {%- if f[3] != blank -%}{%- assign pw = all_products[f[3]] -%}{%- endif -%}
+        {%- assign ip = pw -%}
+        {%- if ip.id == blank -%}{%- assign ip = pm -%}{%- endif -%}
+        {%- if ip.id == blank -%}{%- continue -%}{%- endif -%}
+        {%- if f[0] != blank -%}{%- assign plink = '/collections/' | append: f[0] -%}{%- else -%}{%- assign plink = ip.url -%}{%- endif -%}
+        <div class="trh-pick">
+          <a class="trh-pick__img" href="{{ plink }}">
+            {%- if ip.featured_image -%}
+              <img src="{{ ip.featured_image | image_url: width: 500 }}" alt="{{ f[4] | escape }}" loading="lazy" width="500" height="500">
+            {%- endif -%}
+          </a>
+          <div class="trh-pick__body">
+            <span class="trh-pick__label">{{ f[1] }}</span>
+            <a class="trh-pick__name" href="{{ plink }}">{{ f[4] }}</a>
+            <p class="trh-pick__blurb">{{ f[5] }}</p>
+            <p class="trh-pick__meta">{% if f[6] != blank %}{{ f[6] }} · {% endif %}{% if ip.price %}{{ ip.price | money_without_trailing_zeros }}{% endif %}</p>
+            <div class="trh-pick__btns">
+              {%- if f[7] == 'unisex' -%}
+                {%- if pm.id -%}<a href="{{ pm.url }}">Shop now</a>{%- endif -%}
+              {%- else -%}
+                {%- if pw.id -%}<a href="{{ pw.url }}">Women's</a>{%- endif -%}
+                {%- if pm.id -%}<a href="{{ pm.url }}">Men's</a>{%- endif -%}
+              {%- endif -%}
+            </div>
+          </div>
+        </div>
+      {%- endfor -%}
+    </div>
+  </section>
+  {%- endif -%}
+</div>
+<template id="trh-help-tpl">
+  <div class="trh-help" role="listitem">
+    <div class="trh-help__text">
+      <h3>{{ trh_help_title }}</h3>
+      <p>Stop in for a custom fitting. We look at your feet and your stride, then let you try a few side by side.</p>
+    </div>
+    <div class="trh-help__btns">
+      <a class="trh-help__primary" href="/pages/custom-fitting-process">How our fitting works</a>
+      <a href="/pages/walpole">Walpole</a><a href="/pages/needham">Needham</a><a href="/pages/falmouth">Falmouth</a>
+    </div>
+  </div>
+</template>
+<style>
+  /* Slim header */
+  .collection-hero{height:auto!important;min-height:0!important}
+  .collection-hero .hero-content{padding:34px 24px 30px!important;height:auto!important}
+  .collection-hero .hero-title{font-size:34px!important;margin:0 0 10px!important}
+  .collection-hero .hero-description,.collection-hero .hero-description p{font-size:15px!important;line-height:1.5!important;max-width:760px;margin:0 auto!important}
+  #CollectionHeaderSection .hero-description,#CollectionHeaderSection .hero-description p{font-size:15px!important;letter-spacing:0!important}
+  .collection-content,#CollectionAjaxContent{padding-top:0!important;margin-top:0!important}
+  @media (max-width:768px){
+    .collection-hero .hero-content{padding:18px 16px 16px!important}
+    #CollectionHeaderSection .hero-title{font-size:22px!important;margin-bottom:6px!important}
+    #CollectionHeaderSection .hero-description,#CollectionHeaderSection .hero-description p{font-size:13px!important;line-height:1.4!important}
+    #CollectionHeaderSection .hero-description p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  }
+  .trh-enh{max-width:1400px;margin:0 auto;padding:18px 20px 4px;font-family:'Chivo',-apple-system,BlinkMacSystemFont,sans-serif}
+  .trh-chips{display:flex;gap:8px;align-items:center;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+  .trh-chips::-webkit-scrollbar{display:none}
+  .trh-chips__label{font-size:13px;font-weight:700;color:#0f172a;white-space:nowrap;margin-right:2px}
+  .trh-chip{white-space:nowrap;border:1.5px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:999px;padding:8px 16px;font:600 13px 'Chivo',sans-serif;cursor:pointer;transition:all .15s}
+  .trh-chip:hover{border-color:#0f172a}
+  .trh-chip.is-on{background:#0f172a;border-color:#0f172a;color:#fff}
+  .trh-picks{margin:18px 0 6px}
+  .trh-picks__title{font-size:19px;font-weight:800;color:#0f172a;margin:0 0 12px;letter-spacing:-.01em;text-transform:none}
+  .trh-picks__row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .trh-pick{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .trh-pick__img{display:block;background:#f8fafc;aspect-ratio:4/3;overflow:hidden}
+  .trh-pick__img img{width:100%;height:100%;object-fit:contain;padding:10px;mix-blend-mode:multiply}
+  .trh-pick__body{padding:12px 14px 14px;display:flex;flex-direction:column;flex:1}
+  .trh-pick__label{align-self:flex-start;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:6px;margin-bottom:8px}
+  .trh-pick__name{font-size:16px;font-weight:800;color:#0f172a;text-decoration:none;margin-bottom:4px}
+  .trh-pick__blurb{font-size:13px;color:#475569;line-height:1.45;margin:0 0 6px}
+  .trh-pick__meta{font-size:12px;color:#64748b;margin:0 0 10px}
+  .trh-pick__btns{display:flex;gap:8px;margin-top:auto}
+  .trh-pick__btns a{flex:1;text-align:center;border:1.5px solid #0f172a;border-radius:8px;padding:8px 6px;font-size:13px;font-weight:700;color:#0f172a;text-decoration:none}
+  .trh-pick__btns a:hover{background:#0f172a;color:#fff}
+  @media (max-width:900px){
+    .trh-enh{padding:12px 16px 0}
+    .trh-picks{margin:12px 0 4px}
+    .trh-picks__title{font-size:16px;margin-bottom:8px}
+    .trh-picks__row{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:10px;padding-bottom:6px;scrollbar-width:none}
+    .trh-picks__row::-webkit-scrollbar{display:none}
+    .trh-pick{flex:0 0 82%;scroll-snap-align:start;flex-direction:row}
+    .trh-pick__img{flex:0 0 96px;aspect-ratio:auto}
+    .trh-pick__img img{padding:6px}
+    .trh-pick__body{padding:10px 12px}
+    .trh-pick__label{font-size:10px;padding:3px 6px;margin-bottom:5px}
+    .trh-pick__name{font-size:14px}
+    .trh-pick__blurb{display:none}
+    .trh-pick__meta{font-size:11px;margin-bottom:8px}
+    .trh-pick__btns a{padding:6px 4px;font-size:12px}
+  }
+  /* Width links on merged cards */
+  .trh-widths{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0 16px 14px;font-family:'Chivo',sans-serif}
+  .trh-widths__label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-right:2px}
+  .trh-widths a{font-size:12px;font-weight:600;color:#0f172a;border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;text-decoration:none;background:#fff}
+  .trh-widths a:hover{border-color:#0f172a}
+  .trh-widths a.is-rep{background:#0f172a;color:#fff;border-color:#0f172a}
+  @media (max-width:768px){.trh-widths{padding:0 12px 10px;gap:4px}.trh-widths__label{display:none}.trh-widths a{font-size:11px;padding:3px 6px}}
+  .trh-sort,.trh-sort *{letter-spacing:0!important;text-transform:none!important}
+  /* Sort */
+  .trh-sort{display:inline-flex;align-items:center;gap:6px;font:600 13px 'Chivo',sans-serif;color:#0f172a;white-space:nowrap;letter-spacing:0;text-transform:none}
+  .trh-sort select{border:1.5px solid #cbd5e1;border-radius:8px;padding:7px 10px;font:600 13px 'Chivo',sans-serif;background:#fff;color:#0f172a}
+  /* Help block */
+  .trh-help{grid-column:1/-1;display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#0f172a;color:#fff;border-radius:14px;padding:22px 26px;font-family:'Chivo',sans-serif}
+  .trh-help h3{font-size:18px;font-weight:800;margin:0 0 4px;color:#fff;text-transform:none}
+  .trh-help p{font-size:14px;margin:0;color:#cbd5e1}
+  .trh-help__btns{display:flex;gap:8px;flex-wrap:wrap}
+  .trh-help__btns a{color:#fff;border:1.5px solid #475569;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;text-decoration:none}
+  .trh-help__btns a.trh-help__primary{background:#fff;color:#0f172a;border-color:#fff}
+</style>
+<style>
+  .trh-chips[hidden]{display:none!important}
+  .trh-swatches-added .cw-swatch img{width:100%;height:100%;object-fit:contain}
+</style>
+<script>
+(function(){
+  var top = document.getElementById('trh-enh-top');
+  var ajax = document.getElementById('CollectionAjaxContent');
+  if (top && ajax) ajax.insertBefore(top, ajax.firstChild);
+  var HANDLE = {{ collection.handle | json }};
+
+  /* ---------- filter inputs ---------- */
+  function inputsFor(f){
+    return Array.prototype.slice.call(document.querySelectorAll(f === 'width' ? 'input[name="width"]' : 'input[data-filter="' + f + '"]'));
+  }
+  function inputFor(f, v){
+    var l = inputsFor(f);
+    for (var i = 0; i < l.length; i++) if (l[i].value === v) return l[i];
+    return null;
+  }
+  function countOf(inp){
+    var lab = inp.id ? document.querySelector('label[for="' + inp.id + '"]') : null;
+    var c = lab && lab.querySelector('.item-count');
+    return c ? parseInt(c.textContent, 10) || 0 : 0;
+  }
+
+  /* ---------- quick chips, built from the filters this page actually has ---------- */
+  var chipsBox = document.querySelector('.trh-chips');
+  function buildChips(){
+    if (!chipsBox || chipsBox.dataset.built) return;
+    var chips = [];
+    var types = inputsFor('type').map(function(i){ return i.value; });
+    if (types.indexOf("Women's Shoes") > -1 && types.indexOf("Men's Shoes") > -1) {
+      chips.push(['type', "Women's Shoes", "Women's"], ['type', "Men's Shoes", "Men's"]);
+    }
+    var widths = inputsFor('width').map(function(i){ return i.value; });
+    if (widths.length > 1) {
+      ['Narrow', 'Wide', 'Extra Wide'].forEach(function(w){ if (widths.indexOf(w) > -1) chips.push(['width', w, w]); });
+    }
+    var vendors = inputsFor('vendor');
+    if (vendors.length > 1) {
+      vendors.slice().sort(function(a, b){ return countOf(b) - countOf(a); }).slice(0, 5).forEach(function(i){ chips.push(['vendor', i.value, i.value]); });
+    }
+    if (!types.length && !vendors.length) return; // filters not built yet
+    chipsBox.dataset.built = '1';
+    if (chips.length < 2) return;
+    chips.forEach(function(c){
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'trh-chip';
+      b.dataset.f = c[0]; b.dataset.v = c[1]; b.textContent = c[2];
+      b.addEventListener('click', function(){
+        var inp = inputFor(b.dataset.f, b.dataset.v);
+        if (!inp) return;
+        inp.checked = !inp.checked;
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+        syncChips();
+      });
+      chipsBox.appendChild(b);
+    });
+    chipsBox.hidden = false;
+  }
+  function syncChips(){
+    document.querySelectorAll('.trh-chip').forEach(function(b){
+      var inp = inputFor(b.dataset.f, b.dataset.v);
+      b.classList.toggle('is-on', !!(inp && inp.checked));
+      b.hidden = !inp;
+    });
+  }
+  document.addEventListener('change', function(){ setTimeout(syncChips, 0); });
+  window.addEventListener('filtersChanged', function(){ setTimeout(syncChips, 0); });
+
+  /* ---------- filters: gender and width first ---------- */
+  function reorderFilters(){
+    var size = document.getElementById('sizeSection');
+    var width = document.getElementById('widthSection');
+    var typeOpts = document.getElementById('typeOptions');
+    if (!size || !typeOpts) return;
+    var type = typeOpts.closest('.filter-section');
+    var lbl = type && type.querySelector('.section-label span');
+    var tv = inputsFor('type').map(function(i){ return i.value; }).join('|');
+    if (lbl && lbl.textContent.trim() === 'Type' && /Men's Shoes/.test(tv) && /Women's Shoes/.test(tv)) lbl.textContent = "Men's / Women's";
+    if (type && type !== size.previousElementSibling) size.parentNode.insertBefore(type, size);
+    if (width && width !== size.previousElementSibling) size.parentNode.insertBefore(width, size);
+  }
+
+  /* ---------- cards ---------- */
+  var grid = document.getElementById('productGrid');
+  if (!grid) return;
+  var sortMode = 'featured';
+  var WRANK = { 'Narrow': 0, 'Standard': 1, 'Wide': 2, 'X-Wide': 3 };
+  var WMAP = { narrow: 'Narrow', standard: 'Standard', wide: 'Wide', xwide: 'X-Wide', 'extra-wide': 'X-Wide' };
+  var VENDORS = ['new balance', 'on running', 'under armour', 'asics', 'hoka', 'brooks', 'saucony', 'altra', 'puma', 'merrell', 'mizuno', 'diadora', 'nike', 'adidas', 'on'];
+
+  // handle -> {key, width} from the cw-group tag
+  var tagMap = null;
+  function buildTagMap(){
+    var s = window.ShoeCollectionFilter && window.ShoeCollectionFilter.getState && window.ShoeCollectionFilter.getState();
+    if (!s || !s.allProducts || !s.allProducts.length) return;
+    tagMap = {};
+    s.allProducts.forEach(function(p){
+      var tags = Array.isArray(p.tags) ? p.tags : String(p.tags || '').split(',');
+      for (var i = 0; i < tags.length; i++) {
+        var t = String(tags[i]).trim();
+        if (t.indexOf('cw-group:') !== 0) continue;
+        var k = t.slice(9), w = 'standard', j = k.lastIndexOf('--');
+        if (j > 0) { w = k.slice(j + 2); k = k.slice(0, j); }
+        k = k.replace(/(^|-)fresh-foam-x-/, '$1');
+        tagMap[p.handle] = { key: k, width: WMAP[w] || 'Standard' };
+        break;
+      }
+    });
+  }
+  function handleOf(href){
+    var m = String(href || '').match(/\/products\/([^/?#]+)/);
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function widthOf(t){
+    if (/extra[\s-]?wide|\bx-?wide\b|\b4e\b|\b6e\b/i.test(t)) return 'X-Wide';
+    if (/\bwide\b/i.test(t)) return 'Wide';
+    if (/\bnarrow\b/i.test(t)) return 'Narrow';
+    return 'Standard';
+  }
+  function cleanTitle(t, vendor){
+    var s = String(t || '');
+    s = s.replace(/\s*\([^)]*\)/g, ' ');
+    var cut = s.search(/\s[-–]\s|[^\s-]-\s+(?=[A-Za-z])/);
+    if (cut > 0) s = s.slice(0, s.charAt(cut) === ' ' ? cut : cut + 1);
+    s = s.replace(/\b(?:extra[\s-]?wide|x-?wide|wide|narrow)\b/gi, ' ');
+    var vs = VENDORS.slice(); if (vendor) vs.unshift(String(vendor).toLowerCase());
+    for (var i = 0; i < vs.length; i++) {
+      var re = new RegExp('(^|\\s)' + vs[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=\\s)', 'i');
+      if (re.test(' ' + s + ' ') && s.replace(re, ' ').trim().length > 3) { s = s.replace(re, ' '); break; }
+    }
+    s = s.replace(/\bwomens\b/gi, "Women's").replace(/\bmens\b/gi, "Men's");
+    s = s.split(' ').map(function(tok){
+      var letters = tok.replace(/[^A-Za-z]/g, '');
+      if (letters.length >= 5 && letters === letters.toUpperCase() && !/\d/.test(tok)) return tok.toLowerCase().replace(/(^|-)([a-z])/g, function(m, a, b){ return a + b.toUpperCase(); });
+      return tok;
+    }).join(' ');
+    s = s.replace(/\bGt-/g, 'GT-').replace(/\bGts\b/g, 'GTS').replace(/\bGtx\b/g, 'GTX');
+    return s.replace(/\s+/g, ' ').replace(/[\s\-–,]+$/, '').trim();
+  }
+  function priceOf(card){
+    var p = card.querySelector('.product-price');
+    return p ? parseFloat(p.textContent.replace(/[^0-9.]/g, '')) || 0 : 0;
+  }
+  function swatchesOf(m){
+    var out = [];
+    var row = m.card.querySelector('.cw-swatches');
+    if (row) row.querySelectorAll('a.cw-swatch').forEach(function(a){ out.push({ href: a.getAttribute('href'), img: (a.querySelector('img') || {}).src || '', label: a.getAttribute('aria-label') || '' }); });
+    else if (m.href) out.push({ href: m.href, img: (m.card.querySelector('.product-image') || {}).src || '', label: m.raw });
+    return out;
+  }
+
+  var obs;
+  function enhance(){
+    if (obs) obs.disconnect();
+    try {
+      if (!tagMap) buildTagMap();
+      // The House Call tile (.trhp-tile, from the shared Files script) also
+      // carries .product-card. It is never one of ours: sorting it moved it,
+      // the House Call script moved it back, and each move re-ran this, so
+      // the grid redrew about 8 times a second for as long as the page was
+      // open (measured 2026-11-12 with Narrow on: 92 redraws in 6 seconds).
+      var isCard = function(c){ return c.classList && c.classList.contains('product-card') && !c.classList.contains('trhp-tile'); };
+      var cards = Array.prototype.filter.call(grid.children, isCard);
+      var groups = new Map();
+      cards.forEach(function(c, idx){
+        if (c.dataset.trhDone) return;
+        var tEl = c.querySelector('.product-title');
+        var bEl = c.querySelector('.product-brand');
+        var raw = tEl ? tEl.textContent.trim() : '';
+        var vendor = bEl ? bEl.textContent.trim() : '';
+        var link = c.matches('a') ? c : c.querySelector('a.product-card__main');
+        var href = link ? link.getAttribute('href') : '';
+        var tm = tagMap && tagMap[handleOf(href)];
+        var key = tm ? 'cw|' + tm.key : 't|' + (vendor + '|' + cleanTitle(raw, vendor)).toLowerCase();
+        var w;
+        if (tm) w = tm.width;
+        else {
+          var wb = c.querySelector('.product-card__width-badge');
+          w = wb ? (wb.classList.contains('product-card__width-badge--extra-wide') ? 'X-Wide' : wb.classList.contains('product-card__width-badge--narrow') ? 'Narrow' : 'Wide') : widthOf(raw);
+        }
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push({ card: c, link: link, href: href, width: w, raw: raw, vendor: vendor, idx: idx });
+      });
+      groups.forEach(function(members){
+        members.sort(function(a, b){ return a.idx - b.idx; });
+        var rep = members.filter(function(m){ return m.width === 'Standard'; })[0] || members[0];
+        var title = cleanTitle(rep.raw, rep.vendor);
+        var tEl = rep.card.querySelector('.product-title');
+        if (members.length < 2) {
+          if (tEl) tEl.textContent = title;
+          rep.card.dataset.trhDone = '1';
+          return;
+        }
+        var first = members[0].card;
+        var card = rep.card;
+        if (card.matches('a')) {
+          var wrap = document.createElement('div');
+          wrap.className = card.className + ' product-card--group';
+          wrap.setAttribute('role', 'listitem');
+          card.removeAttribute('role');
+          card.className = 'product-card__main';
+          card.parentNode.insertBefore(wrap, card);
+          wrap.appendChild(card);
+          card = wrap;
+        }
+        if (first !== rep.card && first !== card && first.parentNode) first.parentNode.insertBefore(card, first);
+        if (tEl) tEl.textContent = title;
+        var badge = card.querySelector('.product-card__width-badge'); if (badge) badge.remove();
+
+        // colorways of the shown width become swatches
+        var sw = [], seen = {};
+        members.filter(function(m){ return m.width === rep.width; }).forEach(function(m){
+          swatchesOf(m).forEach(function(s){ if (s.href && !seen[s.href]) { seen[s.href] = 1; sw.push(s); } });
+        });
+        var swRow = card.querySelector('.cw-swatches');
+        if (sw.length > 1) {
+          var repHref = rep.href, shown = sw.slice(0, 6), extra = sw.length - shown.length;
+          var html = shown.map(function(s){
+            return '<a href="' + s.href + '" class="cw-swatch' + (s.href === repHref ? ' cw-swatch--active' : '') + '" aria-label="' + String(s.label).replace(/"/g, '&quot;') + '" title="' + String(s.label).replace(/"/g, '&quot;') + '"><img src="' + s.img + '" alt="" loading="lazy"></a>';
+          }).join('') + (extra > 0 ? '<span class="cw-swatch-more">+' + extra + '</span>' : '');
+          if (!swRow) { swRow = document.createElement('div'); swRow.className = 'cw-swatches trh-swatches-added'; swRow.setAttribute('role', 'group'); swRow.setAttribute('aria-label', 'Available colors'); card.appendChild(swRow); }
+          swRow.innerHTML = html;
+        }
+
+        // width links
+        var byW = {};
+        members.forEach(function(m){ if (!byW[m.width] && m.href) byW[m.width] = m.href; });
+        var keys = Object.keys(byW);
+        if (keys.length > 1) {
+          var wh = '<span class="trh-widths__label">Widths</span>';
+          keys.sort(function(a, b){ return WRANK[a] - WRANK[b]; }).forEach(function(w){
+            wh += '<a href="' + byW[w] + '"' + (w === rep.width ? ' class="is-rep"' : '') + '>' + w + '</a>';
+          });
+          var row = document.createElement('div');
+          row.className = 'trh-widths';
+          row.innerHTML = wh;
+          if (swRow) card.insertBefore(row, swRow); else card.appendChild(row);
+        }
+        members.forEach(function(m){ if (m.card !== rep.card && m.card !== card && m.card.parentNode) m.card.parentNode.removeChild(m.card); });
+        card.dataset.trhDone = '1';
+      });
+
+      // sort
+      var current = Array.prototype.filter.call(grid.children, isCard);
+      var list = current.slice();
+      list.forEach(function(c, i){ if (!c.dataset.trhOrder) c.dataset.trhOrder = i; });
+      if (sortMode !== 'featured') {
+        list.sort(function(a, b){ return sortMode === 'price-asc' ? priceOf(a) - priceOf(b) : priceOf(b) - priceOf(a); });
+      } else {
+        list.sort(function(a, b){ return a.dataset.trhOrder - b.dataset.trhOrder; });
+      }
+      // Re-append ONLY when the order actually changed. Appending every card
+      // on every pass is a full redraw, and this runs every 250ms while the
+      // page settles, which was the 4 to 5 flickers on every load.
+      var sameOrder = list.every(function(c, i){ return c === current[i]; });
+      if (!sameOrder) list.forEach(function(c){ grid.appendChild(c); });
+
+      // The help box: leave it alone when it is already where it belongs.
+      // Removing and re-inserting it every pass was another redraw, and threw
+      // away the House Call line added inside it, which then got re-added.
+      var old = grid.querySelector('.trh-help');
+      var tpl = document.getElementById('trh-help-tpl');
+      if (tpl && list.length > 8) {
+        if (!old || old.nextElementSibling !== list[6]) grid.insertBefore(old || tpl.content.firstElementChild.cloneNode(true), list[6]);
+      } else if (old) {
+        old.remove();
+      }
+
+      var count = document.getElementById('resultsCount');
+      if (count && list.length) count.innerHTML = '<strong>' + list.length + '</strong> ' + (list.length === 1 ? 'style' : 'styles');
+      addSort();
+    } catch (e) { if (window.console) console.warn('trh enhance', e); }
+    if (obs) obs.observe(grid, { childList: true });
+  }
+
+  function addSort(){
+    if (document.getElementById('trhSort')) return;
+    var count = document.getElementById('resultsCount');
+    if (!count) return;
+    var box = document.createElement('label');
+    box.className = 'trh-sort';
+    box.innerHTML = 'Sort <select id="trhSort"><option value="featured">Featured</option><option value="price-asc">Price: low to high</option><option value="price-desc">Price: high to low</option></select>';
+    count.parentNode.insertBefore(box, count.nextSibling);
+    box.querySelector('select').addEventListener('change', function(e){ sortMode = e.target.value; enhance(); });
+  }
+
+  obs = new MutationObserver(function(){ setTimeout(enhance, 0); });
+  obs.observe(grid, { childList: true });
+  window.addEventListener('productsLoaded', function(){ setTimeout(function(){ tagMap = null; reorderFilters(); buildChips(); syncChips(); }, 50); });
+  var tries = 0;
+  (function wait(){
+    reorderFilters(); buildChips(); syncChips();
+    if (grid.querySelector('.product-card')) enhance();
+    if (++tries < 60 && !(document.getElementById('trhSort') && chipsBox && chipsBox.dataset.built)) setTimeout(wait, 250);
+  })();
+})();
+</script>
+{%- endif -%}
