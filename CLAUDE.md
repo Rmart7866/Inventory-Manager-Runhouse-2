@@ -127,6 +127,12 @@ node tools/asics-headless-run.mjs --full-catalog --accept-file <csv>  # record a
 # scheduled run after an idle evening lands on the login page and refuses,
 # correctly. A run in progress keeps itself alive. Smoke test passed that day
 # from a cold headless start: 3 styles, 85 rows, about a minute.
+# So a KEEP-ALIVE visits the dashboard every hour at :30 (never :00, to miss
+# the 1 AM run), logs in nothing, and raises a macOS notification when the
+# session is already gone. It steps aside while a run holds the profile.
+node tools/asics-headless-run.mjs --keepalive   # one visit; log ~/Library/Logs/runhouse-asics-keepalive.log
+# launchd: tools/launchd/com.therunhouse.asics-keepalive.plist. Installed
+# 2026-11-12 pointing at the builder-hero-mockup worktree until merged.
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only

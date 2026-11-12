@@ -362,8 +362,60 @@ async function runFullCatalog() {
   return judgeFullCatalog(csv, out, has('--accept'));
 }
 
+// --------------------------------------------------------- the keep-alive --
+// --keepalive, 2026-11-12. The ASICS session dies TWO HOURS after its last
+// request (measured: b2b_sap_session is reissued on every request with expiry
+// +2h), so an unattended 1 AM run after an idle evening lands on the login
+// page. Visiting the dashboard once an hour from the same profile keeps it
+// alive, for as long as the Mac is awake. It logs in NOTHING: when the
+// session is already gone it says so, raises a macOS notification so the
+// next login is not discovered at 1 AM, and exits 1.
+//
+// A browser already on PORT means a full catalog run is in progress; that
+// run keeps the session alive itself, and two browsers cannot share the
+// profile, so the keep-alive steps aside.
+async function runKeepAlive() {
+  verdictReached = true;          // a keep-alive is not a scrape, it has no file to judge
+  const stamp = new Date().toLocaleString();
+  if (await findExisting(PORT)) { console.log(stamp + '  skipped: a run is using the profile, and keeps it alive'); return 0; }
+  let target = await findExisting(PORT + 1);
+  let chrome = null;
+  if (!target) {
+    chrome = spawn(CHROME, ['--headless=new', '--remote-debugging-port=' + PORT, '--user-data-dir=' + PROFILE,
+      '--no-first-run', '--no-default-browser-check', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
+    for (let i = 0; i < 40 && !target; i++) { await wait(300); target = await findExisting(PORT); }
+  }
+  const done = (code, msg) => { if (chrome) { try { chrome.kill(); } catch (e) {} } console.log(stamp + '  ' + msg); return code; };
+  if (!target) return done(1, 'FAILED: no browser (is a Chrome window open on ' + PROFILE + '? it holds the lock)');
+  const ws = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise((r, j) => { ws.addEventListener('open', r); ws.addEventListener('error', j); });
+  const send = cdp(ws);
+  await send('Page.enable');
+  await send('Page.navigate', { url: 'https://b2b.asics.com/dashboard' });
+  let where = '';
+  for (let t = 0; t < 30; t++) {
+    await wait(1000);
+    const r = await send('Runtime.evaluate', { returnByValue: true, expression: 'document.readyState + " " + location.href' });
+    where = r.result.value || '';
+    if (/^complete /.test(where) && /dashboard|authentication|login|signin/i.test(where)) break;
+  }
+  // The dashboard redirects to the login page a moment AFTER loading when the
+  // session is dead, so look once more before calling it alive.
+  await wait(3000);
+  where = (await send('Runtime.evaluate', { returnByValue: true, expression: 'location.href' })).result.value || where;
+  try { ws.close(); } catch (e) {}
+  if (/authentication|login|signin/i.test(where)) {
+    try {
+      execFileSync('osascript', ['-e', 'display notification "Run: node tools/asics-headless-run.mjs --setup, and log in" with title "ASICS scraper logged out"']);
+    } catch (e) { /* a notification is a courtesy, the log is the record */ }
+    return done(1, 'SESSION EXPIRED: log the profile in again with --setup');
+  }
+  return done(0, 'alive: ' + where.replace(/^complete /, ''));
+}
+
 // ------------------------------------------------------------- the run -----
 async function main() {
+  if (has('--keepalive')) return runKeepAlive();
   if (has('--full-catalog')) return runFullCatalog();
   if (has('--setup')) {
     // macOS hands a url to a RUNNING Chrome and ignores --user-data-dir, so a

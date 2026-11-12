@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  ASICS session keep-alive, every hour at :30 (never at :00, so it cannot
+  collide with the 1:00 AM full catalog). The ASICS session dies 2 hours after
+  its last request; one dashboard visit an hour keeps the scraper profile
+  logged in while the Mac is awake. Logs in nothing: a dead session gets a
+  macOS notification and a log line, and needs --setup.
+  Install:
+    cp tools/launchd/com.therunhouse.asics-keepalive.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.therunhouse.asics-keepalive.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.therunhouse.asics-keepalive.plist
+    rm ~/Library/LaunchAgents/com.therunhouse.asics-keepalive.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.therunhouse.asics-keepalive</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/ryanmartin/.nvm/versions/node/v22.20.0/bin/node</string>
+    <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/tools/asics-headless-run.mjs</string>
+    <string>--keepalive</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-asics-keepalive.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-asics-keepalive.log</string>
+</dict>
+</plist>
