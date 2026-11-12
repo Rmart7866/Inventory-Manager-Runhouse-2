@@ -134,6 +134,15 @@ node tools/asics-headless-run.mjs --keepalive   # one visit; log ~/Library/Logs/
 # launchd: tools/launchd/com.therunhouse.asics-keepalive.plist. Installed
 # 2026-11-12 pointing at the builder-hero-mockup worktree until merged.
 
+# BROOKS FULL CATALOG, scheduled (2026-11-12). The same brooksFullCatalogSweep
+# the scraper's Full catalog button runs, driven headless on its own profile
+# (~/.runhouse-brooks-profile), about 90 seconds. 6 AM, noon, 6 PM, plus a
+# keep-alive at :45. Own baseline, gitignored. Writes nothing to Shopify.
+node tools/brooks-headless-run.mjs --setup       # log the profile into FastTrack, once
+node tools/brooks-headless-run.mjs --smoke 3     # whole path, 3 styles, always blocked
+node tools/brooks-headless-run.mjs               # the real sweep
+node tools/brooks-headless-run.mjs --accept-file <csv>   # record a checked file as the baseline
+
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
 

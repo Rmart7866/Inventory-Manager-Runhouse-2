@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Brooks full catalog, three times a day: 6 AM, noon, 6 PM. A sweep takes
+  about 90 seconds. Writes brooks-fullcatalog-<stamp>.csv to Downloads and a
+  verdict to the log; nothing to Shopify. A Mac asleep at a run time runs it
+  on wake.
+  Install:
+    cp tools/launchd/com.therunhouse.brooks-fullcatalog.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.therunhouse.brooks-fullcatalog.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.therunhouse.brooks-fullcatalog.plist
+    rm ~/Library/LaunchAgents/com.therunhouse.brooks-fullcatalog.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.therunhouse.brooks-fullcatalog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/ryanmartin/.nvm/versions/node/v22.20.0/bin/node</string>
+    <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/tools/brooks-headless-run.mjs</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2</string>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+  <key>StandardOutPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-brooks-fullcatalog.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-brooks-fullcatalog.log</string>
+</dict>
+</plist>

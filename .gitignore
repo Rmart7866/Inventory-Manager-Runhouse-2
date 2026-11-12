@@ -211,4 +211,5 @@ on-blurry-rollback-*.json
 # artifact and a shared one would compare two different link lists.
 inventory-guardrail-baseline.json
 inventory-guardrail-baseline-fullcatalog.json
+inventory-guardrail-baseline-brooks-fullcatalog.json
 theme-backups/*.bak

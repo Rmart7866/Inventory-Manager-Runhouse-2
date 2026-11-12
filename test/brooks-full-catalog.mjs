@@ -39,7 +39,7 @@ eq('NOW stock arriving next week is not shippable today (MD 2 White/Spark, 2026-
 eq('an entry stamped a few seconds after the sweep began still counts (the 3,866 unit mistake)',
   H.brooksNowQuantity([{ orderType: 'NOW', quantity: 17, availableFromDateUtc: iso(NOW + 90e3) }], NOW + 3600e3), 17);
 yes('the cutoff is taken per request, never once for the whole sweep',
-  /brooksCatalogRecords\(product, retail\[list\[i\]\], Date\.now\(\)\)/.test(src) && /const cutoff = \(nowMs \|\| Date\.now\(\)\) \+ 3600e3/.test(src));
+  /brooksCatalogRecords\(product, retail\[todo\[i\]\], Date\.now\(\)\)/.test(fnSrc('brooksFullCatalogSweep')) && /const cutoff = \(nowMs \|\| Date\.now\(\)\) \+ 3600e3/.test(src));
 
 console.log('\nThe 100 cap and the low stock rounding are the page path\'s, exactly (owner: keep the cap)');
 eq('335 is written as 100, as the grid\'s "100+" is', H.brooksFeedQuantity(335), 100);
@@ -95,10 +95,23 @@ yes('the full catalog is ONE file through its own action, never the 10,000 row c
 // ---------- 3. a partial sweep writes nothing ----------
 console.log('\nA partial sweep, or no login, writes no file');
 const run = (() => { const i = src.indexOf('    async runFullCatalog(btn) {'); let d = 0; for (let k = src.indexOf('{', i); k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && !--d) return src.slice(i, k + 1); } })();
-yes('any failed style refuses the file, and the refusal comes before the write',
-  /if \(failed\.length\) \{[\s\S]*?return;\s*\}/.test(run) && run.indexOf('if (failed.length)') < run.indexOf("sendToBackground('downloadFullCatalog'"));
+// The sweep is ONE function shared by the button and the scheduled headless
+// runner (2026-11-12), so the refusals live there and both callers inherit them.
+const sweep = fnSrc('brooksFullCatalogSweep');
+yes('any failed style refuses the file: the sweep throws, and the button writes only after it returns',
+  /if \(failed\.length\) \{\s*throw new Error/.test(sweep) && run.indexOf('brooksFullCatalogSweep(') > -1 &&
+  run.indexOf('brooksFullCatalogSweep(') < run.indexOf("sendToBackground('downloadFullCatalog'"));
 yes('no token, no run', /if \(!\(await this\.waitForBrooksToken\(20000\)\)\) \{[\s\S]*?return;/.test(run));
-yes('no styles listed, no file', /if \(!styles\.size\) \{[^}]*return; \}/.test(run));
+yes('no styles listed, no file', /if \(!styles\.size\) throw new Error/.test(sweep));
+const runner = read('tools/brooks-headless-run.mjs');
+yes('the scheduled runner calls the SAME sweep, it does not reimplement it',
+  /'brooksFullCatalogSweep'\]\.map\(take\)/.test(runner) && /window\.__rhSweep = brooksFullCatalogSweep/.test(runner) &&
+  !/api\/products\/brooks\/|api\/v2\/products\/search/.test(runner));
+const rmod = await import('../tools/brooks-headless-run.mjs');
+yes('and the functions it lifts out of content.js parse as JavaScript',
+  (() => { try { new Function(rmod.extensionFunctions()); return true; } catch (e) { return false; } })());
+yes('the runner builds the CSV with background.js, the extension\'s own converter',
+  typeof rmod.loadBrooksBackground().convertToBrooksInventoryCSV === 'function');
 const manifest = JSON.parse(read('scrapers/brooks/manifest.json'));
 const tokenEntry = manifest.content_scripts.find((c) => (c.js || []).includes('token.js'));
 yes('token.js runs in the page\'s own world at document_start, FastTrack only',

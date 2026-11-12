@@ -149,6 +149,77 @@ function brooksCatalogRecords(product, retail, nowMs) {
     return out;
 }
 
+// THE WHOLE SWEEP, as one function, so the Full catalog button and the
+// headless runner (tools/brooks-headless-run.mjs, scheduled) run the SAME
+// code: list every style shippable now, read retail prices, read stock, build
+// page-identical records. Throws, with the reason, rather than return a
+// partial result: a style missing from the file reads as removed and zeroes.
+//   o.getToken()   the page's current bearer token (it rotates)
+//   o.account      the FastTrack account number
+//   o.onProgress   (done, total) while stock is read
+//   o.maxStyles    a smoke test on the first N styles only
+async function brooksFullCatalogSweep(o) {
+    const account = o.account || '9284';
+    const call = async (url, body) => {
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const r = await fetch(url, {
+                method: body ? 'POST' : 'GET',
+                headers: { Authorization: o.getToken(), Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : undefined
+            });
+            if (r.ok) return r.json();
+            if (r.status === 401) { await new Promise((res) => setTimeout(res, 4000)); continue; }   // token rotated, the page sends a new one
+            if (r.status === 429 || r.status >= 500) { await new Promise((res) => setTimeout(res, 2000 * (attempt + 1))); continue; }
+            throw new Error('HTTP ' + r.status);
+        }
+        // Three 401s in a row: the token went stale while the tab sat idle
+        // (seen 2026-11-12, a reload fixed it at once), and an idle page sends
+        // no new one. Say the one thing that fixes it.
+        throw new Error('FastTrack’s login has gone stale in this tab. Reload the page, then press Full catalog again');
+    };
+
+    // 1. Every colourway listed as shippable now, collapsed to styles.
+    const styles = new Set();
+    let total = null;
+    for (let start = 0; start < 5000; start += 100) {
+        const page = await call('/api/v2/products/search', { accountId: account, start, num: 100, preset: 'now' });
+        total = page.total;
+        for (const p of page.products || []) { const st = String(p.productId || '').slice(0, 6); if (/^\d{6}$/.test(st)) styles.add(st); }
+        if (!page.products || page.products.length < 100 || start + 100 >= total) break;
+    }
+    if (!styles.size) throw new Error('FastTrack listed no styles');
+
+    // 2. Retail prices, 20 styles a call.
+    const list = [...styles];
+    const retail = {};
+    for (let i = 0; i < list.length; i += 20) {
+        const batch = list.slice(i, i + 20);
+        const entries = await call('/api/v2/prices/api/prices/' + account, batch.map((s) => ({ brandId: 'brooks', productId: s })));
+        const byStyle = {};
+        for (const e of entries || []) { const st = String((e.key && e.key.productId) || '').slice(0, 6); (byStyle[st] = byStyle[st] || []).push(e); }
+        for (const s of batch) retail[s] = brooksRetailPrice(byStyle[s], Date.now());
+    }
+
+    // 3. Stock, one style at a time, gently.
+    const todo = o.maxStyles > 0 ? list.slice(0, o.maxStyles) : list;
+    const records = [];
+    const failed = [];
+    for (let i = 0; i < todo.length; i++) {
+        if (o.onProgress) o.onProgress(i + 1, todo.length);
+        try {
+            const product = await call(`/api/products/brooks/${todo[i]}/${account}/combined/slim`);
+            records.push(...brooksCatalogRecords(product, retail[todo[i]], Date.now()));
+        } catch (e) {
+            failed.push(todo[i] + ' (' + e.message + ')');
+        }
+    }
+    if (failed.length) {
+        throw new Error(`REFUSED: ${failed.length} of ${todo.length} styles could not be read (${failed.slice(0, 5).join(', ')}${failed.length > 5 ? ', ...' : ''}). A file missing styles would zero real stock`);
+    }
+    return { records, styles: todo.length };
+}
+
+
 // ============================================================================
 // AUTO-CLICKER: Automatically clicks "At once" buttons to reveal inventory
 // ============================================================================
@@ -859,62 +930,12 @@ class EnhancedBrooksInventoryExtractor {
             let account = '9284';
             try { const a = JSON.parse(localStorage.getItem('accountId')); if (/^\d+$/.test(String(a))) account = String(a); } catch (e) { /* keep default */ }
 
-            const call = async (url, body) => {
-                for (let attempt = 0; attempt < 3; attempt++) {
-                    const r = await fetch(url, {
-                        method: body ? 'POST' : 'GET',
-                        headers: { Authorization: this.brooksToken, Accept: 'application/json', 'Content-Type': 'application/json' },
-                        body: body ? JSON.stringify(body) : undefined
-                    });
-                    if (r.ok) return r.json();
-                    if (r.status === 401) { await new Promise((res) => setTimeout(res, 4000)); continue; }   // token rotated, the page sends a new one
-                    if (r.status === 429 || r.status >= 500) { await new Promise((res) => setTimeout(res, 2000 * (attempt + 1))); continue; }
-                    throw new Error('HTTP ' + r.status);
-                }
-                // Three 401s in a row: the token went stale while the tab sat
-                // idle (seen 2026-11-12, a reload fixed it at once), and an
-                // idle page sends no new one. Say the one thing that fixes it.
-                throw new Error('FastTrack’s login has gone stale in this tab. Reload the page, then press Full catalog again');
-            };
-
-            // 1. Every colourway listed as shippable now, collapsed to styles.
-            const styles = new Set();
-            let total = null;
-            for (let start = 0; start < 5000; start += 100) {
-                const page = await call('/api/v2/products/search', { accountId: account, start, num: 100, preset: 'now' });
-                total = page.total;
-                for (const p of page.products || []) { const st = String(p.productId || '').slice(0, 6); if (/^\d{6}$/.test(st)) styles.add(st); }
-                if (!page.products || page.products.length < 100 || start + 100 >= total) break;
-            }
-            if (!styles.size) { say('Full catalog: FastTrack listed no styles. No file was written.', true); return; }
-
-            // 2. Retail prices, 20 styles a call.
-            const list = [...styles];
-            const retail = {};
-            for (let i = 0; i < list.length; i += 20) {
-                const batch = list.slice(i, i + 20);
-                const entries = await call('/api/v2/prices/api/prices/' + account, batch.map((s) => ({ brandId: 'brooks', productId: s })));
-                const byStyle = {};
-                for (const e of entries || []) { const st = String((e.key && e.key.productId) || '').slice(0, 6); (byStyle[st] = byStyle[st] || []).push(e); }
-                for (const s of batch) retail[s] = brooksRetailPrice(byStyle[s], Date.now());
-            }
-
-            // 3. Stock, one style at a time, gently.
-            const records = [];
-            const failed = [];
-            for (let i = 0; i < list.length; i++) {
-                if (btn) btn.textContent = `Reading ${i + 1} of ${list.length}...`;
-                try {
-                    const product = await call(`/api/products/brooks/${list[i]}/${account}/combined/slim`);
-                    records.push(...brooksCatalogRecords(product, retail[list[i]], Date.now()));
-                } catch (e) {
-                    failed.push(list[i] + ' (' + e.message + ')');
-                }
-            }
-            if (failed.length) {
-                say(`Full catalog REFUSED: ${failed.length} of ${list.length} styles could not be read (${failed.slice(0, 5).join(', ')}${failed.length > 5 ? ', ...' : ''}). A file missing styles would zero real stock, so no file was written. Try again in a minute.`, true);
-                return;
-            }
+            const { records, styles: styleCount } = await brooksFullCatalogSweep({
+                getToken: () => this.brooksToken,
+                account,
+                onProgress: (i, n) => { if (btn) btn.textContent = `Reading ${i} of ${n}...`; }
+            });
+            const list = { length: styleCount };
             if (!records.length) { say('Full catalog: no style had stock. No file was written.', true); return; }
 
             // 4. One file, written by the background's own CSV builder.
