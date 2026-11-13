@@ -28,6 +28,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { check, rowsFromCSV, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
+import { uploadFeed } from './feed-upload.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-brooks-profile');
@@ -90,9 +91,11 @@ export function extensionFunctions(root = ROOT) {
   return ['brooksNowQuantity', 'brooksFeedQuantity', 'brooksFeedGender', 'brooksRetailPrice', 'brooksCatalogRecords', 'brooksFullCatalogSweep'].map(take).join('\n');
 }
 
+let lastJudgement = null;
 function judge(csv, file, accept) {
   const baseline = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : null;
   const res = check(rowsFromCSV(csv), baseline);
+  lastJudgement = { verdict: res.ok ? 'PASS' : 'BLOCKED', reasons: res.blocks.concat(res.warnings), rows: res.summary.rows, units: res.summary.units };
   console.log('');
   res.warnings.forEach((w) => console.log('  WARN   ' + w));
   res.blocks.forEach((b) => console.log('  BLOCK  ' + b));
@@ -205,7 +208,9 @@ async function main() {
     units + ' units, in ' + Math.round((Date.now() - t0) / 1000) + 's');
   console.log('csv      : ' + out);
   if (SMOKE) { console.log('\nBLOCKED. Smoke test of ' + SMOKE + ' styles: never import this file, every other style would read as removed.'); verdictReached = true; return 0; }
-  return judge(csv, out, has('--accept'));
+  const code = judge(csv, out, has('--accept'));
+  await uploadFeed('brooks', csv, { ...lastJudgement, file: path.basename(out), styles: new Set(records.map((r) => String(r.styleId).slice(0, 6))).size, capturedAt: new Date().toISOString() });
+  return code;
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);

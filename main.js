@@ -301,6 +301,9 @@ var BrandConverter = {
 
     // ========== GENERIC FILE HANDLING ==========
     handleFile: function(brand, file) {
+        // A file loaded by hand replaces any scheduled one, and with it the
+        // scheduled verdict (FeedsClient sets .feed again after its own load).
+        this.brands[brand].feed = null;
         this.brands[brand].file = file;
         document.getElementById(brand + '-filename').textContent = file.name;
         document.getElementById(brand + '-uploaded').style.display = 'flex';
@@ -832,9 +835,18 @@ function writeAllInventory() {
     var done = function () { if (btn) btn.disabled = false; };
     if (typeof CatalogClient === 'undefined' || typeof CatalogClient.setInventory !== 'function') { setMsg('Live catalog is not available.', 'err'); return; }
 
-    var items = [], brands = [], heldBack = [];
+    var items = [], brands = [], heldBack = [], blockedFeeds = [];
     BRAND_ORDER.forEach(function (brand) {
         var cb = document.getElementById('select-' + brand);
+        // A SCHEDULED FILE THE GUARDRAIL BLOCKED IS NEVER WRITTEN FROM HERE.
+        // FeedsClient loads it so a person can see it, but the verdict exists
+        // because something about the file is wrong. Dropping a file by hand
+        // clears this, so a person can always override after looking.
+        var feed = BrandConverter.brands[brand].feed;
+        if (cb && cb.checked && feed && feed.verdict === 'BLOCKED') {
+            blockedFeeds.push(BRAND_CONFIG[brand] ? BRAND_CONFIG[brand].name || brand : brand);
+            return;
+        }
         if (cb && cb.checked && BrandConverter.brands[brand].inventory.length > 0) {
             var inv = BrandConverter.brands[brand].inventory.slice();
             var config = BRAND_CONFIG[brand];
@@ -884,7 +896,15 @@ function writeAllInventory() {
             + 'and import it instead: the CSV carries the Location column. The remaining '
             + items.length + ' Needham row(s) can still be written.', 'warn');
     }
+    if (blockedFeeds.length && !items.length) {
+        setMsg('<strong>Not written.</strong> The scheduled file for ' + esc(blockedFeeds.join(', ')) + ' was BLOCKED by the guardrail '
+            + '(the reason is on the card). Drop a file by hand to override after checking it.', 'err');
+        return;
+    }
     if (!items.length) { setMsg('No loaded brands selected. Drop a supplier file and tick the brand first.', 'err'); return; }
+    if (blockedFeeds.length) {
+        setMsg('<strong>' + esc(blockedFeeds.join(', ')) + ' skipped:</strong> its scheduled file was BLOCKED by the guardrail. The other brands continue.', 'warn');
+    }
 
     if (!CatalogClient.hasWriteSecret()) {
         var s = window.prompt('Paste the write secret to write inventory to Shopify.\n(Stored in this browser only, never in the page.)');

@@ -38,6 +38,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { check, rowsFromCSV, POD_STYLES, POD_LOCATION, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
+import { uploadFeed } from './feed-upload.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-scrape-profile');
@@ -238,10 +239,12 @@ const FULL_BASELINE = () => path.join(ROOT, 'inventory-guardrail-baseline-fullca
 // Judge a full catalog CSV and, with accept, record it as the baseline. The
 // one block accept may clear is the missing baseline, exactly as the
 // guardrail's own --accept: a first run has nothing to compare against.
+let lastJudgement = null;
 function judgeFullCatalog(csv, file, accept) {
   const BASE = FULL_BASELINE();
   const baseline = fs.existsSync(BASE) ? JSON.parse(fs.readFileSync(BASE, 'utf8')) : null;
   const res = check(rowsFromCSV(csv), baseline);
+  lastJudgement = { verdict: res.ok ? 'PASS' : 'BLOCKED', reasons: res.blocks.concat(res.warnings), rows: res.summary.rows, units: res.summary.units };
   console.log('');
   res.warnings.forEach((w) => console.log('  WARN   ' + w));
   res.blocks.forEach((b) => console.log('  BLOCK  ' + b));
@@ -359,7 +362,11 @@ async function runFullCatalog() {
     verdictReached = true;
     return 0;
   }
-  return judgeFullCatalog(csv, out, has('--accept'));
+  const code = judgeFullCatalog(csv, out, has('--accept'));
+  // Hand the file to the inventory tool, PASS or BLOCKED: the card shows the
+  // verdict and keeps Write off on a blocked file. Never fatal.
+  await uploadFeed('asics', csv, { ...lastJudgement, file: path.basename(out), styles, capturedAt: new Date().toISOString() });
+  return code;
 }
 
 // --------------------------------------------------------- the keep-alive --

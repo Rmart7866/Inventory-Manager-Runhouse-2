@@ -45,6 +45,7 @@ import { handleResetOptions, handleResetCollections, handleResetScan, handleRese
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
 import { handleSalesRun, handleSalesStatus, handleSalesFund, BUILDER_CATALOG } from './teamreq-sales.js';
+import { putFeed, getFeed } from './feeds.js';
 import { handleGoLive } from './teamreq-live.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -405,6 +406,27 @@ async function handleApparelStatus(request, env) {
 // `since` is a shop-local date, YYYY-MM-DD, defaulting to 28 days back. The
 // window is capped because this pages every order in it and a careless
 // since=2020-01-01 would be a very long request.
+// SCHEDULED SCRAPER FILES (feeds.js). The runners upload the newest CSV and
+// its verdict; the inventory tool loads it into the brand card. KV only,
+// never Shopify, which is why these are not forWrite.
+async function handleFeedUpload(request, env) {
+  const url = new URL(request.url);
+  const brand = String(url.searchParams.get('brand') || '').toLowerCase();
+  let meta = {};
+  try { meta = JSON.parse(url.searchParams.get('meta') || '{}'); } catch (e) { return json({ error: 'meta is not JSON' }, 400, request, env); }
+  const r = await putFeed(env, brand, await request.text(), meta);
+  return json(r.body, r.status, request, env);
+}
+async function handleFeedLatest(request, env) {
+  const url = new URL(request.url);
+  const r = await getFeed(env, String(url.searchParams.get('brand') || '').toLowerCase(), url.searchParams.get('csv') === '1');
+  if (r.raw != null) {
+    return new Response(r.raw, { status: 200, headers: { 'Content-Type': r.type, 'Cache-Control': 'private, max-age=0',
+      'X-Feed-Meta': encodeURIComponent(JSON.stringify(r.meta)), ...corsHeaders(request, env) } });
+  }
+  return json(r.body, r.status, request, env);
+}
+
 async function handleDropshipSales(request, env) {
   const url = new URL(request.url);
   const tz = 'America/New_York';
@@ -489,6 +511,10 @@ export default {
       // A READ, so forWrite stays false, but needsWriteSecret is independent of
       // it and revenue should not sit behind the public bundle token alone.
       '/sales/dropship': { handler: handleDropshipSales, forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      // Scheduled scraper files, see feeds.js. Write secret on both: stock and
+      // retail only, but not for the public bundle token.
+      '/feeds/upload': { handler: handleFeedUpload, forWrite: false, needsWriteSecret: true, methods: ['POST'] },
+      '/feeds/latest': { handler: handleFeedLatest, forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       // Stage 4 WRITE. forWrite:true, so auth.js refuses it in bearer mode (501).
       // Inert in production until AUTH_MODE becomes a real identity/secret gate.
       '/products': { handler: handleCreateProducts, forWrite: true, methods: ['POST'] },
