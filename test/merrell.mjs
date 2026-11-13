@@ -73,10 +73,10 @@ if (!XLSX) {
   console.log('\nAgainst the real export');
   const buf = fs.readFileSync(FILE);
   const recs = await C.parseExcel({ arrayBuffer: async () => buf });
-  check('records parsed', recs.length > 900, recs.length);
+  check('records parsed', recs.length > 400, recs.length);   // the At-Once catalog was ~970 runs in Oct, ~550 by Nov 2026
   const g = recs.reduce((m, r) => { m[r.genderType] = (m[r.genderType] || 0) + 1; return m; }, {});
   console.log('    gender split:', JSON.stringify(g));
-  check("both men's and women's are found", g.men > 300 && g.women > 300, g);
+  check("both men's and women's are found", g.men > 150 && g.women > 150, g);
   check('every record has a style number', recs.every((r) => r.styleNumber));
   check('every record has sizes', recs.every((r) => r.sizes.length));
   check('every size carries a UPC', recs.every((r) => r.sizes.every((s) => s.upc)));
@@ -95,7 +95,7 @@ if (!XLSX) {
   check('gendered sizes are plain numbers', gen.every((r) => r.sizes.every((s) => /^\d+\.\d$/.test(s.size))));
 
   const inv = await C.convert({ arrayBuffer: async () => buf });
-  check('convert produced rows', inv.length > 10000, inv.length);
+  check('convert produced rows', inv.length > 5000, inv.length);
   check('every row is at Needham', inv.every((r) => r.Location === 'Needham'));
   check('every row has a SKU', inv.every((r) => r.SKU));
   check('every row has a barcode', inv.every((r) => r.Barcode));

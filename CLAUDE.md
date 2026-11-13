@@ -158,6 +158,16 @@ node tools/brooks-headless-run.mjs --smoke 3     # whole path, 3 styles, always 
 node tools/brooks-headless-run.mjs               # the real sweep
 node tools/brooks-headless-run.mjs --accept-file <csv>   # record a checked file as the baseline
 
+# SAUCONY + MERRELL, every morning (2026-11-13). Both Wolverine brands, one
+# shared login (orderwwwbrands.com, "Envoy"). The At-Once "CatalogUPCs" Excel
+# staff download by hand is ONE form POST per brand (/api/b2b/products/excel,
+# formJSON with includeInventory ON), about 20 seconds each, no per-style
+# sweep. Verified against the hand downloads through the real converters.
+# Writes nothing to Shopify. Own baselines per brand, gitignored.
+node tools/wolverine-headless-run.mjs --setup       # log the profile in, once
+node tools/wolverine-headless-run.mjs               # both brands: download, convert, judge
+node tools/wolverine-headless-run.mjs --accept-file <xlsx> --brand saucony|merrell
+
 # Scheduled files reach the inventory tool by themselves: each runner uploads
 # its CSV and verdict (tools/feed-upload.mjs -> worker/src/feeds.js, write
 # secret from ~/.runhouse-write-secret) and feeds-client.js loads the newest

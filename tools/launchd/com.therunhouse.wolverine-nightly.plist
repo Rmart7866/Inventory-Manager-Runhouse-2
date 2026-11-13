@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Saucony + Merrell At-Once files, every morning at 5:30, so the day starts on
+  fresh numbers. One Excel request per brand (about 45 seconds for both); it
+  saves CatalogUPCs-... nightly-<stamp>.xlsx to ~/Downloads with a verdict in
+  the log and writes nothing to Shopify.
+  Install:
+    cp tools/launchd/com.therunhouse.wolverine-nightly.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.therunhouse.wolverine-nightly.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.therunhouse.wolverine-nightly.plist
+    rm ~/Library/LaunchAgents/com.therunhouse.wolverine-nightly.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.therunhouse.wolverine-nightly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/ryanmartin/.nvm/versions/node/v22.20.0/bin/node</string>
+    <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/tools/wolverine-headless-run.mjs</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>5</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-wolverine-nightly.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-wolverine-nightly.log</string>
+</dict>
+</plist>
