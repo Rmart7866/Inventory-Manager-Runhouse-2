@@ -98,6 +98,7 @@ node scrapers/asics/test/color-code-digits.mjs # apparel colour codes are TWO di
 node scrapers/asics/test/readiness-gate.mjs   # the gate must open on a garment, not just a shoe
 node scrapers/asics/test/delivery-windows.mjs # one delivery window, not six concatenated
 node scrapers/asics/test/singlet-api-only.mjs # singlets read the API and never the capped grid
+node scrapers/asics/test/rate-lockout.mjs     # a 429 asking for hours stops the sweep, no retry grind
 node scrapers/on/test/reorder-filter.mjs      # ON: only stock the re-order catalog says you can buy
 node scrapers/on/test/sku-size.mjs            # ON SKUs: apparel sizes cannot put a space in a SKU
 node scrapers/on/test/images.mjs              # ON photos: lookup only, gallery rows in the product CSV
@@ -137,6 +138,13 @@ node tools/asics-headless-run.mjs --full-catalog --accept-file <csv>  # record a
 # saved: the profile kept the previous login, already retired. ASICS died 2h
 # after the smoke test, Brooks within the hour. tools/headless-close.mjs closes
 # through the browser instead. Reproduced and pinned by test/headless-close.mjs.
+# ASICS HAS A REQUEST QUOTA, AND ONE NIGHT OF THE FULL CATALOG EXCEEDS IT
+# (2026-11-13). About 1,000 styles in, around 3 to 4 AM, every stock call
+# answered 429 "Too Many Attempts." with Retry-After 17954, five hours. The
+# retry pass then ground on until past 8 AM. The sweep now stops at the first
+# long Retry-After and refuses with the time it lifts (rate-lockout.mjs). The
+# quota itself is unsolved: the run needs splitting or slowing, an owner call.
+# If the quota is per account it also blocks staff scrapes until it lifts.
 node tools/asics-headless-run.mjs --keepalive   # one visit; log ~/Library/Logs/runhouse-asics-keepalive.log
 # launchd: tools/launchd/com.therunhouse.asics-keepalive.plist. Installed
 # 2026-11-12 pointing at the builder-hero-mockup worktree until merged.

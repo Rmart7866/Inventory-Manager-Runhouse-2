@@ -2300,7 +2300,23 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
 
     async apiGet(url, attempt = 0) {
         await this.apiWait();
+        const C = EnhancedASICSInventoryExtractor;
+        if (C._lockedUntil) throw new Error(C.lockoutMessage());
         const res = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } });
+
+        // A 429 WITH A RETRY-AFTER OF HOURS IS A LOCKOUT, NOT A THROTTLE.
+        // Measured 2026-11-13: the overnight full catalog read about 1,000
+        // styles, then every stock call answered 429 "Too Many Attempts." with
+        // Retry-After 17954, five hours. Braking and retrying cannot get past
+        // that, and the retry pass spent three hours doing exactly that before
+        // the run could refuse. So stop at once and say until when.
+        if (res.status === 429) {
+            const wait = Number(res.headers && res.headers.get && res.headers.get('retry-after'));
+            if (wait > C.LOCKOUT_SECONDS) {
+                C._lockedUntil = Date.now() + wait * 1000;
+                throw new Error(C.lockoutMessage());
+            }
+        }
 
         // 429 AND 202 BOTH MEAN SLOW DOWN, and 202 is the dangerous one.
         //
@@ -2559,11 +2575,13 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         EnhancedASICSInventoryExtractor._throttleHits = 0;
         EnhancedASICSInventoryExtractor._gapMs = EnhancedASICSInventoryExtractor.API_MIN_GAP_MS;
         EnhancedASICSInventoryExtractor._lastStart = 0;
+        EnhancedASICSInventoryExtractor._lockedUntil = 0;
         EnhancedASICSInventoryExtractor._okStreak = 0;
 
         const failedCodes = [];
         const worker = async () => {
             while (queue.length) {
+                if (EnhancedASICSInventoryExtractor._lockedUntil) break;   // locked out: stop, see apiGet
                 const code = queue.shift();
                 const colorways = byStyle.get(code);
                 const colorCodes = [...new Set(colorways.map((c) => c.colorCode))].map((c) => c + ':').join(',');
@@ -2590,6 +2608,12 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         const pool = Math.min(EnhancedASICSInventoryExtractor.API_CONCURRENCY, queue.length) || 1;
         await Promise.all(Array.from({ length: pool }, () => worker()));
 
+        // A lockout ends the run here, before a retry pass that cannot succeed.
+        if (EnhancedASICSInventoryExtractor._lockedUntil) {
+            throw new Error(EnhancedASICSInventoryExtractor.lockoutMessage() + ' ' + (done - failed) + ' of ' + styles.length +
+                ' styles were read before it. No file: the missing styles would read as removed and zero their stock.');
+        }
+
         // FULL MODE: one more pass over whatever failed, slowly, then ZERO
         // tolerance. A slow night is fine; a file missing a style zeroes it.
         if (FULL && failedCodes.length) {
@@ -2599,6 +2623,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
             queue.push(...retry);
             EnhancedASICSInventoryExtractor._gapMs = EnhancedASICSInventoryExtractor.API_MAX_GAP_MS / 2;
             await Promise.all(Array.from({ length: Math.min(2, queue.length) || 1 }, () => worker()));
+            if (EnhancedASICSInventoryExtractor._lockedUntil) throw new Error(EnhancedASICSInventoryExtractor.lockoutMessage() + ' The retry pass ran into it. No file.');
             if (failed) {
                 throw new Error(failed + ' of ' + styles.length + ' ASICS styles still failed after a retry (' +
                     failedCodes.slice(0, 10).join(', ') + (failedCodes.length > 10 ? ', ...' : '') +
@@ -2679,6 +2704,16 @@ EnhancedASICSInventoryExtractor.API_CONCURRENCY = 4;
 // Milliseconds between request STARTS, adaptive between these two bounds.
 EnhancedASICSInventoryExtractor.API_MIN_GAP_MS = 700;
 EnhancedASICSInventoryExtractor.API_MAX_GAP_MS = 8000;
+// A 429 asking for more than ten minutes is ASICS's request quota locking the
+// account, not a throttle to brake through. See apiGet.
+EnhancedASICSInventoryExtractor.LOCKOUT_SECONDS = 600;
+EnhancedASICSInventoryExtractor._lockedUntil = 0;
+EnhancedASICSInventoryExtractor.lockoutMessage = function () {
+    const until = new Date(this._lockedUntil);
+    const hhmm = until.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return 'ASICS RATE LIMIT: the B2B portal refuses stock calls until about ' + hhmm +
+        ' ("Too Many Attempts"). The account used up its request quota; nothing more can be read before then.';
+};
 
 // STYLES THE STORE CARRIES, which the filters are never allowed to drop. Taken
 // from the 2026-10-06 scrape, which is what the Firestore B2B link list
