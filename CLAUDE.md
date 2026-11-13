@@ -178,6 +178,16 @@ node tools/puma-headless-run.mjs --setup            # log the profile in, once
 node tools/puma-headless-run.mjs                    # download, convert, judge
 node tools/puma-headless-run.mjs --accept-file <xlsx>
 
+# ALTRA, every morning (2026-11-13). Same platform as Puma, so Puma and Altra
+# are now two configs for ONE shared runner, tools/b2b-ats-run.mjs. Altra's
+# file comes from a SEASONAL catalog: the "<Season> <YY> (US)" one classified
+# ATS ("Fall 26 (US)" today; the next season turns ATS by itself). Verified
+# against the 6 Nov hand file: the same 6,632 sizes. New Balance is the likely
+# third config (its export is described as identical).
+node tools/altra-headless-run.mjs --setup          # log the profile in, once
+node tools/altra-headless-run.mjs                  # download, convert, judge
+node tools/altra-headless-run.mjs --accept-file <xlsx>
+
 # HOKA, every morning (2026-11-13). HOKA EMAILS its ATS report instead of
 # handing it over: GET .../draftOrders/report/atsReport (token from the
 # portal, sent as authorization Bearer AND _t) queues it, DeckersB2B mails a

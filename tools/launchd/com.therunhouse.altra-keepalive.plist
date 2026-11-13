@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Altra B2B keep-alive, every hour at :40 (ASICS uses :30,
+  Brooks :45, Saucony + Merrell :15, Puma :20, HOKA :25, ON :35). One visit keeps the login
+  fresh; logs in nothing, notifies when the login is already gone. How long an
+  idle Altra session lives is not measured yet; this makes it not matter.
+  Install:
+    cp tools/launchd/com.therunhouse.altra-keepalive.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.therunhouse.altra-keepalive.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.therunhouse.altra-keepalive.plist
+    rm ~/Library/LaunchAgents/com.therunhouse.altra-keepalive.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.therunhouse.altra-keepalive</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/ryanmartin/.nvm/versions/node/v22.20.0/bin/node</string>
+    <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/tools/altra-headless-run.mjs</string>
+    <string>--keepalive</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Minute</key>
+    <integer>40</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-altra-keepalive.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-altra-keepalive.log</string>
+</dict>
+</plist>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Altra ATS file (current season), every morning at 5:45, so the day starts on
+  fresh numbers. One request, about ten seconds; it
+  saves Altra ATS nightly-<stamp>.xlsx to ~/Downloads with a verdict in
+  the log and writes nothing to Shopify.
+  Install:
+    cp tools/launchd/com.therunhouse.altra-nightly.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.therunhouse.altra-nightly.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.therunhouse.altra-nightly.plist
+    rm ~/Library/LaunchAgents/com.therunhouse.altra-nightly.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.therunhouse.altra-nightly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/ryanmartin/.nvm/versions/node/v22.20.0/bin/node</string>
+    <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/tools/altra-headless-run.mjs</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>5</integer>
+    <key>Minute</key>
+    <integer>45</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-altra-nightly.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-altra-nightly.log</string>
+</dict>
+</plist>
