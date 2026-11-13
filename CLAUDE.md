@@ -81,6 +81,7 @@ node test/image-keys.mjs                      # the sku -> colorway key per bran
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
 node test/method-wiring.mjs                   # every this.x() call resolves, whole repo
 node test/headless-close.mjs                  # headless runners SAVE the login: close, never kill
+node test/on-headless.mjs                     # ON night runner: the cut point, shoes AND apparel, Needham by name
 node extensions/order-prep/test/xlsx.mjs        # order prep: the upload sheet opens, UPCs stay text
 node extensions/order-prep/test/never-submits.mjs # order prep: every click goes through the no-submit guard
 node extensions/order-prep/test/on.mjs            # order prep, ON: our line to ON's grid, and the guard
@@ -187,6 +188,16 @@ node tools/puma-headless-run.mjs --accept-file <xlsx>
 node tools/hoka-headless-run.mjs --setup            # log the profile in, once
 node tools/hoka-headless-run.mjs                    # ask, wait for the link, download, judge
 node tools/hoka-headless-run.mjs --accept-file <xlsx>
+
+# ON, every morning (2026-11-13). The scraper already reads ON's API, so this
+# loads scrapers/on/content.js (cut at "// Bootstrapping") in a logged-in
+# Backstage page and runs its own fetchInventoryFromApi: about seven requests,
+# ten seconds. Shoes AND apparel, as staff run it (a footwear-only file would
+# zero every garment), the Needham account pinned BY NAME (the login holds
+# four), the images file written too, and no page fallback.
+node tools/on-headless-run.mjs --setup              # log the profile in, once
+node tools/on-headless-run.mjs                      # capture, save, judge
+node tools/on-headless-run.mjs --accept-file <csv>
 
 # Scheduled files reach the inventory tool by themselves: each runner uploads
 # its CSV and verdict (tools/feed-upload.mjs -> worker/src/feeds.js, write
