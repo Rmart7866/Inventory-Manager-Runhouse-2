@@ -21,7 +21,7 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- 2. wiring, cheap and always runs
-for (const f of ['tools/asics-headless-run.mjs', 'tools/brooks-headless-run.mjs', 'tools/wolverine-headless-run.mjs', 'tools/puma-headless-run.mjs']) {
+for (const f of ['tools/asics-headless-run.mjs', 'tools/brooks-headless-run.mjs', 'tools/wolverine-headless-run.mjs', 'tools/puma-headless-run.mjs', 'tools/hoka-headless-run.mjs']) {
   const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
   const lines = src.split('\n');
   const bad = lines.map((l, i) => [l, i + 1]).filter(([l]) =>

@@ -35,3 +35,19 @@ export async function uploadFeed(brand, csv, meta) {
     return true;
   } catch (e) { console.log('upload   : FAILED ' + e.message); return false; }
 }
+
+// The newest emailed report links for a brand (HOKA's ATS report, posted by
+// the needham@ Apps Script), newest first. Behind the write secret because a
+// link opens without a login. Returns [] on any failure, never throws: the
+// caller treats "no link yet" and "could not ask" the same, it keeps waiting.
+export async function reportLinks(brand) {
+  if (!fs.existsSync(SECRET_FILE)) return [];
+  const secret = fs.readFileSync(SECRET_FILE, 'utf8').trim();
+  try {
+    const r = await fetch(WORKER + '/feeds/link?brand=' + encodeURIComponent(brand), {
+      headers: { Authorization: 'Bearer ' + CATALOG_TOKEN, 'X-Write-Secret': secret }, signal: AbortSignal.timeout(30000),
+    });
+    if (!r.ok) return [];
+    return ((await r.json()).links) || [];
+  } catch (e) { return []; }
+}

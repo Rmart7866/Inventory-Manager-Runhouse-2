@@ -177,6 +177,17 @@ node tools/puma-headless-run.mjs --setup            # log the profile in, once
 node tools/puma-headless-run.mjs                    # download, convert, judge
 node tools/puma-headless-run.mjs --accept-file <xlsx>
 
+# HOKA, every morning (2026-11-13). HOKA EMAILS its ATS report instead of
+# handing it over: GET .../draftOrders/report/atsReport (token from the
+# portal, sent as authorization Bearer AND _t) queues it, DeckersB2B mails a
+# link to needham@ (about a minute), the needham@ Apps Script posts the link
+# to the Worker (/feeds/link, allowlisted to Deckers' report bucket) and this
+# runner downloads it. A real link opens without a login and the file has
+# wholesale prices: NEVER commit one, tests use a made up link.
+node tools/hoka-headless-run.mjs --setup            # log the profile in, once
+node tools/hoka-headless-run.mjs                    # ask, wait for the link, download, judge
+node tools/hoka-headless-run.mjs --accept-file <xlsx>
+
 # Scheduled files reach the inventory tool by themselves: each runner uploads
 # its CSV and verdict (tools/feed-upload.mjs -> worker/src/feeds.js, write
 # secret from ~/.runhouse-write-secret) and feeds-client.js loads the newest

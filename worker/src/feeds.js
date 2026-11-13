@@ -67,3 +67,42 @@ export async function getFeed(env, brand, withCsv) {
   if (!csv) return { status: 404, body: { error: 'file missing for ' + brand } };
   return { status: 200, raw: csv, type: 'text/csv; charset=utf-8', meta };
 }
+
+// ---------------------------------------------------------------------------
+// REPORT LINKS, 2026-11-13. HOKA does not hand its ATS report over: the
+// portal builds it and EMAILS a link (DeckersB2B <no-reply@deckersb2b.deckers.com>,
+// subject "<Season> ATS Report") to needham@, measured at about a minute.
+// The needham@ Apps Script (tools/tracking-mailbox.gs) posts that link here;
+// tools/hoka-headless-run.mjs asks for the report, then reads the newest link
+// from here and downloads it. The link opens without a login, so it is held
+// behind the write secret like the files themselves.
+//
+// AN ALLOWLIST, NOT A MATCH ON ANY URL. Only Deckers' own report bucket is
+// accepted, so a forged or odd email can never point the nightly runner at
+// some other download.
+export const LINK_BRANDS = ['hoka'];
+const linkKey = (b) => 'feedlink:' + b;
+const HOKA_LINK = /^https:\/\/s3\.[a-z0-9-]+\.amazonaws\.com\/us\.assets\.b2b\.deckers\.com\/company_\d+\/DynamicReports\/[^?#]*ATS_Report[^?#]*\.xlsx$/i;
+
+export function validateLink(brand, url) {
+  if (!LINK_BRANDS.includes(brand)) return { ok: false, error: 'brand must be one of ' + LINK_BRANDS.join(', ') };
+  if (typeof url !== 'string' || url.length > 600) return { ok: false, error: 'url missing or too long' };
+  if (!HOKA_LINK.test(url)) return { ok: false, error: 'not a Deckers DynamicReports ATS_Report link' };
+  return { ok: true };
+}
+
+// Keeps the newest ten, newest first, deduplicated by url.
+export async function putLink(env, brand, url, meta = {}) {
+  const v = validateLink(brand, url);
+  if (!v.ok) return { status: 400, body: { error: v.error } };
+  const list = (await env.CATALOG.get(linkKey(brand), 'json')) || [];
+  if (list.some((x) => x.url === url)) return { status: 200, body: { ok: true, duplicate: true } };
+  const rec = { url, subject: String(meta.subject || '').slice(0, 160), emailedAt: String(meta.emailedAt || ''), receivedAt: new Date().toISOString() };
+  await env.CATALOG.put(linkKey(brand), JSON.stringify([rec].concat(list).slice(0, 10)));
+  return { status: 200, body: { ok: true, link: rec } };
+}
+
+export async function getLinks(env, brand) {
+  if (!LINK_BRANDS.includes(brand)) return { status: 400, body: { error: 'unknown brand' } };
+  return { status: 200, body: { links: (await env.CATALOG.get(linkKey(brand), 'json')) || [] } };
+}

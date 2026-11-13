@@ -45,7 +45,7 @@ import { handleResetOptions, handleResetCollections, handleResetScan, handleRese
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
 import { handleSalesRun, handleSalesStatus, handleSalesFund, BUILDER_CATALOG } from './teamreq-sales.js';
-import { putFeed, getFeed } from './feeds.js';
+import { putFeed, getFeed, putLink, getLinks } from './feeds.js';
 import { handleGoLive } from './teamreq-live.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -427,6 +427,18 @@ async function handleFeedLatest(request, env) {
   return json(r.body, r.status, request, env);
 }
 
+// REPORT LINKS (feeds.js): the needham@ Apps Script posts HOKA's emailed ATS
+// report link; the HOKA runner reads it. KV only, never Shopify.
+async function handleFeedLink(request, env) {
+  const url = new URL(request.url);
+  const brand = String(url.searchParams.get('brand') || '').toLowerCase();
+  if (request.method === 'GET') { const r = await getLinks(env, brand); return json(r.body, r.status, request, env); }
+  let body = {};
+  try { body = await request.json(); } catch (e) { return json({ error: 'body is not JSON' }, 400, request, env); }
+  const r = await putLink(env, brand, body.url, body);
+  return json(r.body, r.status, request, env);
+}
+
 async function handleDropshipSales(request, env) {
   const url = new URL(request.url);
   const tz = 'America/New_York';
@@ -515,6 +527,7 @@ export default {
       // retail only, but not for the public bundle token.
       '/feeds/upload': { handler: handleFeedUpload, forWrite: false, needsWriteSecret: true, methods: ['POST'] },
       '/feeds/latest': { handler: handleFeedLatest, forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      '/feeds/link': { handler: handleFeedLink, forWrite: false, needsWriteSecret: true, methods: ['GET', 'POST'] },
       // Stage 4 WRITE. forWrite:true, so auth.js refuses it in bearer mode (501).
       // Inert in production until AUTH_MODE becomes a real identity/secret gate.
       '/products': { handler: handleCreateProducts, forWrite: true, methods: ['POST'] },

@@ -37,7 +37,36 @@ var TRK_RE = /\b1Z[0-9A-Z]{16}\b|(^|\D)9[2-5]\d{18,20}(\D|$)|fedex|tracking\s*(n
 // backfill(): the last 7, once by hand, to test on recent mail.
 // backfill() also resends mail it sent before, so a fix to the reader can be
 // tried on the same week; the Worker re-reads only what went to a person.
-function run() { sendRecent_(2, 3, false); }
+function run() { sendRecent_(2, 3, false); forwardAtsReports_(); }
+
+// HOKA ATS REPORT LINKS, 2026-11-13. The HOKA portal does not hand its ATS
+// report over; it emails a link here (DeckersB2B <no-reply@deckersb2b.deckers.com>,
+// subject "<Season> ATS Report"), measured at about a minute after the
+// request. The nightly runner (tools/hoka-headless-run.mjs) asks for the
+// report, then reads the link from the Worker. ONLY that sender and subject
+// are searched, and ONLY a link into Deckers' report bucket leaves this
+// mailbox; the Worker checks it against the same allowlist and ignores a
+// link it already has, so running this often is harmless.
+var ATS_QUERY = 'newer_than:2d from:no-reply@deckersb2b.deckers.com subject:"ATS Report"';
+var ATS_LINK_RE = /https:\/\/s3\.[a-z0-9-]+\.amazonaws\.com\/us\.assets\.b2b\.deckers\.com\/company_\d+\/DynamicReports\/[^"'<>\s?#]*ATS_Report[^"'<>\s?#]*\.xlsx/i;
+function forwardAtsReports_() {
+  var secret = PropertiesService.getScriptProperties().getProperty('WRITE_SECRET');
+  if (!secret) return;
+  var out = [];
+  GmailApp.search(ATS_QUERY, 0, 20).forEach(function (thread) {
+    thread.getMessages().forEach(function (m) {
+      var link = (textOf_(m).match(ATS_LINK_RE) || [])[0];
+      if (!link) { out.push('no report link in "' + (m.getSubject() || '').slice(0, 60) + '"'); return; }
+      var res = UrlFetchApp.fetch(WORKER + '/feeds/link?brand=hoka', {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+        headers: { Authorization: 'Bearer ' + CATALOG_TOKEN, 'X-Write-Secret': secret },
+        payload: JSON.stringify({ url: link, subject: m.getSubject() || '', emailedAt: m.getDate().toISOString() }),
+      });
+      out.push(res.getResponseCode() + ' ' + res.getContentText().slice(0, 80));
+    });
+  });
+  if (out.length) Logger.log('HOKA ATS links: ' + out.join(' | '));
+}
 function backfill() { sendRecent_(7, 8, true); }
 
 // The plain text AND the HTML, with each link's address kept. HOKA and
