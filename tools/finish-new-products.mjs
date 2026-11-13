@@ -223,7 +223,11 @@ async function main() {
 
   console.log('2. group tags: refreshing the catalog first');
   await refreshCatalog();
-  runChild('   tag-recent-products', NODE, [path.join(ROOT, 'tools/tag-recent-products.mjs'), '--days', String(DAYS)].concat(APPLY ? ['--apply'] : []), { cwd: ROOT });
+  const tagOut = runChild('   tag-recent-products', NODE, [path.join(ROOT, 'tools/tag-recent-products.mjs'), '--days', String(DAYS)].concat(APPLY ? ['--apply'] : []), { cwd: ROOT });
+  // A product already in a different swatch group is left for a human; the
+  // log tail above would hide those lines, so repeat every one.
+  const conflicts = tagOut.split('\n').filter((l) => /GROUP CONFLICT/.test(l)).map((l) => l.trim());
+  if (conflicts.length) console.log('   NEEDS A HUMAN, two swatch groups would result:\n      ' + conflicts.join('\n      '));
 
   if (fs.existsSync(path.join(STAMP_DIR, 'stamp-specs.mjs'))) {
     const out = runChild('3. stats (stamp-specs, unstamped only)', NODE, ['--env-file=.env', 'stamp-specs.mjs'],

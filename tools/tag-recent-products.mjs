@@ -59,6 +59,14 @@ const VENDOR = arg('--vendor', null);
 // other product created in that year. Add-only makes that survivable rather
 // than correct. A named list touches what was actually asked for.
 const HANDLES_FILE = arg('--handles', null);
+// Products whose computed cw-group differs from the one they already carry;
+// filled by planFor, listed for a human, never written. See planFor.
+const CONFLICTS = [];
+const printConflicts = () => {
+  if (!CONFLICTS.length) return;
+  console.log(`\n${CONFLICTS.length} product(s) already in a DIFFERENT swatch group, left alone for a human:`);
+  for (const c of CONFLICTS) console.log(`   GROUP CONFLICT ${c.handle}: has ${c.has}, computed ${c.computed}`);
+};
 
 const WORKER = 'https://runhouse-inventory-worker.ryan-486.workers.dev';
 const CATALOG_TOKEN = 'rh-cat-9b327c9736d5d17e2794c2c3df934b36';   // read-only, public by construction
@@ -103,7 +111,19 @@ function planFor(p) {
   const has = (t) => tags.indexOf(t) !== -1;
   const add = [];
   if (p.widthTag && !has(p.widthTag)) add.push(p.widthTag);
-  if (p.cwGroup && !has(p.cwGroup)) add.push(p.cwGroup);
+  // ONE GROUP PER PRODUCT. Tagging is add-only, so adding the computed key
+  // beside a different one already there leaves the product in TWO swatch
+  // groups. The nightly finisher did exactly that to 4 of 39 products on
+  // 2026-11-13: three New Balance shoes keyed both "880v15" and
+  // "fresh-foam-x-880v15" (the store already holds both spellings), and an
+  // Addiction GTS 15 whose SKUs are all men's B, narrow, created carrying
+  // "--standard". Which key is right is a human call, so it is listed, never
+  // added.
+  const otherGroup = tags.find((t) => /^cw-group:/.test(t) && t !== p.cwGroup);
+  if (p.cwGroup && !has(p.cwGroup)) {
+    if (otherGroup) CONFLICTS.push({ handle: p.handle, has: otherGroup, computed: p.cwGroup });
+    else add.push(p.cwGroup);
+  }
   const canon = GENDER_TAG[p.gender];
   if (canon && !has(canon)) add.push(canon);
   const wantType = GENDER_TYPE[p.gender];
@@ -169,6 +189,7 @@ async function main() {
     console.log(`      add ${JSON.stringify(pl.add)}${pl.newType ? '  type -> ' + pl.newType : ''}`);
   }
 
+  printConflicts();
   if (!plans.length) return;
   if (!APPLY) { console.log(`\nDRY RUN. Pass --apply to tag these ${plans.length} product(s).`); return; }
 
@@ -203,6 +224,7 @@ async function main() {
   process.stderr.write(' '.repeat(30) + '\r');
   console.log(`\nTagged ${tagged} product(s), ${typed} type fix(es), ${failed} failed.`);
   console.log('Run Refresh in the tool so the catalog picks the new tags up.');
+  printConflicts();
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
