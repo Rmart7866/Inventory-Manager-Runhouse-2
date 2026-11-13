@@ -760,6 +760,18 @@ async function main() {
   } else if (has('--accept')) {
     console.log('NOT recorded as the baseline: a blocked run must not become the new normal.');
   }
+
+  // THE LINK LIST IS THE NIGHTLY ASICS RUN since 2026-11-13 (the full catalog
+  // used up ASICS's request quota), so it hands its file to the inventory
+  // tool the same way: PASS or BLOCKED, and the card keeps Write off on a
+  // blocked file. A --limit run covers part of the list and is never sent,
+  // because every link left out would read in the tool as stock removed.
+  if (!limit) {
+    const reasons = (failures.length || never > 0 ? [failures.length + ' link(s) failed, ' + never + ' never attempted'] : [])
+      .concat(res.blocks, res.warnings);
+    await uploadFeed('asics', csv, { verdict: ok ? 'PASS' : 'BLOCKED', reasons, rows: res.summary.rows, units: res.summary.units,
+      file: path.basename(out), links: todo.length, capturedAt: new Date().toISOString() });
+  }
   return ok ? 0 : 1;
 }
 
