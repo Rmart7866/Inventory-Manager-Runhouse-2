@@ -116,6 +116,7 @@ function judge(brand, csv, file, accept) {
       rows: res.summary.rows, units: res.summary.units, atCapShare: res.summary.atCapShare, cap: res.summary.cap,
       zeroShare: res.summary.zeroShare, groupZeroShare, locations: res.summary.locations }, null, 2));
     console.log('  ' + brand + ' baseline recorded: later runs are judged against ' + path.basename(file) + '.');
+    return true;   // recording it is what was asked, and it succeeded
   } else if (accept) console.log('  NOT recorded as the baseline: a blocked file must not become the new normal.');
   return res.ok;
 }
