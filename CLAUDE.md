@@ -80,6 +80,7 @@ node test/supplier-images.mjs                 # CDN photo keys, URL attach, fold
 node test/image-keys.mjs                      # the sku -> colorway key per brand, the Puma trap
 node test/inventory-guardrail.mjs             # the pre-write gate, calibrated on 6 weeks of real files
 node test/method-wiring.mjs                   # every this.x() call resolves, whole repo
+node test/headless-close.mjs                  # headless runners SAVE the login: close, never kill
 node extensions/order-prep/test/xlsx.mjs        # order prep: the upload sheet opens, UPCs stay text
 node extensions/order-prep/test/never-submits.mjs # order prep: every click goes through the no-submit guard
 node extensions/order-prep/test/on.mjs            # order prep, ON: our line to ON's grid, and the guard
@@ -130,6 +131,12 @@ node tools/asics-headless-run.mjs --full-catalog --accept-file <csv>  # record a
 # So a KEEP-ALIVE visits the dashboard every hour at :30 (never :00, to miss
 # the 1 AM run), logs in nothing, and raises a macOS notification when the
 # session is already gone. It steps aside while a run holds the profile.
+# A HARD KILL WAS LOGGING BOTH PROFILES OUT (found 2026-11-13). Chrome writes
+# cookies in batches, and every runner ended Chrome with kill(), so the cookie
+# ASICS reissues per request and the refresh token FastTrack rotates were never
+# saved: the profile kept the previous login, already retired. ASICS died 2h
+# after the smoke test, Brooks within the hour. tools/headless-close.mjs closes
+# through the browser instead. Reproduced and pinned by test/headless-close.mjs.
 node tools/asics-headless-run.mjs --keepalive   # one visit; log ~/Library/Logs/runhouse-asics-keepalive.log
 # launchd: tools/launchd/com.therunhouse.asics-keepalive.plist. Installed
 # 2026-11-12 pointing at the builder-hero-mockup worktree until merged.

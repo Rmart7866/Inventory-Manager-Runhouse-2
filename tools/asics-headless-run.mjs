@@ -39,6 +39,7 @@ import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { check, rowsFromCSV, POD_STYLES, POD_LOCATION, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 import { uploadFeed } from './feed-upload.mjs';
+import { closeChrome } from './headless-close.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-scrape-profile');
@@ -271,6 +272,10 @@ async function runFullCatalog() {
   if (acceptFile) return judgeFullCatalog(fs.readFileSync(acceptFile, 'utf8'), acceptFile, true);
   let chrome = null;
   const killOwn = () => { if (chrome) { try { chrome.kill(); } catch (e) {} chrome = null; } };
+  // Every normal exit closes through the browser so the reissued login is SAVED;
+  // killOwn stays for the exit and signal handlers, which cannot wait. See
+  // headless-close.mjs for why a kill was logging the profile out.
+  const shutOwn = async () => { const c = chrome; chrome = null; await closeChrome(c, PORT); };
   process.once('exit', killOwn);
   process.once('SIGINT', () => { killOwn(); process.exit(130); });
   process.once('SIGTERM', () => { killOwn(); process.exit(143); });
@@ -302,7 +307,7 @@ async function runFullCatalog() {
   }
   if (/authentication|login|signin/i.test(where)) {
     console.error('SESSION EXPIRED: the profile is logged out of b2b.asics.com. Run --setup, log in, then run again.');
-    verdictReached = true; killOwn(); return 1;
+    verdictReached = true; await shutOwn(); return 1;
   }
 
   const csrc = fs.readFileSync(path.join(ROOT, 'scrapers/asics/content.js'), 'utf8');
@@ -330,8 +335,8 @@ async function runFullCatalog() {
     const s = JSON.parse(r.result.value);
     const line = 'progress : ' + s.d + ' / ' + s.t + ' styles, ' + s.n + ' rows, ' + Math.round((Date.now() - t0) / 60000) + ' min';
     if (line !== last) { console.log(line); last = line; }
-    if (/authentication|login|signin/i.test(s.href)) { console.error('SESSION EXPIRED mid run. No file written.'); verdictReached = true; killOwn(); return 1; }
-    if (s.f) { if (s.e) { console.error('\nREFUSED: ' + s.e + '\nNo file written.'); verdictReached = true; killOwn(); return 1; } break; }
+    if (/authentication|login|signin/i.test(s.href)) { console.error('SESSION EXPIRED mid run. No file written.'); verdictReached = true; await shutOwn(); return 1; }
+    if (s.f) { if (s.e) { console.error('\nREFUSED: ' + s.e + '\nNo file written.'); verdictReached = true; await shutOwn(); return 1; } break; }
   }
 
   // Pull the records out in slices: one CDP reply of tens of thousands of
@@ -343,7 +348,7 @@ async function runFullCatalog() {
     records.push(...JSON.parse(r.result.value));
   }
   try { ws.close(); } catch (e) {}
-  killOwn();
+  await shutOwn();
   if (!records.length) { console.error('Nothing captured. No file written.'); verdictReached = true; return 1; }
 
   let pod = 0;
@@ -392,8 +397,10 @@ async function runKeepAlive() {
       '--no-first-run', '--no-default-browser-check', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
     for (let i = 0; i < 40 && !target; i++) { await wait(300); target = await findExisting(PORT); }
   }
-  const done = (code, msg) => { if (chrome) { try { chrome.kill(); } catch (e) {} } console.log(stamp + '  ' + msg); return code; };
-  if (!target) return done(1, 'FAILED: no browser (is a Chrome window open on ' + PROFILE + '? it holds the lock)');
+  // Close through the browser, never a kill: a kill drops the cookie ASICS just
+  // reissued, and that is what was logging this profile out (headless-close.mjs).
+  const done = async (code, msg) => { await closeChrome(chrome, PORT); console.log(stamp + '  ' + msg); return code; };
+  if (!target) return await done(1, 'FAILED: no browser (is a Chrome window open on ' + PROFILE + '? it holds the lock)');
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((r, j) => { ws.addEventListener('open', r); ws.addEventListener('error', j); });
   const send = cdp(ws);
@@ -415,9 +422,9 @@ async function runKeepAlive() {
     try {
       execFileSync('osascript', ['-e', 'display notification "Run: node tools/asics-headless-run.mjs --setup, and log in" with title "ASICS scraper logged out"']);
     } catch (e) { /* a notification is a courtesy, the log is the record */ }
-    return done(1, 'SESSION EXPIRED: log the profile in again with --setup');
+    return await done(1, 'SESSION EXPIRED: log the profile in again with --setup');
   }
-  return done(0, 'alive: ' + where.replace(/^complete /, ''));
+  return await done(0, 'alive: ' + where.replace(/^complete /, ''));
 }
 
 // ------------------------------------------------------------- the run -----
@@ -487,6 +494,10 @@ async function main() {
   // that escapes the loop, and never the setup window that it did not start.
   let chrome = null;
   const killOwn = () => { if (chrome) { try { chrome.kill(); } catch (e) {} chrome = null; } };
+  // Every normal exit closes through the browser so the reissued login is SAVED;
+  // killOwn stays for the exit and signal handlers, which cannot wait. See
+  // headless-close.mjs for why a kill was logging the profile out.
+  const shutOwn = async () => { const c = chrome; chrome = null; await closeChrome(c, PORT); };
   process.once('exit', killOwn);
   process.once('SIGINT', () => { killOwn(); process.exit(130); });
   process.once('SIGTERM', () => { killOwn(); process.exit(143); });
@@ -683,7 +694,7 @@ async function main() {
   }
 
   try { ws.close(); } catch (e) {}
-  killOwn();
+  await shutOwn();
 
   const succeeded = attempted - failures.length;
   const never = todo.length - attempted;

@@ -29,6 +29,7 @@ import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { check, rowsFromCSV, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 import { uploadFeed } from './feed-upload.mjs';
+import { closeChrome } from './headless-close.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-brooks-profile');
@@ -141,6 +142,10 @@ async function main() {
   }
   let chrome = null;
   const killOwn = () => { if (chrome) { try { chrome.kill(); } catch (e) {} chrome = null; } };
+  // Every normal exit closes through the browser so the reissued login is SAVED;
+  // killOwn stays for the exit and signal handlers, which cannot wait. See
+  // headless-close.mjs for why a kill was logging the profile out.
+  const shutOwn = async () => { const c = chrome; chrome = null; await closeChrome(c, PORT); };
   process.once('exit', killOwn);
   process.once('SIGINT', () => { killOwn(); process.exit(130); });
   process.once('SIGTERM', () => { killOwn(); process.exit(143); });
@@ -171,9 +176,9 @@ async function main() {
     const why = /login/i.test(where) ? 'SESSION EXPIRED: the profile is logged out of FastTrack' : 'FastTrack sent no login token in 45 seconds';
     console.error(stamp0 + '  ' + why + '. Run: node tools/brooks-headless-run.mjs --setup, and log in. No file written.');
     notify('Brooks scraper logged out', 'Run: node tools/brooks-headless-run.mjs --setup, and log in');
-    verdictReached = true; killOwn(); return 1;
+    verdictReached = true; await shutOwn(); return 1;
   }
-  if (KEEPALIVE) { console.log(stamp0 + '  alive: ' + where); verdictReached = true; killOwn(); return 0; }
+  if (KEEPALIVE) { console.log(stamp0 + '  alive: ' + where); verdictReached = true; await shutOwn(); return 0; }
 
   const ev = await send('Runtime.evaluate', { expression: extensionFunctions() + '\n;window.__rhSweep = brooksFullCatalogSweep;' });
   if (ev.exceptionDetails) throw new Error('injecting the sweep: ' + ev.exceptionDetails.text);
@@ -192,14 +197,14 @@ async function main() {
     const s = JSON.parse((await send('Runtime.evaluate', { returnByValue: true, expression: 'JSON.stringify({ d: __RHB.done, t: __RHB.total, f: __RHB.finished, e: __RHB.error })' })).result.value);
     const line = 'progress : ' + s.d + ' / ' + s.t + ' styles, ' + Math.round((Date.now() - t0) / 1000) + 's';
     if (line !== last && (s.d % 50 === 0 || s.f)) { console.log(line); last = line; }
-    if (s.f) { if (s.e) { console.error('\n' + s.e + '. No file written.'); verdictReached = true; killOwn(); return 1; } break; }
-    if (Date.now() - t0 > 30 * 60000) { console.error('\nThe sweep ran past 30 minutes (normal is about 90 seconds). No file written.'); verdictReached = true; killOwn(); return 1; }
+    if (s.f) { if (s.e) { console.error('\n' + s.e + '. No file written.'); verdictReached = true; await shutOwn(); return 1; } break; }
+    if (Date.now() - t0 > 30 * 60000) { console.error('\nThe sweep ran past 30 minutes (normal is about 90 seconds). No file written.'); verdictReached = true; await shutOwn(); return 1; }
   }
   const count = (await send('Runtime.evaluate', { returnByValue: true, expression: '__RHB.records.length' })).result.value;
   const records = [];
   for (let i = 0; i < count; i += 4000) records.push(...JSON.parse((await send('Runtime.evaluate', { returnByValue: true, expression: 'JSON.stringify(__RHB.records.slice(' + i + ',' + (i + 4000) + '))' })).result.value));
   try { ws.close(); } catch (e) {}
-  killOwn();
+  await shutOwn();
   if (!records.length) { console.error('Nothing captured. No file written.'); verdictReached = true; return 1; }
 
   const csv = loadBrooksBackground().convertToBrooksInventoryCSV(records);
