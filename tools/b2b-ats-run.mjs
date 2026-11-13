@@ -120,7 +120,7 @@ export async function runAts(cfg) {
     const marker = 'data:text/html,' + encodeURIComponent('<title>' + L + ' SCRAPER LOGIN</title><body style="margin:0;background:#f97316;color:#111;font:700 34px system-ui;display:grid;place-items:center;height:100vh;text-align:center"><div>' + L + ' SCRAPER LOGIN WINDOW<br><span style="font-size:22px;font-weight:500">Log in to the ' + cfg.label + ' B2B in the NEXT tab of THIS window.<br>Leave the window open; it is closed for you once you are in.</span></div></body>');
     console.log('Opening a SEPARATE Chrome on ' + PROFILE + '. Log into the ' + cfg.label + ' B2B there.');
     spawn(CHROME, ['--user-data-dir=' + PROFILE, '--remote-debugging-port=' + (PORT + 1), '--no-first-run', '--no-default-browser-check',
-      '--new-window', marker, cfg.home], { stdio: 'ignore', detached: true }).unref();
+      '--new-window', marker, cfg.loginUrl || cfg.home], { stdio: 'ignore', detached: true }).unref();
     await wait(4000);
     console.log((await findExisting(PORT + 1)) ? 'confirmed: a separate browser is running on this profile' : 'WARNING: no browser appeared. Quit Chrome and retry.');
     return 0;
@@ -185,7 +185,11 @@ export async function runAts(cfg) {
     const cats = await (await fetch('/api/catalogs', { credentials: 'include', headers: { Accept: 'application/json' } })).json();
     const live = cats.filter((c) => !c.archived);
     let cat;
-    if (rule.name) cat = live.find((c) => c.name === rule.name);
+    // BY ID: New Balance's drop ship catalog does not appear in the list at
+    // all, yet answers when asked for by id (2026-11-13). If NB replaces it,
+    // the file request below fails and the run refuses; it never falls back.
+    if (rule.id) cat = { _id: rule.id, name: rule.label || rule.id };
+    else if (rule.name) cat = live.find((c) => c.name === rule.name);
     else {
       const re = new RegExp(rule.pattern, 'i');
       const m = live.filter((c) => re.test(c.name || '') && (!rule.classification || c.classification === rule.classification));

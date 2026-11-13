@@ -188,6 +188,17 @@ node tools/altra-headless-run.mjs --setup          # log the profile in, once
 node tools/altra-headless-run.mjs                  # download, convert, judge
 node tools/altra-headless-run.mjs --accept-file <xlsx>
 
+# NEW BALANCE, every morning (2026-11-13). The third config on the shared
+# runner (newbalanceus.elasticsuite.com). Two traps: (1) the LOGIN is
+# NBlogin, newbalance.my.site.com/NBlogin/s/login/, then the staff's normal
+# route into Elastic Suite; logging into the /B2B portal and pressing
+# Elastic's "External login" never signed Elastic in. (2) The drop ship
+# catalog (CDS ASAP) is NOT in /api/catalogs, yet answers BY ID, so the rule
+# is the id. 22 MB, about 4 minutes, 21,175 sizes; matched the 30 Oct hand file.
+node tools/newbalance-headless-run.mjs --setup     # opens NBlogin; then go into Elastic Suite as usual
+node tools/newbalance-headless-run.mjs             # download, convert, judge
+node tools/newbalance-headless-run.mjs --accept-file <xlsx>
+
 # HOKA, every morning (2026-11-13). HOKA EMAILS its ATS report instead of
 # handing it over: GET .../draftOrders/report/atsReport (token from the
 # portal, sent as authorization Bearer AND _t) queues it, DeckersB2B mails a
