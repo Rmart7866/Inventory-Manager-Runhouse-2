@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Finish new products, nightly 3:30 AM, WRITING (owner decision 2026-11-12):
+  donor tags and descriptions, group tags, registry stats, swatch rows, for
+  shoes created in the last 14 days. Add only, rollback file per run, and the
+  log lists the brand new models that still need a description.
+  Install:
+    cp tools/launchd/com.therunhouse.finish-new-products.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.therunhouse.finish-new-products.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.therunhouse.finish-new-products.plist
+    rm ~/Library/LaunchAgents/com.therunhouse.finish-new-products.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.therunhouse.finish-new-products</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/ryanmartin/.nvm/versions/node/v22.20.0/bin/node</string>
+    <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/tools/finish-new-products.mjs</string>
+    <string>--apply</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-finish-new-products.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-finish-new-products.log</string>
+</dict>
+</plist>

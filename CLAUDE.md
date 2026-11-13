@@ -143,6 +143,19 @@ node tools/brooks-headless-run.mjs --smoke 3     # whole path, 3 styles, always 
 node tools/brooks-headless-run.mjs               # the real sweep
 node tools/brooks-headless-run.mjs --accept-file <csv>   # record a checked file as the baseline
 
+# Scheduled files reach the inventory tool by themselves: each runner uploads
+# its CSV and verdict (tools/feed-upload.mjs -> worker/src/feeds.js, write
+# secret from ~/.runhouse-write-secret) and feeds-client.js loads the newest
+# into the ASICS / Brooks card. Write skips a BLOCKED scheduled file.
+
+# NEW PRODUCTS FINISH THEMSELVES, nightly 3:30 AM, WRITING (owner decision
+# 2026-11-12). Shoes created in the last 14 days: donor tags + description +
+# SEO, group tags, registry stats, swatch rows (drafts included). Add only,
+# rollback file per run. Brand new models with nothing to copy are LISTED in
+# ~/Library/Logs/runhouse-finish-new-products.log, never invented.
+node tools/finish-new-products.mjs            # dry run
+node tools/finish-new-products.mjs --apply    # write
+
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
 
