@@ -108,7 +108,11 @@ async function catalog() {
 function planFor(p) {
   if (!TAGGABLE[p.status] || !p.id) return null;
   const tags = p.tags || [];
-  const has = (t) => tags.indexOf(t) !== -1;
+  // Shopify tags are CASE INSENSITIVE: "wide" on a product carrying "Wide" is
+  // a no-op that still reports success. A case-sensitive test re-planned the
+  // same 36 width tags every night and logged them as written (2026-11-13).
+  const lower = new Set(tags.map((t) => t.toLowerCase()));
+  const has = (t) => lower.has(String(t).toLowerCase());
   const add = [];
   if (p.widthTag && !has(p.widthTag)) add.push(p.widthTag);
   // ONE GROUP PER PRODUCT. Tagging is add-only, so adding the computed key
@@ -119,7 +123,7 @@ function planFor(p) {
   // Addiction GTS 15 whose SKUs are all men's B, narrow, created carrying
   // "--standard". Which key is right is a human call, so it is listed, never
   // added.
-  const otherGroup = tags.find((t) => /^cw-group:/.test(t) && t !== p.cwGroup);
+  const otherGroup = tags.find((t) => /^cw-group:/i.test(t) && t.toLowerCase() !== String(p.cwGroup).toLowerCase());
   if (p.cwGroup && !has(p.cwGroup)) {
     if (otherGroup) CONFLICTS.push({ handle: p.handle, has: otherGroup, computed: p.cwGroup });
     else add.push(p.cwGroup);
