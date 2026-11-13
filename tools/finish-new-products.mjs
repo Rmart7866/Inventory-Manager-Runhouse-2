@@ -157,9 +157,19 @@ async function donorStep(rollback) {
 }
 
 // ------------------------------------------------------ catalog refresh ----
+// A plain fetch that retries: at 3:59 AM on 2026-11-13 one "fetch failed" on
+// the refresh request threw out of main() and the swatch step never ran.
+async function fetchRetry(url, opts, tries = 4) {
+  for (let i = 1; ; i++) {
+    try { return await fetch(url, opts); }
+    catch (e) { if (i >= tries) throw e; await wait(10000 * i); }
+  }
+}
+
 async function refreshCatalog() {
   const before = Date.now();
-  await fetch(WORKER + '/catalog?fresh=1', { headers: { Authorization: 'Bearer ' + CATALOG_TOKEN } });
+  try { await fetchRetry(WORKER + '/catalog?fresh=1', { headers: { Authorization: 'Bearer ' + CATALOG_TOKEN } }); }
+  catch (e) { console.log('   catalog refresh request failed (' + e.message + '); using the catalog as it is'); return false; }
   for (let i = 0; i < 80; i++) {
     await wait(15000);
     try {
@@ -173,7 +183,7 @@ async function refreshCatalog() {
 
 // ---------------------------------------------------------- 4. swatches ----
 async function swatchStep(fresh, rollback) {
-  const cat = await (await fetch(WORKER + '/catalog', { headers: { Authorization: 'Bearer ' + CATALOG_TOKEN } })).json();
+  const cat = await (await fetchRetry(WORKER + '/catalog', { headers: { Authorization: 'Bearer ' + CATALOG_TOKEN } })).json();
   const products = cat.products || [];
   const el = () => ({ style: {}, appendChild() {}, setAttribute() {}, addEventListener() {}, classList: { add() {}, remove() {} } });
   const sb = { console: { log() {}, warn() {}, error() {} }, localStorage: { getItem: () => null, setItem() {} }, window: {}, setTimeout,
@@ -222,9 +232,14 @@ async function main() {
     if (un.length) console.log('   models with no registry row (stats need a verified source):\n      ' + un.join('\n      '));
   } else console.log('3. stats: SKIPPED, stamp-specs.mjs not found at ' + STAMP_DIR);
 
-  // Swatches read the catalog, which now carries the new tags.
-  if (APPLY) await refreshCatalog();
-  await swatchStep(fresh, rollback);
+  // Swatches read the catalog, which now carries the new tags. A failure here
+  // is reported and the run carries on to the report, rather than ending the
+  // night with later steps silently skipped.
+  let failed = 0;
+  try {
+    if (APPLY) await refreshCatalog();
+    await swatchStep(fresh, rollback);
+  } catch (e) { failed++; console.log('4. swatches FAILED: ' + e.message); }
 
   if (newModels.size) {
     console.log('5. NEW MODELS with no listing to copy from (description, and stats if not in the registry, need writing):');
@@ -232,7 +247,7 @@ async function main() {
   } else console.log('5. every new shoe had a listing to copy from');
 
   if (APPLY && rollback.length) console.log('rollback: ' + ROLLBACK_FILE);
-  return 0;
+  return failed ? 1 : 0;
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
