@@ -119,7 +119,10 @@ async function main() {
     // A distinct port forces a separate browser: macOS otherwise hands the
     // url to the Chrome already running and the login lands in the wrong profile.
     console.log('Opening a SEPARATE Chrome on ' + PROFILE + '. Log into FastTrack there, then close that window.');
-    spawn(CHROME, ['--user-data-dir=' + PROFILE, '--remote-debugging-port=' + (PORT + 1), '--no-first-run', '--no-default-browser-check', '--new-window', HOME],
+    // An unmistakable first tab. Twice on 2026-11-12 the login went into the
+    // everyday Chrome instead, because this window looks just like it.
+    const marker = 'data:text/html,' + encodeURIComponent('<title>BROOKS SCRAPER LOGIN</title><body style="margin:0;background:#f97316;color:#111;font:700 34px system-ui;display:grid;place-items:center;height:100vh;text-align:center"><div>BROOKS SCRAPER LOGIN WINDOW<br><span style="font-size:22px;font-weight:500">Log in to FastTrack in the NEXT tab of THIS window.<br>Then close this whole window.</span></div></body>');
+    spawn(CHROME, ['--user-data-dir=' + PROFILE, '--remote-debugging-port=' + (PORT + 1), '--no-first-run', '--no-default-browser-check', '--new-window', marker, HOME],
       { stdio: 'ignore', detached: true }).unref();
     await wait(4000);
     console.log((await findExisting(PORT + 1)) ? 'confirmed: a separate browser is running on this profile' : 'WARNING: no browser appeared. Quit Chrome and retry.');
