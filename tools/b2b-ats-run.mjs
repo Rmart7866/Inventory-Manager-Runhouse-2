@@ -169,6 +169,16 @@ export async function runAts(cfg) {
       return JSON.stringify({ ok: !!(c && c.number), customer: c && c.number, customers: (j.results || []).length });
     } catch (e) { return JSON.stringify({ ok: false, status: String(e) }); }
   })()` })).result.value);
+  // NO NETWORK IS NOT A LOGOUT. On 2026-11-13 the Puma keep-alive reported
+  // "logged out" at 2:20 and 3:29 with "Failed to fetch": the Mac had been
+  // asleep and the check ran on wake before wifi was back, while the login
+  // itself was fine (alive at 5:08 with no new login). A thrown fetch says
+  // so and asks for nothing; only an HTTP refusal means log in again.
+  if (!who.ok && /TypeError|Failed to fetch|NetworkError|ERR_/i.test(String(who.status))) {
+    console.error(stamp0 + '  NO NETWORK: could not reach ' + new URL(cfg.home).host + ' (' + who.status + '). Not a logout; the next run will try again. No file written.');
+    try { ws.close(); } catch (e) {}
+    await shutOwn(); return 1;
+  }
   if (!who.ok) {
     console.error(stamp0 + '  SESSION EXPIRED: the profile is logged out of the ' + cfg.label + ' B2B (' + (who.status || 'no customer') + '). Run: ' + me + ' --setup, and log in. No file written.');
     notify(cfg.label + ' scraper logged out', 'Run: ' + me + ' --setup, and log in');
