@@ -168,6 +168,15 @@ node tools/wolverine-headless-run.mjs --setup       # log the profile in, once
 node tools/wolverine-headless-run.mjs               # both brands: download, convert, judge
 node tools/wolverine-headless-run.mjs --accept-file <xlsx> --brand saucony|merrell
 
+# PUMA, every morning (2026-11-13). The "Master ATS" file is ONE request,
+# /api/catalogs/<Master / ATS>.csv?csv[data]=availability (an Excel despite
+# the .csv), all of Puma with Quantity Available per size, about a minute. The
+# customer number and catalog are read from the portal each run, never written
+# here (public repo). Replaces the page scraper for overnight use.
+node tools/puma-headless-run.mjs --setup            # log the profile in, once
+node tools/puma-headless-run.mjs                    # download, convert, judge
+node tools/puma-headless-run.mjs --accept-file <xlsx>
+
 # Scheduled files reach the inventory tool by themselves: each runner uploads
 # its CSV and verdict (tools/feed-upload.mjs -> worker/src/feeds.js, write
 # secret from ~/.runhouse-write-secret) and feeds-client.js loads the newest
