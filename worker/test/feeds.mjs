@@ -1,7 +1,7 @@
 // feeds.mjs, The Run House. The scheduled scraper files the inventory tool
 // loads by itself (feeds.js, 2026-11-12). Run: node test/feeds.mjs
 // House style: no em dashes.
-import { validateFeed, putFeed, getFeed, MAX_BYTES, validateLink, putLink, getLinks } from '../src/feeds.js';
+import { validateFeed, validateWorkbook, putFeed, putImages, getFeed, MAX_BYTES, validateLink, putLink, getLinks } from '../src/feeds.js';
 
 let failures = 0;
 const ok = (m) => console.log('  ok    ' + m);
@@ -29,6 +29,32 @@ yes('the meta comes back without the file', m.status === 200 && m.body.feed.file
 const f = await getFeed(env, 'brooks', true);
 yes('the CSV comes back byte for byte', f.raw === csv);
 yes('a brand with no file yet answers 404', (await getFeed(env, 'asics', false)).status === 404);
+
+console.log('\nStripped workbooks: gzip, .xlsx, and the uploader says wholesale is gone');
+const { gzipSync } = await import('node:zlib');
+const gz = new Uint8Array(gzipSync(Buffer.from('PK fake workbook bytes')));
+const okMeta = { verdict: 'PASS', file: 'Master ATS nightly-x.xlsx', wholesaleStripped: true, rows: 10 };
+yes('a stripped workbook for an Excel brand passes', validateWorkbook('puma', gz, okMeta).ok);
+yes('NOT saying it was stripped is refused', !validateWorkbook('puma', gz, { ...okMeta, wholesaleStripped: undefined }).ok);
+yes('"stripped": "yes" as a string is refused (must be true)', !validateWorkbook('puma', gz, { ...okMeta, wholesaleStripped: 'yes' }).ok);
+yes('raw, ungzipped bytes are refused', !validateWorkbook('puma', new Uint8Array(Buffer.from('PK raw')), okMeta).ok);
+yes('a workbook for a CSV brand is refused', !validateWorkbook('asics', gz, okMeta).ok);
+yes('a CSV for a workbook brand is refused', !validateFeed('saucony', csv, { verdict: 'PASS' }).ok);
+yes('a non .xlsx name is refused', !validateWorkbook('altra', gz, { ...okMeta, file: 'x.csv' }).ok);
+const pw = await putFeed(env, 'newbalance', gz, okMeta);
+yes('stored', pw.status === 200 && pw.body.feed.format === 'xlsx' && pw.body.feed.wholesaleStripped === true, pw);
+const back = await getFeed(env, 'newbalance', 'file');
+yes('the workbook comes back byte for byte, as gzip', back.type === 'application/gzip' && Buffer.from(back.raw).equals(Buffer.from(gz)));
+yes('the meta alone does not carry the file', (await getFeed(env, 'newbalance')).body.feed.file === 'Master ATS nightly-x.xlsx');
+
+console.log('\nON images file: ON only, the on-images shape');
+const img = JSON.stringify({ kind: 'on-images', map: { '3MF10125167': ['https://example.com/a.png'] } });
+yes('stored for ON', (await putImages(env, 'on', img)).status === 200);
+yes('refused for another brand', (await putImages(env, 'brooks', img)).status === 400);
+yes('refused when it is not the on-images shape', (await putImages(env, 'on', '{"kind":"other","map":{}}')).status === 400);
+await putFeed(env, 'on', csv.replace('ghost-18', 'on-cloud'), { verdict: 'PASS', file: 'on-running-inventory-1.csv' });
+const im = await getFeed(env, 'on', 'images');
+yes('comes back beside the CSV', im.status === 200 && JSON.parse(im.raw).kind === 'on-images');
 
 console.log('\nHOKA report links: Deckers\' own report bucket only');
 // A MADE UP link of the real shape. A real one opens without a login and the

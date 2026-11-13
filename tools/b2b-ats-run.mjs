@@ -34,10 +34,13 @@ import { spawn, execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { check, rowsFromCSV, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 import { closeChrome } from './headless-close.mjs';
+import { uploadWorkbook } from './feed-upload.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// The last verdict, so the upload to the inventory tool carries it.
+let lastJudgement = null;
 
 async function findExisting(port) {
   try {
@@ -85,6 +88,7 @@ function judge(cfg, csv, file, accept) {
   const BASELINE = path.join(ROOT, 'inventory-guardrail-baseline-' + cfg.key + '.json');
   const baseline = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : null;
   const res = check(rowsFromCSV(csv), baseline);
+  lastJudgement = { verdict: res.ok ? 'PASS' : 'BLOCKED', reasons: res.blocks.concat(res.warnings), rows: res.summary.rows, units: res.summary.units };
   res.warnings.forEach((w) => console.log('  WARN   ' + w));
   res.blocks.forEach((b) => console.log('  BLOCK  ' + b));
   console.log((res.ok ? '  PASS. Safe to import ' : '  BLOCKED. Do not import ') + path.basename(file));
@@ -227,7 +231,11 @@ export async function runAts(cfg) {
   console.log('  catalog: ' + o.name);
   console.log('  file   : ' + out);
   console.log('  rows   : ' + inv.length + ' sizes, ' + units + ' units, in ' + Math.round((Date.now() - t0) / 1000) + 's');
-  return judge(cfg, csv, out, false) ? 0 : 1;
+  const ok = judge(cfg, csv, out, false);
+  // To the inventory tool, PASS or BLOCKED (the card keeps Write off on a
+  // blocked file), with the wholesale columns stripped first. Never fatal.
+  await uploadWorkbook(cfg.key, buf, { ...lastJudgement, file: path.basename(out), capturedAt: new Date().toISOString() });
+  return ok ? 0 : 1;
 }
 
 // Entry helper for the thin per-brand files: a verdict or an explicit failure,

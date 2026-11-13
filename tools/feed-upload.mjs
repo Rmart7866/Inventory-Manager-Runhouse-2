@@ -51,3 +51,48 @@ export async function reportLinks(brand) {
     return ((await r.json()).links) || [];
   } catch (e) { return []; }
 }
+
+// A SUPPLIER WORKBOOK, WHOLESALE STRIPPED, to the inventory tool. The strip
+// re-reads its own output and throws if a wholesale column survived, so a
+// file that still has one is never sent. Gzipped because the rewritten
+// workbook is about twice the size of the supplier's (New Balance: 45 MB
+// stripped, 19 MB gzipped, KV allows 25). Never fatal: the file is still in
+// Downloads either way.
+export async function uploadWorkbook(brand, buf, meta) {
+  if (!fs.existsSync(SECRET_FILE)) { console.log('upload   : NOT uploaded, ' + SECRET_FILE + ' does not exist (the file is still in Downloads)'); return false; }
+  let stripped;
+  try { stripped = (await import('./strip-wholesale.mjs')).stripWholesale(buf); }
+  catch (e) { console.log('upload   : NOT uploaded, the wholesale strip refused: ' + e.message); return false; }
+  const { gzipSync } = await import('node:zlib');
+  const gz = gzipSync(stripped.buf, { level: 9 });
+  const secret = fs.readFileSync(SECRET_FILE, 'utf8').trim();
+  const small = { ...meta, wholesaleStripped: true, reasons: (meta.reasons || []).slice(0, 8).map((r) => String(r).slice(0, 200)) };
+  try {
+    const r = await fetch(WORKER + '/feeds/upload?brand=' + encodeURIComponent(brand) + '&meta=' + encodeURIComponent(JSON.stringify(small)), {
+      method: 'POST', body: gz,
+      headers: { Authorization: 'Bearer ' + CATALOG_TOKEN, 'X-Write-Secret': secret, 'Content-Type': 'application/gzip' },
+      signal: AbortSignal.timeout(300000),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { console.log('upload   : FAILED ' + r.status + ' ' + (j.error || '')); return false; }
+    console.log('upload   : the inventory tool will load ' + meta.file + ' (' + meta.verdict + '), wholesale removed: ' +
+      stripped.removed.join(', ') + ' (' + (gz.length / 1e6).toFixed(1) + ' MB)');
+    return true;
+  } catch (e) { console.log('upload   : FAILED ' + e.message); return false; }
+}
+
+// ON's images sidecar, beside its CSV.
+export async function uploadImages(brand, text) {
+  if (!fs.existsSync(SECRET_FILE)) return false;
+  const secret = fs.readFileSync(SECRET_FILE, 'utf8').trim();
+  try {
+    const r = await fetch(WORKER + '/feeds/upload?brand=' + encodeURIComponent(brand) + '&part=images', {
+      method: 'POST', body: text,
+      headers: { Authorization: 'Bearer ' + CATALOG_TOKEN, 'X-Write-Secret': secret, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!r.ok) { console.log('upload   : images file FAILED ' + r.status); return false; }
+    console.log('upload   : images file sent with it');
+    return true;
+  } catch (e) { console.log('upload   : images file FAILED ' + e.message); return false; }
+}

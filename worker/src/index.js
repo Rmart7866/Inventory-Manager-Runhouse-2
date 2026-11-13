@@ -45,7 +45,7 @@ import { handleResetOptions, handleResetCollections, handleResetScan, handleRese
 import { handleBuild } from './teamreq-build.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
 import { handleSalesRun, handleSalesStatus, handleSalesFund, BUILDER_CATALOG } from './teamreq-sales.js';
-import { putFeed, getFeed, putLink, getLinks } from './feeds.js';
+import { putFeed, getFeed, putImages, putLink, getLinks } from './feeds.js';
 import { handleGoLive } from './teamreq-live.js';
 import {
   readCatalog, readCatalogMeta, writeCatalog,
@@ -412,14 +412,25 @@ async function handleApparelStatus(request, env) {
 async function handleFeedUpload(request, env) {
   const url = new URL(request.url);
   const brand = String(url.searchParams.get('brand') || '').toLowerCase();
+  // ON's images sidecar is a second part beside its CSV.
+  if (url.searchParams.get('part') === 'images') {
+    const r = await putImages(env, brand, await request.text());
+    return json(r.body, r.status, request, env);
+  }
   let meta = {};
   try { meta = JSON.parse(url.searchParams.get('meta') || '{}'); } catch (e) { return json({ error: 'meta is not JSON' }, 400, request, env); }
-  const r = await putFeed(env, brand, await request.text(), meta);
+  // A stripped workbook arrives gzipped as bytes; a scraper CSV as text.
+  const ct = String(request.headers.get('Content-Type') || '');
+  const body = /gzip|octet-stream/i.test(ct) ? new Uint8Array(await request.arrayBuffer()) : await request.text();
+  const r = await putFeed(env, brand, body, meta);
   return json(r.body, r.status, request, env);
 }
 async function handleFeedLatest(request, env) {
   const url = new URL(request.url);
-  const r = await getFeed(env, String(url.searchParams.get('brand') || '').toLowerCase(), url.searchParams.get('csv') === '1');
+  const q = url.searchParams;
+  // csv=1 is what the tool already asks for; file=1 is the same thing for any format.
+  const part = q.get('images') === '1' ? 'images' : (q.get('file') === '1' || q.get('csv') === '1') ? 'file' : undefined;
+  const r = await getFeed(env, String(q.get('brand') || '').toLowerCase(), part);
   if (r.raw != null) {
     return new Response(r.raw, { status: 200, headers: { 'Content-Type': r.type, 'Cache-Control': 'private, max-age=0',
       'X-Feed-Meta': encodeURIComponent(JSON.stringify(r.meta)), ...corsHeaders(request, env) } });

@@ -38,6 +38,7 @@ import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { check, rowsFromCSV, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 import { closeChrome } from './headless-close.mjs';
+import { uploadFeed, uploadImages } from './feed-upload.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-on-profile');
@@ -49,6 +50,8 @@ const CUT = '// Bootstrapping';
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes(n);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// The last verdict, so the upload to the inventory tool carries it.
+let lastJudgement = null;
 let verdictReached = false;
 
 // The class half of the scraper. Exported so a test can pin the cut point.
@@ -89,6 +92,7 @@ function cdp(ws) {
 function judge(csv, file, accept) {
   const baseline = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : null;
   const res = check(rowsFromCSV(csv), baseline);
+  lastJudgement = { verdict: res.ok ? 'PASS' : 'BLOCKED', reasons: res.blocks.concat(res.warnings), rows: res.summary.rows, units: res.summary.units };
   res.warnings.forEach((w) => console.log('  WARN   ' + w));
   res.blocks.forEach((b) => console.log('  BLOCK  ' + b));
   console.log((res.ok ? '  PASS. Safe to import ' : '  BLOCKED. Do not import ') + path.basename(file));
@@ -209,6 +213,11 @@ async function main() {
   console.log('  file   : ' + out + (images ? '  (+ images file, ' + images + ' products)' : ''));
   console.log('  rows   : ' + o.rows + ' sizes, in ' + Math.round((Date.now() - t0) / 1000) + 's');
   const ok = judge(o.csv, out, false);
+  // To the inventory tool: the CSV (stock, no prices), then its images file
+  // beside it, as the card takes them in one drop. Never fatal.
+  const sent = await uploadFeed('on', o.csv, { ...lastJudgement, file: path.basename(out), capturedAt: new Date().toISOString() });
+  const imgFile = out.replace(/\.csv$/, '-images.json');
+  if (sent && fs.existsSync(imgFile)) await uploadImages('on', fs.readFileSync(imgFile, 'utf8'));
   verdictReached = true;
   return ok ? 0 : 1;
 }

@@ -267,6 +267,10 @@ var BrandConverter = {
         var files = Array.prototype.slice.call(fileList || []);
         if (!files.length) return;
         var self = this;
+        // A file loaded by hand replaces a scheduled one AND its verdict, as
+        // handleFile does for the other brands; FeedsClient sets it again
+        // after its own load (2026-11-13: ON joined the scheduled files).
+        this.brands.on.feed = null;
         var csvs = files.filter(function (f) { return !/\.json$/i.test(f.name); });
         var jsons = files.filter(function (f) { return /\.json$/i.test(f.name); });
         jsons.forEach(function (f) { self.handleOnImagesFile(f); });
