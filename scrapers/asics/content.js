@@ -2364,7 +2364,10 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                 if (!part) continue;
                 f[part[0]] = part.slice(1);
             }
-            if (f['#']) out.push({ variantNo: f['#'], barcode: f['@'] || '', sizeUS: f.x || '' });
+            // sizeUS here is ASICS' size KEY ("6H" for 6.5), kept as it was;
+            // us is the real US size the stock call reports (u), used by the
+            // link-list zero fill so a filled row names the same SKU.
+            if (f['#']) out.push({ variantNo: f['#'], barcode: f['@'] || '', sizeUS: f.x || '', us: f.u || '' });
         }
         return out;
     }
@@ -2383,7 +2386,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         };
     }
 
-    recordsFromAvailability(av, colorways) {
+    recordsFromAvailability(av, colorways, fillZeros) {
         const byColor = new Map(colorways.map((c) => [String(c.colorCode), c]));
         // barcode lookup, material number to EAN, built from the catalog rows
         const barcodes = new Map();
@@ -2441,6 +2444,31 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                         // ASICS' own ladder position, used only for ordering
                         sorting: typeof sz.sorting === 'number' ? sz.sorting : null
                     });
+                }
+            }
+        }
+
+        // ZERO FILL, LINK LIST ONLY (2026-11-14). The stock call leaves out a
+        // size ASICS does not offer right now, where the product page shows a
+        // 0 box. Compared on 1011C127-001: the page had 6, 6.5 and 13.5 at 0,
+        // the API had no rows for them, every other size equal. A missing row
+        // writes nothing, so a stale number on the store for that size would
+        // never be cleared; the page path wrote 0. So every size in the
+        // colourway's catalog size run that the stock call did not return is
+        // written as 0, exactly as the page does. Off for every other caller.
+        if (fillZeros) {
+            const have = new Set(out.map((r) => r.colorCode + '|' + String(r.sizeUS)));
+            for (const meta of colorways) {
+                const cc = String(meta.colorCode);
+                if (!out.some((r) => r.colorCode === cc)) continue;   // a colourway with no stock block stays as the API gave it
+                const width = this.widthFromCatalog(meta);
+                for (const sz of this.parseCompactSizes(meta.compactSizes)) {
+                    const size = sz.us || '';
+                    if (!size || have.has(cc + '|' + size)) continue;
+                    have.add(cc + '|' + size);
+                    out.push({ styleId: meta.itemCode, productName: meta.itemName || '', colorCode: cc, colorName: meta.colorName || '',
+                        gender: EnhancedASICSInventoryExtractor.API_GENDER[String(meta.gender)] || '', width, sizeUS: String(size), size: String(size),
+                        quantity: 0, barcode: sz.barcode || '', sorting: null, filledZero: true });
                 }
             }
         }
@@ -2565,6 +2593,18 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         let styles = [...byStyle.keys()];
         // opts.maxStyles: a smoke test of the full path on a few styles. The
         // runner names that file SMOKETEST and always blocks it.
+        // opts.onlyStyles: the LINK LIST read from the API (tools/asics-
+        // headless-run.mjs --link-api, 2026-11-14). The page scrape needs the
+        // portal's own page login, which lapsed overnight while the data login
+        // stayed alive; this needs only the data login, about 48 calls, well
+        // under the quota that locked the full catalog. A link style that is
+        // not in the catalog is recorded so the runner can refuse the file:
+        // a missing style reads as removed and zeroes its stock.
+        if (FULL && Array.isArray(opts.onlyStyles) && opts.onlyStyles.length) {
+            const want = new Set(opts.onlyStyles.map((s) => String(s).toUpperCase()));
+            this._onlyStylesMissing = [...want].filter((s) => !byStyle.has(s));
+            styles = styles.filter((s) => want.has(String(s).toUpperCase()));
+        }
         if (FULL && opts.maxStyles > 0) styles = styles.slice(0, opts.maxStyles);
         const records = [];
         let done = 0;
@@ -2594,7 +2634,7 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
                     // night. Two minutes, against the 60 second worst seen.
                     const av = FULL ? await Promise.race([this.apiGet(url), new Promise((_, rej) => setTimeout(() => rej(new Error('no answer in 120s')), 120000))])
                         : await this.apiGet(url);
-                    records.push(...this.recordsFromAvailability(av, colorways));
+                    records.push(...this.recordsFromAvailability(av, colorways, FULL && Array.isArray(opts.onlyStyles) && opts.onlyStyles.length > 0));
                 } catch (e) {
                     failed++;
                     failedCodes.push(code);

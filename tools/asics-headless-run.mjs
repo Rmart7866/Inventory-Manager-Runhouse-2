@@ -202,6 +202,64 @@ async function findExisting(port) {
   } catch (e) { return null; }
 }
 
+// ASK ASICS, NOT THE ADDRESS BAR. 2026-11-14 1 AM: the session had died, but
+// every product page still LOADED, with no redirect to a login page, and the
+// stock grid simply never drew. The run only recognised a logout as a login
+// redirect, so it spent 76 minutes retrying 47 links that could never work.
+// The night before, the same blindness hid a quota lockout. So the session
+// is asked directly, from inside an ASICS page:
+//   basket  /aac/baskets/current answers 200 JSON only when logged in
+//   stock   one availability call for a real style answers 429 with a long
+//           Retry-After when the account is locked out (see apiGet)
+// One basket call and one stock call, cheap next to a run of 50 pages.
+export const SESSION_PROBE = (linkUrl) => `(async () => {
+  const out = {};
+  try {
+    const r = await fetch('/aac/baskets/current', { credentials: 'include', headers: { Accept: 'application/json' } });
+    out.basket = r.status; out.json = /json/.test(r.headers.get('content-type') || '');
+  } catch (e) { out.basket = 'ERR ' + e.message; }
+  const link = ${JSON.stringify(linkUrl || '')};
+  const m = link.match(/\\/orders\\/(\\d+)\\/products\\/([A-Z0-9]+)/i);
+  if (m && out.basket === 200) {
+    let cc = ''; try { cc = new URL(link).searchParams.get('colorCode') || ''; } catch (e) {}
+    try {
+      const r = await fetch('/aac/products/' + m[2] + '/availability?basketNo=' + m[1] + '&colorCodeDistributorNo=' + (cc ? cc + ':' : ''),
+        { credentials: 'include', headers: { Accept: 'application/json' } });
+      out.stock = r.status; out.retryAfter = r.headers.get('retry-after');
+    } catch (e) { out.stock = 'ERR ' + e.message; }
+  }
+  return JSON.stringify(out);
+})()`;
+
+// { state: 'ok' | 'logged-out' | 'locked' | 'no-network', detail }
+export function classifySession(p) {
+  if (!p) return { state: 'no-network', detail: 'no answer from the page' };
+  if (typeof p.basket === 'string' && /^ERR/.test(p.basket)) return { state: 'no-network', detail: p.basket };
+  if (p.basket !== 200 || !p.json) return { state: 'logged-out', detail: 'basket answered ' + p.basket + (p.json ? '' : ' (not JSON)') };
+  if (p.stock === 429 && Number(p.retryAfter) > 600) {
+    const until = new Date(Date.now() + Number(p.retryAfter) * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return { state: 'locked', detail: 'stock calls refused until about ' + until + ' (429, Retry-After ' + p.retryAfter + 's)' };
+  }
+  return { state: 'ok', detail: 'basket 200' + (p.stock ? ', stock ' + p.stock : '') };
+}
+
+async function probeSession(send, linkUrl) {
+  try {
+    const r = await send('Runtime.evaluate', { awaitPromise: true, returnByValue: true, expression: SESSION_PROBE(linkUrl) });
+    return classifySession(JSON.parse(r.result.value || 'null'));
+  } catch (e) { return { state: 'no-network', detail: e.message }; }
+}
+
+function notifyMac(title, msg) {
+  try { execFileSync('osascript', ['-e', 'display notification "' + msg + '" with title "' + title + '"']); } catch (e) { /* the log is the record */ }
+}
+
+const SESSION_WORDS = {
+  'logged-out': 'SESSION EXPIRED: the profile is logged out of b2b.asics.com',
+  locked: 'ASICS LOCKOUT',
+  'no-network': 'NO NETWORK: could not reach b2b.asics.com',
+};
+
 function profileUrlCount() {
   const hist = path.join(PROFILE, 'Default', 'History');
   if (!fs.existsSync(hist)) return 0;
@@ -235,7 +293,10 @@ function profileUrlCount() {
 //     size alone, every night.
 // The sweep runs inside the page and is polled, since a single CDP call has a
 // 60 second deadline and the sweep takes hours.
-const FULL_BASELINE = () => path.join(ROOT, 'inventory-guardrail-baseline-fullcatalog.json');
+// --link-api (2026-11-14): the link list read from the API, judged against its
+// own baseline, since uncapped numbers would never match the page scrape's.
+const LINK_API = process.argv.includes('--link-api');
+const FULL_BASELINE = () => path.join(ROOT, LINK_API ? 'inventory-guardrail-baseline-asics-linkapi.json' : 'inventory-guardrail-baseline-fullcatalog.json');
 
 // Judge a full catalog CSV and, with accept, record it as the baseline. The
 // one block accept may clear is the missing baseline, exactly as the
@@ -296,17 +357,29 @@ async function runFullCatalog() {
   const send = cdp(ws);
   await send('Page.enable'); await send('Runtime.enable');
   await send('Page.navigate', { url: 'https://b2b.asics.com/dashboard' });
-  // Settled means a complete document that is either the dashboard or a
-  // login page; the portal redirects a dead session straight to the latter.
-  let where = '';
-  for (let t = 0; t < 60; t++) {
-    await wait(1000);
-    const r = await send('Runtime.evaluate', { returnByValue: true, expression: 'document.readyState + " " + location.href' });
-    where = r.result.value || '';
-    if (/^complete /.test(where) && /dashboard|authentication|login|signin/i.test(where)) break;
+  await wait(7000);
+
+  // THE STYLES. Full catalog: every style. --link-api: exactly the styles on
+  // the link list, read off its own urls (/orders/<basket>/products/<STYLE>).
+  let onlyStyles = [];
+  let sampleUrl = '';
+  if (LINK_API) {
+    const links = await loadLinks();
+    onlyStyles = [...new Set(links.map((l) => ((String(l.url).match(/\/products\/([A-Z0-9]+)/i) || [])[1] || '').toUpperCase()).filter(Boolean))];
+    sampleUrl = (links[0] || {}).url || '';
+    console.log('links    : ' + links.length + ' on the list, ' + onlyStyles.length + ' styles, read from the API');
+    if (!onlyStyles.length) { console.error('No styles could be read from the link list. No file written.'); verdictReached = true; await shutOwn(); return 1; }
   }
-  if (/authentication|login|signin/i.test(where)) {
-    console.error('SESSION EXPIRED: the profile is logged out of b2b.asics.com. Run --setup, log in, then run again.');
+
+  // ASK ASICS WHETHER THE SESSION IS ALIVE (SESSION_PROBE), not the address
+  // bar: on 2026-11-14 the dashboard bounced to the login page while the data
+  // login, which is all this path needs, was alive.
+  const pre = await probeSession(send, sampleUrl);
+  console.log('session  : ' + pre.state + ', ' + pre.detail);
+  if (pre.state !== 'ok') {
+    console.error(SESSION_WORDS[pre.state] + ' (' + pre.detail + '). No file written.');
+    if (pre.state === 'logged-out') notifyMac('ASICS scraper logged out', 'Run: node tools/asics-headless-run.mjs --setup, and log in');
+    if (pre.state === 'locked') notifyMac('ASICS refusing stock calls', pre.detail);
     verdictReached = true; await shutOwn(); return 1;
   }
 
@@ -324,19 +397,29 @@ async function runFullCatalog() {
   await send('Runtime.evaluate', { expression: `window.__RHFULL = { done: 0, total: 0, rows: 0, finished: false, error: null, records: null };
     (async () => { const S = window.__RHFULL; try {
       const x = Object.create(window.__RH.prototype);
-      S.records = await x.fetchInventoryFromApi((d, t, n) => { S.done = d; S.total = t; S.rows = n; }, { scope: 'all', maxStyles: ${SMOKE} });
+      S.records = await x.fetchInventoryFromApi((d, t, n) => { S.done = d; S.total = t; S.rows = n; }, { scope: 'all', maxStyles: ${SMOKE}, onlyStyles: ${JSON.stringify(onlyStyles)} });
+      S.missing = x._onlyStylesMissing || [];
     } catch (e) { S.error = String(e && e.message || e); } S.finished = true; })(); 'started'` });
 
   let last = '';
+  // The address bar is NOT watched for a login page here: this path needs
+  // only the data login, and a lapsed page login sits on the login screen
+  // while every stock call still works. A real logout fails the stock calls,
+  // which the sweep retries once and then refuses the whole file on.
   for (;;) {
-    await wait(30000);
+    await wait(LINK_API ? 10000 : 30000);
     const r = await send('Runtime.evaluate', { returnByValue: true, expression:
-      'JSON.stringify({ d: __RHFULL.done, t: __RHFULL.total, n: __RHFULL.rows, f: __RHFULL.finished, e: __RHFULL.error, href: location.href })' });
+      'JSON.stringify({ d: __RHFULL.done, t: __RHFULL.total, n: __RHFULL.rows, f: __RHFULL.finished, e: __RHFULL.error, m: __RHFULL.missing || [] })' });
     const s = JSON.parse(r.result.value);
     const line = 'progress : ' + s.d + ' / ' + s.t + ' styles, ' + s.n + ' rows, ' + Math.round((Date.now() - t0) / 60000) + ' min';
     if (line !== last) { console.log(line); last = line; }
-    if (/authentication|login|signin/i.test(s.href)) { console.error('SESSION EXPIRED mid run. No file written.'); verdictReached = true; await shutOwn(); return 1; }
-    if (s.f) { if (s.e) { console.error('\nREFUSED: ' + s.e + '\nNo file written.'); verdictReached = true; await shutOwn(); return 1; } break; }
+    if (s.f) {
+      if (s.e) { console.error('\nREFUSED: ' + s.e + '\nNo file written.'); verdictReached = true; await shutOwn(); return 1; }
+      // A link style ASICS no longer lists cannot be read; leaving it out
+      // would zero it as "removed", so the whole file is refused instead.
+      if (s.m.length) { console.error('\nREFUSED: ' + s.m.length + ' link style(s) are not in the ASICS catalog: ' + s.m.join(', ') + '. No file written.'); verdictReached = true; await shutOwn(); return 1; }
+      break;
+    }
   }
 
   // Pull the records out in slices: one CDP reply of tens of thousands of
@@ -359,7 +442,7 @@ async function runFullCatalog() {
 
   const csv = loadBackgroundConverter().convertToInventoryCSV(records);
   const stamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '');
-  const out = path.join(os.homedir(), 'Downloads', 'asics-fullcatalog-' + (SMOKE ? 'SMOKETEST-' : '') + stamp + '.csv');
+  const out = path.join(os.homedir(), 'Downloads', (LINK_API ? 'asics-linkapi-' : 'asics-fullcatalog-') + (SMOKE ? 'SMOKETEST-' : '') + stamp + '.csv');
   fs.writeFileSync(out, csv);
   console.log('csv      : ' + out);
   if (SMOKE) {
@@ -417,20 +500,26 @@ async function runKeepAlive() {
   // session is dead, so look once more before calling it alive.
   await wait(3000);
   where = (await send('Runtime.evaluate', { returnByValue: true, expression: 'location.href' })).result.value || where;
+  // "Not on a login page" is NOT proof of a session: at 12:30 AM on
+  // 2026-11-14 this said "alive" on /aac/translations/en-US and the 1 AM run
+  // then found the session dead. The basket call is the proof (SESSION_PROBE).
+  // ALWAYS make the data call, even on a login page: the page login and the
+  // data login lapse separately (2026-11-14), the nightly run needs only the
+  // data one, and this request is what keeps it renewed.
+  const probe = await probeSession(send, '');
   try { ws.close(); } catch (e) {}
-  if (/authentication|login|signin/i.test(where)) {
-    try {
-      execFileSync('osascript', ['-e', 'display notification "Run: node tools/asics-headless-run.mjs --setup, and log in" with title "ASICS scraper logged out"']);
-    } catch (e) { /* a notification is a courtesy, the log is the record */ }
-    return await done(1, 'SESSION EXPIRED: log the profile in again with --setup');
+  if (probe.state === 'logged-out') {
+    notifyMac('ASICS scraper logged out', 'Run: node tools/asics-headless-run.mjs --setup, and log in');
+    return await done(1, 'SESSION EXPIRED (' + probe.detail + '): log the profile in again with --setup');
   }
-  return await done(0, 'alive: ' + where.replace(/^complete /, ''));
+  if (probe.state === 'no-network') return await done(1, 'NO NETWORK (' + probe.detail + '): not a logout; the next visit will try again');
+  return await done(0, 'alive: ' + probe.detail + ' (' + where.replace(/^complete /, '').split('?')[0] + ')');
 }
 
 // ------------------------------------------------------------- the run -----
 async function main() {
   if (has('--keepalive')) return runKeepAlive();
-  if (has('--full-catalog')) return runFullCatalog();
+  if (has('--full-catalog') || LINK_API) return runFullCatalog();   // --link-api shares the API sweep
   if (has('--setup')) {
     // macOS hands a url to a RUNNING Chrome and ignores --user-data-dir, so a
     // distinct debugging port is what forces a genuinely separate browser.
@@ -522,6 +611,22 @@ async function main() {
   const send = cdp(ws);
   await send('Page.enable');
   await send('Runtime.enable');
+
+  // PRE-FLIGHT: is the session alive, and is the account allowed stock calls?
+  // Seconds, against the 76 minutes a dead session cost on 2026-11-14.
+  await send('Page.navigate', { url: 'https://b2b.asics.com/dashboard' });
+  await wait(7000);
+  const pre = await probeSession(send, todo[0] && todo[0].url);
+  console.log('session  : ' + pre.state + ', ' + pre.detail);
+  if (pre.state !== 'ok') {
+    console.error('\n' + SESSION_WORDS[pre.state] + ' (' + pre.detail + '). Nothing scraped, no file written.');
+    if (pre.state === 'logged-out') { console.error('Run: node tools/asics-headless-run.mjs --setup, and log in.'); notifyMac('ASICS scraper logged out', 'Run: node tools/asics-headless-run.mjs --setup, and log in'); }
+    if (pre.state === 'locked') notifyMac('ASICS refusing stock calls', pre.detail);
+    try { ws.close(); } catch (e) {}
+    await shutOwn();
+    verdictReached = true;
+    return 1;
+  }
 
   // content.js, functions only, cut before the part that builds UI
   const csrc = fs.readFileSync(path.join(ROOT, 'scrapers/asics/content.js'), 'utf8');
@@ -620,7 +725,23 @@ async function main() {
           ready = !!checks.hasCompleteData;
           if (!ready) await wait(1000);
         }
-        if (!ready) throw new Error('grid never rendered, readiness gate stayed shut');
+        if (!ready) {
+          // WHY did the grid not draw? A dead session or a lockout fails every
+          // remaining link the same way, so it ends the run now rather than
+          // after an hour of retries; a slow page alone is retried as before.
+          const why = await probeSession(send, link.url);
+          if (why.state !== 'ok') {
+            console.error('\n' + tag + '  the grid never drew, and ASICS says: ' + why.detail);
+            console.error(SESSION_WORDS[why.state] + '. Stopping, so this cannot produce a partial file.');
+            if (why.state === 'logged-out') notifyMac('ASICS scraper logged out', 'Run: node tools/asics-headless-run.mjs --setup, and log in');
+            if (why.state === 'locked') notifyMac('ASICS refusing stock calls', why.detail);
+            failures.push({ url: link.url, error: why.state + ': ' + why.detail });
+            lastErr = '';
+            abortRun = true;
+            break;
+          }
+          throw new Error('grid never rendered, readiness gate stayed shut (session ' + why.detail + ')');
+        }
 
         // and now the real extraction, API only styles included
         const out = await send('Runtime.evaluate', { awaitPromise: true, returnByValue: true, expression:

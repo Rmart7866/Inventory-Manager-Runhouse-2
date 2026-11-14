@@ -139,6 +139,18 @@ node tools/asics-headless-run.mjs --full-catalog --accept-file <csv>  # record a
 # saved: the profile kept the previous login, already retired. ASICS died 2h
 # after the smoke test, Brooks within the hour. tools/headless-close.mjs closes
 # through the browser instead. Reproduced and pinned by test/headless-close.mjs.
+# ASICS KEEPS TWO LOGINS, ONE FOR THE WEB PAGE AND ONE FOR ITS DATA (2026-11-14).
+# The page login lapsed overnight while the data login was alive, so every
+# product page loaded with an EMPTY grid and no redirect: the page scrape failed
+# all 47 links over 76 minutes. The 1 AM job now runs --link-api: the same 47
+# styles straight from the data (about 48 calls, 5 minutes, real numbers, sizes
+# ASICS does not offer written as 0 like the page). Every run and keep-alive
+# asks ASICS itself (basket 200, stock 429 = lockout) instead of the address
+# bar, and the keep-alive always makes that data call because it renews it.
+# Own baseline: inventory-guardrail-baseline-asics-linkapi.json (gitignored).
+node tools/asics-headless-run.mjs --link-api        # the nightly ASICS run
+node test/asics-link-api.mjs                        # session check + zero fill
+
 # ASICS HAS A REQUEST QUOTA, AND ONE NIGHT OF THE FULL CATALOG EXCEEDS IT
 # (2026-11-13). About 1,000 styles in, around 3 to 4 AM, every stock call
 # answered 429 "Too Many Attempts." with Retry-After 17954, five hours. The
