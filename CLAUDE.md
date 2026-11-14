@@ -143,8 +143,10 @@ node tools/asics-headless-run.mjs --full-catalog --accept-file <csv>  # record a
 # The page login lapsed overnight while the data login was alive, so every
 # product page loaded with an EMPTY grid and no redirect: the page scrape failed
 # all 47 links over 76 minutes. The 1 AM job now runs --link-api: the same 47
-# styles straight from the data (about 48 calls, 5 minutes, real numbers, sizes
-# ASICS does not offer written as 0 like the page). Every run and keep-alive
+# styles straight from the data (about 48 calls, 5 minutes, real numbers). The
+# page grid also draws size columns ASICS does not list for a colourway, at 0;
+# the feed leaves those out (716 of them, 492 on the store, NONE with Needham
+# stock, checked 2026-11-14), and fills 0 for any size the catalog does list. Every run and keep-alive
 # asks ASICS itself (basket 200, stock 429 = lockout) instead of the address
 # bar, and the keep-alive always makes that data call because it renews it.
 # Own baseline: inventory-guardrail-baseline-asics-linkapi.json (gitignored).

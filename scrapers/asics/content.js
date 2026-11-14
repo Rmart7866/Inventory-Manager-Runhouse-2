@@ -2455,7 +2455,13 @@ https://b2b.asics.com/orders/100454100/products/1011B956?colorCode=001&deliveryD
         // writes nothing, so a stale number on the store for that size would
         // never be cleared; the page path wrote 0. So every size in the
         // colourway's catalog size run that the stock call did not return is
-        // written as 0, exactly as the page does. Off for every other caller.
+        // written as 0. Off for every other caller.
+        //
+        // Measured the same day: those 6 / 6.5 / 13.5 columns are NOT in the
+        // catalog's size run at all (the page draws extra empty columns), so
+        // this fill adds nothing for them; 716 such sizes, 492 on the store,
+        // none holding Needham stock, so leaving them out is safe. The fill
+        // stays for a size the catalog DOES list that the stock call omits.
         if (fillZeros) {
             const have = new Set(out.map((r) => r.colorCode + '|' + String(r.sizeUS)));
             for (const meta of colorways) {

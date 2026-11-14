@@ -12,9 +12,9 @@
 # web page and one for its data, and the PAGE login lapsed overnight while the
 # data login was alive, so every product page loaded with an empty grid and
 # all 47 links failed. --link-api reads the same 47 styles straight from the
-# data: about 48 calls, 5 minutes, real numbers instead of the 30 cap, sizes
-# ASICS does not offer written as 0 exactly as the page shows them, the two
-# print on demand singlets at Warehouse. It checks the data login first and
+# data: about 48 calls, 5 minutes, real numbers instead of the 30 cap, the two
+# print on demand singlets at Warehouse. (The page also shows empty size
+# columns ASICS does not list; none held stock, so leaving them out is safe.) It checks the data login first and
 # stops in seconds when it is gone or locked out.
 #
 # It leaves asics-linkapi-<stamp>.csv in ~/Downloads, a verdict in the log,
