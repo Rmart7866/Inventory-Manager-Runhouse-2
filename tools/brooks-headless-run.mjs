@@ -29,6 +29,7 @@ import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { check, rowsFromCSV, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 import { uploadFeed } from './feed-upload.mjs';
+import { autoWrite } from './auto-write.mjs';
 import { closeChrome } from './headless-close.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
@@ -218,6 +219,9 @@ async function main() {
   if (SMOKE) { console.log('\nBLOCKED. Smoke test of ' + SMOKE + ' styles: never import this file, every other style would read as removed.'); verdictReached = true; return 0; }
   const code = judge(csv, out, has('--accept'));
   await uploadFeed('brooks', csv, { ...lastJudgement, file: path.basename(out), styles: new Set(records.map((r) => String(r.styleId).slice(0, 6))).size, capturedAt: new Date().toISOString() });
+  // Then write it to Needham, PASS only, with the tool's own code and its
+  // guards (tools/auto-write.mjs). A refusal writes nothing and says why.
+  await autoWrite('brooks', [{ name: path.basename(out), buf: Buffer.from(csv) }], { verdict: lastJudgement && lastJudgement.verdict, source: path.basename(out) });
   return code;
 }
 

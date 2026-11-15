@@ -39,6 +39,7 @@ import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { check, rowsFromCSV, POD_STYLES, POD_LOCATION, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 import { uploadFeed } from './feed-upload.mjs';
+import { autoWrite } from './auto-write.mjs';
 import { closeChrome } from './headless-close.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
@@ -454,6 +455,10 @@ async function runFullCatalog() {
   // Hand the file to the inventory tool, PASS or BLOCKED: the card shows the
   // verdict and keeps Write off on a blocked file. Never fatal.
   await uploadFeed('asics', csv, { ...lastJudgement, file: path.basename(out), styles, capturedAt: new Date().toISOString() });
+  // Then write it to Needham, PASS only, with the tool's own code and its
+  // guards (tools/auto-write.mjs). A refusal writes nothing and says why.
+  // The link list only: the full catalog sweep is not what Needham carries.
+  if (LINK_API) await autoWrite('asics', [{ name: path.basename(out), buf: Buffer.from(csv) }], { verdict: lastJudgement && lastJudgement.verdict, source: path.basename(out) });
   return code;
 }
 

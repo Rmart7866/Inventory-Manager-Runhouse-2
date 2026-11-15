@@ -41,6 +41,7 @@ import { createRequire } from 'node:module';
 import { check, rowsFromCSV, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 import { closeChrome } from './headless-close.mjs';
 import { reportLinks, uploadWorkbook } from './feed-upload.mjs';
+import { autoWrite } from './auto-write.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-hoka-profile');
@@ -144,6 +145,9 @@ async function downloadAndJudge(url, t0) {
   const ok = judge(csv, out, false);
   // To the inventory tool, wholesale stripped first. Never fatal.
   await uploadWorkbook('hoka', buf, { ...lastJudgement, file: path.basename(out), capturedAt: new Date().toISOString() });
+  // Then write it to Needham, PASS only, with the tool's own code and its
+  // guards (tools/auto-write.mjs). A refusal writes nothing and says why.
+  await autoWrite('hoka', [{ name: path.basename(out), buf }], { verdict: lastJudgement && lastJudgement.verdict, source: path.basename(out) });
   return ok ? 0 : 1;
 }
 

@@ -39,6 +39,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { check, rowsFromCSV, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 import { closeChrome } from './headless-close.mjs';
 import { uploadFeed, uploadImages } from './feed-upload.mjs';
+import { autoWrite } from './auto-write.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-on-profile');
@@ -218,6 +219,11 @@ async function main() {
   const sent = await uploadFeed('on', o.csv, { ...lastJudgement, file: path.basename(out), capturedAt: new Date().toISOString() });
   const imgFile = out.replace(/\.csv$/, '-images.json');
   if (sent && fs.existsSync(imgFile)) await uploadImages('on', fs.readFileSync(imgFile, 'utf8'));
+  // Then write it to Needham, PASS only, with the tool's own code and its
+  // guards (tools/auto-write.mjs). A refusal writes nothing and says why.
+  const onFiles = [{ name: path.basename(out), buf: Buffer.from(o.csv) }];
+  if (fs.existsSync(imgFile)) onFiles.push({ name: path.basename(imgFile), buf: fs.readFileSync(imgFile) });
+  await autoWrite('on', onFiles, { verdict: lastJudgement && lastJudgement.verdict, source: path.basename(out) });
   verdictReached = true;
   return ok ? 0 : 1;
 }

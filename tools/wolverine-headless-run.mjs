@@ -43,6 +43,7 @@ import { createRequire } from 'node:module';
 import { check, rowsFromCSV, LIMITS, BASELINE_VERSION } from './inventory-guardrail.mjs';
 import { closeChrome } from './headless-close.mjs';
 import { uploadWorkbook } from './feed-upload.mjs';
+import { autoWrite } from './auto-write.mjs';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROFILE = path.join(os.homedir(), '.runhouse-wolverine-profile');
@@ -227,6 +228,9 @@ async function main() {
     if (!judge(brand, csv, out, false)) allOk = false;
     // To the inventory tool, wholesale stripped first. Never fatal.
     await uploadWorkbook(brand, buf, { ...lastJudgement, file: path.basename(out), capturedAt: new Date().toISOString() });
+    // Then write it to Needham, PASS only, with the tool's own code and its
+    // guards (tools/auto-write.mjs). A refusal writes nothing and says why.
+    await autoWrite(brand, [{ name: path.basename(out), buf }], { verdict: lastJudgement && lastJudgement.verdict, source: path.basename(out) });
   }
 
   try { ws.close(); } catch (e) {}

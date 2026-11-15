@@ -239,6 +239,26 @@ node tools/on-headless-run.mjs --accept-file <csv>
 # secret from ~/.runhouse-write-secret) and feeds-client.js loads the newest
 # into the ASICS / Brooks card. Write skips a BLOCKED scheduled file.
 
+# AND THEN THEY WRITE TO NEEDHAM BY THEMSELVES (owner decision 2026-11-14, "just
+# have it write so I dont have to work on weekend"). After a PASS, every runner
+# calls tools/auto-write.mjs, which loads inventory.html's own scripts in a vm
+# and does what a person pressing the buttons does: picker default ticks (on
+# Shopify), convert, align, low stock floor, zero removed colourways holding
+# Needham stock, Needham rows only, Worker dry run, write. It REFUSES and
+# writes nothing (macOS notification + log) when 40%+ of live colourways would
+# be zeroed, 25%+ of stocked variants would go to 0, or Needham units would
+# halve. ASICS writes the link list only, never the full catalog sweep. First
+# live write 2026-11-14, Brooks: 385 of 385, then in sync, restore checked.
+# Log ~/Library/Logs/runhouse-autowrite.log, rollbacks in
+# ~/Library/Logs/runhouse-autowrite/. NEEDS ~/node_modules xlsx 0.18.5 AND
+# papaparse 5.4.1; neither is in ~/package.json, so ANY `npm install` in the
+# home folder prunes them (it did, once, 2026-11-14).
+touch ~/.runhouse-autowrite-off                       # the off switch: runners still capture, nothing writes
+node tools/auto-write.mjs <brand> <file> [<images.json>]          # dry run by hand
+node tools/auto-write.mjs <brand> <file> --apply                 # write by hand
+node tools/auto-write.mjs --restore <rollback.json> [--apply]    # undo a run
+node test/auto-write.mjs                                          # the refusals and the wiring
+
 # NEW PRODUCTS FINISH THEMSELVES, nightly 3:30 AM, WRITING (owner decision
 # 2026-11-12). Shoes created in the last 14 days: donor tags + description +
 # SEO, group tags, registry stats, swatch rows (drafts included). Add only,
@@ -2653,7 +2673,7 @@ Worker cron cannot replace them.
 | Capturing ASICS stock | PARTLY SOLVED, see `tools/asics-headless-run.mjs`. A dedicated Chrome profile logged in by hand drives the whole link list unattended. The session lifetime is unmeasured, so it still needs a human when it expires | An ASICS EDI or inventory feed. Already on the rep list with the Schedule A |
 | Capturing ON stock | Backstage session, and the re-order filter needs the catalog response | An ON feed, same conversation |
 | Capturing Brooks stock | FastTrack returns 401 without auth, and the export flag is off on the account | The `is-export-products-allowed` flag, then a feed |
-| Dropping the file and pressing Write | Deliberate. The capture is automated and the guardrail judges the file, but a human still imports it. Nothing technical stops it, the confidence to stop looking does not exist yet | A few weeks of headless runs whose verdicts match what a human would have decided |
+| Dropping the file and pressing Write | AUTOMATED 2026-11-14 by owner decision, `tools/auto-write.mjs` after every PASS, with its own refusals. A person still looks at the refusals and at the new products | Nothing, unless the refusals start firing on good files |
 | The ON image sidecar | Same Backstage session as the stock | Same feed |
 | ON apparel descriptions | The Backstage response may not carry the copy, unverified | Confirm the fields, then capture into the sidecar like the images |
 | LA 2027 singlet availability | `tools/push-asics-availability.mjs` takes a JSON captured in the browser | Same ASICS feed |
