@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Reruns any nightly job the Mac slept through, once it is properly awake
+  with a network (tools/catchup.mjs). Every 15 minutes; launchd also fires an
+  overdue interval right after a wake, so opening the lid starts it.
+  Install:
+    cp tools/launchd/com.therunhouse.catchup.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.therunhouse.catchup.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.therunhouse.catchup.plist
+    rm ~/Library/LaunchAgents/com.therunhouse.catchup.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.therunhouse.catchup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/ryanmartin/.nvm/versions/node/v22.20.0/bin/node</string>
+    <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/tools/catchup.mjs</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2</string>
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-catchup-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-catchup-launchd.log</string>
+</dict>
+</plist>

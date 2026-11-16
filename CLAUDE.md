@@ -259,6 +259,19 @@ node tools/auto-write.mjs <brand> <file> --apply                 # write by hand
 node tools/auto-write.mjs --restore <rollback.json> [--apply]    # undo a run
 node test/auto-write.mjs                                          # the refusals and the wiring
 
+# A JOB THE MAC SLEPT THROUGH RERUNS ON WAKE (2026-11-16). launchd does run a
+# missed calendar job on wake, but lid shut that wake is a DARK WAKE: seconds
+# long, no network. Every job fired then, failed, and counted as run, so
+# opening the lid started nothing; a run the Mac slept under also HUNG (ON,
+# two hours), and launchd will not restart a running job. tools/catchup.mjs,
+# every 15 min (com.therunhouse.catchup): with a network, a job whose newest
+# Downloads file predates its last slot is kickstarted (the installed job,
+# same log, same auto write), a run far past its normal length has its Chrome
+# closed THROUGH THE BROWSER first, a failed try waits 30 min, and caffeinate
+# holds the Mac awake while it runs. Log ~/Library/Logs/runhouse-catchup.log.
+node tools/catchup.mjs --dry                                      # what it would start now
+node test/catchup.mjs
+
 # NEW PRODUCTS FINISH THEMSELVES, nightly 3:30 AM, WRITING (owner decision
 # 2026-11-12). Shoes created in the last 14 days: donor tags + description +
 # SEO, group tags, registry stats, swatch rows (drafts included). Add only,
