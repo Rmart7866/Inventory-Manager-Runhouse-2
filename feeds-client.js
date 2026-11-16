@@ -4,8 +4,8 @@
 // Every scheduled runner (tools/*-headless-run.mjs) uploads its file and the
 // guardrail's verdict to the Worker (worker/src/feeds.js). On page load this
 // fetches the newest one per brand and loads it into the card EXACTLY as a
-// dropped file is loaded, so a person reviews the picker and presses Write.
-// Nothing here writes to Shopify.
+// dropped file is loaded, then presses Generate on a PASS file so the new
+// products are listed. Nothing here writes to Shopify.
 //
 // THREE SHAPES, one per brand (FORMAT, which matches FEED_FORMAT in feeds.js):
 //   csv   the scraper inventory CSV, as text (ASICS, Brooks)
@@ -92,6 +92,37 @@ var FeedsClient = {
         return new Response(resp.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
     },
 
+    // GENERATE IS PRESSED FOR YOU on a PASS file (owner request 2026-11-16:
+    // "i want generate inventory to be clicked so i can see what products to
+    // create"). Generate writes nothing to Shopify, it builds the picker's
+    // inventory and the tracker report, whose New products list is the point.
+    // The scheduled write already happened on the Mac (tools/auto-write.mjs),
+    // so Write here will mostly say "already in sync".
+    //
+    // One brand at a time, because each one reads the whole catalog and the
+    // reports stack down the page. It waits for the scan the file started,
+    // and gives up if a person replaced the file in the meantime. A BLOCKED
+    // file is left alone: its report would list a broken file's zeros.
+    _genChain: Promise.resolve(),
+    _autoGenerate: function (brand, meta) {
+        if (meta.verdict !== 'PASS' || typeof convertBrand !== 'function') return;
+        var B = BrandConverter.brands[brand];
+        var waitScan = function () {
+            return new Promise(function (resolve) {
+                var t0 = Date.now();
+                (function poll() {
+                    if (B.feed !== meta) return resolve(false);           // a person dropped their own file
+                    if (B.scanned) return resolve(true);
+                    if (Date.now() - t0 > 180000) return resolve(false);  // the scan never finished
+                    setTimeout(poll, 500);
+                })();
+            });
+        };
+        this._genChain = this._genChain.then(waitScan).then(function (ready) {
+            if (ready && B.feed === meta) return convertBrand(brand);
+        }).catch(function (e) { if (window.console) console.warn('[feeds] auto generate ' + brand, e); });
+    },
+
     load: function (brand) {
         var self = this;
         var fmt = this.FORMAT[brand];
@@ -108,7 +139,7 @@ var FeedsClient = {
             var B = BrandConverter.brands[brand];
             var mine = self._handDropped(brand);
             if (mine) { self._banner(brand, meta, 'Not loaded: you already dropped ' + mine + ' on this card.'); return; }
-            var done = function () { B.feed = meta; self._banner(brand, meta); };   // after the handler, which clears it
+            var done = function () { B.feed = meta; self._banner(brand, meta); self._autoGenerate(brand, meta); };   // after the handler, which clears it
 
             if (fmt === 'xlsx') {
                 return get('&file=1').then(function (r) { return self._gunzip(r); }).then(function (buf) {
