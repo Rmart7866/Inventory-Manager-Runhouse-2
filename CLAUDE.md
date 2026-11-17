@@ -301,6 +301,13 @@ node tools/finish-new-products.mjs            # dry run
 node tools/finish-new-products.mjs --apply    # write
 
 # Barcodes (after dropping new supplier files into the gitignored barcodes/)
+# ON BARCODES FIXED 2026-11-17: 2,954 ON variants had an EMPTY barcode (2,304)
+# or a 10 digit placeholder "19125..." (650, all Needham only, no store
+# stock), not ON's EAN-13. A bad barcode sent "Draft in ON" to its fallback,
+# which typed #90267-EXC (2) into the wrong colour. Valid but different codes
+# are reported, never written. 1,711 have no entry in barcode-data.js and 209
+# have a SKU size that disagrees with the Size option; both were left alone.
+node tools/fix-on-barcodes.mjs                 # dry run; --apply; --restore <file>
 python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes only
 
 # SEO backfills, dry run by default, --apply to write, rollback + --restore
