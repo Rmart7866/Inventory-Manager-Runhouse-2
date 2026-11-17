@@ -734,7 +734,9 @@ var ProductEnrichment = {
         // Saucony style numbers: S100981-1019 (6+4) and older S11056-100 (5+3)
         // or S29107-01 (5+2). Photos are named "<style>_1.jpg", the same
         // "<key>_N" shape as Hoka, so _angleRank already orders them.
-        saucony: /S\d{5,6}-\d{2,4}/,
+        // Garments (2026-11-17) are SAM / SAW / SAU + six digits + a colour
+        // code, "SAM800303-BKH", and sit on the same DAM as "<style>_N".
+        saucony: /S\d{5,6}-\d{2,4}|SA[MWU]\d{6}-[A-Z0-9]{1,5}/,
         // Merrell photos are named "<style>_1.jpg", the same "<key>_N" shape as
         // Hoka and Saucony, and the style code is the SKU's leading token.
         merrell: /J\d{5,}/,
@@ -961,6 +963,15 @@ var ProductEnrichment = {
                 { id: '3', word: 'medial' }, { id: '4', word: 'heel' },
                 { id: '5', word: 'top' }, { id: '6', word: 'sole' }
             ],
+            // A garment has no lateral or sole. Same view numbers on the DAM
+            // (SAM800303-BKH_1, _2 measured 200 on 2026-11-17, a bogus code
+            // 404), neutral words, which only name the file.
+            apparelViews: [
+                { id: '1', word: 'view-1' }, { id: '2', word: 'view-2' },
+                { id: '3', word: 'view-3' }, { id: '4', word: 'view-4' },
+                { id: '5', word: 'view-5' }, { id: '6', word: 'view-6' }
+            ],
+            viewsFor: function (code) { return /^SA[MWU]/i.test(String(code)) ? this.apparelViews : this.views; },
             urlFor: function (code, v) {
                 return 'https://thekit.wolverineworldwide.com/match/media_lookup/' + code + '_' + v.id + '/';
             },
