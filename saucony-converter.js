@@ -261,6 +261,7 @@ var SauconyConverter = {
         return name.toLowerCase()
             .replace(/\bgtx\b/gi, 'GTX')
             .replace(/\b\w/g, function(l) { return l.toUpperCase(); })
+            .replace(/\b(\d)d\b/g, '$1D')   // "TRIUMPH 3D 1/2 ZIP" read "Triumph 3d" (2026-11-17)
             .replace(/\s+(\d+)/g, ' $1');
     },
 
