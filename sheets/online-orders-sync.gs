@@ -498,13 +498,26 @@ var BLANK_VENDOR = {
   'DT6100Y': 'Sanmar', 'DT6107': 'Sanmar', 'DT6117': 'Sanmar', 'DT8102': 'Sanmar',
   'K200': 'Sanmar', 'LOG707': 'Sanmar', 'LPC380TT': 'Sanmar', 'LST350': 'Sanmar',
   'LST353LS': 'Sanmar', 'LST356': 'Sanmar', 'LST485': 'Sanmar', 'MM7213': 'Sanmar',
-  'MMB800': 'Sanmar', 'NKDH7709': 'Sanmar', 'NKFB6445': 'Sanmar', 'NKFD9889': 'Sanmar',
+  'MMB800': 'Sanmar', 'NKAH6264': 'Sanmar', 'NKDH7709': 'Sanmar', 'NKFB6445': 'Sanmar', 'NKFD9889': 'Sanmar', 'NKIO8141': 'Sanmar',
   'NL5030': 'Sanmar', 'PC380': 'Sanmar', 'PC380SL': 'Sanmar', 'PC380YLS': 'Sanmar',
   'PC381Y': 'Sanmar', 'PC450': 'Sanmar', 'PC54': 'Sanmar', 'PC78H': 'Sanmar',
   'PC78YH': 'Sanmar', 'PC78YJ': 'Sanmar', 'PC78ZH': 'Sanmar', 'PC90YH': 'Sanmar',
   'S6000': 'Sanmar', 'ST350': 'Sanmar', 'ST350LS': 'Sanmar', 'ST850': 'Sanmar',
   'TT31': 'Sanmar'
 };
+
+// ONE PREFIX RULE, and only this one. Nike blanks are bought through SanMar,
+// whose Nike style numbers all start NK, and every NK code staff had assigned
+// was Sanmar. Found 2026-11-17: NKAH6264 (Therma-FIT hoodie, #92917) and
+// NKIO8141 (Dri-FIT Stride 1/2-zip) were not in the table, so their rows sat
+// with a blank Vendor and dropped out of the SanMar order twice. Every other
+// supplier stays exact match only, see the TT11WL / TT31 note above.
+function blankVendorFor_(code) {
+  var c = String(code || '').trim().toUpperCase();
+  if (BLANK_VENDOR[c]) return BLANK_VENDOR[c];
+  if (/^NK[A-Z]{0,3}\d/.test(c)) return 'Sanmar';
+  return '';
+}
 
 var BLANKS_FIELDS = {
   'Style Code': 'sku',
@@ -1424,7 +1437,7 @@ function blankOrderRows_(rows) {
     var key = r.blankSku + '|' + size;
     if (!agg[key]) {
       agg[key] = { key: key, sku: r.blankSku, product: r.title, size: size,
-                   vendorGuess: BLANK_VENDOR[r.blankSku] || '',
+                   vendorGuess: blankVendorFor_(r.blankSku),
                    qtyNeeded: 0, orderList: [] };
     }
     agg[key].qtyNeeded += Number(r.quantity) || 0;
@@ -1658,8 +1671,16 @@ function upsertRow_(r, head, fieldMap, seed, keyOf, prior, tabName) {
     if (tabName === NAMES_SHEET && h + 1 === NAMES_DATE_COL) { out.push(fieldValue_('date', r)); continue; }
     var f = fieldMap[hdr] || fieldMap[trimmed];
     if (f) { out.push(fieldValue_(f, r)); continue; }
-    if (prior) { out.push(prior[h]); continue; }
     var sf = seed[hdr] || seed[trimmed];
+    if (prior) {
+      // A seeded column a person left EMPTY is filled in; anything typed stays.
+      // Without this a style the seed table learns about later (the Nike codes,
+      // 2026-11-17) kept its blank Vendor on every existing row forever.
+      var pv = prior[h];
+      var blank = String(pv === null || pv === undefined ? '' : pv).trim() === '';
+      out.push(blank && sf ? fieldValue_(sf, r) : pv);
+      continue;
+    }
     out.push(sf ? fieldValue_(sf, r) : '');
   }
   return out;
