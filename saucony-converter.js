@@ -184,6 +184,66 @@ var SauconyConverter = {
         'Endorphin Pro 5|White Splash|women': 'endorphin-pro-5-white-splash-women',
     },
 
+    // ========== APPAREL (2026-11-17) ==========
+    // Saucony's "Apparel At-Once" catalog (US-SA-APPAREL-AT-ONCE) is the same
+    // CatalogUPCs layout as the shoes, so it comes through this converter. A
+    // garment's style number reads SAM8xxxxx (men's), SAW8 (women's) or SAU8
+    // (unisex hats and sleeves), Dim 1 is a word size and Dim 2 is "00". Shoe
+    // styles are S1/S2..., so the prefix is an exact split, and everything a
+    // garment needs forks on it: no width, gender from the letter, a garment
+    // type, the apparel tags and category. A garment typed as a shoe would be
+    // given the Athletic Shoes category and a 2 lb weight by the create route
+    // (see the ON shorts of 2026-10-20 in CLAUDE.md).
+    isApparelStyle: function(styleNumber) {
+        return /^SA[MWU]\d/i.test(String(styleNumber || '').trim());
+    },
+    apparelGender: function(styleNumber) {
+        var c = String(styleNumber || '').trim().toUpperCase().charAt(2);
+        return c === 'W' ? 'women' : c === 'U' ? 'unisex' : 'men';
+    },
+    // One spelling per size. The file says both "XXL" and "2XL" (29 and 31
+    // rows, 2026-11-17), and a hat is "O/S" or "000".
+    apparelSize: function(dim1) {
+        var u = String(dim1 == null ? '' : dim1).trim().toUpperCase().replace(/\s+/g, '');
+        if (/^(O\/S|OS|OSFA|ONESIZE|0+)$/.test(u)) return 'OS';
+        if (u === 'XXL') return '2XL';
+        if (u === 'XXXL') return '3XL';
+        if (u === 'XXS') return '2XS';
+        return u;
+    },
+    // Same vocabulary as Brooks and ON (the types classify() admits to the
+    // apparel catalog). Order matters: arm sleeves first, sleeveless and
+    // singlets before the sleeve rules, short sleeve before short, tight before
+    // short.
+    APPAREL_TYPE_RULES: [
+        [/\barm\s*sleeves?\b/i,                              'Compression'],
+        [/\bbra\b/i,                                         'Sports Bras'],
+        [/\bsocks?\b/i,                                      'Socks'],
+        [/\bglove|\bmitt/i,                                  'Gloves'],
+        [/\b(cap|hat|beanie|headband|visor|gaiter)\b/i,      'Headwear'],
+        [/\bvest\b/i,                                        'Vests'],
+        [/\bhood(ie|y)/i,                                    'Hoodies'],
+        [/\bjacket|\bshell\b|\banorak/i,                     'Jackets'],
+        [/[14]\/[24]\s*zip|half[-\s]?zip|quarter[-\s]?zip/i, 'Half-Zips'],
+        [/full[-\s]?zip/i,                                   'Full Zips'],
+        [/\bcrew(neck)?\b/i,                                 'Crewnecks'],
+        [/\bjogger/i,                                        'Joggers'],
+        [/\btights?\b|\blegging|\bcapri/i,                   'Tights/Leggings'],
+        [/\bsleeveless\b|\bsinglet|\btank\b|\bcrop\s*top/i,  'Tanks'],
+        [/short[-\s]?sleeve|\btee\b|t-shirt/i,               'T-Shirts'],
+        [/long[-\s]?sleeve/i,                                'Long Sleeves'],
+        [/\bshorts?\b/i,                                     'Shorts'],
+        [/\bpants?\b/i,                                      'Pants'],
+    ],
+    apparelTypeFor: function(model) {
+        var m = String(model || '');
+        for (var i = 0; i < this.APPAREL_TYPE_RULES.length; i++) {
+            if (this.APPAREL_TYPE_RULES[i][0].test(m)) return this.APPAREL_TYPE_RULES[i][1];
+        }
+        console.warn('[Saucony] no garment type rule matched "' + m + '", defaulting to T-Shirts');
+        return 'T-Shirts';
+    },
+
     // ========== HELPERS ==========
     getCategory: function(modelName) {
         if (!modelName) return 'Other';
@@ -345,8 +405,9 @@ var SauconyConverter = {
                 if (!styleNumber || styleNumber.toLowerCase() === 'style #') continue;
                 var dim1 = String(get(r, 'dim 1')).trim();
                 if (!dim1) continue;
-                var width = String(get(r, 'dim 2') || 'M').trim().toUpperCase();
-                if (width !== 'M' && width !== 'W' && width !== 'XW') continue;
+                var apparel = self.isApparelStyle(styleNumber);
+                var width = apparel ? '' : String(get(r, 'dim 2') || 'M').trim().toUpperCase();
+                if (!apparel && width !== 'M' && width !== 'W' && width !== 'XW') continue;
 
                 var key = styleNumber + '|' + width;
                 if (!byKey[key]) {
@@ -361,6 +422,7 @@ var SauconyConverter = {
                         productName: productName,
                         color: String(get(r, 'color description')).trim(),
                         width: width,
+                        apparel: apparel,
                         msrp: self._num(get(r, 'msrp')),
                         sizes: []
                     };
@@ -377,6 +439,20 @@ var SauconyConverter = {
             // Resolve gender per record from its own size run, then label sizes.
             return order.map(function(k) {
                 var rec = byKey[k];
+                if (rec.apparel) {
+                    rec.genderType = self.apparelGender(rec.styleNumber);
+                    // One row per size: two spellings of one size would make two
+                    // variants with one name. The first wins.
+                    var seen = {};
+                    rec.sizes = rec.sizes.filter(function(s) {
+                        s.size = self.apparelSize(s.dim1);
+                        if (!s.size || seen[s.size]) return false;
+                        seen[s.size] = true;
+                        return true;
+                    });
+                    if (typeof OnConverter !== 'undefined' && OnConverter.sortApparelVariants) rec.sizes = OnConverter.sortApparelVariants.call(OnConverter, rec.sizes);
+                    return rec;
+                }
                 var nums = rec.sizes.map(function(s) { return s.n; }).filter(function(n) { return n > 0; });
                 rec.genderType = self.genderFromSizeRun(nums.length ? Math.min.apply(Math, nums) : 0);
                 rec.sizes.forEach(function(s) { s.size = self.sizeLabel(rec.genderType, s.dim1); });
@@ -417,7 +493,8 @@ var SauconyConverter = {
                         gender: genderPrefix,
                         genderType: genderType,
                         width: widthLabel,
-                        category: self.getCategory(modelUpper),
+                        category: rec.apparel ? 'Apparel' : self.getCategory(modelUpper),
+                        apparel: !!rec.apparel,
                         colorways: new Map(),
                         totalRows: 0,
                         totalInventory: 0
@@ -433,6 +510,8 @@ var SauconyConverter = {
                         handle: handle,
                         title: genderPrefix + ' Saucony ' + formattedProduct + ' - ' + self.formatColorName(color) + (widthLabel ? ' ' + widthLabel : ''),
                         color: color,
+                        apparel: !!rec.apparel,
+                        sku: rec.styleNumber,
                         rows: 0,
                         inventory: 0
                     });
@@ -451,6 +530,7 @@ var SauconyConverter = {
                     genderType: data.genderType,
                     width: data.width,
                     category: data.category,
+                    apparel: !!data.apparel,
                     colorways: Array.from(data.colorways.values()),
                     rowCount: data.totalRows,
                     totalInventory: data.totalInventory
@@ -458,7 +538,7 @@ var SauconyConverter = {
             });
 
             products.sort(function(a, b) {
-                var catOrder = ['Daily Training', 'Max Cushion', 'Stability', 'Racing / Performance', 'Other'];
+                var catOrder = ['Daily Training', 'Max Cushion', 'Stability', 'Racing / Performance', 'Other', 'Apparel'];
                 var catComp = catOrder.indexOf(a.category) - catOrder.indexOf(b.category);
                 if (catComp !== 0) return catComp;
                 return a.name.localeCompare(b.name);
@@ -544,7 +624,8 @@ var SauconyConverter = {
                         model: modelUpper,
                         color: formattedColor,
                         width: widthLabel,
-                        category: self.getCategory(modelUpper),
+                        category: rec.apparel ? 'Apparel' : self.getCategory(modelUpper),
+                        apparel: !!rec.apparel,
                         sku: sku,
                         size: sizeInfo.size,
                         quantity: qty,
@@ -646,7 +727,7 @@ var SauconyConverter = {
                 productGroups.set(v.handle, {
                     handle: v.handle, title: v.title, model: v.model,
                     gender: v.gender, genderType: v.genderType,
-                    color: v.color, width: v.width, category: v.category, variants: []
+                    color: v.color, width: v.width, category: v.category, apparel: !!v.apparel, variants: []
                 });
             }
             productGroups.get(v.handle).variants.push({
@@ -673,6 +754,24 @@ var SauconyConverter = {
             var productType = 'Unisex Shoes';
             if (product.genderType === 'men') productType = "Men's Shoes";
             else if (product.genderType === 'women') productType = "Women's Shoes";
+            var shopCategory = 'Apparel & Accessories > Shoes';
+
+            // APPAREL FORKS HERE, on the style number, never on the name: a
+            // garment must never carry a type ending in "shoes" (the create route
+            // gives those the Athletic Shoes category and a 2 lb weight). Type,
+            // category path, size order and the collection tags follow the
+            // Brooks and ON apparel rules exactly.
+            if (product.apparel) {
+                var garment = self.apparelTypeFor(product.model);
+                productType = garment;
+                tags = ['Saucony', product.model, garment];
+                var gKey = product.genderType === 'men' ? 'mens' : product.genderType === 'women' ? 'womens' : 'unisex';
+                tags.push(gKey + ' apparel');
+                tags.push(gKey === 'mens' ? 'men' : gKey === 'womens' ? 'women' : 'unisex');
+                var ON = (typeof OnConverter !== 'undefined') ? OnConverter : null;
+                shopCategory = (ON && ON.APPAREL_CATEGORY_PATH && ON.APPAREL_CATEGORY_PATH[garment]) || 'Apparel & Accessories > Clothing > Activewear';
+                if (ON && ON.sortApparelVariants) product.variants = ON.sortApparelVariants.call(ON, product.variants);
+            }
 
             product.variants.forEach(function(variant, idx) {
                 var row = {};
@@ -681,7 +780,7 @@ var SauconyConverter = {
                     row['URL handle'] = cleanedHandle;
                     row['Description'] = '';
                     row['Vendor'] = 'Saucony';
-                    row['Product category'] = 'Apparel & Accessories > Shoes';
+                    row['Product category'] = shopCategory;
                     row['Type'] = productType;
                     row['Tags'] = tags.join(', ');
                     row['Published on online store'] = 'FALSE';
@@ -689,7 +788,7 @@ var SauconyConverter = {
                     row['Option1 name'] = 'Size';
                     row['SEO title'] = cleanedTitle;
                     row['SEO description'] = cleanedTitle;
-                    row['Google Shopping / Google product category'] = 'Apparel & Accessories > Shoes';
+                    row['Google Shopping / Google product category'] = shopCategory;
                     row['Google Shopping / Gender'] = gGender;
                     row['Google Shopping / Age group'] = 'Adult (13+ years old)';
                     row['Google Shopping / Condition'] = 'New';

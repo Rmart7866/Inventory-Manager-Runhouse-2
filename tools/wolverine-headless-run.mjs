@@ -53,7 +53,14 @@ const PORT = 9533;
 // buys. Codes read off the live catalogs page 2026-11-13. If Wolverine renames
 // one the run fails loudly (no file), it does not quietly fetch another season.
 export const BRANDS = {
-  saucony: { url: 'https://saucony.orderwwwbrands.com/envoy/catalogs', collection: 'US-SA-AO-PERFORMANCE', converter: 'saucony-converter.js', global: 'SauconyConverter' },
+  // Saucony apparel ("Apparel At-Once", 2026-11-17) is a second catalog in the
+  // same CatalogUPCs layout. It is joined into the shoe workbook by column NAME
+  // (its file has fewer ATP date columns) before the converter, the verdict,
+  // the upload and the auto write see it. A failed apparel download leaves the
+  // shoes running and says so: no garment stock is tracked yet, so a missing
+  // apparel file cannot zero anything.
+  saucony: { url: 'https://saucony.orderwwwbrands.com/envoy/catalogs', collection: 'US-SA-AO-PERFORMANCE', converter: 'saucony-converter.js', global: 'SauconyConverter',
+    extra: [{ collection: 'US-SA-APPAREL-AT-ONCE', label: 'apparel', minBytes: 10000 }] },
   merrell: { url: 'https://merrell.orderwwwbrands.com/envoy/catalogs', collection: 'US-MERRELL-FOOT-COPY-74', converter: 'merrell-converter.js', global: 'MerrellConverter' },
 };
 const baselineFor = (b) => path.join(ROOT, 'inventory-guardrail-baseline-' + b + '.json');
@@ -91,6 +98,32 @@ function cdp(ws) {
     pending.set(id, { ok: (m) => { clearTimeout(timer); m.error ? rej(new Error(method + ': ' + m.error.message)) : res(m.result); }, rej: (e) => { clearTimeout(timer); rej(e); } });
     ws.send(JSON.stringify({ id, method, params }));
   });
+}
+
+// Two CatalogUPCs workbooks as one: the first one's sheets and headers, and
+// every other one's rows appended under them BY HEADER NAME. A column the
+// first file lacks is dropped (none that the converter reads), one the second
+// lacks is left blank. Sheets the first file does not have are ignored.
+export function mergeCatalogUPCs(main, extras) {
+  const require = createRequire(import.meta.url);
+  const XLSX = require('xlsx');
+  const wb = XLSX.read(main);
+  const others = extras.map((b) => XLSX.read(b));
+  const out = XLSX.utils.book_new();
+  for (const name of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, blankrows: false, raw: true });
+    const head = rows[0] || [];
+    for (const o of others) {
+      const sh = o.Sheets[name];
+      if (!sh) continue;
+      const r2 = XLSX.utils.sheet_to_json(sh, { header: 1, blankrows: false, raw: true });
+      const h2 = (r2[0] || []).map((h) => String(h == null ? '' : h).trim().toLowerCase());
+      const at = head.map((h) => h2.indexOf(String(h == null ? '' : h).trim().toLowerCase()));
+      for (const r of r2.slice(1)) rows.push(at.map((i) => (i < 0 ? '' : r[i])));
+    }
+    XLSX.utils.book_append_sheet(out, XLSX.utils.aoa_to_sheet(rows), name);
+  }
+  return Buffer.from(XLSX.write(out, { type: 'buffer', bookType: 'xlsx' }));
 }
 
 // The real converter, the one inventory.html loads, so the verdict judges the
@@ -208,13 +241,35 @@ async function main() {
       return JSON.stringify({ status: r.status, type: r.headers.get('content-type') || '', disp: r.headers.get('content-disposition') || '', b64: btoa(bin) });
     })()` }, 300000);
     const o = JSON.parse(r.result.value);
-    const buf = Buffer.from(o.b64, 'base64');
+    let buf = Buffer.from(o.b64, 'base64');
     // A real CatalogUPCs file is about 700 to 800 KB. A login page or an error
     // answers with HTML or a few bytes, and must never be saved as stock.
     if (o.status !== 200 || !/xlsx|spreadsheet|octet/.test(o.type) || buf.length < 50000 || buf.slice(0, 2).toString() !== 'PK') {
       console.error('  REFUSED: the portal did not send a workbook (status ' + o.status + ', ' + o.type + ', ' + buf.length + ' bytes). No file written.');
       allOk = false; continue;
     }
+    // The brand's other catalogs (Saucony apparel), same request, joined in.
+    let buf2 = buf;
+    for (const x of B.extra || []) {
+      try {
+        const rx = await send('Runtime.evaluate', { awaitPromise: true, returnByValue: true, expression: `(async () => {
+          const formJSON = JSON.stringify({ language: 'en', includeInventory: true, collectionCode: ${JSON.stringify(x.collection)}, limitToExternalInventory: false, includePrices: true });
+          const r = await fetch('/api/b2b/products/excel', { method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'formJSON=' + encodeURIComponent(formJSON) });
+          const buf = new Uint8Array(await r.arrayBuffer());
+          let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+          return JSON.stringify({ status: r.status, b64: btoa(bin) });
+        })()` }, 300000);
+        const ox = JSON.parse(rx.result.value);
+        const bx = Buffer.from(ox.b64, 'base64');
+        if (ox.status !== 200 || bx.length < (x.minBytes || 10000) || bx.slice(0, 2).toString() !== 'PK') throw new Error('status ' + ox.status + ', ' + bx.length + ' bytes');
+        buf2 = mergeCatalogUPCs(buf2, [bx]);
+        console.log('  ' + x.label.padEnd(7) + ': ' + x.collection + ' joined in (' + Math.round(bx.length / 1024) + ' KB)');
+      } catch (e) {
+        console.log('  WARN   ' + x.label + ' (' + x.collection + ') not included tonight: ' + e.message + '. The rest runs as normal.');
+      }
+    }
+    buf = buf2;
     const server = (o.disp.match(/filename="?([^";]+)/) || [])[1] || ('CatalogUPCs-' + brand + '.xlsx');
     const stamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '');
     const out = path.join(os.homedir(), 'Downloads', server.replace(/\s*\.xlsx$/i, '').trim() + ' nightly-' + stamp + '.xlsx');

@@ -701,7 +701,19 @@ if (typeof SauconyConverter !== 'undefined') {
     BrandPicker.register('saucony', {
         converter: SauconyConverter, containerId: 'saucony-picker-container', trackerId: 'saucony-tracker-report',
         headerGradient: 'linear-gradient(135deg, #e31837 0%, #b8132d 100%)',
-        comparisonKey: '_sauconyTrackerComparison', vendorName: 'Saucony', checkboxClass: 'saucony-picker-cb'
+        comparisonKey: '_sauconyTrackerComparison', vendorName: 'Saucony', checkboxClass: 'saucony-picker-cb',
+        // Saucony apparel (Apparel At-Once) rides the same converter as the
+        // shoes (2026-11-17). The split is the style number: SAM / SAW / SAU is a
+        // garment, anything else a shoe. See SauconyConverter.isApparelStyle.
+        tabs: [{ key: 'shoes', label: 'Shoes' }, { key: 'apparel', label: 'Apparel' }],
+        tabOf: function (product) {
+            if (typeof product.apparel === 'boolean') return product.apparel ? 'apparel' : 'shoes';
+            var cws = product.colorways || [];
+            for (var i = 0; i < cws.length; i++) {
+                if (cws[i] && typeof cws[i].apparel === 'boolean') return cws[i].apparel ? 'apparel' : 'shoes';
+            }
+            return product.category === 'Apparel' ? 'apparel' : 'shoes';
+        }
     });
 }
 
