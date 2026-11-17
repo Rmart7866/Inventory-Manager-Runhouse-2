@@ -87,10 +87,15 @@
     }
     const art = articleOf(line.sku), size = sizeOf(line);
     if (!art || !size) return null;
-    const holder = [...document.querySelectorAll('div, tr, section')].find((e) => e.childElementCount < 400 && (e.innerText || '').includes(art) && e.querySelector('input[type=number]') && !(e.innerText || '').includes('Collapse all'));
-    if (!holder) return null;
-    const re = new RegExp('size ' + size.replace('.', '\\.') + ' quantity$', 'i');
-    return [...holder.querySelectorAll('input[type=number]')].find((i) => { const l = document.querySelector('label[for="' + i.id + '"]'); return l && re.test(l.innerText.trim()); }) || null;
+    // Every block holding this article code, handed to onPickBox, which takes
+    // the INNERMOST and checks the colour (see common.js, #90267-EXC (2)).
+    const holders = [...document.querySelectorAll('div, tr, section')]
+      .filter((e) => e.childElementCount < 400 && (e.innerText || '').includes(art) && e.querySelector('input[type=number]') && !(e.innerText || '').includes('Collapse all'))
+      .map((e) => ({ text: e.innerText || '', inputs: [...e.querySelectorAll('input[type=number]')].map((i) => {
+        const l = document.querySelector('label[for="' + i.id + '"]');
+        return { label: l ? l.innerText : '', ref: i };
+      }) }));
+    return P.onPickBox(holders, art, size, P.onColour(line));
   }
 
   async function fillMatrix(job) {

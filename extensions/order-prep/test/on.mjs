@@ -24,5 +24,23 @@ check('on.js clicks nothing itself: every click goes through safeClick', !/\.cli
 check('common.js has its one click and one click event, both inside safeClick', (common.match(/\.click\(\)/g) || []).length === 1 && (common.match(/new MouseEvent\('click'/g) || []).length === 1 && /function safeClick[\s\S]*?el\.click\(\)[\s\S]*?new MouseEvent\('click'/.test(common));
 check('on.js never names the Submit button', !/['"]Submit order['"]/.test(on.replace(/<b>Submit order<\/b>/g, '')));
 
+console.log('\nNo barcode: the right colour\'s box (#90267-EXC (2), 2026-11-17)');
+{
+  // ON's grid as the picker sees it: the OUTER block holds both colours of the
+  // model, Ghost Verdite first; each colour's own row holds its article code.
+  const gv = { label: 'Ghost | Verdite size 7.5 quantity', ref: 'GHOST-7.5' };
+  const bb = { label: 'Black | Black size 7.5 quantity', ref: 'BLACK-7.5' };
+  const bb8 = { label: 'Black | Black size 8 quantity', ref: 'BLACK-8' };
+  const outer = { text: 'Cloudrunner 3 Wide 3MG10095248 Ghost Verdite ... 3MG10091043 Black Black ...', inputs: [gv, bb, bb8] };
+  const rowBlack = { text: '3MG10091043 Black Black ...', inputs: [bb, bb8] };
+  const line = { title: "ON Men's Cloudrunner 3 Wide - Black Black", variant: '7.5 / Black Black', sku: 'ON-3MG10091043-BLA-755', upc: '1912537576' };
+  check('our colour comes off the variant', P.onColour(line) === 'Black Black');
+  check('THE BUG: the Black Black 7.5 lands in Black Black, not Ghost Verdite', P.onPickBox([outer, rowBlack], '3MG10091043', '7.5', P.onColour(line)) === 'BLACK-7.5');
+  check('only the outer block on the page: the colour on the label still decides', P.onPickBox([outer], '3MG10091043', '7.5', 'Black Black') === 'BLACK-7.5');
+  check('two boxes for the size and no colour to tell them apart: nothing typed', P.onPickBox([outer], '3MG10091043', '7.5', '') === null);
+  check('a size with no box: nothing typed', P.onPickBox([rowBlack], '3MG10091043', '9', 'Black Black') === null);
+  check('the colour from the title when the variant has only a size', P.onColour({ title: "ON Men's Cloud 6 - Glacier White", variant: '9.0' }) === 'Glacier White');
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

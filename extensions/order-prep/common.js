@@ -107,6 +107,38 @@
     return m[2] ? m[1] + '.5' : m[1];
   }
 
+  // The colour as our variant or title spells it: "7.5 / Black Black" or
+  // "ON Men's Cloudrunner 3 Wide - Black Black" -> "Black Black".
+  function onColour(line) {
+    const parts = String(line.variant || '').split('/').map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 1) return parts.slice(1).join(' ');
+    const t = String(line.title || '').split(' - ');
+    return t.length > 1 ? t[t.length - 1].trim() : '';
+  }
+
+  // THE BOX FOR A LINE WHEN ITS BARCODE IS NOT ON's EAN. holders are the page
+  // blocks that hold number inputs, in page order, as { text, inputs: [{ label,
+  // ref }] }. Found 2026-11-17 on #90267-EXC (2): the Black Black 7.5 went into
+  // GHOST VERDITE, because the first block containing the article code is the
+  // OUTER one holding every colour of the model, and its first "size 7.5" box
+  // was the other colour's. So: the INNERMOST block with the article code (the
+  // colour's own row), and if more than one box still says this size, the one
+  // whose label is our colour. Still not exactly one: null, and the line is
+  // listed as missing for a person rather than typed somewhere plausible.
+  function onPickBox(holders, art, size, colour) {
+    const withArt = (holders || []).filter((h) => h.text.includes(art) && h.inputs.length);
+    if (!withArt.length || !size) return null;
+    const inner = withArt.reduce((a, b) => (b.text.length < a.text.length ? b : a));
+    const re = new RegExp('size ' + String(size).replace('.', '\\.') + ' quantity$', 'i');
+    let hits = inner.inputs.filter((i) => re.test(String(i.label || '').trim()));
+    if (hits.length > 1) {
+      const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+      const c = norm(colour);
+      hits = c ? hits.filter((i) => norm(String(i.label).trim().replace(re, '')) === c) : [];
+    }
+    return hits.length === 1 ? hits[0].ref : null;
+  }
+
   // ---------- Brooks: our SKU to FastTrack's grid ----------
   // Two SKU dialects live on the store (see brooks-converter.js):
   //   110478114-187-1450-D   style 110478 + suffix | colour 187 | 14.0 | D
@@ -148,5 +180,5 @@
     return [...g.values()];
   }
 
-  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, safePress, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize, brooksLine, brooksGroups };
+  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, safePress, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize, onColour, onPickBox, brooksLine, brooksGroups };
 })(typeof window !== 'undefined' ? window : globalThis);
