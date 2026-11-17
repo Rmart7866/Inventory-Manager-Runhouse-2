@@ -234,6 +234,15 @@ node tools/hoka-headless-run.mjs --accept-file <xlsx>
 # file came out at 0 units; hoka-converter.js now allows one day. About 25
 # Bondi 9 colourways (11,670 units) are on the store but in NO season HOKA
 # offers, so the tracker zeroes them, as for any brand.
+# CORRECTION 2026-11-17: the report is of the WORKING ORDER's season (the
+# HOKA cart), whatever seasonId is sent, and the runner now switches the cart
+# the way HOKA's site does: an EMPTY cart only (else refused, untouched), POST
+# /draftOrders {seasonId} per other season, report, two minutes, then the
+# same switch back to the cart's own season, checked empty. Nothing added,
+# submitted or deleted. HOKA DISCARDS an empty working draft when another is
+# opened, so going back by the old draft id (workOn) found nothing and left
+# no valid cart until a page load made one; never do that. Verified live
+# 9:19 AM: both reports, 12,609 sizes, 726,076 units, PASS, cart back empty.
 
 # ON, every morning (2026-11-13). The scraper already reads ON's API, so this
 # loads scrapers/on/content.js (cut at "// Bootstrapping") in a logged-in

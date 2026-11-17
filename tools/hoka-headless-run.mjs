@@ -248,19 +248,78 @@ async function main() {
     // It changes only the price columns, never the stock.
     const pb = await fetch('/order-center/api/v1/order/option/priceBook', { headers: H });
     const books = pb.ok ? ((await pb.json()).data || []) : [];
-    const asked = [];
-    for (const season of seasons) {
+    // THE REPORT IS OF THE WORKING ORDER'S SEASON, NOT THE seasonId SENT.
+    // Measured 2026-11-16: two requests naming Bondi 9 and Fall 2026 came
+    // back as two identical Fall 2026 reports, because the account's working
+    // order (the HOKA cart) was a Fall 2026 draft. HOKA's own site switches
+    // season by CREATING a draft for it (POST /draftOrders {seasonId}) and,
+    // when the cart holds items, DELETING the old draft first. So, owner
+    // decision 2026-11-17:
+    //   - the cart must be EMPTY, or HOKA is refused for the night untouched
+    //     (staff mid-order, or the Draft in HOKA extension, own that cart);
+    //   - each other season is switched to exactly as the site does it, by
+    //     opening a draft for it, its report asked for, and two minutes
+    //     left (HOKA emailed in 15 s) so the report is built while that
+    //     draft is still the working order;
+    //   - then the cart is switched back to its own season THE SAME WAY and
+    //     checked: that season, empty. Nothing is ever added, submitted or
+    //     deleted. LEARNED 2026-11-17: HOKA DISCARDS an empty working draft
+    //     the moment another is opened, so "go back to the original id"
+    //     (workOn) found nothing and left the account with no valid cart
+    //     until the next page load made one. The original id is not kept.
+    const D = '/order-center/api/v1/draftOrders';
+    const J = Object.assign({ 'Content-Type': 'application/json' }, H);
+    const summary = async () => { const x = await fetch(D + '/workingOrder/summary', { headers: H }); return x.ok ? ((await x.json()).data || null) : null; };
+    const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+    const s0 = await summary();
+    if (!s0 || !s0.draftOrderId) return JSON.stringify({ ok: false, why: 'could not read the HOKA cart' });
+    if ((s0.totalQty || 0) > 0 || (s0.totalProducts || 0) > 0) return JSON.stringify({ ok: false, busy: true, why: 'the HOKA cart has ' + s0.totalQty + ' units in it' });
+    const switchTo = async (season) => {
+      const c = await fetch(D, { method: 'POST', headers: J, body: JSON.stringify({ seasonId: season.seasonId }) });
+      if (!c.ok) throw new Error('could not switch the cart to ' + season.seasonName + ' (' + c.status + ')');
+      const s1 = await summary();
+      if (!s1 || s1.seasonId !== season.seasonId) throw new Error('the cart did not switch to ' + season.seasonName);
+      if ((s1.totalQty || 0) > 0) throw new Error('the ' + season.seasonName + ' cart is not empty');
+    };
+    const ask = async (season) => {
       const book = books.find((b) => b.name === 'HOKA-' + season.seasonCode) || books.find((b) => b.name === 'HOKA-' + String(season.seasonCode).split(' ')[0]) || books[0] || {};
       const q = new URLSearchParams({ seasonId: String(season.seasonId), purchaseLimitIds: '', specialOrderForms: '', includeImage: 'false',
         useAtpLabels: 'false', includeSummaryTab: 'false', priceBookId: String(book.value || '') });
-      const a = await fetch('/order-center/api/v1/draftOrders/report/atsReport?' + q, { headers: H });
-      if (!a.ok) return JSON.stringify({ ok: false, why: 'atsReport ' + a.status + ' for ' + season.seasonName });
-      asked.push({ name: season.seasonName, book: book.name || '' });
+      const a = await fetch(D + '/report/atsReport?' + q, { headers: H });
+      if (!a.ok) throw new Error('atsReport ' + a.status + ' for ' + season.seasonName);
+      return { name: season.seasonName, book: book.name || '' };
+    };
+    const homeId = s0.seasonId;
+    const home = rows.find((x) => x.seasonId === homeId) || { seasonId: homeId, seasonName: 'season ' + homeId };
+    const asked = [], notes = [];
+    let err = null, moved = false;
+    try {
+      for (const season of seasons.filter((x) => x.seasonId !== homeId)) {
+        await switchTo(season); moved = true;
+        asked.push(await ask(season));
+        await wait(120000);
+      }
+    } catch (e) { err = e.message; }
+    // Always put the cart back on its own season, whatever happened above.
+    if (moved || err) {
+      try { await switchTo(home); }
+      catch (e) { return JSON.stringify({ ok: false, why: 'COULD NOT PUT THE HOKA CART BACK ON ' + home.seasonName + ' (' + e.message + '); opening HOKA in a browser makes a new cart' }); }
     }
-    return JSON.stringify({ ok: true, seasons: asked, season: asked.map((x) => x.name).join(' + '), book: asked.map((x) => x.book).join(', ') });
-  })()` })).result.value);
+    if (err) return JSON.stringify({ ok: false, why: err + ' (cart put back on ' + home.seasonName + ')' });
+    if (seasons.some((x) => x.seasonId === homeId)) {
+      try { asked.push(await ask(home)); } catch (e) { return JSON.stringify({ ok: false, why: e.message }); }
+    } else notes.push('the cart was on ' + home.seasonName + ', not an in-season season; it was put back there');
+    return JSON.stringify({ ok: true, seasons: asked, season: asked.map((x) => x.name).join(' + '), book: asked.map((x) => x.book).join(', '), notes });
+  })()` }, 600000)).result.value);
   try { ws.close(); } catch (e) {}
   await shutOwn();
+  (r.notes || []).forEach((n) => console.log('  note   : ' + n));
+  if (!r.ok && (r.busy || !/^(no session token|seasons \d+)$/.test(r.why))) {
+    // Not a login problem: a busy cart, or a step of the season switch.
+    console.error(stamp0 + '  REFUSED: ' + r.why + '. No file written.');
+    notify('HOKA not run', r.why);
+    verdictReached = true; return 1;
+  }
   if (!r.ok) {
     console.error(stamp0 + '  SESSION EXPIRED or refused (' + r.why + '): log the HOKA profile in again with --setup. No file written.');
     notify('HOKA scraper logged out', 'Run: node tools/hoka-headless-run.mjs --setup, and log in');
