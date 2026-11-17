@@ -162,12 +162,17 @@ function sizeOf(selectedOptions) {
 // brands parsers.js knows keeps this at 1,732 products and about 1 MB.
 //
 // Anything else, including blank types and one-off categories, stays out of both.
-const FOOTWEAR_TYPE_RE = /(shoes$|^athletic footwear$|^footwear$)/i;
+// SPIKES too, from 2026-11-17 (owner: spikes are dropship, their own section).
+// Every supplier feed carries them and the store types its 117 "Spikes", so
+// without this the tool could not see one: offered as new on every scan, never
+// written, never zeroed. Measured that day: 106 active, about 2% of the
+// footwear payload.
+const FOOTWEAR_TYPE_RE = /(shoes$|^athletic footwear$|^footwear$|^spikes$)/i;
 
 // The garment types the supplier brands actually use on this store. An allowlist
 // rather than "not footwear", so a new category cannot quietly balloon the
-// payload. Spikes and Sandals are deliberately absent: they are shoes but not
-// dropship, so neither catalog has a use for them yet.
+// payload. Sandals are deliberately absent: they are shoes but not dropship.
+// Spikes are footwear above (2026-11-17), never apparel.
 const APPAREL_TYPE_RE = new RegExp('^(' + [
   'tanks?', 'hoodies', 'sweatshirts', 't-shirts?', 'short sleeve', 'long sleeves',
   'crewnecks', 'half-zips', 'full zips', 'jackets?', 'vests', 'shorts', 'pants',

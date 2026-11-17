@@ -29,7 +29,7 @@ const SUPPLIER_VENDORS = new Set([
   'on running', 'asics', 'brooks', 'hoka', 'hoka one one', 'saucony',
   'puma', 'new balance', 'merrell', 'altra', 'diadora',
 ]);
-const FOOTWEAR_TYPE_RE = /(shoes$|^athletic footwear$|^footwear$)/i;
+const FOOTWEAR_TYPE_RE = /(shoes$|^athletic footwear$|^footwear$|^spikes$)/i;   // spikes: dropship footwear from 2026-11-17
 const NEEDHAM = 'Needham';
 
 const QUERY = `query($c:String,$q:String!){

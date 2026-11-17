@@ -60,7 +60,43 @@ var CatalogClient = {
     // apparel are out of scope, so they are never flagged for zeroing. The typo'd
     // types ("Mens's Shoes", "Womens's Shoes") that exist in the store are matched
     // too, so a data-entry typo does not silently drop a product from scope.
-    DROPSHIP_TYPE_RE: /^(men'?s|mens's|women'?s|womens's|unisex)\s+shoes$/i,
+    // SPIKES joined the dropship scope 2026-11-17 (owner: "these should be
+    // their own section"). Every supplier feed carries them (Brooks Hyperion
+    // Elite, NB FuelCell XC7, ON Cloudspike, Saucony Kilkenny XC, HOKA
+    // Crescendo, Puma evoSPEED) and the store types them "Spikes". Before this a
+    // Needham spike was invisible to the tool: never ticked, never written,
+    // never zeroed. Measured that day against every brand's latest file, adding
+    // them zeroes 5 old Needham spikes (14 units) the suppliers no longer list,
+    // the same rule shoes follow; spikes stocked in a store stay out (Needham
+    // scoping below).
+    DROPSHIP_TYPE_RE: /^((men'?s|mens's|women'?s|womens's|unisex)\s+shoes|spikes)$/i,
+
+    // THE SPIKES SECTION. One rule for every brand's picker tab and for what a
+    // new product is created as. Names, not SKUs: no supplier marks a spike in
+    // its data, but every spike says so in its model name, by a word (spike,
+    // XC, sprint), an event code (MD, LD, SP, SD as a token), or a spike-only
+    // line (Cloudspike, Crescendo, Kilkenny...). Winter trail shoes with ice
+    // studs ("Speedgoat 5 GTX Spike") are shoes, not track spikes, and
+    // "sprint" alone is not a spike: Merrell's Sprint Anthem is a lifestyle
+    // shoe, so the word only counts after a spike line (Hyperion Elite Sprint).
+    //
+    // Returns null, or { tags } with the tags the store's 117 spikes already
+    // use (read 2026-11-17): spikes + track and field + an event tag. The
+    // Track Spikes collection keys on "spikes" / "track and field".
+    SPIKE_NOT_RE: /\b(gtx|goretex|gore-tex|ice|traction|winter|snow|trail)\b|speedgoat|\bsandal|\bslide/i,
+    SPIKE_RE: /\bspikes?\b|\bspikeless\b|\bxc\b|cross[-\s]?country|\b(md|ld|sp|sd)\b|(hyperion\s*elite|hyper|evo\s?speed|kick|metaspeed|supercomp|fuelcell)\s*sprint|\bhigh\s*jump\b|\bjump(ing)?\b|\bthrow(ing|s)?\b|\bjavelin\b|\bshot\s*put\b|\bdiscus\b|cloudspike|crescendo|evo\s?speed|ballista|kilkenny|\bhavoc\b|xc\s?seven|\bxc\d|\bvazee\b|japan\s*lite|sonicsprint|kick\s*sprint|smokerider|\bmiler\b|resurgence/i,
+    spikeInfo: function (name) {
+        var n = String(name || '');
+        if (!n || this.SPIKE_NOT_RE.test(n) || !this.SPIKE_RE.test(n)) return null;
+        var tags = ['spikes', 'track and field'];
+        if (/\bthrow(ing|s)?\b|\bjavelin\b|\bshot\s*put\b|\bdiscus\b/i.test(n)) tags.push('Throwing Shoes');
+        else if (/\bhigh\s*jump\b|\bjump(ing)?\b|\bHJ\b|\blong\s*jump|\btriple/i.test(n)) tags.push('Jumping Spikes');
+        else if (/\bxc\b|\bxc\d|xc\s?seven|cross[-\s]?country|spikeless|kilkenny|\bhavoc\b|crescendo\s*xc|resurgence/i.test(n)) tags.push('XC Spikes', 'cross country');
+        else if (/\bmd\b|mid[-\s]?distance|ballista/i.test(n)) tags.push('Mid-Distance Spikes', 'mid distance');
+        else if (/\bld\b|distance|\bmiler\b|5000/i.test(n)) tags.push('Distance Spikes', 'distance');
+        else if (/\bsp\b|\bsd\b|\bsprint\b|sonicsprint|smokerider/i.test(n)) tags.push('Sprint Spikes', 'sprint');
+        return { tags: tags };
+    },
 
     _catalog: null,
     _fetchedAt: 0,

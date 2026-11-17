@@ -64,12 +64,30 @@ var BrandPicker = {
         // The split is one character. Every ON SKU carries the article code and
         // its first digit is the group: 1 apparel, 2 accessories, 3 footwear.
         // No name parsing, nothing to guess.
+        //
+        // SPIKES ARE THEIR OWN SECTION for every brand (owner, 2026-11-17). A
+        // footwear product whose name reads as a spike (CatalogClient.spikeInfo)
+        // moves from Shoes to a Spikes tab, added after Shoes only when the file
+        // has one. Apparel keeps its own tab and is never read as a spike, so
+        // ON's Core Track Jacket stays a garment.
+        var spikeOf = function (prod) {
+            return typeof CatalogClient !== 'undefined' && CatalogClient.spikeInfo &&
+                !!CatalogClient.spikeInfo((prod.model || '') + ' ' + (prod.name || ''));
+        };
+        var baseTabOf = (config.tabs && typeof config.tabOf === 'function') ? config.tabOf : function () { return 'shoes'; };
+        var tabOf = function (prod) { var k = baseTabOf(prod); return (k === 'shoes' && spikeOf(prod)) ? 'spikes' : k; };
+        var tabs = (config.tabs || [{ key: 'shoes', label: 'Shoes' }]).slice();
+        if (sorted.some(function (p) { return tabOf(p) === 'spikes'; })) {
+            var si = tabs.findIndex(function (t) { return t.key === 'shoes'; });
+            tabs.splice(si + 1, 0, { key: 'spikes', label: 'Spikes' });
+        }
+        config._tabs = tabs;
         var groups = null;
-        if (config.tabs && typeof config.tabOf === 'function') {
+        if (tabs.length > 1) {
             groups = {};
-            config.tabs.forEach(function (t) { groups[t.key] = []; });
+            tabs.forEach(function (t) { groups[t.key] = []; });
             sorted.forEach(function (prod) {
-                var k = config.tabOf(prod);
+                var k = tabOf(prod);
                 if (groups[k]) groups[k].push(prod);
                 else (groups._other = groups._other || []).push(prod);
             });
@@ -78,10 +96,10 @@ var BrandPicker = {
         // Open on the first tab that HAS products. A Brooks apparel-only file
         // opened on an empty Shoes tab, so staff saw nothing to tick and hit
         // "Please select at least one product!" (2026-11-10).
-        var firstKey = groups ? (config.tabs.filter(function (t) { return (groups[t.key] || []).length; })[0] || config.tabs[0]).key : null;
+        var firstKey = groups ? (tabs.filter(function (t) { return (groups[t.key] || []).length; })[0] || tabs[0]).key : null;
         if (groups) {
             html += '<div class="bp-tabs">';
-            config.tabs.forEach(function (t, i) {
+            tabs.forEach(function (t, i) {
                 var n = (groups[t.key] || []).length;
                 html += '<button class="bp-tab' + (t.key === firstKey ? ' bp-tab-on' : '') + '" data-tab="' + t.key +
                     '" onclick="BrandPicker.showTab(\'' + brand + '\',\'' + t.key + '\')">' +
@@ -127,7 +145,7 @@ var BrandPicker = {
         };
 
         if (groups) {
-            config.tabs.forEach(function (t, i) {
+            tabs.forEach(function (t, i) {
                 html += '<div class="bp-tabpane" id="' + brand + '-tab-' + t.key + '"' +
                     (t.key === firstKey ? '' : ' style="display:none;"') + '>';
                 var list = groups[t.key] || [];
@@ -228,8 +246,9 @@ var BrandPicker = {
     // product stays selected whether or not its tab is the visible one.
     showTab: function (brand, key) {
         var config = this.configs[brand];
-        if (!config || !config.tabs) return;
-        config.tabs.forEach(function (t) {
+        var tabList = config && (config._tabs || config.tabs);
+        if (!tabList) return;
+        tabList.forEach(function (t) {
             var pane = document.getElementById(brand + '-tab-' + t.key);
             if (pane) pane.style.display = (t.key === key) ? 'block' : 'none';
         });

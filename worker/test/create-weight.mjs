@@ -88,5 +88,10 @@ eq('a caller may override it',
      variants: [{ size: '9', sku: 'A' }] }, NEEDHAM, [NEEDHAM]).category,
    'gid://shopify/TaxonomyCategory/aa-8');
 
+console.log('\nSpikes are footwear (2026-11-17): the weight AND the Athletic Shoes category');
+const sp = build('Spikes', [{ size: '9', sku: 'S' }]);
+eq('a spike weighs 2 lb', weightOf(sp) && weightOf(sp).value, 2.0);
+eq('a spike gets the Athletic Shoes leaf, for MA footwear tax', sp.category, 'gid://shopify/TaxonomyCategory/aa-8-1');
+
 console.log(failures ? '\n' + failures + ' FAILED\n' : '\nAll passed\n');
 process.exit(failures ? 1 : 0);

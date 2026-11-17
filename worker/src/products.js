@@ -80,7 +80,11 @@ export async function createStagedUploads(client, files) {
 // wrong, so the weight is applied only when the product type says shoes. The
 // same "ends in shoes" test the catalog and the tagging use.
 const SHOE_WEIGHT_LB = 2.0;
-const isFootwearType = (t) => /shoes$/i.test(String(t || '').trim());
+// SPIKES COUNT (2026-11-17). The inventory tool now creates spikes as type
+// "Spikes", the store's own type, and a spike is footwear for Massachusetts tax
+// and the feeds exactly as a shoe is, so it takes the same Athletic Shoes leaf
+// and the same 2 lb weight. Without this a new spike would carry no category.
+const isFootwearType = (t) => /shoes$|^spikes$/i.test(String(t || '').trim());
 
 // PRODUCT CATEGORY, the Shopify taxonomy leaf for athletic footwear.
 //

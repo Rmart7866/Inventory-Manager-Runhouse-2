@@ -30,7 +30,8 @@ for (const t of ['T-Shirts', 'Sports Bras', 'Shorts', 'Tights/Leggings', 'Hoodie
 check('the same type from The Run House is NOT carried', classify('Hoodies', 'The Run House') === null);
 check('nor from Bella + Canvas', classify('T-Shirts', 'Bella + Canvas') === null);
 check('a blank product type is not carried', classify('', 'On Running') === null);
-check('Spikes are not carried (shoes, but not dropship)', classify('Spikes', 'Saucony') === null);
+// Owner decision 2026-11-17: spikes are dropship footwear, their own section.
+check('Spikes are FOOTWEAR, never apparel', classify('Spikes', 'Saucony') === 'footwear' && classify('spikes', 'Brooks') === 'footwear');
 check('Sandals are not carried', classify('Sandals', 'Hoka') === null);
 check('Nutrition is not carried', classify('Nutrition', 'On Running') === null);
 

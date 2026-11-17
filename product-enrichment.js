@@ -654,17 +654,32 @@ var ProductEnrichment = {
             // garment was created carrying custom.width_class = standard. Same
             // "type ends in shoes" test the Worker uses for the weight and the
             // category, so the three cannot disagree about what a shoe is.
-            var isShoe = /shoes$/i.test(get(first, 'Type').trim());
+            var isShoe = /shoes$|^spikes$/i.test(get(first, 'Type').trim());
             var wc = isShoe ? normW(meta.width) : '';
             if (wc) mf.push({ namespace: 'custom', key: 'width_class', type: 'single_line_text_field', value: wc });
             var gg = normG(meta.gender); if (gg) mf.push({ namespace: 'custom', key: 'gender', type: 'single_line_text_field', value: gg });
+            // SPIKES ARE THEIR OWN TYPE (2026-11-17). The converters type every
+            // shoe "<gender> Shoes"; a footwear product whose title reads as a
+            // spike is created as "Spikes", the type the store's 117 spikes
+            // carry, with the tags its Track Spikes collection keys on, added to
+            // (never replacing) the tags it already has. The Worker gives
+            // "Spikes" the Athletic Shoes category and the 2 lb weight, so the
+            // footwear tax treatment is unchanged.
+            var pType = get(first, 'Type').trim();
+            var pTags = get(first, 'Tags').split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+            var spike = (isShoe && typeof CatalogClient !== 'undefined' && CatalogClient.spikeInfo) ? CatalogClient.spikeInfo(get(first, 'Title')) : null;
+            if (spike) {
+                pType = 'Spikes';
+                var have = {}; pTags.forEach(function (t) { have[t.toLowerCase()] = true; });
+                spike.tags.forEach(function (t) { if (!have[t.toLowerCase()]) pTags.push(t); });
+            }
             return {
                 title: get(first, 'Title').trim(),
                 handle: h,
                 vendor: get(first, 'Vendor').trim(),
-                productType: get(first, 'Type').trim(),
+                productType: pType,
                 descriptionHtml: get(first, 'Description'),
-                tags: get(first, 'Tags').split(',').map(function (t) { return t.trim(); }).filter(Boolean),
+                tags: pTags,
                 variants: variants,
                 metafields: mf,
                 stock: known ? { units: units, sizes: sizes, inStock: sizes.filter(function (s) { return s.qty > 0; }).length } : null

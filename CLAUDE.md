@@ -1906,6 +1906,21 @@ is, because they all use the same `/shoes$/i` test:
 `test/on-apparel-type.mjs` and `worker/test/apparel-category.mjs` pin all of it,
 including the drift between the two type tables.
 
+**SPIKES ARE DROPSHIP FOOTWEAR AND THEIR OWN SECTION (owner, 2026-11-17).**
+Every supplier feed carries track and XC spikes and the store types its 117
+"Spikes", which the tool could not see: the Worker catalog took only types
+ending in "shoes", so a Needham spike was never ticked, written or zeroed. Now
+"Spikes" is footwear in `classify()` (catalog.js), in the create route's shoe
+test (Athletic Shoes category + 2 lb, the MA footwear tax treatment), in
+sales.js, and in `CatalogClient.DROPSHIP_TYPE_RE`. `CatalogClient.spikeInfo`
+is the ONE name rule: the picker moves a spike to a Spikes tab and Stage 4
+creates it as type Spikes with the store's own tags (spikes, track and field,
+plus XC / Mid-Distance / Distance / Sprint / Jumping Spikes or Throwing
+Shoes). Speedgoat GTX Spike and Merrell's Sprint Anthem are shoes. Measured
+before deploy against every feed: 5 old Needham spikes (14 units) are zeroed,
+store stock is never touched. `test/spikes.mjs` pins it. Most existing spikes
+have no SKU, so they cannot update until recreated or backfilled.
+
 **Create is create-only and draft-only.** `worker/src/products.js` skips any
 handle that already exists, so `productSet` can never overwrite a live product,
 and everything is created as `DRAFT`. That pair is what makes the temporary
