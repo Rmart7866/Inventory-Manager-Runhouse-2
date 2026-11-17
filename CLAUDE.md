@@ -223,6 +223,17 @@ node tools/newbalance-headless-run.mjs --accept-file <xlsx>
 node tools/hoka-headless-run.mjs --setup            # log the profile in, once
 node tools/hoka-headless-run.mjs                    # ask, wait for the link, download, judge
 node tools/hoka-headless-run.mjs --accept-file <xlsx>
+# FIRST LIVE RUN 2026-11-16 found three things, all fixed. (1) The portal's
+# "default" season is just the one somebody last picked; it had been left on
+# "Fall 2026 Bondi 9" and the run got a one-model report. (2) Bondi 9 is a
+# SEASON OF ITS OWN, so the Fall 2026 report alone would have zeroed about
+# 73,000 Needham units of it. The runner now asks for EVERY In-Season season
+# (seasonType), waits for each "<season> ATS Report" email, refuses a partial
+# set, and joins them (mergeReports) before judging. (3) HOKA dates rows by
+# its own clock, so after 7 PM Eastern every row read as tomorrow and the
+# file came out at 0 units; hoka-converter.js now allows one day. About 25
+# Bondi 9 colourways (11,670 units) are on the store but in NO season HOKA
+# offers, so the tracker zeroes them, as for any brand.
 
 # ON, every morning (2026-11-13). The scraper already reads ON's API, so this
 # loads scrapers/on/content.js (cut at "// Bootstrapping") in a logged-in

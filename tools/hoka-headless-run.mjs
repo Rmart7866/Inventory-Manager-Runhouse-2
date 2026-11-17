@@ -121,17 +121,48 @@ function judge(csv, file, accept) {
   return res.ok;
 }
 
-async function downloadAndJudge(url, t0) {
-  // The Worker only ever holds Deckers report-bucket links (feeds.js), and
-  // this checks again before fetching anything.
-  if (!/^https:\/\/s3\.[a-z0-9-]+\.amazonaws\.com\/us\.assets\.b2b\.deckers\.com\/company_\d+\/DynamicReports\/[^?#]*ATS_Report[^?#]*\.xlsx$/i.test(url)) {
-    console.error('  REFUSED: the link is not a Deckers ATS report. No file written.'); return 1;
+const REPORT_LINK_RE = /^https:\/\/s3\.[a-z0-9-]+\.amazonaws\.com\/us\.assets\.b2b\.deckers\.com\/company_\d+\/DynamicReports\/[^?#]*ATS_Report[^?#]*\.xlsx$/i;
+
+// One workbook out of several season reports: the first report's sheet and
+// header, every other report's data rows appended. Refuses a header that does
+// not match, because the converter reads columns by POSITION.
+export function mergeReports(bufs) {
+  const require = createRequire(import.meta.url);
+  const XLSX = require('xlsx');
+  let header = null, name = 'ATS Report', rows = [];
+  for (const b of bufs) {
+    const wb = XLSX.read(b);
+    name = header ? name : wb.SheetNames[0];
+    const all = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, blankrows: false, raw: true });
+    if (!all.length) continue;
+    if (!header) header = all[0];
+    else if (JSON.stringify(all[0]) !== JSON.stringify(header)) throw new Error('the season reports have different columns');
+    rows = rows.concat(all.slice(1));
   }
-  const r = await fetch(url, { signal: AbortSignal.timeout(300000) });
-  const buf = Buffer.from(await r.arrayBuffer());
-  if (!r.ok || buf.length < 100000 || buf.slice(0, 2).toString() !== 'PK') {
-    console.error('  REFUSED: the report link did not give a workbook (status ' + r.status + ', ' + buf.length + ' bytes). No file written.'); return 1;
+  const out = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(out, XLSX.utils.aoa_to_sheet([header].concat(rows)), name);
+  return Buffer.from(XLSX.write(out, { type: 'buffer', bookType: 'xlsx' }));
+}
+
+async function downloadAndJudge(links, t0) {
+  const parts = [];
+  for (const l of links) {
+    // The Worker only ever holds Deckers report-bucket links (feeds.js), and
+    // this checks again before fetching anything.
+    if (!REPORT_LINK_RE.test(l.url)) { console.error('  REFUSED: a link is not a Deckers ATS report. No file written.'); return 1; }
+    const r = await fetch(l.url, { signal: AbortSignal.timeout(300000) });
+    const b = Buffer.from(await r.arrayBuffer());
+    // A one-model season (Bondi 9) is about 70 KB, so the floor is low; a
+    // login page or an error is HTML and fails the PK test anyway.
+    if (!r.ok || b.length < 20000 || b.slice(0, 2).toString() !== 'PK') {
+      console.error('  REFUSED: ' + l.subject + ' did not give a workbook (status ' + r.status + ', ' + b.length + ' bytes). No file written.'); return 1;
+    }
+    parts.push(b);
   }
+  let buf;
+  try { buf = parts.length === 1 ? parts[0] : mergeReports(parts); }
+  catch (e) { console.error('  REFUSED: could not join the season reports: ' + e.message + '. No file written.'); return 1; }
+  const url = links[0].url;
   const server = decodeURIComponent(url.split('/').pop()).replace(/_\d+\.xlsx$/i, '').replace(/\.xlsx$/i, '');
   const stamp = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '');
   const out = path.join(os.homedir(), 'Downloads', server + ' nightly-' + stamp + '.xlsx');
@@ -203,18 +234,30 @@ async function main() {
     const s = await fetch('/order-center/api/v1/catalog/seasons', { headers: H });
     if (!s.ok) return JSON.stringify({ ok: false, why: 'seasons ' + s.status });
     const rows = (((await s.json()).data || {}).rows) || [];
-    const season = rows.find((x) => x.defaultSeason) || rows[0];
-    if (!season) return JSON.stringify({ ok: false, why: 'no season' });
-    if (${KEEPALIVE}) return JSON.stringify({ ok: true, keepalive: true, season: season.seasonName });
+    // EVERY IN-SEASON SEASON, never "the default". The default is just the
+    // season somebody last picked in the portal (2026-11-16 it had been left
+    // on "Fall 2026 Bondi 9", and the run got a one-model report), and HOKA
+    // keeps Bondi 9 in a season of its own: the Fall 2026 report alone left
+    // out about 73,000 Needham units of it, which would all read as removed.
+    // Preseason (Spring 2027, Fall 2027) is future stock and stays out.
+    const live = rows.filter((x) => /in-?season/i.test(String(x.seasonType || '')));
+    const seasons = live.length ? live : rows.filter((x) => x.defaultSeason);
+    if (!seasons.length) return JSON.stringify({ ok: false, why: 'no season' });
+    if (${KEEPALIVE}) return JSON.stringify({ ok: true, keepalive: true, season: seasons.map((x) => x.seasonName).join(' + ') });
     // A price list is required; the season's own one ("HOKA-F26") if offered.
     // It changes only the price columns, never the stock.
     const pb = await fetch('/order-center/api/v1/order/option/priceBook', { headers: H });
     const books = pb.ok ? ((await pb.json()).data || []) : [];
-    const book = books.find((b) => b.name === 'HOKA-' + season.seasonCode) || books[0] || {};
-    const q = new URLSearchParams({ seasonId: String(season.seasonId), purchaseLimitIds: '', specialOrderForms: '', includeImage: 'false',
-      useAtpLabels: 'false', includeSummaryTab: 'false', priceBookId: String(book.value || '') });
-    const a = await fetch('/order-center/api/v1/draftOrders/report/atsReport?' + q, { headers: H });
-    return JSON.stringify({ ok: a.ok, why: 'atsReport ' + a.status, season: season.seasonName, book: book.name || '' });
+    const asked = [];
+    for (const season of seasons) {
+      const book = books.find((b) => b.name === 'HOKA-' + season.seasonCode) || books.find((b) => b.name === 'HOKA-' + String(season.seasonCode).split(' ')[0]) || books[0] || {};
+      const q = new URLSearchParams({ seasonId: String(season.seasonId), purchaseLimitIds: '', specialOrderForms: '', includeImage: 'false',
+        useAtpLabels: 'false', includeSummaryTab: 'false', priceBookId: String(book.value || '') });
+      const a = await fetch('/order-center/api/v1/draftOrders/report/atsReport?' + q, { headers: H });
+      if (!a.ok) return JSON.stringify({ ok: false, why: 'atsReport ' + a.status + ' for ' + season.seasonName });
+      asked.push({ name: season.seasonName, book: book.name || '' });
+    }
+    return JSON.stringify({ ok: true, seasons: asked, season: asked.map((x) => x.name).join(' + '), book: asked.map((x) => x.book).join(', ') });
   })()` })).result.value);
   try { ws.close(); } catch (e) {}
   await shutOwn();
@@ -226,17 +269,36 @@ async function main() {
   if (KEEPALIVE) { console.log(stamp0 + '  alive: HOKA B2B, ' + r.season); verdictReached = true; return 0; }
   console.log(stamp0 + '  asked for the ' + r.season + ' ATS report (price list ' + r.book + '); waiting for the email link');
 
-  // A link received after the request was made (minus a minute of clock
-  // slack). An older link would be yesterday's stock.
+  // The link to OUR report: EMAILED after the request was made (minus a
+  // minute of clock slack) and titled exactly "<Season> ATS Report". Both
+  // halves were learned on the first live run, 2026-11-16: the mailbox
+  // script's first pass forwarded two days of reports at once, so a link's
+  // receivedAt said "just now" on an old one, and the one it took was
+  // "Fall 2026 Bondi 9 ATS Report", a single model somebody had asked for
+  // (71 KB). That would read as every other HOKA model gone.
   const since = t0 - 60000;
+  const wants = r.seasons.map((x) => (x.name + ' ATS Report').toLowerCase());
+  const got = {};
   for (let i = 0; i < WAIT_FOR_LINK_MIN; i++) {
-    const fresh = (await reportLinks('hoka')).find((l) => Date.parse(l.receivedAt) >= since);
-    if (fresh) {
-      console.log('  link   : arrived after ' + Math.round((Date.now() - t0) / 60000) + ' min (' + fresh.subject + ')');
-      const code = await downloadAndJudge(fresh.url, t0);
+    const links = await reportLinks('hoka');
+    for (const w of wants) {
+      if (got[w]) continue;
+      const l = links.find((x) => Date.parse(x.emailedAt || x.receivedAt) >= since && String(x.subject || '').trim().toLowerCase() === w);
+      if (l) { got[w] = l; console.log('  link   : ' + l.subject + ', after ' + Math.round((Date.now() - t0) / 60000) + ' min'); }
+    }
+    if (wants.every((w) => got[w])) {
+      const code = await downloadAndJudge(wants.map((w) => got[w]), t0);
       verdictReached = true; return code;
     }
     await wait(60000);
+  }
+  // A missing season is a refusal, not a smaller file: its stock would all
+  // read as removed.
+  const missing = wants.filter((w) => !got[w]);
+  if (Object.keys(got).length) {
+    console.error('  NO LINK for ' + missing.join(', ') + ' after ' + WAIT_FOR_LINK_MIN + ' minutes. A partial set is never used. No file written.');
+    notify('HOKA report did not arrive', 'Missing: ' + missing.join(', '));
+    verdictReached = true; return 1;
   }
   console.error('  NO LINK after ' + WAIT_FOR_LINK_MIN + ' minutes. Is the needham@ Apps Script running (tools/tracking-mailbox.gs)? No file written.');
   notify('HOKA report did not arrive', 'No ATS report link after ' + WAIT_FOR_LINK_MIN + ' minutes');

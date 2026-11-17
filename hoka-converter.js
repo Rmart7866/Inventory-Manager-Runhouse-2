@@ -623,9 +623,15 @@ const HokaConverter = {
         try {
             var parts = availableDateStr.toString().split('/').map(function(num) { return parseInt(num); });
             var availableDate = new Date(parts[2], parts[0] - 1, parts[1]);
-            var today = new Date();
-            today.setHours(0, 0, 0, 0);
-            return availableDate <= today;
+            // ONE DAY OF SLACK, because HOKA dates the report by ITS clock.
+            // Measured 2026-11-16: a report pulled at 9:18 PM Eastern dated
+            // every row 11/17, the server's day already, so all 11,577 sizes
+            // read as future stock and the whole file came out at 0 units.
+            // Anything dated tomorrow or earlier counts as available now.
+            var cutoff = new Date();
+            cutoff.setHours(0, 0, 0, 0);
+            cutoff.setDate(cutoff.getDate() + 1);
+            return availableDate <= cutoff;
         } catch (e) {
             console.warn('Could not parse available date:', availableDateStr);
             return true;

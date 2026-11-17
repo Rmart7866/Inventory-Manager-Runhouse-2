@@ -184,6 +184,7 @@ export async function planBrand(brand, files) {
   return {
     brand, items, heldBack,
     scanned: products.length, ticked: selected.size, notTicked: newCount,
+    removedList: removed.map((r) => ({ title: r.title, handle: r.handle, units: r.needhamOnHand || 0 })),
     removed: removed.length, removedUnits: removed.reduce((t, r) => t + (r.needhamOnHand || 0), 0),
     liveColorways: liveTotal, removedShare: liveTotal ? removed.length / liveTotal : 0,
     catalogBuiltAt: catalog.generatedAt || null,
