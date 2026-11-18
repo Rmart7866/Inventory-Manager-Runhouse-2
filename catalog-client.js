@@ -98,6 +98,27 @@ var CatalogClient = {
         return { tags: tags };
     },
 
+    // THE DROPSHIP LOCATION (owner, 2026-11-18). Dropship stock moves off
+    // Needham, which is a real store, onto "Dropship Warehouse". The Worker
+    // says which (worker/src/dropship.js) in every catalog, so the cutover is a
+    // Worker setting and nothing here changes. Until it arrives this is Needham,
+    // which is how the tool has always behaved.
+    //
+    // Supplier feeds, scrapers and converters label supplier stock "Needham"
+    // and keep doing so; toDropshipLocation turns that label (or a blank) into
+    // the dropship location right after conversion. It never means the real
+    // Needham store: no supplier feed describes a shop's shelf. Anything else
+    // (Warehouse, for the print on demand singlets) is left exactly as it is.
+    DROPSHIP_NAME: 'Needham',
+    dropshipName: function () { return this.DROPSHIP_NAME || 'Needham'; },
+    isDropshipLocation: function (loc) {
+        return String(loc == null ? '' : loc).trim().toLowerCase() === this.dropshipName().toLowerCase();
+    },
+    toDropshipLocation: function (loc) {
+        var l = String(loc == null ? '' : loc).trim();
+        return (!l || /^needham$/i.test(l)) ? this.dropshipName() : l;
+    },
+
     _catalog: null,
     _fetchedAt: 0,
     TTL_MS: 5 * 60 * 1000, // in-tab cache; the Worker itself refreshes every 20 min
@@ -295,6 +316,7 @@ var CatalogClient = {
             return res.json();
         }).then(function(catalog) {
             self._catalog = catalog;
+            if (catalog && catalog.dropshipLocation && catalog.dropshipLocation.name) self.DROPSHIP_NAME = catalog.dropshipLocation.name;
             self._fetchedAt = Date.now();
             return catalog;
         });

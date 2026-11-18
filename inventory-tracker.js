@@ -567,7 +567,7 @@ var InventoryTracker = {
                     'Option3 Name': '', 'Option3 Value': '',
                     SKU: variant.sku || '', Barcode: variant.barcode || '',
                     'HS Code': '', COO: '',
-                    Location: 'Needham', 'Bin name': '',
+                    Location: (typeof CatalogClient !== 'undefined' && CatalogClient.dropshipName) ? CatalogClient.dropshipName() : 'Needham', 'Bin name': '',
                     'Incoming (not editable)': '', 'Unavailable (not editable)': '',
                     'Committed (not editable)': '', 'Available (not editable)': '',
                     'On hand (current)': '', 'On hand (new)': 0

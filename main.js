@@ -483,7 +483,7 @@ var BrandConverter = {
                 row['Option3 Name'] || '', row['Option3 Value'] || '',
                 row.SKU || '', row.Barcode || '',
                 row['HS Code'] || '', row.COO || '',
-                row.Location || 'Needham', row['Bin name'] || '',
+                row.Location || (typeof CatalogClient !== 'undefined' ? CatalogClient.dropshipName() : 'Needham'), row['Bin name'] || '',
                 '', '', '', '', '',
                 row['On hand (new)'] || '0'
             ].join(','));
@@ -581,6 +581,18 @@ function alignInventoryToCatalog(brand, inventory) {
             + (sizesFixed !== 1 ? 's' : '') + ', ' + skusFixed + ' SKU' + (skusFixed !== 1 ? 's' : ''));
     }
     return out;
+}
+
+// Every supplier row labelled "Needham" (or blank) belongs to the DROPSHIP
+// location, whatever it is called now (CatalogClient.toDropshipLocation).
+// Applied once, straight after conversion, so the CSV, the tracker and the
+// direct write all see the same Location.
+function mapDropshipLocation(inventory) {
+    if (!Array.isArray(inventory) || typeof CatalogClient === 'undefined' || !CatalogClient.toDropshipLocation) return inventory;
+    return inventory.map(function (row) {
+        var to = CatalogClient.toDropshipLocation(row.Location);
+        return to === row.Location ? row : Object.assign({}, row, { Location: to });
+    });
 }
 
 // ========== CLEAR FILE ==========
@@ -692,6 +704,7 @@ async function convertBrand(brand) {
         // that product, BEFORE anything downstream reads the rows. Done here, in
         // one place, because both consumers match on these fields: the CSV
         // import matches handle plus size, and the direct write matches SKU.
+        inventory = mapDropshipLocation(inventory);
         inventory = alignInventoryToCatalog(brand, inventory);
 
         // Then hold back anything too thin to fulfil, before any consumer reads
@@ -878,8 +891,8 @@ function writeAllInventory() {
                 // what keeps a dropship write off a garment someone counted on
                 // a shelf. Import the CSV instead, which carries the Location
                 // column, or use tools/push-asics-availability.mjs.
-                var loc = (row.Location || 'Needham').toString().trim();
-                if (loc && loc.toLowerCase() !== 'needham') {
+                var loc = CatalogClient.toDropshipLocation(row.Location);
+                if (!CatalogClient.isDropshipLocation(loc)) {
                     heldBack.push({ sku: sku, location: loc });
                     return;
                 }
@@ -896,9 +909,9 @@ function writeAllInventory() {
         heldBack.forEach(function (h) { byLoc[h.location] = (byLoc[h.location] || 0) + 1; });
         var where = Object.keys(byLoc).map(function (k) { return byLoc[k] + ' for ' + esc(k); }).join(', ');
         setMsg('<strong>' + heldBack.length + ' row(s) held back</strong> (' + where + '). This button '
-            + 'writes to Needham only, so those would have landed in the wrong place. Download the CSV '
+            + 'writes to ' + esc(CatalogClient.dropshipName()) + ' only, so those would have landed in the wrong place. Download the CSV '
             + 'and import it instead: the CSV carries the Location column. The remaining '
-            + items.length + ' Needham row(s) can still be written.', 'warn');
+            + items.length + ' ' + esc(CatalogClient.dropshipName()) + ' row(s) can still be written.', 'warn');
     }
     if (blockedFeeds.length && !items.length) {
         setMsg('<strong>Not written.</strong> The scheduled file for ' + esc(blockedFeeds.join(', ')) + ' was BLOCKED by the guardrail '
@@ -955,7 +968,7 @@ function writeAllInventory() {
         var conf = 'Write ' + totalChanges + ' inventory changes to your LIVE store now?\n\n'
             + brands.map(function (b) { return b.toUpperCase(); }).join(', ') + '\n'
             + dsum.toChange + ' variants change (' + dsum.zeros + ' set to 0), ' + dsum.unchanged + ' already match'
-            + (dsum.toActivate ? '\n' + dsum.toActivate + ' variants are not stocked at Needham yet and will be added there' : '')
+            + (dsum.toActivate ? '\n' + dsum.toActivate + ' variants are not stocked at ' + CatalogClient.dropshipName() + ' yet and will be added there' : '')
             + (dsum.notFound ? ', ' + dsum.notFound + ' not on Shopify (skipped)' : '') + '.';
         if (!window.confirm(conf)) { setMsg('Cancelled.', ''); done(); return; }
         writeChunk(0);
@@ -968,9 +981,9 @@ function writeAllInventory() {
         var n = changed.length;
         if (i >= n) {
             done();
-            setMsg('&#10003; Wrote <strong>' + (acc.written + acc.activated) + '</strong> of ' + n + ' variant' + (n !== 1 ? 's' : '') + ' to Needham'
+            setMsg('&#10003; Wrote <strong>' + (acc.written + acc.activated) + '</strong> of ' + n + ' variant' + (n !== 1 ? 's' : '') + ' to ' + esc(CatalogClient.dropshipName())
                 + (acc.zeros ? ' (' + acc.zeros + ' zeroed)' : '')
-                + (acc.activated ? ', <strong>' + acc.activated + '</strong> newly stocked at Needham' : '')
+                + (acc.activated ? ', <strong>' + acc.activated + '</strong> newly stocked at ' + esc(CatalogClient.dropshipName()) : '')
                 + (acc.failed ? ', <strong>' + acc.failed + '</strong> failed' : '')
                 + '. ' + dsum.unchanged + ' already matched.', acc.failed ? 'err' : 'ok');
             if (typeof showToast === 'function' && acc.written > 0) showToast('Wrote ' + acc.written + ' inventory updates to Shopify');

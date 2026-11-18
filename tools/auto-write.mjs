@@ -122,7 +122,8 @@ export function loadTool() {
   for (const f of SCRIPTS) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sb, { filename: f });
   const g = (name) => vm.runInContext(name, sb);
   return { sb, CatalogClient: g('CatalogClient'), InventoryTracker: g('InventoryTracker'), BrandPicker: g('BrandPicker'),
-    BRAND_CONFIG: g('BRAND_CONFIG'), maskLowStock: g('maskLowStock'), alignInventoryToCatalog: g('alignInventoryToCatalog') };
+    BRAND_CONFIG: g('BRAND_CONFIG'), maskLowStock: g('maskLowStock'), alignInventoryToCatalog: g('alignInventoryToCatalog'),
+    mapDropshipLocation: g('mapDropshipLocation') };
 }
 
 // The rows the Write button would send for this brand, built the way the page
@@ -162,6 +163,7 @@ export async function planBrand(brand, files) {
   if (!selected.size) throw new Error('nothing in the file is on Shopify, so nothing would be ticked');
 
   let inventory = config.multiFile ? await converter.convert(fobjs) : await converter.convert(fobjs[0]);
+  inventory = T.mapDropshipLocation(inventory);
   inventory = T.alignInventoryToCatalog(brand, inventory);
   inventory = T.maskLowStock(brand, inventory);
 
@@ -171,13 +173,14 @@ export async function planBrand(brand, files) {
   if (removed.length) inventory = inventory.concat(T.InventoryTracker.generateRemovedRows(removed));
   if (config.postProcess) inventory = config.postProcess(inventory);
 
-  // writeAllInventory's row rule: Needham only, a SKU, a number.
+  // writeAllInventory's row rule: the DROPSHIP location only (Needham until
+  // the cutover, then Dropship Warehouse, never the Needham store), a SKU, a number.
   const items = [], heldBack = {};
   for (const row of inventory) {
     const sku = String(row.SKU || '').trim();
     if (!sku) continue;
-    const loc = String(row.Location || 'Needham').trim();
-    if (loc && loc.toLowerCase() !== 'needham') { heldBack[loc] = (heldBack[loc] || 0) + 1; continue; }
+    const loc = T.CatalogClient.toDropshipLocation(row.Location);
+    if (!T.CatalogClient.isDropshipLocation(loc)) { heldBack[loc] = (heldBack[loc] || 0) + 1; continue; }
     let q = parseInt(row['On hand (new)'], 10); if (!(q >= 0)) q = 0;
     items.push({ sku, quantity: q });
   }

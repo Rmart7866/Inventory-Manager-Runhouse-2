@@ -169,9 +169,11 @@ console.log('\nThe DIRECT WRITE must not carry a Warehouse row to Needham');
   // This reproduces main.js's filter against the REAL converter output rather
   // than trusting the source to still say what it said.
   const src = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
-  /writes to Needham only/.test(src) && /heldBack\.push/.test(src)
-    ? ok('main.js still holds back non-Needham rows from the direct write')
-    : bad('the Needham-only guard is gone from writeAllInventory');
+  // The guard now names the DROPSHIP location (Needham until the 2026-11
+  // cutover, then Dropship Warehouse), via CatalogClient.isDropshipLocation.
+  /if \(!CatalogClient\.isDropshipLocation\(loc\)\) \{/.test(src) && /heldBack\.push/.test(src) && /only, so those would have landed in the wrong place/.test(src)
+    ? ok('main.js still holds back rows not at the dropship location from the direct write')
+    : bad('the dropship-only guard is gone from writeAllInventory');
 
   tool.selectedProducts = new Set();
   const inv = await tool.convert(asFile(csv));
