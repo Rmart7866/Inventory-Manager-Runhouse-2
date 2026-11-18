@@ -61,8 +61,12 @@ export const salesQuery = (since) => `{
 
 // Aggregate the bulk file's rows. Pure, so the test drives it. now is a Date
 // so "the last 30 days" is testable.
-export function makeSalesAccumulator(skipLocationIds = [], now = new Date()) {
+export function makeSalesAccumulator(skipLocationIds = [], now = new Date(), previous = null) {
   const skip = new Set(skipLocationIds.filter(Boolean));
+  // Before the cutover dropship shipped from the PREVIOUS location (Needham),
+  // so an online line shipped from there before then is a dropship sale, not
+  // the store's. A POS sale there is always the store's (src/dropship.js).
+  const wasDropship = (l, loc) => !!(previous && previous.id && loc === previous.id && !l.ord.retail && l.ord.at < previous.until);
   const d30 = now.getTime() - 30 * 86400e3;
   const orders = new Map(); // order id -> { retail, recent }, absent when not counted
   const foLoc = new Map(); // fulfillment order id -> location id, CLOSED ones only
@@ -72,7 +76,7 @@ export function makeSalesAccumulator(skipLocationIds = [], now = new Date()) {
   const onObject = (o) => {
     if (!o.__parentId) {
       seen.orders++;
-      if (!o.test && !o.cancelledAt) orders.set(o.id, { retail: (o.retailLocation && o.retailLocation.id) || null, recent: Date.parse(o.createdAt) >= d30 });
+      if (!o.test && !o.cancelledAt) orders.set(o.id, { retail: (o.retailLocation && o.retailLocation.id) || null, recent: Date.parse(o.createdAt) >= d30, at: Date.parse(o.createdAt) });
       return;
     }
     if ('status' in o && 'assignedLocation' in o) { // a fulfillment order
@@ -101,7 +105,7 @@ export function makeSalesAccumulator(skipLocationIds = [], now = new Date()) {
     for (const l of pending) {
       const loc = l.ord.retail || lineLoc.get(l.id);
       if (!loc) { seen.unshipped += l.q; continue; }
-      if (skip.has(loc)) continue;
+      if (skip.has(loc) || wasDropship(l, loc)) continue;
       seen.lines++; seen.pairs += l.q;
       let byG = data.get(loc); if (!byG) data.set(loc, (byG = { men: new Map(), women: new Map() }));
       let r = byG[l.g].get(l.p.handle);
@@ -120,10 +124,10 @@ export function makeSalesAccumulator(skipLocationIds = [], now = new Date()) {
 }
 
 // Run the bulk query, aggregate, store. Called from rebuild().
-export async function writeSizeSales(env, client, needhamLocationId, now = new Date()) {
+export async function writeSizeSales(env, client, needhamLocationId, now = new Date(), previous = null) {
   const since = new Date(now.getTime() - DAYS * 86400e3).toISOString().slice(0, 10);
   const url = await runBulkQuery(client, salesQuery(since));
-  const acc = makeSalesAccumulator([needhamLocationId], now);
+  const acc = makeSalesAccumulator([needhamLocationId], now, previous);
   await streamJsonl(url, acc.onObject);
   const { byLoc, seen } = acc.result();
   const body = JSON.stringify({ at: now.toISOString(), since, days: DAYS, byLoc, seen });

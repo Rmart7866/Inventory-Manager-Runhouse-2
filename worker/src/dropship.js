@@ -20,6 +20,17 @@
 //                           move is still chased and shipped; empty it once
 //                           they have all gone out.
 //
+//   DROPSHIP_PREVIOUS_ID    the location dropship USED to live at (Needham),
+//   DROPSHIP_PREVIOUS_NAME  and its name, with
+//   DROPSHIP_SINCE          the cutover time (ISO). An ONLINE sale shipped from
+//                           the previous location before that time was a
+//                           dropship sale, so the sales report and the Sizes
+//                           page keep counting it as one for the 90 days their
+//                           windows still reach back. A POS sale there was
+//                           always the store's. Leave all three empty until
+//                           the cutover; they never change where anything is
+//                           written.
+//
 // Unset, all three fall back to NEEDHAM_LOCATION_ID and "Needham", which is
 // exactly how the Worker behaved before this file existed.
 //
@@ -31,6 +42,15 @@ export function dropshipId(env) {
 
 export function dropshipName(env) {
   return (env && env.DROPSHIP_LOCATION_NAME) || 'Needham';
+}
+
+// The previous dropship location, or null when none is configured.
+export function dropshipPrevious(env) {
+  const id = String((env && env.DROPSHIP_PREVIOUS_ID) || '').trim();
+  const name = String((env && env.DROPSHIP_PREVIOUS_NAME) || '').trim();
+  const until = Date.parse(String((env && env.DROPSHIP_SINCE) || ''));
+  if ((!id && !name) || !Number.isFinite(until)) return null;
+  return { id: id || null, name: name || null, until };
 }
 
 // The dropship location plus any still being watched, deduplicated.

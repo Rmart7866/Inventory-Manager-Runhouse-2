@@ -43,7 +43,7 @@ var IR = {
         });
         var l = IR.st.loc;
         IR.$('loc-note').innerHTML = !l ? '' : l.dropship
-            ? '<div class="msg warn"><b>Needham is the dropship location.</b> The inventory manager writes it from supplier files, so the next import puts these numbers back.</div>' : '';
+            ? '<div class="msg warn"><b>' + l.name + ' is the dropship location.</b> The inventory manager writes it from supplier files, so the next import puts these numbers back.</div>' : '';
     },
 
     // ---------- the search and select boxes ----------

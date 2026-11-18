@@ -430,7 +430,7 @@ var BrandPicker = {
             // proceed. The click runs a dry run first and confirms before writing.
             html += '<div class="bp-clear-wrap">'
                 + '<button class="bp-clear-btn" onclick="BrandPicker.clearRemovedInShopify(\'' + brand + '\')">Clear all ' + removed.length + ' in Shopify &rarr;</button>'
-                + '<span class="bp-clear-note">Sets each to 0 at Needham. You confirm first.</span>'
+                + '<span class="bp-clear-note">Sets each to 0 at ' + CatalogClient.dropshipName() + '. You confirm first.</span>'
                 + '<div class="bp-clear-msg" id="' + prefix + '-clear-msg"></div></div>';
             html += '</div></div>';
         } else {
@@ -440,7 +440,7 @@ var BrandPicker = {
             var brandName0 = brand.charAt(0).toUpperCase() + brand.slice(1);
             html += '<div class="bp-section bp-section-green">';
             html += '<div class="bp-section-head"><span>Set to 0 (0) — nothing to zero out</span></div>';
-            html += '<div class="bp-section-body" style="display:block;"><div class="bp-explain">Every live ' + brandName0 + ' colorway stocked at Needham is still present in the file you uploaded, so <strong>no products were set to 0</strong>. (Colorways already at 0 on hand are skipped as no-ops.)</div></div>';
+            html += '<div class="bp-section-body" style="display:block;"><div class="bp-explain">Every live ' + brandName0 + ' colorway stocked at ' + CatalogClient.dropshipName() + ' is still present in the file you uploaded, so <strong>no products were set to 0</strong>. (Colorways already at 0 on hand are skipped as no-ops.)</div></div>';
             html += '</div>';
         }
 
@@ -480,12 +480,12 @@ var BrandPicker = {
             if (dry.__status !== 200 || !dry.ok) { setMsg('Could not reach the writer: ' + escapeHtmlBP((dry.reason || dry.error || ('HTTP ' + dry.__status))), 'err'); return; }
             var toZero = dry.summary.toZero, units = dry.results.reduce(function (t, r) { return t + (r.status === 'would_zero' ? (r.onHand || 0) : 0); }, 0);
             if (toZero === 0) { setMsg('Nothing to zero. All ' + stash.count + ' are already at 0 on hand.', 'ok'); return; }
-            if (!window.confirm('Set ' + toZero + ' ' + brand.toUpperCase() + ' variants to 0 at Needham (' + units + ' units)?\n\nThis writes to your live store now.')) { setMsg('Cancelled.', ''); return; }
+            if (!window.confirm('Set ' + toZero + ' ' + brand.toUpperCase() + ' variants to 0 at ' + CatalogClient.dropshipName() + ' (' + units + ' units)?\n\nThis writes to your live store now.')) { setMsg('Cancelled.', ''); return; }
             setMsg('Zeroing ' + toZero + ' variants…');
             CatalogClient.zeroInventory(stash.skus, false).then(function (res) {
                 if (res.__status !== 200 || !res.ok) { setMsg('Write failed: ' + escapeHtmlBP((res.reason || res.error || ('HTTP ' + res.__status))), 'err'); return; }
                 var s = res.summary;
-                var line = '&#10003; Zeroed <strong>' + s.zeroed + '</strong> variant' + (s.zeroed === 1 ? '' : 's') + ' at Needham'
+                var line = '&#10003; Zeroed <strong>' + s.zeroed + '</strong> variant' + (s.zeroed === 1 ? '' : 's') + ' at ' + CatalogClient.dropshipName()
                     + (s.failed ? ', <strong>' + s.failed + '</strong> failed' : '')
                     + (s.alreadyZero ? ', ' + s.alreadyZero + ' already 0' : '') + '.';
                 setMsg(line, s.failed ? 'err' : 'ok');

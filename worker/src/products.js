@@ -297,6 +297,12 @@ export async function createProducts(client, specs, needhamLocationId, dropshipL
   // still goes to Needham only (see buildProductSetInput). Empty config falls
   // back to Needham-only.
   const locationIds = String(dropshipLocationIds || '').split(',').map((s) => s.trim()).filter(Boolean);
+  // The dropship location must ALWAYS be in the list, because it is the only
+  // one that gets the feed quantity. The configured list named Needham and not
+  // Dropship Warehouse, so at the 2026-11 cutover every new product would have
+  // been created at the stores at 0 with no dropship level at all. Needham then
+  // stays in the list as a store, at 0, like Walpole.
+  if (locationIds.length && needhamLocationId && !locationIds.includes(needhamLocationId)) locationIds.unshift(needhamLocationId);
 
   // Channels are a live fetch, best effort: if it fails (eg no read_publications
   // scope) we still create the products, just without publishing, and say so.

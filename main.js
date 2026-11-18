@@ -704,6 +704,12 @@ async function convertBrand(brand) {
         // that product, BEFORE anything downstream reads the rows. Done here, in
         // one place, because both consumers match on these fields: the CSV
         // import matches handle plus size, and the direct write matches SKU.
+        // The dropship location's NAME comes with the catalog. Make sure it has
+        // arrived, or a file converted before it loads would keep "Needham" and
+        // its downloaded CSV would write the Needham store if imported.
+        if (typeof CatalogClient !== 'undefined' && !CatalogClient._catalog && CatalogClient.fetchCatalog) {
+            try { await CatalogClient.fetchCatalog(); } catch (e) { /* the direct write is still scoped by the Worker */ }
+        }
         inventory = mapDropshipLocation(inventory);
         inventory = alignInventoryToCatalog(brand, inventory);
 

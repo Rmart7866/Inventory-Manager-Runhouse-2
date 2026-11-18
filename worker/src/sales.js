@@ -81,7 +81,7 @@ function locationByLine(order) {
   return out;
 }
 
-export async function dropshipSales(client, { since, tz = 'America/New_York', dropshipNames = [NEEDHAM] }) {
+export async function dropshipSales(client, { since, tz = 'America/New_York', dropshipNames = [NEEDHAM], previous = null }) {
   const byDay = new Map();
   const byBrand = new Map();
   const byOtherLocation = new Map();
@@ -108,7 +108,10 @@ export async function dropshipSales(client, { since, tz = 'America/New_York', dr
         if (!FOOTWEAR_TYPE_RE.test(type)) continue;
         const amount = Number(li.discountedTotalSet?.shopMoney?.amount || 0);
         const where = loc[li.id] || '(unassigned)';
-        if (!dropshipNames.includes(where)) {
+        // Before the cutover dropship shipped from the PREVIOUS location, so a
+        // range spanning it still counts those lines (src/dropship.js).
+        const wasDropship = !!(previous && previous.name && where === previous.name && Date.parse(o.createdAt) < previous.until);
+        if (!dropshipNames.includes(where) && !wasDropship) {
           const t = byOtherLocation.get(where) || { pairs: 0, revenue: 0 };
           t.pairs += li.quantity; t.revenue += amount;
           byOtherLocation.set(where, t);
@@ -131,7 +134,8 @@ export async function dropshipSales(client, { since, tz = 'America/New_York', dr
   return {
     generatedAt: new Date().toISOString(),
     since, timezone: tz,
-    definition: 'online orders, supplier brand footwear, fulfilled from Needham',
+    definition: 'online orders, supplier brand footwear, fulfilled from ' + dropshipNames.join(' or ')
+      + (previous && previous.name ? ' (' + previous.name + ' before ' + new Date(previous.until).toISOString().slice(0, 10) + ')' : ''),
     scanned: { orders: ordersScanned, online: onlineOrders, posExcluded, cancelledOrTest },
     totals: {
       pairs: days.reduce((t, d) => t + d.pairs, 0),

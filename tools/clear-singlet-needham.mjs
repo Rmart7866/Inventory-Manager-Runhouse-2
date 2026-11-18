@@ -28,7 +28,13 @@ import path from 'node:path';
 
 const APPLY = process.argv.includes('--apply');
 const ROOT = new URL('..', import.meta.url).pathname;
-const WRONG = 'Needham';
+// The location the 2026-10-27 bug wrote to is the DROPSHIP location (Needham
+// then, Dropship Warehouse from the 2026-11 cutover), so read it from
+// wrangler.toml. Never the Needham store's own shelf after the move.
+const WRONG = (() => {
+  const m = fs.readFileSync(new URL('../worker/wrangler.toml', import.meta.url), 'utf8').match(/^DROPSHIP_LOCATION_NAME\s*=\s*"([^"]+)"/m);
+  return m ? m[1] : 'Needham';
+})();
 
 const HANDLES = [
   'asics-mens-rival-ii-singlet-black-tf3085', 'asics-mens-rival-ii-singlet-navy-tf3085',

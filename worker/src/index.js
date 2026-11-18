@@ -26,7 +26,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import { createShopifyClient } from './shopify.js';
-import { dropshipId, dropshipName, dropshipWatchIds, isAt } from './dropship.js';
+import { dropshipId, dropshipName, dropshipWatchIds, dropshipPrevious, isAt } from './dropship.js';
 import { buildCatalog } from './catalog.js';
 import { createProducts, createStagedUploads } from './products.js';
 import { zeroInventory, setInventory } from './inventory.js';
@@ -132,7 +132,7 @@ async function rebuild(env, scope) {
   // that the catalog's has finished (one bulk query per app at a time), and
   // in its own try: a failure keeps the previous sales numbers.
   try {
-    const ss = await writeSizeSales(env, client, dropshipId(env));
+    const ss = await writeSizeSales(env, client, dropshipId(env), new Date(), dropshipPrevious(env));
     console.log('size sales written', JSON.stringify(ss));
   } catch (err) {
     console.error('size sales failed, catalogs and coverage are unaffected:', err?.stack || String(err));
@@ -466,7 +466,7 @@ async function handleDropshipSales(request, env) {
     return json({ error: 'since is too far back', earliest }, 400, request, env);
   }
   const client = createShopifyClient(env);
-  const report = await dropshipSales(client, { since, tz, dropshipNames: [dropshipName(env)] });
+  const report = await dropshipSales(client, { since, tz, dropshipNames: [dropshipName(env)], previous: dropshipPrevious(env) });
   return json(report, 200, request, env);
 }
 
