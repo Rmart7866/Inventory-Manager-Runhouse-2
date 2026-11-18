@@ -70,6 +70,11 @@ var VOID_LAYOUT = [
 // tabless location silently pools in the catch-all.
 var LOCATION_TABS = {
   'Warehouse': 'Warehouse Shipouts',
+  // DROPSHIP moved off Needham (owner, 2026-11-18): Needham is a real store,
+  // and supplier dropship lines are assigned to "Dropship Warehouse" from the
+  // cutover. They get their own tab; the Needham tab keeps the store's orders.
+  // Until the cutover no line carries this location, so the tab is not made.
+  'Dropship Warehouse': 'Dropship Warehouse',
   'Needham': 'Needham',
   'Scituate': 'Scituate',
   'Walpole': 'Walpole',

@@ -67,8 +67,11 @@ function env() {
 }
 function needhamId() {
   const toml = fs.readFileSync(path.join(ROOT, 'worker', 'wrangler.toml'), 'utf8');
-  const m = toml.match(/NEEDHAM_LOCATION_ID\s*=\s*"([^"]+)"/);
-  if (!m || !m[1]) throw new Error('NEEDHAM_LOCATION_ID is not set in wrangler.toml, refusing to guess');
+  // THE DROPSHIP LOCATION (worker/src/dropship.js), not Needham by name:
+  // Needham is a real store, and from the 2026-11 cutover dropship stock
+  // lives at Dropship Warehouse. Falls back to NEEDHAM_LOCATION_ID until then.
+  const m = toml.match(/^DROPSHIP_LOCATION_ID\s*=\s*"([^"]+)"/m) || toml.match(/^NEEDHAM_LOCATION_ID\s*=\s*"([^"]+)"/m);
+  if (!m || !m[1]) throw new Error('No dropship location (DROPSHIP_LOCATION_ID / NEEDHAM_LOCATION_ID) in wrangler.toml, refusing to guess');
   return m[1];
 }
 

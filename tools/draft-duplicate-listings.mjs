@@ -72,7 +72,15 @@ const UPDATE = `mutation($id:ID!){
   productUpdate(product:{ id:$id, status: DRAFT }) {
     product { id status } userErrors { field message } } }`;
 
-const NEEDHAM = 'gid://shopify/Location/77957136639';
+// The DROPSHIP location (worker/src/dropship.js), read from wrangler.toml so
+// the 2026-11 move to Dropship Warehouse needs no edit here. Needham is a real
+// store, so after the move its stock is NOT what marks a listing as dropship.
+const NEEDHAM = (() => {
+  const toml = fs.readFileSync(new URL('../worker/wrangler.toml', import.meta.url), 'utf8');
+  const m = toml.match(/^DROPSHIP_LOCATION_ID\s*=\s*"([^"]+)"/m) || toml.match(/^NEEDHAM_LOCATION_ID\s*=\s*"([^"]+)"/m);
+  if (!m) throw new Error('No dropship location in wrangler.toml');
+  return m[1];
+})();
 
 function storeStock(p) {
   let n = 0;
