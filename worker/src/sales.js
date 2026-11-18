@@ -81,7 +81,7 @@ function locationByLine(order) {
   return out;
 }
 
-export async function dropshipSales(client, { since, tz = 'America/New_York' }) {
+export async function dropshipSales(client, { since, tz = 'America/New_York', dropshipNames = [NEEDHAM] }) {
   const byDay = new Map();
   const byBrand = new Map();
   const byOtherLocation = new Map();
@@ -108,7 +108,7 @@ export async function dropshipSales(client, { since, tz = 'America/New_York' }) 
         if (!FOOTWEAR_TYPE_RE.test(type)) continue;
         const amount = Number(li.discountedTotalSet?.shopMoney?.amount || 0);
         const where = loc[li.id] || '(unassigned)';
-        if (where !== NEEDHAM) {
+        if (!dropshipNames.includes(where)) {
           const t = byOtherLocation.get(where) || { pairs: 0, revenue: 0 };
           t.pairs += li.quantity; t.revenue += amount;
           byOtherLocation.set(where, t);

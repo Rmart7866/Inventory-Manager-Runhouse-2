@@ -433,6 +433,9 @@ export function buildApparelFrom(raw, needham, opts = {}) {
     shop: opts.shop || '',
     scope: opts.activeOnly ? 'active' : 'all',
     needhamScoped: !!opts.needhamLocationId,
+    // The needham* fields are scoped to the DROPSHIP location, whatever it is
+    // called (dropship.js); the tool reads its name from here.
+    dropshipLocation: { id: opts.needhamLocationId || null, name: opts.dropshipLocationName || 'Needham' },
     counts: {
       products: products.length,
       // Sizes, not SKUs. Most apparel on this store carries no SKU at all (97 of

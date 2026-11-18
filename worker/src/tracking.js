@@ -48,6 +48,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import { createShopifyClient } from './shopify.js';
+import { dropshipWatchIds, isAt } from './dropship.js';
 
 const EVENT = 'trk:'; // trk:<inverted time>-<msg id>, newest first in a list
 const SEEN = 'trkmsg:'; // trkmsg:<mailbox message id>, so a message is handled once
@@ -223,7 +224,7 @@ export function decide(parsed, order, needhamId, opts = {}) {
   const open = [];
   for (const fo of order.fulfillmentOrders || []) {
     if (!['OPEN', 'IN_PROGRESS'].includes(fo.status)) continue;
-    if (!fo.assignedLocation || !fo.assignedLocation.location || fo.assignedLocation.location.id !== needhamId) continue;
+    if (!fo.assignedLocation || !fo.assignedLocation.location || !isAt(fo.assignedLocation.location.id, needhamId)) continue;
     for (const l of fo.lineItems || []) if (l.remainingQuantity > 0) open.push({ fo: fo.id, id: l.id, qty: l.remainingQuantity, vendor: l.lineItem.vendor, title: l.lineItem.title });
   }
   if (!open.length) return review('Nothing left to ship from Needham on ' + order.name + (onOrder.size ? ' (it already has other tracking)' : ''));
@@ -330,7 +331,7 @@ async function plan(env, client, parsed, opts = {}) {
   if (order && !hasName(order)) {
     opts = { ...opts, nameFound: await nameFoundBySearch(client, order, parsed.pos[0].order, parsed.pos[0].last) };
   }
-  const d = decide(parsed, order, env.NEEDHAM_LOCATION_ID, opts);
+  const d = decide(parsed, order, dropshipWatchIds(env), opts);
   return { d, order: order ? { id: order.id, name: order.name, country: (order.shippingAddress && order.shippingAddress.countryCodeV2) || '' } : null };
 }
 

@@ -26,6 +26,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import { createShopifyClient } from './shopify.js';
+import { dropshipId, dropshipName, dropshipWatchIds, isAt } from './dropship.js';
 import { buildCatalog } from './catalog.js';
 import { createProducts, createStagedUploads } from './products.js';
 import { zeroInventory, setInventory } from './inventory.js';
@@ -109,7 +110,8 @@ async function rebuild(env, scope) {
   const client = createShopifyClient(env);
   const { footwear, apparel, sizes } = await buildCatalog(client, {
     activeOnly: scope === 'active',
-    needhamLocationId: env.NEEDHAM_LOCATION_ID || null,
+    needhamLocationId: dropshipId(env),
+    dropshipLocationName: dropshipName(env),
   });
   const meta = await writeCatalog(env, scope, footwear);
   let apparelMeta = null;
@@ -130,7 +132,7 @@ async function rebuild(env, scope) {
   // that the catalog's has finished (one bulk query per app at a time), and
   // in its own try: a failure keeps the previous sales numbers.
   try {
-    const ss = await writeSizeSales(env, client, env.NEEDHAM_LOCATION_ID || null);
+    const ss = await writeSizeSales(env, client, dropshipId(env));
     console.log('size sales written', JSON.stringify(ss));
   } catch (err) {
     console.error('size sales failed, catalogs and coverage are unaffected:', err?.stack || String(err));
@@ -156,7 +158,8 @@ async function handleCatalog(request, env, ctx) {
     const { footwear } = await buildCatalog(client, {
       limit,
       activeOnly: scope === 'active',
-      needhamLocationId: env.NEEDHAM_LOCATION_ID || null,
+      needhamLocationId: dropshipId(env),
+    dropshipLocationName: dropshipName(env),
     });
     footwear.truncated = true;
     return rawCatalog(JSON.stringify(footwear), request, env, 'bypass-limit');
@@ -232,7 +235,7 @@ async function handleCreateProducts(request, env) {
     return json({ error: 'Too many products in one request (max 50)' }, 400, request, env);
   }
   const client = createShopifyClient(env);
-  const results = await createProducts(client, body.products, env.NEEDHAM_LOCATION_ID || null, env.DROPSHIP_LOCATION_IDS || '');
+  const results = await createProducts(client, body.products, dropshipId(env), env.DROPSHIP_LOCATION_IDS || '');
   const created = results.filter((r) => r.ok).length;
   return json({ created, total: results.length, results }, 200, request, env);
 }
@@ -463,7 +466,7 @@ async function handleDropshipSales(request, env) {
     return json({ error: 'since is too far back', earliest }, 400, request, env);
   }
   const client = createShopifyClient(env);
-  const report = await dropshipSales(client, { since, tz });
+  const report = await dropshipSales(client, { since, tz, dropshipNames: [dropshipName(env)] });
   return json(report, 200, request, env);
 }
 

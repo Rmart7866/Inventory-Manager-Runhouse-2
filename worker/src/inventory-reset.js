@@ -20,6 +20,7 @@
 // can be undone from the page.
 
 import { createShopifyClient } from './shopify.js';
+import { dropshipName } from './dropship.js';
 
 export const ALLOWED = ['Needham', 'Warehouse', 'Walpole', 'Falmouth'];
 const LOG_PREFIX = 'invreset:';
@@ -73,10 +74,10 @@ async function allTags(env, client) {
 
 async function readJson(request) { try { return await request.json(); } catch (e) { return {}; } }
 
-async function allowedLocations(client) {
+async function allowedLocations(client, env) {
   const r = await client.graphql('{ locations(first: 50){ nodes{ id name isActive } } }');
   return r.data.locations.nodes.filter((l) => l.isActive && ALLOWED.includes(l.name))
-    .map((l) => ({ id: l.id, name: l.name, dropship: l.name === 'Needham' }))
+    .map((l) => ({ id: l.id, name: l.name, dropship: l.name === dropshipName(env) }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -107,7 +108,7 @@ const q2 = (l) => {
 export async function handleResetOptions(request, env) {
   const client = createShopifyClient(env);
   const [locs, shop, tags] = await Promise.all([
-    allowedLocations(client),
+    allowedLocations(client, env),
     client.graphql('{ shop{ productVendors(first: 250){ edges{ node } } productTypes(first: 250){ edges{ node } } } }'),
     allTags(env, client),
   ]);
@@ -138,7 +139,7 @@ export async function handleResetScan(request, env) {
   const query = buildQuery(b.filters || {});
   if (!query) return { status: 400, body: { error: 'Pick at least one brand, type, tag, collection or shoe button.' } };
   const client = createShopifyClient(env);
-  const locs = await allowedLocations(client);
+  const locs = await allowedLocations(client, env);
   const loc = locs.find((l) => l.id === b.locationId);
   if (!loc) return { status: 400, body: { error: 'That location cannot be reset here.' } };
   const page = await client.graphql(`query($q:String,$c:String,$loc:ID!){ products(first:25, after:$c, query:$q){ pageInfo{ hasNextPage endCursor }
@@ -193,7 +194,7 @@ async function writeOnHand(client, locId, lines, uri) {
 export async function handleResetApply(request, env) {
   const b = await readJson(request);
   const client = createShopifyClient(env);
-  const locs = await allowedLocations(client);
+  const locs = await allowedLocations(client, env);
   const loc = locs.find((l) => l.id === b.locationId);
   if (!loc) return { status: 400, body: { error: 'That location cannot be reset here.' } };
   if (String(b.confirm || '').trim().toLowerCase() !== loc.name.toLowerCase()) return { status: 400, body: { error: 'Type the location name, ' + loc.name + ', to confirm.' } };

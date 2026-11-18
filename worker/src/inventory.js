@@ -1,3 +1,4 @@
+import { dropshipId } from './dropship.js';
 // inventory.js, The Run House. Stage 3 WRITE.
 //
 // Sets on-hand to ZERO for a list of SKUs, at the Needham location only. This is
@@ -6,9 +7,11 @@
 // instead of a hand-imported CSV.
 //
 // SAFETY IS THE WHOLE POINT OF THIS FILE:
-//   1. NEEDHAM ONLY. Every write targets env.NEEDHAM_LOCATION_ID and no other
-//      location. A product's stock at any other store is never touched. If the
-//      Needham location is not configured, the route refuses to write at all.
+//   1. THE DROPSHIP LOCATION ONLY. Every write targets dropshipId(env)
+//      (dropship.js: DROPSHIP_LOCATION_ID, falling back to NEEDHAM_LOCATION_ID)
+//      and no other location. A product's stock at any store is never touched,
+//      and from the 2026-11 cutover that includes the real Needham store. If no
+//      dropship location is configured, the route refuses to write at all.
 //   2. ZERO ONLY. The only quantity this route ever writes is 0. It cannot set
 //      an arbitrary number, so a bad caller cannot inflate stock, only clear it.
 //   3. ONLY WHAT IS ALREADY POSITIVE. Items already at 0 are skipped, so the
@@ -109,10 +112,10 @@ async function resolveSkus(client, skus, locationId) {
 // throws for a single bad SKU; the whole request only rejects on a missing
 // location or an outright API failure.
 export async function zeroInventory(client, env, opts = {}) {
-  const locationId = env.NEEDHAM_LOCATION_ID;
+  const locationId = dropshipId(env);
   if (!locationId) {
     // No Needham location means we cannot scope the write. Refuse, loudly.
-    return { ok: false, error: 'NEEDHAM_LOCATION_ID is not configured; refusing to write inventory unscoped.' };
+    return { ok: false, error: 'No dropship location configured (DROPSHIP_LOCATION_ID / NEEDHAM_LOCATION_ID); refusing to write inventory unscoped.' };
   }
   const dryRun = opts.dryRun !== false; // default dry run; only an explicit dryRun:false writes
   const skus = Array.isArray(opts.skus) ? opts.skus : [];
@@ -176,8 +179,8 @@ export async function zeroInventory(client, env, opts = {}) {
 //
 // items: [{ sku, quantity }]. dryRun defaults TRUE.
 export async function setInventory(client, env, opts = {}) {
-  const locationId = env.NEEDHAM_LOCATION_ID;
-  if (!locationId) return { ok: false, error: 'NEEDHAM_LOCATION_ID is not configured; refusing to write inventory unscoped.' };
+  const locationId = dropshipId(env);
+  if (!locationId) return { ok: false, error: 'No dropship location configured (DROPSHIP_LOCATION_ID / NEEDHAM_LOCATION_ID); refusing to write inventory unscoped.' };
   const dryRun = opts.dryRun !== false;
   const items = Array.isArray(opts.items) ? opts.items : [];
   if (!items.length) return { ok: true, dryRun, location: locationId, results: [], summary: { requested: 0, toChange: 0, unchanged: 0, notFound: 0, zeros: 0, written: 0, failed: 0 } };
