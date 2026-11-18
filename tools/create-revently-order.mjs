@@ -106,7 +106,7 @@ const size = (s) => String(s || '').trim().toLowerCase().replace(/[\s\-_]/g, '')
 
 const PRODUCTS = `query($q: String) {
   products(first: 60, query: $q) {
-    nodes { id title status variants(first: 30) { nodes { id title price inventoryQuantity selectedOptions { name value } } } }
+    nodes { id title status createdAt variants(first: 30) { nodes { id title price inventoryQuantity selectedOptions { name value } } } }
   }
 }`;
 const EXISTING = `query($q: String) { orders(first: 25, query: $q) {
@@ -129,7 +129,9 @@ function colourOf(fileName) {
 
 async function main() {
   if (!fs.existsSync(CSV)) throw new Error('CSV not found: ' + CSV);
-  const rows = parseCSV(fs.readFileSync(CSV, 'utf8'));
+  // The later exports (10.18, 11.2) start with a UTF-8 byte order mark, which
+  // otherwise becomes part of the first header and hides "Purchase Date".
+  const rows = parseCSV(fs.readFileSync(CSV, 'utf8').replace(/^﻿/, ''));
 
   const r = await client.graphql(PRODUCTS, { q: 'title:*2027* AND title:*Los Angeles Marathon*' });
   const catalogue = r.data.products.nodes.filter((p) => p.status === 'ACTIVE');
@@ -231,6 +233,24 @@ async function main() {
     if (cands.length !== 1) {
       cands = catalogue.filter((p) => p.title.includes(base) &&
         (want ? p.title.toLowerCase().includes(want) : true));
+    }
+    // A LISTING THAT DID NOT EXIST YET CANNOT HAVE BEEN BOUGHT. On 2026-11-17
+    // two more logo versions of the women's Road SS Top were listed (LA27-17 FC,
+    // LA27-18 FC), so October's orders for that shirt matched three products.
+    // The file names no logo, but the customer bought what was on sale that day,
+    // so a candidate created AFTER the purchase date is dropped. If that still
+    // leaves more than one, it stops, as before: a guess here is a wrong shirt.
+    if (cands.length > 1) {
+      const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(String(row['Purchase Date'] || '').trim());
+      if (m) {
+        const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+        const bought = new Date(Date.UTC(y, Number(m[1]) - 1, Number(m[2]) + 1));   // end of that day
+        const before = cands.filter((p) => p.createdAt && new Date(p.createdAt) < bought);
+        if (before.length >= 1 && before.length < cands.length) {
+          console.log('NOTE: ' + (cands.length - before.length) + ' listing(s) of "' + row['Product Name'] + '" were created after the ' + row['Purchase Date'] + ' purchase, so not considered.');
+          cands = before;
+        }
+      }
     }
     if (cands.length !== 1) {
       throw new Error(`Product match is ${cands.length === 0 ? 'missing' : 'ambiguous'} for "${row['Product Name']}" (sku ${sku}): ` +
