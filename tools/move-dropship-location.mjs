@@ -273,8 +273,21 @@ export function unfinishedJournals(dir) {
     .map((f) => ({ file: path.join(dir, f), stuck: stuckOf(readJournal(path.join(dir, f))) })).filter((j) => j.stuck.length);
 }
 
-export async function preflight(c, { offSwitch = OFF_SWITCH, journalDir = OUT_DIR, profileChecked = false } = {}) {
+// The Worker's dropship setting, read from wrangler.toml ('' when unset).
+export function dropshipSetting(tomlPath = path.join(ROOT, 'worker', 'wrangler.toml')) {
+  try {
+    const m = fs.readFileSync(tomlPath, 'utf8').match(/^\s*DROPSHIP_LOCATION_ID\s*=\s*"([^"]*)"/m);
+    return m ? m[1] : '';
+  } catch { return ''; }
+}
+
+export async function preflight(c, { offSwitch = OFF_SWITCH, journalDir = OUT_DIR, profileChecked = false, tomlPath } = {}) {
   const problems = [];
+  // ONE WAY, ONCE (owner, 2026-11-20: Needham keeps in-store stock). Once the
+  // setting points at Dropship Warehouse, Needham's levels are the store's own
+  // shelf counts, and a second move would carry the shelf to the warehouse.
+  const setting = dropshipSetting(tomlPath);
+  if (setting && setting !== NEEDHAM) problems.push('the cutover is already done (DROPSHIP_LOCATION_ID is ' + setting + '): Needham now holds the store\'s own shelf stock, so this tool will not move it. --restore still works');
   if (!fs.existsSync(offSwitch)) problems.push('the nightly writes are not paused: touch ' + offSwitch + ' first, so no run writes Needham mid move');
   const loc = (await c.graphql(`{ l: location(id:"${TARGET}"){ name isActive fulfillsOnlineOrders } }`)).data.l;
   if (!loc || !loc.isActive) problems.push('Dropship Warehouse is missing or inactive');

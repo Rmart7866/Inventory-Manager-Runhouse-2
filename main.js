@@ -492,6 +492,12 @@ var BrandConverter = {
     },
 
     downloadBrandInventory: function(brand) {
+        // Without the live catalog the rows still say "Needham", and imported by
+        // hand that is the Needham STORE's shelf after the cutover. Refuse.
+        if (typeof CatalogClient !== 'undefined' && CatalogClient.dropshipKnown && !CatalogClient.dropshipKnown()) {
+            alert('The live catalog did not load, so this file does not know the dropship location. Reload the page and convert again before downloading.');
+            return;
+        }
         var blob = new Blob([this.brands[brand].csv], { type: 'text/csv;charset=utf-8;' });
         var link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -835,6 +841,10 @@ function downloadUnified() {
     });
 
     if (allInventory.length === 0) { alert('Please select at least one brand!'); return; }
+    if (typeof CatalogClient !== 'undefined' && CatalogClient.dropshipKnown && !CatalogClient.dropshipKnown()) {
+        alert('The live catalog did not load, so this file does not know the dropship location. Reload the page and convert again before downloading.');
+        return;
+    }
 
     var csv = BrandConverter._generateInventoryCSV(allInventory);
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

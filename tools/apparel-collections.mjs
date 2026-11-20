@@ -189,7 +189,7 @@ const plan = [];
 // with vendor "ON Running" sit in the collection whose rule says "On Running".
 plan.push({
   handle: 'on-apparel', title: 'On Apparel',
-  descriptionHtml: '<p>Running apparel from On. Swiss-engineered tees, shorts, tights, bras and outerwear, dropshipped from our Needham stock.</p>',
+  descriptionHtml: '<p>Running apparel from On. Swiss-engineered tees, shorts, tights, bras and outerwear.</p>',
   rules: [
     { column: 'VENDOR', relation: 'EQUALS', condition: 'On Running' },
     { column: 'PRODUCT_CATEGORY_ID_WITH_DESCENDANTS', relation: 'EQUALS', condition: 'gid://shopify/TaxonomyCategory/aa-1' },

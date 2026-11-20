@@ -16,7 +16,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import { createShopifyClient } from './shopify.js';
-import { dropshipWatchIds, isAt } from './dropship.js';
+import { dropshipWatch, dropshipName, countsAsDropship } from './dropship.js';
 
 const CHASE = 'latechase:';
 const CHASE_TTL = 180 * 86400;
@@ -29,7 +29,7 @@ export function openNeedhamLines(order, needhamId) {
   const lines = [];
   for (const fo of order.fulfillmentOrders || []) {
     if (!['OPEN', 'IN_PROGRESS'].includes(fo.status)) continue;
-    if (!fo.assignedLocation || !fo.assignedLocation.location || !isAt(fo.assignedLocation.location.id, needhamId)) continue;
+    if (!fo.assignedLocation || !fo.assignedLocation.location || !countsAsDropship(fo.assignedLocation.location.id, order.createdAt, needhamId)) continue;
     for (const l of fo.lineItems || []) {
       if (l.remainingQuantity > 0) lines.push({ vendor: l.lineItem.vendor || '', title: l.lineItem.title || '', variant: l.lineItem.variantTitle || '', qty: l.remainingQuantity });
     }
@@ -67,7 +67,7 @@ export async function handleLateOrders(request, env) {
   const client = createShopifyClient(env);
   // Every location still holding open dropship orders (the dropship location
   // plus, during a changeover, the old one). See dropship.js.
-  const needham = dropshipWatchIds(env);
+  const needham = dropshipWatch(env);
   const since = new Date(Date.now() - LOOKBACK_DAYS * 86400e3).toISOString().slice(0, 10);
   const q = 'created_at:>=' + since + ' -status:cancelled (fulfillment_status:unshipped OR fulfillment_status:partial)';
   const rows = [];
@@ -129,7 +129,7 @@ export function shapePrep(order, needhamId) {
   const lines = [];
   for (const fo of order.fulfillmentOrders || []) {
     if (!['OPEN', 'IN_PROGRESS'].includes(fo.status)) continue;
-    if (!fo.assignedLocation || !fo.assignedLocation.location || !isAt(fo.assignedLocation.location.id, needhamId)) continue;
+    if (!fo.assignedLocation || !fo.assignedLocation.location || !countsAsDropship(fo.assignedLocation.location.id, order.createdAt, needhamId)) continue;
     for (const l of fo.lineItems || []) {
       if (!(l.remainingQuantity > 0)) continue;
       const li = l.lineItem || {};
@@ -151,7 +151,7 @@ export function shapePrep(order, needhamId) {
   };
 }
 
-const PREP_Q = `query($id: ID!){ order(id: $id){ id name phone
+const PREP_Q = `query($id: ID!){ order(id: $id){ id name createdAt phone
   shippingAddress{ firstName lastName address1 address2 city provinceCode zip countryCodeV2 phone } billingAddress{ lastName }
   fulfillmentOrders(first: 10){ nodes{ status assignedLocation{ location{ id } }
     lineItems(first: 30){ nodes{ remainingQuantity lineItem{ vendor title variantTitle sku variant{ sku barcode } } } } } } } }`;
@@ -164,8 +164,8 @@ export async function handleOrderPrep(request, env) {
   const r = await client.graphql(PREP_Q, { id: 'gid://shopify/Order/' + id });
   const o = r.data && r.data.order;
   if (!o) return { status: 404, body: { error: 'No such order' } };
-  const prep = shapePrep({ ...o, fulfillmentOrders: o.fulfillmentOrders.nodes.map((f) => ({ ...f, lineItems: f.lineItems.nodes })) }, dropshipWatchIds(env));
-  if (!prep.lines.length) return { status: 409, body: { error: 'Nothing open at Needham on ' + o.name } };
+  const prep = shapePrep({ ...o, fulfillmentOrders: o.fulfillmentOrders.nodes.map((f) => ({ ...f, lineItems: f.lineItems.nodes })) }, dropshipWatch(env));
+  if (!prep.lines.length) return { status: 409, body: { error: 'Nothing open at ' + dropshipName(env) + ' on ' + o.name } };
   return { body: prep };
 }
 

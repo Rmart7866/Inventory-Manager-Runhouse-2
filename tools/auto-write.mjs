@@ -244,7 +244,7 @@ export function judge(plan, dry) {
   const before = dry.change.reduce((t, c) => t + (c.from || 0), 0) + dry.unchangedUnits;
   const after = dry.change.reduce((t, c) => t + (c.to || 0), 0) + dry.unchangedUnits;
   if (before >= LIMITS.minUnitsForShare && after / before < LIMITS.unitsKept) {
-    blocks.push('Needham units would fall from ' + before + ' to ' + after + ' (' + Math.round((1 - after / before) * 100) + '% down)');
+    blocks.push('Dropship units would fall from ' + before + ' to ' + after + ' (' + Math.round((1 - after / before) * 100) + '% down)');
   }
   return { ok: blocks.length === 0, blocks, zeroed, stockedTotal, before, after };
 }
@@ -280,10 +280,10 @@ export async function autoWrite(brand, files, { verdict, apply = true, source = 
     const dry = await dryRun(plan.items);
     const j = judge(plan, dry);
     const held = Object.entries(plan.heldBack).map(([k, v]) => v + ' for ' + k).join(', ');
-    log('[' + label + '] ' + (source ? source + ': ' : '') + plan.ticked + ' of ' + plan.scanned + ' products on Shopify, ' + plan.items.length + ' Needham rows'
+    log('[' + label + '] ' + (source ? source + ': ' : '') + plan.ticked + ' of ' + plan.scanned + ' products on Shopify, ' + plan.items.length + ' dropship rows'
       + (held ? ', held back ' + held : '') + ', ' + plan.removed + ' removed colourways zeroed (' + plan.removedUnits + ' units)');
-    log('[' + label + '] dry run: ' + dry.change.length + ' to change (' + dry.activate + ' newly stocked at Needham, ' + j.zeroed + ' to 0), '
-      + dry.unchanged + ' already match, ' + dry.notFound + ' not on Shopify. Needham units ' + j.before + ' to ' + j.after);
+    log('[' + label + '] dry run: ' + dry.change.length + ' to change (' + dry.activate + ' newly stocked at the dropship location, ' + j.zeroed + ' to 0), '
+      + dry.unchanged + ' already match, ' + dry.notFound + ' not on Shopify. Dropship units ' + j.before + ' to ' + j.after);
     if (!j.ok) {
       j.blocks.forEach((b) => log('[' + label + '] REFUSED: ' + b));
       log('[' + label + '] NOTHING WRITTEN. The file is still loaded on the inventory tool card for a person to look at.');
@@ -297,7 +297,7 @@ export async function autoWrite(brand, files, { verdict, apply = true, source = 
     fs.mkdirSync(ROLLBACK_DIR, { recursive: true });
     const rb = path.join(ROLLBACK_DIR, brand + '-' + stamp() + '-rollback.json');
     fs.writeFileSync(rb, JSON.stringify({ brand, at: new Date().toISOString(), source, written: w.done, failed: w.failed }, null, 1));
-    log('[' + label + '] WROTE ' + w.done.length + ' of ' + dry.change.length + ' to Needham' + (w.failed.length ? ', ' + w.failed.length + ' FAILED' : '') + '. Rollback: ' + rb);
+    log('[' + label + '] WROTE ' + w.done.length + ' of ' + dry.change.length + ' to the dropship location' + (w.failed.length ? ', ' + w.failed.length + ' FAILED' : '') + '. Rollback: ' + rb);
     if (w.failed.length) notify(label + ': ' + w.failed.length + ' variants failed to write, see the log');
     return { ok: w.failed.length === 0, written: w.done.length, failed: w.failed.length, rollback: rb };
   } catch (e) {

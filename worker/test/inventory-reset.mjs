@@ -25,6 +25,7 @@ const LOCS = [
   { id: 'gid://shopify/Location/2', name: 'Scituate', isActive: true },
   { id: 'gid://shopify/Location/3', name: 'Needham', isActive: true },
   { id: 'gid://shopify/Location/4', name: 'Run Bus', isActive: true },
+  { id: 'gid://shopify/Location/5', name: 'Dropship Warehouse', isActive: true },
 ];
 const LEVEL = { 'gid://shopify/InventoryItem/11': { on_hand: 5, committed: 0 }, 'gid://shopify/InventoryItem/12': { on_hand: 3, committed: 2 }, 'gid://shopify/InventoryItem/13': { on_hand: 0, committed: 0 } };
 const writes = [];
@@ -55,7 +56,8 @@ const post = (body) => new Request('https://w/x', { method: 'POST', body: JSON.s
 
 console.log('\nLocations');
 let r = await handleResetOptions(new Request('https://w/x'), env);
-check('only the allowed locations are offered, never Scituate or the Run Bus', !r.body.locations.some((l) => l.name === 'Scituate' || l.name === 'Run Bus') && r.body.locations.length === 2);
+check('only the allowed locations are offered, never Scituate or the Run Bus', !r.body.locations.some((l) => l.name === 'Scituate' || l.name === 'Run Bus') && r.body.locations.length === 3);
+check('Dropship Warehouse is resettable (owner, 2026-11-20)', r.body.locations.some((l) => l.name === 'Dropship Warehouse'));
 check('the page is told the buttons', r.body.presets.map((p) => p.key).join() === 'mens,womens,unisex,spikes,socks,insoles,apparel,nutrition');
 check('every tag, across pages, sorted, for the Tag box', JSON.stringify(r.body.tags) === '["clearance","Walpole XC","zebra"]' && tagCalls === 2);
 await handleResetOptions(new Request('https://w/x'), env);

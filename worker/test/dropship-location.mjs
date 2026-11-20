@@ -83,5 +83,26 @@ ok(dropshipPrevious({}) === null && dropshipPrevious({ DROPSHIP_PREVIOUS_ID: NEE
   ok(/Dropship Warehouse \(Needham before 2026-11-20\)/.test(rep.definition), 'and the definition says so', rep.definition);
 }
 
+console.log('\nAfter the cutover Needham is a STORE (owner, 2026-11-20): only its pre-cutover orders count');
+{
+  const { dropshipWatch, countsAsDropship } = await import('../src/dropship.js');
+  const N = 'gid://shopify/Location/77957136639', DW = 'gid://shopify/Location/97494139135', W = 'gid://shopify/Location/1';
+  const env = { DROPSHIP_LOCATION_ID: DW, DROPSHIP_WATCH_IDS: N, DROPSHIP_SINCE: '2026-11-21T05:00:00Z' };
+  const w = dropshipWatch(env);
+  ok(countsAsDropship(DW, '2026-11-25T12:00:00Z', w), 'an order at Dropship Warehouse counts');
+  ok(countsAsDropship(N, '2026-11-20T12:00:00Z', w), 'an order placed at Needham BEFORE the cutover still counts (it is still to ship)');
+  ok(!countsAsDropship(N, '2026-11-22T12:00:00Z', w), 'an order placed at Needham AFTER the cutover is the store\'s own, not dropship');
+  ok(!countsAsDropship(W, '2026-11-20T12:00:00Z', w), 'another store never counts');
+  ok(!countsAsDropship(N, '', w), 'no order date at a watched store: not counted');
+  const before = dropshipWatch({ NEEDHAM_LOCATION_ID: N });
+  ok(countsAsDropship(N, '2026-11-22T12:00:00Z', before), 'before the cutover settings, Needham counts as always');
+  ok(countsAsDropship(N, '', N) && !countsAsDropship(W, '', [N]), 'the plain id / list form still works');
+  const order = { createdAt: '2026-11-22T12:00:00Z', fulfillmentOrders: [{ status: 'OPEN', assignedLocation: { location: { id: N } },
+    lineItems: [{ remainingQuantity: 1, lineItem: { vendor: 'HOKA', title: 'Clifton 10', variantTitle: '9' } }] }] };
+  ok(openNeedhamLines(order, w).length === 0, 'Late orders: a new Needham store order is not listed');
+  ok(openNeedhamLines({ ...order, createdAt: '2026-11-19T12:00:00Z' }, w).length === 1, 'Late orders: an old one still is');
+  ok(shapePrep(order, w).lines.length === 0, 'Draft in HOKA/ON/Brooks: a new Needham store order cannot be drafted');
+}
+
 console.log(fails ? '\n' + fails + ' FAILED' : '\nall passed');
 process.exit(fails ? 1 : 0);

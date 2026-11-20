@@ -65,3 +65,28 @@ export function isAt(locationId, ids) {
   if (!locationId) return false;
   return Array.isArray(ids) ? ids.includes(locationId) : locationId === ids;
 }
+
+// What Late orders, order prep and tracking watch: the dropship location,
+// the extra watched ones, and the cutover time.
+export function dropshipWatch(env) {
+  const extra = String((env && env.DROPSHIP_WATCH_IDS) || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return { current: dropshipId(env), extra, since: Date.parse(String((env && env.DROPSHIP_SINCE) || '')) };
+}
+
+// Does an open line at this location, on an order placed at createdAt, count
+// as dropship? The dropship location always does. A WATCHED old location
+// (Needham after the cutover, owner 2026-11-20: it keeps in-store stock) only
+// for orders placed before DROPSHIP_SINCE: those were dropship orders still
+// waiting to ship, while a newer order there is the Needham STORE selling its
+// own shelf and must never be chased, drafted with a supplier or given
+// supplier tracking. With no cutover time set it behaves exactly as isAt.
+// Also accepts a plain id or list (the tests' and older callers' form).
+export function countsAsDropship(locationId, createdAt, watch) {
+  if (!locationId) return false;
+  if (!watch || typeof watch !== 'object' || Array.isArray(watch)) return isAt(locationId, watch);
+  if (locationId === watch.current) return true;
+  if (!watch.extra.includes(locationId)) return false;
+  if (!Number.isFinite(watch.since)) return true;
+  const t = Date.parse(String(createdAt || ''));
+  return Number.isFinite(t) && t < watch.since;
+}

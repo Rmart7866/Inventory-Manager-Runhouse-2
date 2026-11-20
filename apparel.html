@@ -277,11 +277,15 @@
                     <h2>2. What is in it</h2>
                     <div class="locrow">
                         <label for="loc">Location</label>
+                        <!-- The first choice follows the Worker's dropship setting (Needham
+                             before the 2026-11-20 cutover, Dropship Warehouse after), so a
+                             file is never written onto the Needham store's shelf by
+                             default. Scituate is closed and is not offered. -->
                         <select id="loc">
+                            <option value="__dropship__">Dropship location</option>
                             <option>Needham</option>
                             <option>Falmouth</option>
                             <option>Walpole</option>
-                            <option>Scituate</option>
                             <option>Warehouse</option>
                         </select>
                     </div>
@@ -318,7 +322,7 @@
     <!-- Barcodes and MSRPs for apparel, built into the app by
          tools/build-barcodes.py so staff never upload a pricat. -->
     <script src="barcode-data.js?v=4"></script>
-    <script src="catalog-client.js?v=26"></script>
+    <script src="catalog-client.js?v=27"></script>
     <script src="on-apparel-converter.js?v=4"></script>
     <script>
         // Shares the session unlock with inventory.html, so unlocking one unlocks both.
@@ -387,6 +391,13 @@
             }
 
             var location = document.getElementById('loc').value;
+            if (location === '__dropship__') {
+                if (!(CatalogClient.dropshipKnown && CatalogClient.dropshipKnown())) {
+                    alert('The live catalog has not loaded, so the dropship location is not known yet. Wait a moment, or reload, then try again.');
+                    return;
+                }
+                location = CatalogClient.dropshipName();
+            }
             STATE.rows = OnApparelConverter.buildRows(products, { location: location });
             var s = OnApparelConverter.summarize(products, STATE.rows);
 

@@ -54,6 +54,14 @@ console.log('\nIt refuses to start until it is safe');
   fs.writeFileSync(path.join(TMP, 'switch'), '');
   const p2 = await preflight(fakeShop({ levels: { [N]: {}, [DW]: {} } }), { offSwitch: path.join(TMP, 'switch'), journalDir: TMP });
   ok(p2.length === 0, 'paused and in a profile: it may start', p2);
+  // One way, once: after the cutover Needham's levels are the store's own shelf.
+  const toml = path.join(TMP, 'wrangler.toml');
+  fs.writeFileSync(toml, 'DROPSHIP_LOCATION_ID = "' + DW + '"\n');
+  const p3 = await preflight(fakeShop({ levels: { [N]: {}, [DW]: {} } }), { offSwitch: path.join(TMP, 'switch'), journalDir: TMP, tomlPath: toml });
+  ok(p3.some((x) => /cutover is already done/.test(x)), 'setting already on Dropship Warehouse: a second move is refused', p3);
+  fs.writeFileSync(toml, 'DROPSHIP_LOCATION_ID = "' + N + '"\n');
+  const p4 = await preflight(fakeShop({ levels: { [N]: {}, [DW]: {} } }), { offSwitch: path.join(TMP, 'switch'), journalDir: TMP, tomlPath: toml });
+  ok(p4.length === 0, 'setting still on Needham: it may start', p4);
 }
 
 console.log('\nA move');

@@ -111,6 +111,13 @@ var CatalogClient = {
     // (Warehouse, for the print on demand singlets) is left exactly as it is.
     DROPSHIP_NAME: 'Needham',
     dropshipName: function () { return this.DROPSHIP_NAME || 'Needham'; },
+    // True only once the live catalog has NAMED the dropship location. Before
+    // that, dropshipName() is the built-in 'Needham', which after the cutover
+    // (2026-11-20) is a real store, so anything that would hand staff a file
+    // to import by hand must wait for this.
+    dropshipKnown: function () {
+        return !!(this._catalog && this._catalog.dropshipLocation && this._catalog.dropshipLocation.name);
+    },
     isDropshipLocation: function (loc) {
         return String(loc == null ? '' : loc).trim().toLowerCase() === this.dropshipName().toLowerCase();
     },

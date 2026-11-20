@@ -13,16 +13,17 @@
 //   3. The location is an id the server resolves and checks, never a name
 //      match on the client's say so, and staff must type its name to write.
 //
-// Only four locations, by owner decision 2026-11-06: an ALLOWLIST, so a
-// location added to Shopify later is not resettable until someone adds it
-// here on purpose. Scituate in particular stays out (closed, and it holds
-// the re:do returns line item, see CLAUDE.md). Every reset is stored, so it
-// can be undone from the page.
+// Five locations, by owner decision (2026-11-06, Dropship Warehouse added
+// 2026-11-20 for the dropship cutover): an ALLOWLIST, so a location added to
+// Shopify later is not resettable until someone adds it here on purpose.
+// Scituate in particular stays out (closed, and it holds the re:do returns
+// line item, see CLAUDE.md). Every reset is stored, so it can be undone from
+// the page. Needham stays: after the cutover it is a store with shelf stock.
 
 import { createShopifyClient } from './shopify.js';
 import { dropshipName } from './dropship.js';
 
-export const ALLOWED = ['Needham', 'Warehouse', 'Walpole', 'Falmouth'];
+export const ALLOWED = ['Needham', 'Warehouse', 'Walpole', 'Falmouth', 'Dropship Warehouse'];
 const LOG_PREFIX = 'invreset:';
 // The one click buttons, each a fixed search in the store's OWN product
 // types and tags, measured 2026-11-06. A button replaces the other filters.

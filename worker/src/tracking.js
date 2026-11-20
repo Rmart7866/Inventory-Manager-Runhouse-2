@@ -48,7 +48,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import { createShopifyClient } from './shopify.js';
-import { dropshipWatchIds, isAt } from './dropship.js';
+import { dropshipWatch, countsAsDropship } from './dropship.js';
 
 const EVENT = 'trk:'; // trk:<inverted time>-<msg id>, newest first in a list
 const SEEN = 'trkmsg:'; // trkmsg:<mailbox message id>, so a message is handled once
@@ -224,14 +224,14 @@ export function decide(parsed, order, needhamId, opts = {}) {
   const open = [];
   for (const fo of order.fulfillmentOrders || []) {
     if (!['OPEN', 'IN_PROGRESS'].includes(fo.status)) continue;
-    if (!fo.assignedLocation || !fo.assignedLocation.location || !isAt(fo.assignedLocation.location.id, needhamId)) continue;
+    if (!fo.assignedLocation || !fo.assignedLocation.location || !countsAsDropship(fo.assignedLocation.location.id, order.createdAt, needhamId)) continue;
     for (const l of fo.lineItems || []) if (l.remainingQuantity > 0) open.push({ fo: fo.id, id: l.id, qty: l.remainingQuantity, vendor: l.lineItem.vendor, title: l.lineItem.title });
   }
-  if (!open.length) return review('Nothing left to ship from Needham on ' + order.name + (onOrder.size ? ' (it already has other tracking)' : ''));
+  if (!open.length) return review('Nothing left to ship from the dropship location on ' + order.name + (onOrder.size ? ' (it already has other tracking)' : ''));
   let pick;
   if (parsed.brand) {
     pick = open.filter((l) => vendorKey(l.vendor) === parsed.brand);
-    if (!pick.length) return review('No open ' + parsed.brand.toUpperCase() + ' items from Needham on ' + order.name + ' (open: ' + [...new Set(open.map((l) => l.vendor))].join(', ') + ')');
+    if (!pick.length) return review('No open ' + parsed.brand.toUpperCase() + ' items at the dropship location on ' + order.name + ' (open: ' + [...new Set(open.map((l) => l.vendor))].join(', ') + ')');
   } else {
     const brands = new Set(open.map((l) => vendorKey(l.vendor)));
     if (brands.size !== 1) return review('Sender brand unknown and ' + order.name + ' has several brands open: ' + [...new Set(open.map((l) => l.vendor))].join(', '));
@@ -246,7 +246,7 @@ export function decide(parsed, order, needhamId, opts = {}) {
   return { status: 'ready', reason: '', groups };
 }
 
-const ORDER_Q = `query($q:String){ orders(first: 5, query:$q){ nodes{ id name cancelledAt sourceName email
+const ORDER_Q = `query($q:String){ orders(first: 5, query:$q){ nodes{ id name createdAt cancelledAt sourceName email
   shippingAddress{ lastName countryCodeV2 } billingAddress{ lastName }
   fulfillments{ id status trackingInfo{ number } fulfillmentLineItems(first: 50){ nodes{ quantity lineItem{ vendor title } } } }
   fulfillmentOrders(first: 20){ nodes{ id status assignedLocation{ location{ id } }
@@ -331,7 +331,7 @@ async function plan(env, client, parsed, opts = {}) {
   if (order && !hasName(order)) {
     opts = { ...opts, nameFound: await nameFoundBySearch(client, order, parsed.pos[0].order, parsed.pos[0].last) };
   }
-  const d = decide(parsed, order, dropshipWatchIds(env), opts);
+  const d = decide(parsed, order, dropshipWatch(env), opts);
   return { d, order: order ? { id: order.id, name: order.name, country: (order.shippingAddress && order.shippingAddress.countryCodeV2) || '' } : null };
 }
 
