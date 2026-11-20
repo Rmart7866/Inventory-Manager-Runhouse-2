@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Homepage best sellers, nightly 4:15 AM, WRITING (owner decision 2026-11-20):
+  ranks the last 30 days of shoe sales by model and puts them in order in the
+  two manual collections best-sellers-30-days-womens / -mens, which the
+  homepage "Best sellers" tab reads. Only those two collections are written.
+  Points at the builder-hero-mockup worktree until that branch is merged.
+  Install:
+    cp tools/launchd/com.therunhouse.monthly-best-sellers.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.therunhouse.monthly-best-sellers.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.therunhouse.monthly-best-sellers.plist
+    rm ~/Library/LaunchAgents/com.therunhouse.monthly-best-sellers.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.therunhouse.monthly-best-sellers</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/ryanmartin/.nvm/versions/node/v22.20.0/bin/node</string>
+    <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/.claude/worktrees/builder-hero-mockup/tools/monthly-best-sellers.mjs</string>
+    <string>--apply</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/ryanmartin/Inventory-Manager-Runhouse-2/.claude/worktrees/builder-hero-mockup</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-monthly-best-sellers.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ryanmartin/Library/Logs/runhouse-monthly-best-sellers.log</string>
+</dict>
+</plist>
