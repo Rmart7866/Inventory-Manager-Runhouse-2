@@ -46,19 +46,45 @@ export function wallsFor(type) {
   if (type === 'Unisex Shoes') return ['womens', 'mens'];
   return [];
 }
-// Pure: units per product -> product ids in wall order (model total, then colourway).
-export const PER_MODEL = 4; // colourways kept per model: the wall shows one, the rest are spares for thin stock
+// What a card on the wall must have (owner, 2026-11-20: "it should show
+// colorways on these cards ... they also should have inventory"):
+export const MIN_UNITS = 40;       // pairs in stock across its sizes
+export const MIN_SIZE_SHARE = 0.6; // same depth rule as the theme's rh-deep
+export const PER_MODEL = 4;        // colourways kept per model: the wall shows one, the rest are spares
+// Pure: a colourway with real stock (active, most sizes available, enough pairs).
+export function stocked(p) {
+  if (!p || p.status !== 'ACTIVE') return false;
+  const v = p.variants || [], va = v.filter((x) => x.availableForSale).length;
+  return va > 0 && va >= Math.ceil(v.length * MIN_SIZE_SHARE) && (p.totalInventory || 0) >= MIN_UNITS;
+}
+// Pure: how many OTHER colourways in its swatch list (custom.style_siblings) are stocked.
+export function stockedSiblings(p, products) {
+  return (p.sibs || []).filter((id) => id !== p.id && stocked(products.get(id))).length;
+}
+// Pure: a colourway that may be a model's card: stocked AND shows at least one other colour.
+export function eligible(p, products) { return stocked(p) && stockedSiblings(p, products) >= 1; }
+// Pure: units per product -> product ids in wall order. Models by total units
+// sold; inside a model, its eligible colourways by units sold, then stock. A
+// colourway that did not sell can stand in for its model (it is in a sold
+// colourway's swatch list), so a model is not lost because its best seller ran
+// thin. A model with no eligible colourway is left off the wall.
 export function rank(units, products, wall) {
   const byModel = new Map();
   for (const [id, n] of units) {
     const p = products.get(id);
     if (!p || p.status !== 'ACTIVE' || !wallsFor(p.productType).includes(wall)) continue;
     const k = modelKey(p);
-    if (!byModel.has(k)) byModel.set(k, { total: 0, items: [] });
-    const m = byModel.get(k); m.total += n; m.items.push([id, n]);
+    if (!byModel.has(k)) byModel.set(k, { total: 0, cands: new Set() });
+    const m = byModel.get(k); m.total += n; m.cands.add(id);
+    for (const sid of p.sibs || []) {
+      const s = products.get(sid);
+      if (s && wallsFor(s.productType).includes(wall) && modelKey(s) === k) m.cands.add(sid);
+    }
   }
-  return [...byModel.values()].sort((a, b) => b.total - a.total)
-    .flatMap((m) => m.items.sort((a, b) => b[1] - a[1]).slice(0, PER_MODEL).map(([id]) => id));
+  return [...byModel.values()].sort((a, b) => b.total - a.total).flatMap((m) =>
+    [...m.cands].map((id) => products.get(id)).filter((p) => eligible(p, products))
+      .sort((a, b) => (units.get(b.id) || 0) - (units.get(a.id) || 0) || (b.totalInventory || 0) - (a.totalInventory || 0))
+      .slice(0, PER_MODEL).map((p) => p.id));
 }
 
 const COLLS = {
@@ -102,13 +128,23 @@ async function main() {
     after = d.orders.pageInfo.hasNextPage ? d.orders.pageInfo.endCursor : null;
   } while (after);
 
-  // 2. What each sold product is.
+  // 2. What each sold product is, plus its swatch siblings (fetched too, so a
+  //    stocked sibling can stand in and so swatch stock can be checked).
   const products = new Map();
-  const ids = [...units.keys()];
-  for (let i = 0; i < ids.length; i += 100) {
-    const d = await gql(`query($ids:[ID!]!){ nodes(ids:$ids){ ... on Product { id handle title productType status tags } } }`, { ids: ids.slice(i, i + 100) });
-    for (const p of d.nodes) if (p) products.set(p.id, p);
+  const PF = `id handle title productType status tags totalInventory variants(first:60){ nodes{ availableForSale } } metafield(namespace:"custom", key:"style_siblings"){ value }`;
+  async function load(list) {
+    for (let i = 0; i < list.length; i += 50) {
+      const d = await gql(`query($ids:[ID!]!){ nodes(ids:$ids){ ... on Product { ${PF} } } }`, { ids: list.slice(i, i + 50) });
+      for (const p of d.nodes) if (p) {
+        let sibs = []; try { sibs = p.metafield ? JSON.parse(p.metafield.value) : []; } catch {}
+        products.set(p.id, { ...p, variants: p.variants.nodes, sibs });
+      }
+    }
   }
+  await load([...units.keys()]);
+  const more = new Set();
+  for (const p of products.values()) if (wallsFor(p.productType).length) for (const sid of p.sibs) if (!products.has(sid)) more.add(sid);
+  await load([...more]);
   console.log(`${new Date().toISOString()}  ${orders} orders since ${since}, ${units.size} products sold`);
 
   const plan = {};
