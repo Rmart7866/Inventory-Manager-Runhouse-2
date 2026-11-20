@@ -75,17 +75,19 @@ NEEDHAM_LOCATION_ID = "gid://shopify/Location/77957136639"
 # THE DROPSHIP LOCATION (worker/src/dropship.js), owner decision 2026-11-18:
 # dropship moves off Needham, which is a real store, onto "Dropship Warehouse"
 # (gid://shopify/Location/97494139135). Until the cutover these still point at
-# Needham, so nothing behaves differently. At cutover: set the id and name to
+# Needham, so nothing behaves differently. CUT OVER 2026-11-20 11:45 AM Eastern
+# (26,707 sizes, 2,469,951 units moved, journal dropship-move-journal-2026-11-20-16-14).
+# At cutover: set the id and name to
 # Dropship Warehouse, and put the OLD Needham id in DROPSHIP_WATCH_IDS so its
 # open orders are still chased and shipped until they have all gone out.
-DROPSHIP_LOCATION_ID = "gid://shopify/Location/77957136639"
-DROPSHIP_LOCATION_NAME = "Needham"
-DROPSHIP_WATCH_IDS = ""
+DROPSHIP_LOCATION_ID = "gid://shopify/Location/97494139135"
+DROPSHIP_LOCATION_NAME = "Dropship Warehouse"
+DROPSHIP_WATCH_IDS = "gid://shopify/Location/77957136639"
 # History across the cutover (sales report, Sizes page): set at cutover to the
 # Needham id and name and the cutover time, e.g. "2026-11-20T06:00:00-05:00".
-DROPSHIP_PREVIOUS_ID = ""
-DROPSHIP_PREVIOUS_NAME = ""
-DROPSHIP_SINCE = ""
+DROPSHIP_PREVIOUS_ID = "gid://shopify/Location/77957136639"
+DROPSHIP_PREVIOUS_NAME = "Needham"
+DROPSHIP_SINCE = "2026-11-20T16:45:05Z"
 # Supplier shipping emails to tracking (src/tracking.js). "dry" records what it
 # WOULD write and writes nothing; "live" adds tracking to ready orders as the
 # emails arrive, which emails the customer. Switching is an owner decision.
