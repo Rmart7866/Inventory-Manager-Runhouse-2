@@ -74,6 +74,7 @@ console.log('\nThe footwear catalog contains no garments');
 const foot = buildCatalogFrom(raw, needham, { needhamLocationId: NEEDHAM, shop: 'test.myshopify.com' });
 const APPAREL_HANDLES = ['on-focus-t-women-1we11860553', 'on-club-hoodie-men-1me10030553', 'runhouse-team-hoodie'];
 check('no apparel handle in products', !foot.products.some((p) => APPAREL_HANDLES.includes(p.handle)));
+check('the footwear catalog names the dropship location (the staff site reads it, cutover 2026-11-20)', buildCatalogFrom(raw, needham, { needhamLocationId: NEEDHAM, dropshipLocationName: 'Dropship Warehouse' }).dropshipLocation.name === 'Dropship Warehouse' && foot.dropshipLocation.id === NEEDHAM);
 check('no apparel handle in statusByHandle', !APPAREL_HANDLES.some((h) => h in foot.statusByHandle));
 check('no apparel SKU in bySku', !Object.keys(foot.bySku).some((s) => /1WE|1ME|RH-HOODIE/.test(s)), Object.keys(foot.bySku));
 check('the apparel product at Needham is NOT counted as a dropship product', foot.counts.needhamProducts === 2, foot.counts.needhamProducts);

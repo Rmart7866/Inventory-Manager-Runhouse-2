@@ -354,7 +354,9 @@ export async function buildCatalog(client, opts = {}) {
   } else {
     ({ raw, apparelRaw, needham, sizes } = await fetchCatalogViaBulk(client, activeOnly, needhamLocationId));
   }
-  const meta = { activeOnly, needhamLocationId, shop: client.SHOP };
+  // dropshipLocationName must ride along: both builders put it in the payload
+  // and the staff site reads the location's name from there.
+  const meta = { activeOnly, needhamLocationId, dropshipLocationName: opts.dropshipLocationName, shop: client.SHOP };
   return {
     footwear: buildCatalogFrom(raw, needham, meta),
     apparel: buildApparelFrom(apparelRaw, needham, meta),
@@ -601,6 +603,11 @@ export function buildCatalogFrom(raw, needham, opts = {}) {
     shop: opts.shop || '',
     scope: activeOnly ? 'active' : 'all',
     needhamScoped,
+    // The needham* fields are scoped to the DROPSHIP location; the tool reads
+    // its NAME from here (CatalogClient.dropshipName / dropshipKnown). Missing
+    // from the footwear catalog until the 2026-11-20 cutover, when the staff
+    // site went on calling Dropship Warehouse "Needham" and refused downloads.
+    dropshipLocation: { id: needhamLocationId, name: opts.dropshipLocationName || 'Needham' },
     counts: {
       products: products.length,
       skus: Object.keys(bySku).length,
