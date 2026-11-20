@@ -39,6 +39,7 @@ import { handleSupplier, handlePhoto, handleStockPublic, refreshAvailability } f
 import { handleStores } from './teamreq-stores.js';
 import { handleOrderLookup } from './orders-lookup.js';
 import { writeSizeCoverage, handleSizes } from './size-coverage.js';
+import { handleStoreWall } from './store-wall.js';
 import { writeSizeSales } from './size-sales.js';
 import { handleTrackingIngest, handleTrackingLog, handleTrackingApply, handleTrackingIntl, reconcileTracking } from './tracking.js';
 import { handleLateOrders, handleLateChase, handleLateChaseGet, handleOrderPrep } from './late-orders.js';
@@ -501,6 +502,9 @@ export default {
     // See teamreq.js. It is not a way around the write gate: nothing it does
     // reaches the store.
     if (url.pathname === '/team-requests/submit') return handleIntake(request, env);
+    // Shoes on each shop's shelf for the storefront store pages: names and
+    // photos only, never units. Public like the stock route. See store-wall.js.
+    if (url.pathname === '/store-wall') return handleStoreWall(request, env, { ...intakeCors(request, env), 'Access-Control-Allow-Methods': 'GET, OPTIONS' });
     // Where staff moved a logo for a whole style, for the customer builder.
     // Read only and boxes only, so it needs no token. See teamreq.js.
     if (url.pathname === '/team-requests/placements/public') return handlePublicPlacements(request, env);
