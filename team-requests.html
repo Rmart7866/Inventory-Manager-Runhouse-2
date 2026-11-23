@@ -141,6 +141,22 @@ label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4
 .mk { position: relative; display: block; background: #fff; line-height: 0; }
 .mk > img.g { width: 100%; height: auto; display: block; }
 .mk > .lb { position: absolute; }
+/* An example name where an offered name prints (staff preview only). The
+   text sizes itself to its box through container units. */
+.mk > .nmlb { position: absolute; container-type: size; display: flex; align-items: center; justify-content: center; outline: 1px dashed rgba(76,155,255,.75); line-height: 1; pointer-events: none; }
+.mk > .nmlb i { font: 900 min(62cqh, 26cqw) 'Archivo Black', 'Arial Black', Impact, sans-serif; font-style: normal; letter-spacing: .04em; white-space: nowrap; }
+.mk > .nmlb.tall i { transform: rotate(90deg); font-size: min(62cqw, 26cqh); }
+/* Logo upload, front and centre on the Products tab. */
+.logodrop { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; border: 2px dashed var(--accent); background: rgba(76,155,255,.08); padding: 16px 18px; margin: 0 0 14px; cursor: pointer; max-width: 720px; }
+.logodrop b { font-size: 15px; color: var(--accent); }
+.logodrop span { font-size: 12.5px; color: var(--muted); }
+.logodrop:hover, .logodrop.over, .logostrip.over { background: rgba(76,155,255,.16); }
+.logostrip { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 14px; padding: 8px; border: 1px solid var(--line-2); }
+.lgthumb { width: 52px; height: 52px; background: #fff; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
+.lgthumb img { max-width: 90%; max-height: 90%; object-fit: contain; }
+.lgthumb i { font: 700 10px sans-serif; color: #333; font-style: normal; }
+.mk > .nmcall { position: absolute; transform: translateY(-50%); background: #4c9bff; color: #06101f; font: 800 10px/1.2 sans-serif; padding: 2px 5px; white-space: nowrap; pointer-events: none; }
+.mk > .nmtag { position: absolute; right: 4px; bottom: 4px; background: #4c9bff; color: #06101f; font: 700 10px/1.3 sans-serif; padding: 2px 5px; }
 .mk > .lb > img { width: 100%; height: 100%; object-fit: contain; object-position: top center; display: block; }
 .mk > .lb > span { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; font: 700 10px/1 'DM Sans', sans-serif; color: #888; outline: 1px dashed #aaa; text-align: center; }
 
@@ -416,6 +432,6 @@ body.full #detail { max-width: none; }
 
 <script src="catalog-client.js?v=27"></script>
 <script src="team-request-utils.js?v=5"></script>
-<script src="team-requests.js?v=22"></script>
+<script src="team-requests.js?v=23"></script>
 </body>
 </html>

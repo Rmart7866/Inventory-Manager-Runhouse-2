@@ -313,7 +313,7 @@ var TR = {
         TR.api('/team-requests/one?id=' + encodeURIComponent(id)).then(function (rec) {
             if (rec.__status !== 200) { TR.$('detail').innerHTML = '<p class="msg bad">' + TR.esc(rec.error || 'Could not load') + '</p>'; return; }
             delete rec.__status;
-            TR.st.rec = rec; TR.st.dirty = false; TR.st.plan = null; TR.st.tab = TR.st.tab || 'products'; TR.st.view = 'detail';
+            TR.st.rec = rec; TR.st.dirty = false; TR.st.plan = null; TR.st.tab = TR.st.tab || 'products'; TR.st.view = 'detail'; TR.st.showClose = false;
             history.replaceState(null, '', '#' + id);
             TR.renderList();
             TR.$('detail').innerHTML = '<p class="empty">Loading logos...</p>';
@@ -379,7 +379,10 @@ var TR = {
                       '<input type="text" id="d-cphone" value="' + TR.esc(c.phone) + '" placeholder="Phone" style="width:120px"></div>'
                     : '<div class="who">' + TR.esc(c.name || '') + ' · <a href="mailto:' + TR.esc(c.email) + '">' + TR.esc(c.email) + '</a>' + (c.phone ? ' · ' + TR.esc(c.phone) : '') + ' · sent ' + TR.ago(r.created) + '</div>') +
                 '<div class="rel"><label for="d-rel">Release</label><input type="date" id="d-rel" value="' + TR.esc(w.release || '') + '">' +
-                    '<label for="d-close">Orders close</label><input type="date" id="d-close" value="' + TR.esc(w.close || '') + '">' +
+                    // Most stores never close, so no close date unless staff add one.
+                    (w.close || TR.st.showClose
+                        ? '<label for="d-close">Orders close</label><input type="date" id="d-close" value="' + TR.esc(w.close || '') + '">'
+                        : '<button type="button" id="d-close-add" class="btn" style="padding:2px 8px">+ Close date</button>') +
                     '<label for="d-who">Handled by</label><input type="text" id="d-who" list="who-list" value="' + TR.esc(w.assignee || '') + '" placeholder="Name" style="width:130px">' +
                     '<datalist id="who-list">' + TR.names().map(function (n) { return '<option value="' + TR.esc(n) + '">'; }).join('') + '</datalist></div>' +
                 (q.date ? '<div class="sub" style="margin-top:6px">Customer asked for ' + TR.esc(TR.fmtDate(q.date)) + (w.release ? '' : ', shown on the calendar until you set a release date') + '.</div>' : '') +
@@ -397,13 +400,14 @@ var TR = {
             TR.approvalHtml(r) + TR.dupHtml(r) +
             (w.close && w.release && w.close < w.release ? '<div class="msg warn"><b>Orders close before the store opens.</b> Close ' + TR.esc(TR.fmtDate(w.close)) + ', opens ' + TR.esc(TR.fmtDate(w.release)) + '. One of the dates is probably wrong.</div>' : '') +
             (q.notes ? '<div class="msg warn"><b>Customer note:</b> ' + TR.esc(q.notes) + '</div>' : '') +
-            '<div class="tabs" role="tablist">' + [['products', 'Products (' + (w.items || []).length + ')'], ['logos', 'Logos'], ['build', 'Build'], ['orig', 'History']].map(function (t) {
+            '<div class="tabs" role="tablist">' + [['products', 'Products (' + (w.items || []).length + ')'], ['logos', 'Logos (' + Object.keys(w.logos || {}).length + ')'], ['build', 'Build'], ['orig', 'History']].map(function (t) {
                 return '<button type="button" role="tab" data-t="' + t[0] + '" class="' + (TR.st.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>';
             }).join('') + '</div><div id="pane"></div>';
 
         TR.$('d-team').addEventListener('input', function () { w.team = this.value; TR.touch(); });
         TR.$('d-rel').addEventListener('change', function () { w.release = this.value; TR.touch(); });
-        TR.$('d-close').addEventListener('change', function () { w.close = this.value; TR.touch(); });
+        var dc = TR.$('d-close'); if (dc) dc.addEventListener('change', function () { w.close = this.value; TR.touch(); });
+        var dca = TR.$('d-close-add'); if (dca) dca.onclick = function () { TR.st.showClose = true; TR.renderDetail(); var n = TR.$('d-close'); if (n) n.focus(); };
         TR.$('d-who').addEventListener('input', function () { w.assignee = this.value; TR.touch(); });
         if (staff) [['d-cname', 'name'], ['d-cemail', 'email'], ['d-cphone', 'phone']].forEach(function (p) {
             TR.$(p[0]).addEventListener('input', function () { w.contact = Object.assign({}, TR.contactOf(r), w.contact || {}); w.contact[p[1]] = this.value; TR.touch(); });
@@ -851,16 +855,66 @@ var TR = {
     // no back photo, or the catalog marks it as one that takes no back logo.
     backHtml: function (it, p, colorName) {
         var l = TR.loc2(it, p), c = p.c[TR.colorIdx(p, colorName)];
-        if (!l || l.side !== 'b' || !c || !c[6]) return null;
-        var src = c[7] ? null : TR.logoUrl(TR.logoOf(it, p, colorName, 'x'));
-        return '<span class="mk"><img class="g" crossorigin="anonymous" alt="' + TR.esc(p.n + ' in ' + c[0] + ', back') + '" src="' + TR.esc(c[6]) + '">' + (src ? TR.lbHtml(l.box, src, null) : '') + '</span>';
+        var spot = TR.nameSpot(it, p, colorName), nameBack = spot && spot.side === 'b';
+        var logoBack = l && l.side === 'b';
+        if ((!logoBack && !nameBack) || !c || !c[6]) return null;
+        var src = logoBack && !c[7] ? TR.logoUrl(TR.logoOf(it, p, colorName, 'x')) : null;
+        return '<span class="mk"><img class="g" crossorigin="anonymous" alt="' + TR.esc(p.n + ' in ' + c[0] + ', back') + '" src="' + TR.esc(c[6]) + '">' +
+            (src ? TR.lbHtml(l.box, src, null) : '') + (nameBack ? TR.nameHtml(spot, TR.hexOf(p, colorName)) : '') + '</span>';
     },
 
     // The front preview of one colour, with everything that prints on it.
     frontOf: function (it, p, colorName, id, boxOverride) {
         var l = TR.loc2(it, p);
         var extra = l && l.side === 'f' ? { box: l.box, src: TR.logoUrl(TR.logoOf(it, p, colorName, 'x')) } : null;
-        return TR.mkHtml(p, colorName, boxOverride || TR.boxFor(it, p, colorName), TR.logoUrl(TR.logoOf(it, p, colorName, 'f')), id, extra);
+        var html = TR.mkHtml(p, colorName, boxOverride || TR.boxFor(it, p, colorName), TR.logoUrl(TR.logoOf(it, p, colorName, 'f')), id, extra);
+        var spot = TR.nameSpot(it, p, colorName);
+        return spot && spot.side === 'f' ? html.replace(/<\/span>$/, TR.nameHtml(spot, TR.hexOf(p, colorName)) + '</span>') : html;
+    },
+
+    // NAME PREVIEW (2026-11-23): where an offered name prints, drawn on the
+    // staff mockup as an example name so it is obvious at a glance. Preview
+    // only: the photos Build uploads never carry it. Boxes come from the same
+    // placement zones as the logos; the right sleeve mirrors the sleeve box.
+    nameSpot: function (it, p, colorName) {
+        var n = it.names && it.names.on ? it.names : null; if (!n) return null;
+        var where = String(n.where || '').toLowerCase();
+        var sl = TR.liveBox(p, 'sl'), bk = TR.liveBox(p, 'bk'), bn = TR.liveBox(p, 'bn'), fr = TR.boxFor(it, p, colorName);
+        var c = p.c[TR.colorIdx(p, colorName)], hasBack = !!(c && c[6]);
+        // A sleeve name runs DOWN the sleeve, so its box is a tall strip from
+        // the sleeve logo's spot, which turns the text on its side.
+        if (sl) var strip = [sl[0], sl[1], sl[2], Math.min(0.5, Math.max(sl[3], sl[2] * 2.8))];
+        if (where === 'left sleeve' && sl) return { side: 'f', box: strip, where: n.where };
+        if (where === 'right sleeve' && sl) return { side: 'f', box: [Math.max(0, 1 - strip[0] - strip[2]), strip[1], strip[2], strip[3]], where: n.where };
+        // A style with a back photo but no back box in the catalog still gets
+        // the name drawn, at the usual spots: across the shoulders, or just
+        // under the collar.
+        if (where === 'back neck' && hasBack) return { side: 'b', box: bn || [0.4, 0.1, 0.2, 0.05], where: n.where };
+        if (where === 'back' && hasBack) {
+            if (bk) return { side: 'b', box: [bk[0], Math.max(0.03, bk[1] - bk[3] * 0.3), bk[2], bk[3] * 0.26], where: n.where };
+            if (bn) return { side: 'b', box: [0.3, bn[1] + bn[3] + 0.04, 0.4, 0.08], where: n.where };
+            return { side: 'b', box: [0.28, 0.2, 0.44, 0.09], where: n.where };
+        }
+        if (where === 'front' && fr) return { side: 'f', box: [fr[0], Math.min(0.88, fr[1] + fr[3] + 0.03), fr[2], Math.max(0.05, fr[3] * 0.22)], where: n.where };
+        // No box for that spot on this style: say where in a corner tag.
+        return { side: 'f', box: null, where: n.where };
+    },
+    isDark: function (hex) {
+        var h = String(hex || '#888').replace('#', ''); if (h.length === 3) h = h.replace(/(.)/g, '$1$1');
+        var r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+        return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+    },
+    nameHtml: function (spot, hex) {
+        if (!spot.box) return '<span class="nmtag">Name: ' + TR.esc(String(spot.where).toLowerCase()) + '</span>';
+        var b = spot.box, tall = b[3] > b[2] * 1.4;
+        var st = 'left:' + (b[0] * 100) + '%;top:' + (b[1] * 100) + '%;width:' + (b[2] * 100) + '%;height:' + (b[3] * 100) + '%';
+        var html = '<span class="nmlb' + (tall ? ' tall' : '') + '" style="' + st + ';color:' + (TR.isDark(hex) ? '#fff' : '#14181f') + '" title="Example name, ' + TR.esc(String(spot.where).toLowerCase()) + '"><i>SMITH</i></span>';
+        // A narrow spot is hard to find on a thumbnail, so an arrow tag points at it.
+        if (b[2] < 0.14) {
+            var right = b[0] + b[2] / 2 > 0.5, cy = (b[1] + b[3] / 2) * 100;
+            html += '<span class="nmcall" style="top:' + cy + '%;' + (right ? 'right:' + ((1 - b[0]) * 100 + 1) + '%' : 'left:' + ((b[0] + b[2]) * 100 + 1) + '%') + '">' + (right ? 'Name &#9654;' : '&#9664; Name') + '</span>';
+        }
+        return html;
     },
 
     // colorIdx falls back to the first colour, which is right for a preview
@@ -890,7 +944,7 @@ var TR = {
             (dupes.length ? ' <b style="color:var(--bad)">Already in the store, so Build will skip: ' + TR.esc(dupes.join(', ')) + '.</b>' : '') + '</div>' : '';
         // The starter set is a whole new store's worth of products, so it is
         // not offered when adding to a store that already exists.
-        pane.innerHTML = haveHtml + ((!w.items.length && !st) || bfm ? '<div class="msg">' + (bfm ? '<b>Build it for me:</b> the customer left the products to us. ' : '') +
+        pane.innerHTML = TR.logoStripHtml() + haveHtml + ((!w.items.length && !st) || bfm ? '<div class="msg">' + (bfm ? '<b>Build it for me:</b> the customer left the products to us. ' : '') +
                 'Fill from the starter set for their group (' + TR.esc((TR.st.rec.req && TR.st.rec.req.group) || 'School sports team') + '): six proven styles in their main colour plus a neutral, priced with their fundraising. ' +
                 '<button class="btn" type="button" id="fill-starter">Fill from starter set</button></div>' : '') +
             (w.items || []).map(function (it, i) { return TR.itemHtml(it, i); }).join('') +
@@ -898,6 +952,8 @@ var TR = {
             '<div class="adder"><label class="f" for="add-q">Add a product</label><input type="search" id="add-q" placeholder="Search by name or style code, e.g. hoodie or DT6100" autocomplete="off"><div class="res hidden" id="add-res"></div></div>';
         (w.items || []).forEach(function (it, i) { TR.wireItem(it, i); });
         TR.wireAdder();
+        TR.wireUploads(pane);
+        var tl = TR.$('to-logos'); if (tl) tl.onclick = function () { TR.st.tab = 'logos'; TR.renderDetail(); };
         var fs = TR.$('fill-starter'); if (fs) fs.onclick = TR.fillStarter;
         // Keep the colour list open across the redraw a toggle causes.
         if (TR.st.openCols != null) {
@@ -957,17 +1013,15 @@ var TR = {
     NAME_WHERE: ['Left sleeve', 'Right sleeve', 'Back', 'Back neck', 'Front', 'Left leg'],
     namesHtml: function (it, i) {
         var n = it.names && it.names.on ? it.names : null;
-        return '<div class="bar"><label class="where" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="nm-' + i + '"' + (n ? ' checked' : '') + '> Offer names</label>' +
+        return '<div class="bar"><label class="where" style="display:flex;gap:6px;align-items:center" title="Each buyer types their name when they order"><input type="checkbox" id="nm-' + i + '"' + (n ? ' checked' : '') + '> Names</label>' +
             (n ? '<select id="nmw-' + i + '" aria-label="Where the name prints">' + TR.NAME_WHERE.concat(TR.NAME_WHERE.indexOf(n.where) < 0 ? [n.where] : []).map(function (w) {
                     return '<option' + (w === n.where ? ' selected' : '') + '>' + TR.esc(w) + '</option>'; }).join('') + '</select>' +
-                '<label class="sub" style="display:flex;gap:4px;align-items:center">+$<input type="number" min="0" step="0.01" id="nmp-' + i + '" value="' + n.price + '" style="width:70px"></label>' +
-                '<span class="sub">Each buyer types their name at checkout. Adds a No Name / Add Name choice, so ' + (it.sizes || []).length * (it.colors || []).length * 2 + ' variants.</span>'
-              : '<span class="sub">A name on the garment, typed by each buyer at checkout</span>') + '</div>';
+                '<label class="sub" style="display:flex;gap:4px;align-items:center">+$<input type="number" min="0" step="0.01" id="nmp-' + i + '" value="' + n.price + '" style="width:64px" aria-label="Extra for a name"></label>' : '') + '</div>';
     },
     wireNames: function (it, i) {
         var box = TR.$('nm-' + i); if (!box) return;
         box.onchange = function () { it.names = this.checked ? { on: true, price: 15, where: 'Left sleeve' } : null; TR.touch(); TR.paneProducts(); };
-        var w = TR.$('nmw-' + i); if (w) w.onchange = function () { it.names.where = this.value; TR.touch(); };
+        var w = TR.$('nmw-' + i); if (w) w.onchange = function () { it.names.where = this.value; TR.touch(); TR.paneProducts(); };
         var p = TR.$('nmp-' + i); if (p) p.oninput = function () { it.names.price = Math.max(0, Number(this.value) || 0); TR.touch(); };
     },
 
@@ -1114,7 +1168,10 @@ var TR = {
             res.querySelectorAll('button').forEach(function (b) {
                 b.onclick = function () {
                     var p = TR.st.P[b.dataset.s];
-                    TR.st.rec.work.items.push({ style: p.s, colors: [], placement: p.ch ? 'Full chest' : 'Front', second_logo: '', price: p.m || 0, sizes: null, boxes: {}, logo: 'main' });
+                    // The same price the customer builder shows: the catalog list price
+                    // plus the team's fundraising markup, rounded up to a dollar.
+                    var pct = Number((TR.st.rec.req || {}).fundraising_pct) || 0;
+                    TR.st.rec.work.items.push({ style: p.s, colors: [], placement: p.ch ? 'Full chest' : 'Front', second_logo: '', price: Math.ceil((p.m || 0) * (1 + pct / 100)), sizes: null, boxes: {}, logo: 'main' });
                     TR.st.openCols = TR.st.rec.work.items.length - 1;
                     TR.touch(); TR.paneProducts();
                     var cards = document.querySelectorAll('.item'); var last = cards[cards.length - 1];
@@ -1280,8 +1337,8 @@ var TR = {
                 '<label class="f" for="cd-' + k + '" style="margin-top:8px">Logo Master Folder code</label><input type="text" id="cd-' + k + '" data-code="' + k + '" value="' + TR.esc(L.code || '') + '" placeholder="e.g. D055" style="width:120px;text-transform:uppercase">' +
                 '<div class="bar" style="display:flex;gap:8px;margin-top:8px"><label class="btn" style="display:inline-flex;align-items:center">Replace<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="' + k + '" class="hidden"></label>' +
                 (L.url ? '<a class="btn" style="text-decoration:none;display:inline-flex;align-items:center" target="_blank" rel="noopener" href="' + TR.esc(L.url) + '">Open file</a>' : '') + '</div></div>';
-        }).join('') + '</div>' : '<p class="empty">The customer did not upload a logo.' + (TR.st.rec.req.logos ? ' They said: ' + TR.esc(TR.st.rec.req.logos) : '') + '</p>') +
-            '<div class="bar" style="margin-top:14px;display:flex;gap:8px;align-items:center"><label class="btn" style="display:inline-flex;align-items:center">Add another logo<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="__new" class="hidden"></label><span class="sub">A replaced logo keeps the original in the history, and every preview and mockup switches to the new file.</span></div>' +
+        }).join('') + '</div>' : TR.logoDropHtml() + (TR.st.rec.req && TR.st.rec.req.logos ? '<p class="sub">The customer said: ' + TR.esc(TR.st.rec.req.logos) + '</p>' : '')) +
+            '<div class="bar" style="margin-top:14px;display:flex;gap:8px;align-items:center"' + (slots.length ? '' : ' hidden') + '><label class="btn" style="display:inline-flex;align-items:center">Add another logo<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="__new" class="hidden"></label><span class="sub">A replaced logo keeps the original in the history, and every preview and mockup switches to the new file.</span></div>' +
             (slots.length ? '<h3 style="margin:22px 0 6px;font-size:15px">Print files</h3><p class="sub" style="max-width:720px">300 dpi PNGs for every place each logo prints, named like <b>D055 (FC).png</b>, ready for the Logo Master Folder.</p>' +
                 '<div class="bar" style="display:flex;gap:8px;align-items:center"><button class="btn pri" type="button" id="pf-go">Download print files</button><span class="sub" id="pf-msg"></span></div>' : '');
         slots.forEach(function (k) { TR.checkLogo(k); });
@@ -1289,21 +1346,58 @@ var TR = {
             inp.addEventListener('input', function () { w.logos[inp.dataset.code].code = this.value.trim().toUpperCase(); TR.touch(); });
         });
         var pf = TR.$('pf-go'); if (pf) pf.onclick = function () { TR.printFiles(pf); };
-        pane.querySelectorAll('input[data-up]').forEach(function (inp) {
-            inp.onchange = function () {
-                var f = inp.files[0]; if (!f) return;
-                var slot = inp.dataset.up;
-                if (slot === '__new') { var n = 2; while (w.logos['logo' + n]) n++; slot = 'logo' + n; }
-                if (TR.st.dirty) { TR.flash('Save your other changes first, then replace the logo.', 'warn'); return; }
-                var fd = new FormData(); fd.append('id', TR.st.rec.id); fd.append('slot', slot); fd.append('file', f);
-                TR.flash('Uploading ' + f.name + '...', 'warn');
-                TR.api('/team-requests/logo', { method: 'POST', form: fd }).then(function (j) {
-                    if (j.__status !== 200) { TR.flash(j.error || ('Upload failed, HTTP ' + j.__status), 'bad'); return; }
-                    TR.st.rec = j.rec;
-                    TR.prepLogos().then(function () { TR.renderDetail(); TR.flash('Logo replaced. The original is still listed in the history.', 'ok'); });
-                });
-            };
+        TR.wireUploads(pane);
+    },
+
+    // ---------- logo upload, from the Products tab or the Logos tab ----------
+    // One path for every upload. The first logo on a request is the MAIN
+    // logo (the slot every product uses by default); later ones are extras.
+    LOGO_ACCEPT: '.png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps',
+    uploadLogo: function (f, slot) {
+        var w = TR.st.rec.work; w.logos = w.logos || {};
+        if (!f) return;
+        if (slot === '__new') {
+            if (!Object.keys(w.logos).length) slot = 'main';
+            else { var n = 2; while (w.logos['logo' + n]) n++; slot = 'logo' + n; }
+        }
+        var go = function () {
+            var fd = new FormData(); fd.append('id', TR.st.rec.id); fd.append('slot', slot); fd.append('file', f);
+            TR.flash('Uploading ' + f.name + '...', 'warn');
+            TR.api('/team-requests/logo', { method: 'POST', form: fd }).then(function (j) {
+                if (j.__status !== 200) { TR.flash(j.error || ('Upload failed, HTTP ' + j.__status), 'bad'); return; }
+                TR.st.rec = j.rec; TR.st.dirty = false;
+                TR.prepLogos().then(function () { TR.renderDetail(); TR.flash('Logo uploaded.', 'ok'); });
+            });
+        };
+        // Unsaved edits are saved first, so the upload cannot lose them.
+        if (TR.st.dirty) TR.save().then(function (ok) { if (ok) go(); }); else go();
+    },
+    // A file input marked data-up="<slot>" or a drop zone marked data-drop.
+    wireUploads: function (root) {
+        root.querySelectorAll('input[data-up]').forEach(function (inp) {
+            inp.onchange = function () { TR.uploadLogo(inp.files[0], inp.dataset.up); };
         });
+        root.querySelectorAll('[data-drop]').forEach(function (z) {
+            z.ondragover = function (e) { e.preventDefault(); z.classList.add('over'); };
+            z.ondragleave = function () { z.classList.remove('over'); };
+            z.ondrop = function (e) { e.preventDefault(); z.classList.remove('over'); var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) TR.uploadLogo(f, '__new'); };
+        });
+    },
+    // The big box shown wherever a request has no logo yet.
+    logoDropHtml: function () {
+        return '<label class="logodrop" data-drop="1"><input type="file" accept="' + TR.LOGO_ACCEPT + '" data-up="__new" class="hidden">' +
+            '<b>Upload the team\'s logo</b><span>Click, or drop the file here. PNG works best for mockups; AI, EPS and PDF are kept for print.</span></label>';
+    },
+    // Products tab: the logos at a glance, and the way to add one.
+    logoStripHtml: function () {
+        var w = TR.st.rec.work, slots = Object.keys(w.logos || {});
+        if (!slots.length) return TR.logoDropHtml();
+        return '<div class="logostrip" data-drop="1">' + slots.map(function (k) {
+                var u = TR.logoUrl(k);
+                return '<span class="lgthumb" title="' + TR.esc((w.logos[k].label || k) + (w.logos[k].code ? ' · ' + w.logos[k].code : '')) + '">' + (u ? '<img alt="" src="' + TR.esc(u) + '">' : '<i>' + TR.esc((w.logos[k].label || k).slice(0, 8)) + '</i>') + '</span>';
+            }).join('') +
+            '<label class="btn" style="display:inline-flex;align-items:center">+ Upload logo<input type="file" accept="' + TR.LOGO_ACCEPT + '" data-up="__new" class="hidden"></label>' +
+            '<button type="button" class="btn quiet" id="to-logos">Codes and print files</button></div>';
     },
 
     // ---------- print files (make_logo_files.py, in the browser) ----------
