@@ -110,6 +110,16 @@ var TR = {
         return fetch(TR.U.CATALOG_URL).then(function (r) { return r.json(); }).then(function (D) {
             D.cats.forEach(function (c) {
                 c.p.forEach(function (p) {
+                    // BACK LOGO EVERYWHERE THERE IS A BACK (owner, 2026-11-23). 20
+                    // styles have a back photo but no Back spot in the catalog (the
+                    // 5629 hoodie, the J850 jacket...), so no back logo could be
+                    // chosen. They get the spot the catalog gives its tees, upper
+                    // back, 40% wide. Bottoms are left out: a back logo is not a
+                    // thing on a pair of joggers. Staff only; the customer
+                    // builder reads its own catalog.
+                    if (!(p.loc && p.loc.Back) && c.name !== 'Bottoms' && p.c.some(function (k) { return k.length > 6 && k[6]; })) {
+                        p.loc = p.loc || {}; p.loc.Back = ['b', [0.3, 0.1, 0.4, 0.32]]; p.backAdded = true;
+                    }
                     p.img = TR.U.expand(p.img);
                     p.c.forEach(function (k) { k[1] = TR.U.expand(k[1]); k[2] = TR.U.expand(k[2]); if (k.length > 6) k[6] = TR.U.expand(k[6]); });
                     TR.st.P[p.s] = p; TR.st.CAT[p.s] = c.name;
@@ -922,7 +932,11 @@ var TR = {
         // under the collar.
         if (where === 'back neck' && hasBack) return { side: 'b', box: bn || [0.4, 0.1, 0.2, 0.05], where: n.where };
         if (where === 'back' && hasBack) {
-            if (bk) return { side: 'b', box: [bk[0], Math.max(0.03, bk[1] - bk[3] * 0.3), bk[2], bk[3] * 0.26], where: n.where };
+            // Under the back logo when there is one, else across the shoulders
+            // (the back box starts near the collar, so a little way into it).
+            var l2 = TR.loc2(it, p);
+            if (l2 && l2.side === 'b' && l2.box) return { side: 'b', box: [l2.box[0], Math.min(0.85, l2.box[1] + l2.box[3] + 0.02), l2.box[2], Math.max(0.06, l2.box[3] * 0.24)], where: n.where };
+            if (bk) return { side: 'b', box: [bk[0], bk[1] + bk[3] * 0.15, bk[2], bk[3] * 0.26], where: n.where };
             if (bn) return { side: 'b', box: [0.3, bn[1] + bn[3] + 0.04, 0.4, 0.08], where: n.where };
             return { side: 'b', box: [0.28, 0.2, 0.44, 0.09], where: n.where };
         }
@@ -939,7 +953,8 @@ var TR = {
         if (!spot.box) return '<span class="nmtag">Name: ' + TR.esc(String(spot.where).toLowerCase()) + '</span>';
         var b = spot.box, tall = b[3] > b[2] * 1.4;
         var st = 'left:' + (b[0] * 100) + '%;top:' + (b[1] * 100) + '%;width:' + (b[2] * 100) + '%;height:' + (b[3] * 100) + '%';
-        var html = '<span class="nmlb' + (tall ? ' tall' : '') + '" style="' + st + ';color:' + (TR.isDark(hex) ? '#fff' : '#14181f') + '" title="Example name, ' + TR.esc(String(spot.where).toLowerCase()) + '"><i>SMITH</i></span>';
+        // Back names print in Winner Bold, all caps (owner, 2026-11-23).
+        var html = '<span class="nmlb' + (tall ? ' tall' : '') + (spot.side === 'b' ? ' winner' : '') + '" style="' + st + ';color:' + (TR.isDark(hex) ? '#fff' : '#14181f') + '" title="Example name, ' + TR.esc(String(spot.where).toLowerCase()) + '"><i>SMITH</i></span>';
         // A narrow spot is hard to find on a thumbnail, so an arrow tag points at it.
         if (b[2] < 0.14) {
             var right = b[0] + b[2] / 2 > 0.5, cy = (b[1] + b[3] / 2) * 100;
@@ -2688,7 +2703,7 @@ var TR = {
                     if (it.price) bits.push('$' + Number(it.price).toFixed(2));
                     if ((it.sizes || []).length) bits.push('Sizes ' + it.sizes.join(', '));
                     bits.push('Logo: ' + (it.placement || 'as shown') + (it.second_logo ? ', plus ' + it.second_logo.toLowerCase() : ''));
-                    if (it.names && it.names.on) bits.push('Optional name on the ' + String(it.names.where).toLowerCase() + ', +$' + Number(it.names.price || 0).toFixed(2));
+                    if (it.names && it.names.on) bits.push('Optional name on the ' + String(it.names.where).toLowerCase() + (/^back/i.test(it.names.where) ? ' in Winner Bold, all caps' : '') + ', +$' + Number(it.names.price || 0).toFixed(2));
                     doc.splitTextToSize(bits.join('   /   '), W - 2 * M).forEach(function (l) { text(l, M, y); y += 13; });
                     y += 6;
                 };
