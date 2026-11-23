@@ -177,6 +177,14 @@ label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4
 .ctab { border: 1px solid var(--line-2); background: none; padding: 3px 10px; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .ctab.on { background: var(--accent); border-color: var(--accent); color: #06101f; font-weight: 700; }
 .ctab .own { width: 7px; height: 7px; background: #ffb547; display: inline-block; }
+/* Every colour of a product at once, under the tabs. */
+.cstrip { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.cst { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 4px; border: 1px solid var(--line-2); }
+.cst.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.cst .cpics { display: flex; gap: 3px; }
+.cst .cpics .mk { width: 78px; }
+.cst .cname { font-size: 11.5px; color: var(--muted); display: inline-flex; gap: 5px; align-items: center; }
+.cst .own { width: 7px; height: 7px; background: #ffb547; display: inline-block; }
 /* Name colour: white and black squares, then any colour. */
 .nmcols { display: inline-flex; gap: 6px; align-items: center; }
 .nmsw { width: 24px; height: 24px; border: 1px solid var(--line-2); cursor: pointer; padding: 0; }
@@ -459,6 +467,6 @@ body.full #detail { max-width: none; }
 
 <script src="catalog-client.js?v=27"></script>
 <script src="team-request-utils.js?v=7"></script>
-<script src="team-requests.js?v=30"></script>
+<script src="team-requests.js?v=31"></script>
 </body>
 </html>

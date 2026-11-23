@@ -1053,7 +1053,7 @@ var TR = {
         var slots = Object.keys(TR.st.rec.work.logos || {});
         return '<div class="item" data-i="' + i + '">' +
             '<div class="thumbs" id="thumb-' + i + '">' + TR.frontOf(it, p, first) + (TR.backHtml(it, p, first) || '') + '</div>' +
-            '<div><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' + TR.colorTabsHtml(it, i) +
+            '<div><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' + TR.colorTabsHtml(it, i) + TR.colorStripHtml(it, p) +
             '<div class="grid">' +
                 '<div class="wide"><label class="f">Colours</label><div class="chips">' + it.colors.map(function (n) {
                     var known = TR.hasColor(p, n), c = known ? p.c[TR.colorIdx(p, n)] : null, st = TR.stockState(it, p, n);
@@ -1113,6 +1113,17 @@ var TR = {
         if (it.logoBy) delete it.logoBy[c];
         if (it.names && it.names.colorBy) delete it.names.colorBy[c];
         if (it.names && it.names.boxBy) delete it.names.boxBy[c];
+    },
+    // EVERY COLOUR AT ONCE (owner, 2026-11-23: "I should be able to see both
+    // colors"). A small front, and back when something prints there, per
+    // colour, each with everything that colour carries; click to edit it.
+    colorStripHtml: function (it, p) {
+        if (it.colors.length < 2) return '';
+        var sel = TR.selColor(it);
+        return '<div class="cstrip">' + it.colors.filter(function (n) { return TR.hasColor(p, n); }).map(function (n) {
+            return '<button type="button" class="cst' + (sel === n ? ' on' : '') + '" data-ctab="' + TR.esc(n) + '" title="Edit ' + TR.esc(n) + '">' +
+                '<span class="cpics">' + TR.frontOf(it, p, n) + (TR.backHtml(it, p, n) || '') + '</span><span class="cname">' + TR.esc(n) + (TR.colorOwn(it, n) ? ' <i class="own"></i>' : '') + '</span></button>';
+        }).join('') + '</div>';
     },
     colorTabsHtml: function (it, i) {
         if (it.colors.length < 2) return '';
