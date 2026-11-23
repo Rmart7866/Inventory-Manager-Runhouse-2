@@ -146,6 +146,9 @@ label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4
 .mk > .nmlb { position: absolute; container-type: size; display: flex; align-items: center; justify-content: center; outline: 1px dashed rgba(76,155,255,.75); line-height: 1; pointer-events: none; }
 .mk > .nmlb i { font: 900 min(62cqh, 26cqw) 'Archivo Black', 'Arial Black', Impact, sans-serif; font-style: normal; letter-spacing: .04em; white-space: nowrap; }
 .mk > .nmlb.tall i { transform: rotate(90deg); font-size: min(62cqw, 26cqh); }
+/* The way back to what the customer sent. */
+.origbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 14px; padding: 8px 10px; border: 1px solid var(--line-2); }
+.origline { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
 /* Logo upload, front and centre on the Products tab. */
 .logodrop { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; border: 2px dashed var(--accent); background: rgba(76,155,255,.08); padding: 16px 18px; margin: 0 0 14px; cursor: pointer; max-width: 720px; }
 .logodrop b { font-size: 15px; color: var(--accent); }
@@ -432,6 +435,6 @@ body.full #detail { max-width: none; }
 
 <script src="catalog-client.js?v=27"></script>
 <script src="team-request-utils.js?v=5"></script>
-<script src="team-requests.js?v=24"></script>
+<script src="team-requests.js?v=25"></script>
 </body>
 </html>

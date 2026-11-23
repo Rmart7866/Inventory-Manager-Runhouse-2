@@ -360,6 +360,33 @@ console.log('\nBuild needs an approval (2026-11-23)');
   globalThis.fetch = realFetch;
 }
 
+console.log('\nRevert to the customer\'s request (2026-11-23)');
+{
+  let r = await call('/team-requests/submit', { method: 'POST', headers: { ...SHOPFRONT, 'CF-Connecting-IP': '10.77.0.2' }, body: sample() });
+  const rid = (await r.json()).id;
+  let cur = await (await call('/team-requests/one?id=' + rid, { headers: STAFF })).json();
+  // staff change the price and colours, add a product, give the logo a code, set a cost and a release date
+  const w = JSON.parse(JSON.stringify(cur.work));
+  w.items[0].price = 99; w.items[0].colors = ['Jet Black']; w.items[0].cost = 7.5;
+  w.items.push({ style: 'PC78H', colors: ['Navy'], price: 40 });
+  w.logos.main.code = 'D055'; w.release = '2026-12-01'; w.assignee = 'Ryan';
+  r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id: rid, base: cur.updated, patch: { work: w } } });
+  cur = (await r.json()).rec;
+  check('staff edits are in', cur.work.items.length === 2 && cur.work.items[0].price === 99);
+  r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id: rid, base: cur.updated, patch: { revert: 'PC380' } } });
+  let j = await r.json();
+  check('one product goes back to what the customer sent', r.status === 200 && j.rec.work.items[0].price === 25 && JSON.stringify(j.rec.work.items[0].colors) === '["Deep Navy","Jet Black"]');
+  check('and keeps our cost, and leaves the product staff added', j.rec.work.items[0].cost === 7.5 && j.rec.work.items.length === 2);
+  r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id: rid, base: j.rec.updated, patch: { revert: 'all' } } });
+  j = await r.json();
+  check('reverting everything drops the product staff added', r.status === 200 && j.rec.work.items.length === 1 && j.rec.work.items[0].style === 'PC380');
+  check('and keeps our details: logo code, release date, who has it', j.rec.work.logos.main.code === 'D055' && j.rec.work.release === '2026-12-01' && j.rec.work.assignee === 'Ryan');
+  check('the customer\'s original is untouched', JSON.stringify(j.rec.req.items) === JSON.stringify(sample().request.items));
+  check('and the history says so', j.rec.log.some((l) => /reverted every product and logo/.test(l.what)) && j.rec.log.some((l) => /reverted PC380/.test(l.what)));
+  r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id: rid, base: j.rec.updated, patch: { revert: 'NOPE1' } } });
+  check('a style the customer never asked for cannot be reverted', r.status === 400);
+}
+
 console.log('\nStarted by staff (2026-11-23)');
 // A store staff set up themselves goes through the same record, editor and
 // Build as a customer's. What must hold: the write secret is required, a NEW

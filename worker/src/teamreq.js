@@ -365,8 +365,53 @@ function itemSig(it) {
   return [it.style, it.colors, it.sizes, it.price, it.placement, it.boxes, it.logo, it.logo2, it.logoBy, it.second_logo, it.names || null];
 }
 
+// REVERT TO THE CUSTOMER'S REQUEST (owner, 2026-11-23). The customer's
+// original never changes (rec.req), so "what they sent" can always be
+// rebuilt with workFrom. 'all' puts back every product and their logos;
+// a style puts back that one product. What is OURS stays: who has it, the
+// release date, notes, the proof contact, costs, logo codes, the build
+// options. A product staff added is dropped by 'all' and untouched by a
+// single revert. Approval goes stale through the normal itemSig check.
+export function revertWork(rec, what) {
+  const orig = workFrom(rec.req || {});
+  const cur = rec.work || {};
+  if (!rec.req || rec.source === 'staff') throw new Error('This request was started by staff, so there is no customer version to go back to');
+  const costOf = {};
+  for (const it of cur.items || []) if (it.cost > 0) costOf[it.style] = it.cost;
+  const withCost = (it) => (costOf[it.style] ? { ...it, cost: costOf[it.style] } : it);
+  if (what === 'all') {
+    const logos = {};
+    for (const [k, L] of Object.entries(orig.logos)) {
+      const had = cur.logos && cur.logos[k];
+      logos[k] = had && had.code ? { ...L, code: had.code } : L;
+    }
+    cur.items = orig.items.map(withCost);
+    cur.logos = logos;
+    rec.work = cur;
+    return 'reverted every product and logo to the customer\'s request';
+  }
+  const style = String(what || '');
+  const o = orig.items.find((it) => it.style === style);
+  if (!o) throw new Error(style + ' was not on the customer\'s request');
+  const items = cur.items || [];
+  const i = items.findIndex((it) => it.style === style);
+  if (i >= 0) items[i] = withCost(o); else items.push(withCost(o));
+  cur.items = items;
+  rec.work = cur;
+  return 'reverted ' + style + ' to the customer\'s request';
+}
+
 export function applyPatch(rec, patch) {
   const changed = [];
+  if (patch.revert) {
+    const before = JSON.stringify(((rec.work && rec.work.items) || []).map(itemSig));
+    changed.push(revertWork(rec, patch.revert));
+    if (rec.approval && JSON.stringify(rec.work.items.map(itemSig)) !== before) {
+      rec.approval.stale = true;
+      changed.push('products changed after the customer answered');
+    }
+    return changed;
+  }
   if (patch.status != null) {
     if (!STATUSES.includes(patch.status)) throw new Error('Unknown status ' + patch.status);
     if (patch.status !== rec.status) { changed.push('status ' + rec.status + ' to ' + patch.status); rec.status = patch.status; }

@@ -340,6 +340,40 @@ var TR = {
         });
     },
 
+    // ---------- revert to the customer's request (2026-11-23) ----------
+    // rec.req is what the customer sent and never changes, so staff can always
+    // go back to it: one product, or everything. The Worker rebuilds it
+    // (revertWork in teamreq.js) and keeps what is ours (costs, codes, dates).
+    hasCustomerVersion: function (r) { return !!(r && r.source !== 'staff' && r.req && (r.req.items || []).length); },
+    origItem: function (style) {
+        var r = TR.st.rec; if (!TR.hasCustomerVersion(r)) return null;
+        return (r.req.items || []).find(function (x) { return String(x.style) === String(style); }) || null;
+    },
+    // What staff changed on a product, in words, against the customer's line.
+    itemDiff: function (it, o) {
+        var d = [], p = TR.st.P[it.style];
+        var same = function (a, b) { return JSON.stringify((a || []).slice().sort()) === JSON.stringify((b || []).slice().sort()); };
+        if (!same(it.colors, o.colors)) d.push('colours');
+        if (Number(it.price) !== Number(o.price)) d.push('price');
+        if (String(it.placement || '') !== String(o.placement || '')) d.push('logo spot');
+        if (String(it.second_logo || '') !== String(o.second_logo || '')) d.push('second logo');
+        if (it.boxes && Object.keys(it.boxes).length) d.push('logo moved');
+        var on = !!(it.names && it.names.on), was = !!(o.names && o.names.on);
+        if (on !== was || (on && (it.names.where !== (o.names.where || 'Left sleeve')))) d.push('names');
+        if (p && it.sizes && !same(it.sizes, TR.U.sizesFor(p, TR.st.CAT[p.s]))) d.push('sizes');
+        return d;
+    },
+    revert: function (what) {
+        var r = TR.st.rec;
+        return TR.api('/team-requests/update', { body: { id: r.id, base: r.updated, patch: { revert: what } } }).then(function (j) {
+            if (j.__status === 409) { TR.flash('Someone else saved this request since you opened it. Reload it first.', 'bad'); return; }
+            if (j.__status !== 200) { TR.flash(j.error || ('Revert failed, HTTP ' + j.__status), 'bad'); return; }
+            TR.st.rec = j.rec; TR.st.dirty = false; TR.st.plan = null;
+            TR.loadList();
+            TR.prepLogos().then(function () { TR.renderDetail(); TR.flash(what === 'all' ? 'Back to what the customer sent.' : what + ' is back to what the customer sent.', 'ok'); });
+        });
+    },
+
     flash: function (text, kind) {
         var m = TR.$('flash'); if (!m) return;
         m.className = 'msg ' + (kind || 'ok'); m.textContent = text; m.classList.remove('hidden');
@@ -941,7 +975,17 @@ var TR = {
             (dupes.length ? ' <b style="color:var(--bad)">Already in the store, so Build will skip: ' + TR.esc(dupes.join(', ')) + '.</b>' : '') + '</div>' : '';
         // The starter set is a whole new store's worth of products, so it is
         // not offered when adding to a store that already exists.
-        pane.innerHTML = TR.logoStripHtml() + haveHtml + ((!w.items.length && !st) || bfm ? '<div class="msg">' + (bfm ? '<b>Build it for me:</b> the customer left the products to us. ' : '') +
+        // The way back to what the customer sent, shown only once staff have
+        // changed something (or removed one of their products).
+        var r0 = TR.st.rec, changedAny = false;
+        if (TR.hasCustomerVersion(r0)) {
+            var styles = (w.items || []).map(function (it) { return String(it.style); });
+            changedAny = (r0.req.items || []).some(function (o) { return styles.indexOf(String(o.style)) < 0; }) ||
+                (w.items || []).some(function (it) { var o = TR.origItem(it.style); return !o || TR.itemDiff(it, o).length; });
+        }
+        var revertAll = changedAny ? '<div class="origbar"><span class="sub">You have changed this store from what the customer sent.</span>' +
+            '<button type="button" class="btn" id="revert-all">Revert to customer\'s request</button></div>' : '';
+        pane.innerHTML = TR.logoStripHtml() + revertAll + haveHtml + ((!w.items.length && !st) || bfm ? '<div class="msg">' + (bfm ? '<b>Build it for me:</b> the customer left the products to us. ' : '') +
                 'Fill from the starter set for their group (' + TR.esc((TR.st.rec.req && TR.st.rec.req.group) || 'School sports team') + '): six proven styles in their main colour plus a neutral, priced with their fundraising. ' +
                 '<button class="btn" type="button" id="fill-starter">Fill from starter set</button></div>' : '') +
             (w.items || []).map(function (it, i) { return TR.itemHtml(it, i); }).join('') +
@@ -951,6 +995,9 @@ var TR = {
         TR.wireAdder();
         TR.wireUploads(pane);
         var tl = TR.$('to-logos'); if (tl) tl.onclick = function () { TR.st.tab = 'logos'; TR.renderDetail(); };
+        // Both ask twice: a revert throws away staff edits (the history keeps the record).
+        var ra = TR.$('revert-all'); if (ra) TR.arm(ra, 'Sure? Undo every change', function () { TR.revert('all'); });
+        pane.querySelectorAll('[data-orig]').forEach(function (b) { TR.arm(b, 'Sure? Undo changes', function () { TR.revert(b.dataset.orig); }); });
         var fs = TR.$('fill-starter'); if (fs) fs.onclick = TR.fillStarter;
         // Keep the colour list open across the redraw a toggle causes.
         if (TR.st.openCols != null) {
@@ -995,6 +1042,7 @@ var TR = {
             '<button class="btn" type="button" data-place="' + i + '">Move logo</button>' +
             (slots.length > 1 ? TR.logoSelect('lg-' + i, it.logo, 'Front logo') : '') +
             '<span style="flex:1"></span><button class="btn danger quiet" type="button" data-rm="' + i + '">Remove</button></div>' +
+            TR.origLineHtml(it, i) +
             (p.loc && Object.keys(p.loc).length ? '<div class="bar"><span class="where">Second logo</span><select id="l2-' + i + '" aria-label="Second logo location"><option value="">None</option>' +
                 Object.keys(p.loc).map(function (k) { return '<option' + (k === it.second_logo ? ' selected' : '') + '>' + TR.esc(k) + '</option>'; }).join('') + '</select>' +
                 (it.second_logo && slots.length > 1 ? TR.logoSelect('lx-' + i, it.logo2, 'Second logo') : '') +
@@ -1002,6 +1050,18 @@ var TR = {
             TR.namesHtml(it, i) +
             (it.logoBy && Object.keys(it.logoBy).length ? '<p class="sub" style="margin:6px 0 0">The customer picked which logo goes on each colour. Choosing a logo above replaces their picks.</p>' : '') +
             '</div></div>';
+    },
+
+    // One quiet line per product: what staff changed from the customer's
+    // request and the way back, or that staff added it.
+    origLineHtml: function (it, i) {
+        if (!TR.hasCustomerVersion(TR.st.rec)) return '';
+        var o = TR.origItem(it.style);
+        if (!o) return '<div class="origline"><span class="tag">Added by staff</span></div>';
+        var d = TR.itemDiff(it, o);
+        if (!d.length) return '';
+        return '<div class="origline"><span class="sub">Changed from the customer\'s request: ' + TR.esc(d.join(', ')) + '</span>' +
+            '<button type="button" class="btn" data-orig="' + TR.esc(it.style) + '" style="padding:2px 8px">Customer\'s version</button></div>';
     },
 
     // NAMES (2026-11-23): an optional name on the garment, typed by each buyer
