@@ -2042,6 +2042,11 @@ var TR = {
                 if (!c[4]) TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'f')], TR.boxFor(it, p, colorName), gx, gy, gw, gh, nw, nh);
                 if (l2 && l2.side === 'f') TR.drawLogo(x, L[TR.logoOf(it, p, colorName, 'x')], l2.box, gx, gy, gw, gh, nw, nh);
             }
+            // The example name, on the side it prints (owner, 2026-11-23: the
+            // Shopify photos showed no name). Same spot, text and colour as
+            // the staff preview, so what staff approved is what gets uploaded.
+            var spot = TR.nameSpot(it, p, colorName);
+            if (spot && spot.box && (spot.side === 'b') === !!back) TR.drawName(x, spot, gx, gy, gw, gh);
             return cv;
         });
     },
@@ -2050,7 +2055,35 @@ var TR = {
     // and a back photo.
     hasBack: function (it, p, colorName) {
         var l2 = TR.loc2(it, p, colorName), c = p.c[TR.colorIdx(p, colorName)];
-        return !!(l2 && l2.side === 'b' && c && c[6]);
+        if (!(c && c[6])) return false;
+        if (l2 && l2.side === 'b') return true;
+        // A name on the back with no back logo still needs a back photo.
+        var spot = TR.nameSpot(it, p, colorName);
+        return !!(spot && spot.box && spot.side === 'b');
+    },
+    // The name drawn into its box: the preview's sizing rule (62% of the box
+    // height or 26% of its width, whichever is smaller, then shrunk to fit),
+    // turned on its side for a tall sleeve strip. Back names print in Winner
+    // Bold; a canvas can only use an installed font, so a heavy block face
+    // stands in, as on the preview.
+    drawName: function (x, spot, gx, gy, gw, gh) {
+        var b = spot.box, bx = gx + b[0] * gw, by = gy + b[1] * gh, bw = b[2] * gw, bh = b[3] * gh;
+        var tall = b[3] > b[2] * 1.4, run = tall ? bh : bw, across = tall ? bw : bh;
+        var face = spot.side === 'b' ? "'Winner Bold', 'Winner-Bold', 'Arial Black', Impact, sans-serif" : "'Archivo Black', 'Arial Black', Impact, sans-serif";
+        var text = String(spot.text || 'NAME').toUpperCase();
+        var size = Math.min(across * 0.62, run * 0.26);
+        x.save();
+        x.font = '900 ' + size + 'px ' + face;
+        var wd = x.measureText(text).width;
+        if (wd > run * 0.94) { size = size * run * 0.94 / wd; x.font = '900 ' + size + 'px ' + face; }
+        x.fillStyle = spot.color || '#ffffff';
+        x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.translate(bx + bw / 2, by + bh / 2);
+        if (tall) x.rotate(Math.PI / 2);
+        // A thin dark edge keeps a white name readable on a light garment.
+        if (!TR.isDark(spot.color)) { x.lineWidth = Math.max(1, size * 0.06); x.strokeStyle = 'rgba(0,0,0,.35)'; x.strokeText(text, 0, 0); }
+        x.fillText(text, 0, 0);
+        x.restore();
     },
 
     build: function () {
