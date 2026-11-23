@@ -280,14 +280,14 @@ export async function handleBuild(request, env) {
     update: !!update, alreadyIn, searchable,
     products: plans.map((p) => ({ style: p.style, title: p.title, handle: p.handle, productType: p.productType, sizes: p.sizes, colors: p.colors.map((c) => c.value), images: p.colors.reduce((n, c) => n + (c.image ? 1 : 0) + (c.back ? 1 : 0), 0), price: p.price, names: p.names ? { add: p.names.add, label: p.names.label } : null, variants: p.variants, exists: existing.has(p.handle) })),
   };
-  // A plan may be checked any time; drafts are made only for a store the
-  // customer approved (the proof link, or staff recording how they approved),
-  // the same rule the page shows. Enforced here so the page is not the only
-  // thing standing between an unapproved store and Shopify.
+  // The proof and the customer's approval are OPTIONAL (owner, 2026-11-23:
+  // "make emailing proof not necessary"). The plan still reports whether the
+  // store was approved, for the page to show, but nothing waits on it. What
+  // keeps a build safe is unchanged: drafts only, create only, and a
+  // collection that is unpublished until staff press Go live.
   const appr = approvedForBuild(rec);
   plan.approved = appr;
   if (b.dryRun !== false) return { body: { dryRun: true, plan } };
-  if (!appr.ok) return { status: 409, body: { error: 'The customer has not approved this store yet. Send the proof, or tick "Customer approved another way" on the Build tab and say how.' } };
 
   const results = [];
   for (const p of plans) {

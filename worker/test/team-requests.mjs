@@ -331,9 +331,9 @@ console.log('\nNames on a garment (2026-11-23)');
   check('the customer\'s "offer names" carries into the work copy', workFrom({ team: 'T', items: [{ style: 'PC78H', names: { on: true, where: 'Back' } }] }).items[0].names.where === 'Back');
 }
 
-console.log('\nBuild needs an approval (2026-11-23)');
-// Drafts are made only for a store the customer approved: through the proof
-// link, or staff recording how they approved. A plan can always be checked.
+console.log('\nApproval is recorded but optional (2026-11-23)');
+// The proof is optional (owner, 2026-11-23): Build does not wait on it, but
+// an approval is still recognised and reported on the plan.
 {
   const { approvedForBuild } = await import('../src/teamreq.js');
   check('no answer is not approved', !approvedForBuild({ work: {} }).ok);
@@ -358,7 +358,9 @@ console.log('\nBuild needs an approval (2026-11-23)');
   let j = await r.json();
   check('the plan can be checked before approval, and says it is not approved', r.status === 200 && j.plan && j.plan.approved.ok === false);
   r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: aid, dryRun: false, products: spec } });
-  check('creating drafts without an approval is refused', r.status === 409 && writes === 0, 'status ' + r.status + ' writes ' + writes);
+  j = await r.json();
+  check('drafts are created WITHOUT a proof or an approval', r.status === 200 && j.ok && writes > 0, 'status ' + r.status + ' ' + JSON.stringify(j).slice(0, 160));
+  writes = 0;
   const cur = await (await call('/team-requests/one?id=' + aid, { headers: STAFF })).json();
   r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id: aid, base: cur.updated, patch: { work: { ...cur.work, approvedOther: { how: 'Coach approved on the phone 11/23', by: 'Ryan' } } } } });
   j = await r.json();
@@ -366,7 +368,7 @@ console.log('\nBuild needs an approval (2026-11-23)');
   check('and the history says who and how', j.rec.log.some((l) => /approved another way \(Ryan\): Coach approved on the phone/.test(l.what)));
   r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: aid, dryRun: false, products: spec } });
   j = await r.json();
-  check('then the drafts are created', r.status === 200 && j.ok && writes > 0, 'status ' + r.status + ' ' + JSON.stringify(j).slice(0, 160));
+  check('and a second build skips what already exists, never overwrites', r.status === 200 && j.ok, 'status ' + r.status + ' ' + JSON.stringify(j).slice(0, 160));
   globalThis.fetch = realFetch;
 }
 

@@ -1988,11 +1988,12 @@ to the contact form email only if that save fails. Staff work them in
   staff file. Logo spots come from the closest style, CHECKED BY DRAWING THEM
   on the new photos (ST870's spots missed District's framing; DT6100's fit).
   The staff "Add a product" search ignores punctuation and symbols.
-- **Build needs an approval (2026-11-23)**: the proof approval (not stale),
-  or `work.approvedOther = { how, by, at }` recorded on the Build tab and
-  logged. `approvedForBuild` in teamreq.js; the Worker refuses a non-dry
-  Build without it (409). Every request shows a checklist under "Next:";
-  products, logo, logo codes, stock and approval must be done to build.
+- **A proof is OPTIONAL (owner, 2026-11-23, same day it was required)**:
+  Build no longer waits on the proof or the customer's approval. Both are
+  still recorded and shown (`approvedForBuild` in teamreq.js reports it on
+  the plan), and staff can note how a customer approved. The checklist
+  requires products, logo, logo codes and stock only. What keeps a build
+  safe is draft-only, create-only and an unpublished collection.
 - **Build is create-only, draft-only, and fails CLOSED.** If the handle check
   errors, nothing is built (Stage 4 fails open; a team store is dozens of
   products). The collection is a smart one, TAG equals the team tag, unpublished.

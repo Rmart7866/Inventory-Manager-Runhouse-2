@@ -482,11 +482,9 @@ var TR = {
         if (TR.st.D && !w.noCodes && TR.codeProblems().length) return { text: 'Add the logo codes', tab: 'logos' };
         if (TR.st.D && !w.lowStockOk && !(r.build && r.build.at) && TR.stockProblems().length) return { text: 'Some colours are low at the supplier: swap them, or build anyway', tab: 'products' };
         if (TR.st.D && !Object.keys(w.logos || {}).length) return { text: 'Upload the team\'s logo', tab: 'logos' };
-        var approved = TR.approvedForBuild(r).ok;
-        if (r.build && r.build.at) return { text: 'Go live once the customer has approved', tab: 'build' };
-        if (approved) return { text: 'Create the drafts', tab: 'build' };
-        if (r.status === 'waiting') return { text: 'Waiting on the customer to approve the proof. When they say yes, create the drafts', tab: 'build' };
-        return { text: 'Send the proof with Email the proof (top right)', tab: null };
+        if (r.build && r.build.at) return { text: 'Check the drafts in Shopify, then Go live', tab: 'build' };
+        if (r.approval && r.approval.state === 'changes' && !r.approval.stale) return { text: 'The customer asked for changes: make them, then create the drafts', tab: 'products' };
+        return { text: 'Create the drafts', tab: 'build' };
     },
 
     // ---------- the checklist (2026-11-23) ----------
@@ -519,13 +517,13 @@ var TR = {
         var named = items.filter(function (it) { return it.names && it.names.on; }).length;
         add('names', 'Names', 'info', named ? 'Offered on ' + named + (named === 1 ? ' product' : ' products') : 'Not offered', 'products', false);
         var c = TR.contactOf(r), ap = TR.approvedForBuild(r);
-        add('contact', 'Contact email', c.email ? 'ok' : ap.via === 'staff' ? 'info' : 'todo', c.email || (ap.via === 'staff' ? 'Not needed, approved another way' : 'Needed to email the proof'), null, false);
+        add('contact', 'Contact email', c.email ? 'ok' : 'info', c.email || 'Optional, only for emailing a proof', null, false);
         var sent = !!r.approval || r.status === 'waiting' || (r.log || []).some(function (l) { return /proof/i.test(l.what); });
-        add('proof', 'Proof sent', sent ? 'ok' : ap.via === 'staff' ? 'info' : 'todo', sent ? 'Sent' : ap.via === 'staff' ? 'Skipped, approved another way' : 'Not yet: Email the proof, top right', null, false);
+        add('proof', 'Proof sent', sent ? 'ok' : 'info', sent ? 'Sent' : 'Optional', null, false);
         var stale = r.approval && r.approval.state === 'approved' && r.approval.stale;
-        add('approved', 'Customer approved', ap.ok ? 'ok' : 'todo',
+        add('approved', 'Customer approved', ap.ok ? 'ok' : 'info',
             ap.via === 'proof' ? 'On the proof' : ap.via === 'staff' ? 'Another way: ' + ap.how + (ap.by ? ' (' + ap.by + ')' : '')
-                : stale ? 'They approved, then the products changed: send a new proof' : r.approval && r.approval.state === 'changes' ? 'They asked for changes' : 'Not yet', 'build', true);
+                : stale ? 'They approved, then the products changed' : r.approval && r.approval.state === 'changes' ? 'They asked for changes' : 'Optional', 'build', false);
         add('built', 'Drafts built', r.build && r.build.at ? 'ok' : 'todo', r.build && r.build.at ? (r.build.products || []).length + ' drafts, ' + TR.ago(r.build.at) : 'Not yet', 'build', false);
         add('live', 'Live', r.live && r.live.at ? 'ok' : 'todo', r.live && r.live.at ? 'Published ' + TR.ago(r.live.at) : 'Not yet', 'build', false);
         return out;
@@ -552,10 +550,10 @@ var TR = {
         var ap = TR.approvedForBuild(r), o = (r.work && r.work.approvedOther) || null;
         if (ap.via === 'proof') return '<div class="msg ok"><b>Approved by the customer</b> on the proof' + (r.approval.at ? ', ' + TR.ago(r.approval.at) : '') + '.</div>';
         var on = !!o;
-        return '<div class="msg' + (ap.ok ? ' ok' : ' warn') + '">' +
+        return '<div class="msg' + (ap.ok ? ' ok' : '') + '">' +
             (ap.ok ? '<b>Approved another way</b>: ' + TR.esc(o.how) + (o.by ? ' (' + TR.esc(o.by) + (o.at ? ', ' + TR.ago(o.at) : '') + ')' : '') + '.'
-                : '<b>Not approved yet.</b> Drafts are created only for a store the customer has approved. Send the proof with Email the proof, or record how they approved.') +
-            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:8px 0 0"><input type="checkbox" id="b-apo"' + (on ? ' checked' : '') + '> Customer approved another way (phone, in person, an email reply), or this store is ours and needs no proof</label>' +
+                : '<b>A proof is optional.</b> You can create the drafts now. If the customer did approve, you can note how below so it is in the history.') +
+            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:8px 0 0"><input type="checkbox" id="b-apo"' + (on ? ' checked' : '') + '> Note how the customer approved (phone, in person, an email reply)</label>' +
             (on ? '<input type="text" id="b-apo-how" value="' + TR.esc(o.how || '') + '" placeholder="How, e.g. Coach K approved on the phone 11/23" style="width:100%;max-width:520px;margin-top:6px">' +
                 '<div class="sub" style="margin-top:4px">Recorded with your name in the history. Save to apply.</div>' : '') + '</div>';
     },
@@ -1985,10 +1983,10 @@ var TR = {
                 : '<p>Collection <b>' + TR.esc(plan.collection.title) + '</b> (' + TR.esc(plan.collection.handle) + '), rule TAG = <b>' + TR.esc(plan.collection.tag) + '</b>: ' + (plan.collection.exists ? '<span style="color:var(--warn)">already exists, left alone</span>' : 'will be created, unpublished') + '.</p>') +
             '<p class="sub">' + (plan.searchable ? 'Kept in site search.' : 'Hidden from site search.') + '</p>' +
             '<p><b>' + fresh.length + '</b> new draft products, <b>' + variants + '</b> variants.</p>';
-        // The Worker refuses an unapproved build too; this just says so first.
-        var ok = TR.approvedForBuild(TR.st.rec).ok && !TR.st.dirty;
+        // A proof is optional (2026-11-23); only unsaved edits hold Build back.
+        var ok = !TR.st.dirty;
         TR.$('b-go').disabled = !fresh.length || !ok;
-        TR.$('b-go').textContent = !fresh.length ? 'Nothing new to create' : !TR.approvedForBuild(TR.st.rec).ok ? 'Waiting on approval' : TR.st.dirty ? 'Save first' : 'Create ' + fresh.length + ' draft' + (fresh.length === 1 ? '' : 's');
+        TR.$('b-go').textContent = !fresh.length ? 'Nothing new to create' : TR.st.dirty ? 'Save first' : 'Create ' + fresh.length + ' draft' + (fresh.length === 1 ? '' : 's');
     },
 
     // Mockup: the garment photo on white with the logo where staff put it,
