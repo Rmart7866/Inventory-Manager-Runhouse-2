@@ -190,6 +190,16 @@ label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4
 .cst .cpics .mk { width: 78px; }
 .cst .cname { font-size: 11.5px; color: var(--muted); display: inline-flex; gap: 5px; align-items: center; }
 .cst .own { width: 7px; height: 7px; background: #ffb547; display: inline-block; }
+/* The product card in labelled sections (owner, 2026-11-23: readable for staff). */
+.itemhead { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; }
+.item .sec { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+.item .sec h4 { margin: 0 0 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.item .sec .bar { margin-top: 6px; }
+.thumbcap { font-size: 11.5px; color: var(--muted); margin-top: 4px; text-align: center; }
+.cst .cmain { font-size: 12px; }
+.cst .mbtn { font-size: 12.5px; padding: 3px 10px; }
+.nmother { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); border: 1px solid var(--line-2); padding: 0 0 0 6px; cursor: pointer; }
+.nmother input[type=color] { border: 0 !important; }
 /* Name colour: white and black squares, then any colour. */
 .nmcols { display: inline-flex; gap: 6px; align-items: center; }
 .nmsw { width: 24px; height: 24px; border: 1px solid var(--line-2); cursor: pointer; padding: 0; }
@@ -472,6 +482,6 @@ body.full #detail { max-width: none; }
 
 <script src="catalog-client.js?v=27"></script>
 <script src="team-request-utils.js?v=9"></script>
-<script src="team-requests.js?v=34"></script>
+<script src="team-requests.js?v=35"></script>
 </body>
 </html>

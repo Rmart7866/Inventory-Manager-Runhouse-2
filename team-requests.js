@@ -419,9 +419,9 @@ var TR = {
                 (staff
                     // Started on this page: the contact is ours to fill in, and the proof email needs it.
                     ? '<div class="who">Started by staff' + (q.staff && q.staff.by ? ' (' + TR.esc(q.staff.by) + ')' : '') + ' · ' + TR.ago(r.created) + '</div>' +
-                      '<div class="rel"><label for="d-cname">Contact</label><input type="text" id="d-cname" value="' + TR.esc(c.name) + '" placeholder="Name" style="width:140px">' +
-                      '<input type="email" id="d-cemail" value="' + TR.esc(c.email) + '" placeholder="Email, for the proof" style="width:210px">' +
-                      '<input type="text" id="d-cphone" value="' + TR.esc(c.phone) + '" placeholder="Phone" style="width:120px"></div>'
+                      '<div class="rel"><label for="d-cname">Contact</label><input type="text" id="d-cname" value="' + TR.esc(c.name) + '" placeholder="Name" style="width:120px">' +
+                      '<input type="email" id="d-cemail" value="' + TR.esc(c.email) + '" placeholder="Email, for the proof" style="width:190px">' +
+                      '<input type="text" id="d-cphone" value="' + TR.esc(c.phone) + '" placeholder="Phone" style="width:105px"></div>'
                     : '<div class="who">' + TR.esc(c.name || '') + ' · <a href="mailto:' + TR.esc(c.email) + '">' + TR.esc(c.email) + '</a>' + (c.phone ? ' · ' + TR.esc(c.phone) : '') + ' · sent ' + TR.ago(r.created) + '</div>') +
                 '<div class="rel"><label for="d-rel">Release</label><input type="date" id="d-rel" value="' + TR.esc(w.release || '') + '">' +
                     // No "Orders close" date: owner, 2026-11-23, most stores never
@@ -539,6 +539,7 @@ var TR = {
         return '<div class="checklist" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 16px;margin:10px 0 4px;font-size:12.5px">' +
             TR.checklist(r).map(function (x) {
                 var m = MARK[x.state] || MARK.info;
+                if (x.state === 'todo' && !x.req) m = ['', 'var(--line-2, #3a4558)'];
                 return '<button type="button" class="ckl" data-ck="' + (x.tab || '') + '" style="all:unset;cursor:' + (x.tab ? 'pointer' : 'default') + ';display:flex;gap:8px;align-items:baseline;padding:2px 0">' +
                     '<span style="flex:none;width:9px;height:9px;background:' + (x.state === 'info' ? 'transparent;border:1px solid var(--line-2)' : m[1]) + ';display:inline-block;transform:translateY(1px)"></span>' +
                     '<span><b style="color:var(--text, inherit)">' + TR.esc(x.label) + '</b>' + (x.req && x.state !== 'ok' ? ' <span style="color:' + m[1] + '">' + m[0] + '</span>' : '') +
@@ -742,6 +743,11 @@ var TR = {
         if (!p) return null;
         if (p.c.some(function (c) { return /cdnm\.sanmar\.com/.test(c[1] || ''); })) return 'sanmar';
         if (p.c.some(function (c) { return /charlesriverapparel\.com/.test(c[1] || ''); })) return 'cra';
+        // Styles added 2026-11-23 use our own photos as swatches, so their
+        // supplier comes from the brand: Charles River is Charles River's,
+        // every other brand in the catalog is distributed by SanMar.
+        if (/charles river/i.test(p.b || '')) return 'cra';
+        if (p.b) return 'sanmar';
         return null;
     },
     SUP_NAME: { sanmar: 'SanMar', cra: 'Charles River' },
@@ -1052,33 +1058,38 @@ var TR = {
         if (!it.sizes.length) problems.push('The catalog does not say which sizes this comes in. Type them in.');
         var slots = Object.keys(TR.st.rec.work.logos || {});
         return '<div class="item" data-i="' + i + '">' +
-            '<div class="thumbs" id="thumb-' + i + '">' + TR.frontOf(it, p, first) + (TR.backHtml(it, p, first) || '') + '</div>' +
-            '<div><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' + TR.colorTabsHtml(it, i) + TR.colorStripHtml(it, p) +
-            '<div class="grid">' +
+            '<div><div class="thumbs" id="thumb-' + i + '">' + TR.frontOf(it, p, first) + (TR.backHtml(it, p, first) || '') + '</div>' +
+                '<div class="thumbcap">' + TR.esc(first || '') + (TR.selColor(it) ? '' : (it.colors.length > 1 ? ' (first colour)' : '')) + '</div></div>' +
+            '<div><div class="itemhead"><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' +
+                '<button class="btn danger quiet" type="button" data-rm="' + i + '">Remove</button></div>' +
+            '<div class="sec"><h4>Colours</h4>' + TR.colorTabsHtml(it, i) + TR.colorStripHtml(it, p) +
                 '<div class="wide"><label class="f">Colours</label><div class="chips">' + it.colors.map(function (n) {
                     var known = TR.hasColor(p, n), c = known ? p.c[TR.colorIdx(p, n)] : null, st = TR.stockState(it, p, n);
                     return '<button type="button" class="chip on' + (known ? '' : ' unk') + (st.cls ? ' ' + st.cls : '') + '" data-col="' + TR.esc(n) + '" title="' + TR.esc((known ? '' : 'Not a colour of this product. ') + st.title + 'Click to remove') + '"><i style="background:' + (c ? c[5] : 'transparent') + '"></i>' + TR.esc(n) + ' ×</button>';
                 }).join('') + '<button type="button" class="chip" data-more="1">+ colour</button></div><div class="stockline" id="stock-' + i + '">' + TR.stockHtml(it, p) + '</div><div class="allcols hidden" id="allcols-' + i + '"></div></div>' +
+            '</div></div>' +
+            '<div class="sec"><h4>Sizes and price</h4><div class="grid">' +
                 '<div><label class="f" for="sz-' + i + '">Sizes</label><input type="text" id="sz-' + i + '" value="' + TR.esc(it.sizes.join(', ')) + '" style="width:100%"></div>' +
                 '<div><label class="f" for="pr-' + i + '">Price</label><input type="number" min="0" step="0.01" id="pr-' + i + '" value="' + (it.price || '') + '" style="width:100%"></div>' +
                 '<div><label class="f" for="co-' + i + '">Our cost</label><input type="number" min="0" step="0.01" id="co-' + i + '" value="' + (it.cost || '') + '" placeholder="' + (TR.st.costs[it.style] ? TR.st.costs[it.style] : '') + '" style="width:100%"></div>' +
             '</div>' +
-            '<div class="money" id="mo-' + i + '">' + TR.moneyHtml(it) + '</div>' +
+            '<div class="money" id="mo-' + i + '">' + TR.moneyHtml(it) + '</div></div>' +
             (problems.length ? '<p class="bad">' + problems.join(' ') + '</p>' : '') +
-            // One line for the logo: where it sits, and the one button that
-            // changes it. The logo picker appears only when there is a choice.
-            '<div class="bar"><span class="where">Logo: <b>' + TR.esc(it.placement || 'default placement') + '</b>' + TR.tiltNote(it) + '</span>' +
+            // One line per logo: where it sits, the button that moves it, and
+            // the logo picker when there is more than one logo to pick from.
+            '<div class="sec"><h4>Logos</h4>' +
+            '<div class="bar"><span class="where">Front: <b>' + TR.esc(it.placement || 'default placement') + '</b>' + TR.tiltNote(it) + '</span>' +
             '<button class="btn" type="button" data-place="' + i + '">Move logo</button>' +
-            (slots.length > 1 ? TR.logoSelect('lg-' + i, (TR.selColor(it) && ((it.logoBy || {})[TR.selColor(it)] || {}).f) || it.logo, 'Front logo') : '') +
-            '<span style="flex:1"></span><button class="btn danger quiet" type="button" data-rm="' + i + '">Remove</button></div>' +
-            TR.origLineHtml(it, i) +
+            (slots.length > 1 ? TR.logoSelect('lg-' + i, (TR.selColor(it) && ((it.logoBy || {})[TR.selColor(it)] || {}).f) || it.logo, 'Front logo') : '') + '</div>' +
             (p.loc && Object.keys(p.loc).length ? '<div class="bar"><span class="where">Second logo</span><select id="l2-' + i + '" aria-label="Second logo location"><option value="">None</option>' +
                 Object.keys(p.loc).map(function (k) { return '<option' + (k === it.second_logo ? ' selected' : '') + '>' + TR.esc(k) + '</option>'; }).join('') + '</select>' +
                 (it.second_logo ? '<button class="btn" type="button" data-place2="' + i + '">Move</button>' : '') +
                 (it.second_logo && slots.length > 1 ? TR.logoSelect('lx-' + i, (TR.selColor(it) && ((it.logoBy || {})[TR.selColor(it)] || {}).x) || it.logo2, 'Second logo') : '') +
-                '<span class="sub">+$3 per item, not repriced automatically</span></div>' : '') +
-            TR.namesHtml(it, i) +
+                (it.second_logo ? '<span class="sub">usually adds $3, set the price above</span>' : '') + '</div>' : '') +
             (it.logoBy && Object.keys(it.logoBy).length ? '<p class="sub" style="margin:6px 0 0">The customer picked which logo goes on each colour. Choosing a logo above replaces their picks.</p>' : '') +
+            '</div>' +
+            '<div class="sec"><h4>Names</h4>' + TR.namesHtml(it, i) + '</div>' +
+            TR.origLineHtml(it, i) +
             '</div></div>';
     },
 
@@ -1162,12 +1173,12 @@ var TR = {
             (n ? '<select id="nmw-' + i + '" aria-label="Where the name prints">' + TR.NAME_WHERE.concat(TR.NAME_WHERE.indexOf(n.where) < 0 ? [n.where] : []).map(function (w) {
                     return '<option' + (w === n.where ? ' selected' : '') + '>' + TR.esc(w) + '</option>'; }).join('') + '</select>' +
                 '<label class="sub" style="display:flex;gap:4px;align-items:center">+$<input type="number" min="0" step="0.01" id="nmp-' + i + '" value="' + n.price + '" style="width:64px" aria-label="Extra for a name"></label>' +
-                '<input type="text" id="nms-' + i + '" value="' + TR.esc(n.sample || '') + '" placeholder="Sample: NAME" maxlength="20" style="width:120px;text-transform:uppercase" aria-label="Sample name for the preview">' +
+                '<input type="text" id="nms-' + i + '" value="' + TR.esc(n.sample || '') + '" placeholder="Sample" maxlength="20" style="width:110px;text-transform:uppercase" aria-label="Sample name for the preview" title="A sample name for the preview, e.g. the coach">' +
                 '<button class="btn" type="button" id="nmm-' + i + '">Move name</button>' +
                 // Colour: white by default; white and black one click away, any other from the picker.
-                '<span class="nmcols" role="group" aria-label="Name colour">' + [['#ffffff', 'White'], ['#111111', 'Black']].map(function (c) {
+                '<span class="nmcols" role="group" aria-label="Name colour"><span class="sub">Colour</span>' + [['#ffffff', 'White'], ['#111111', 'Black']].map(function (c) {
                     return '<button type="button" class="nmsw' + (TR.nameColorOf(it) === c[0] ? ' on' : '') + '" data-nmc="' + c[0] + '" title="' + c[1] + '" style="background:' + c[0] + '"></button>';
-                }).join('') + '<input type="color" id="nmc-' + i + '" value="' + TR.esc(TR.nameColorOf(it)) + '" title="Any colour" aria-label="Name colour"></span>' : '') + '</div>';
+                }).join('') + '<label class="nmother" title="Any other colour">Other<input type="color" id="nmc-' + i + '" value="' + TR.esc(TR.nameColorOf(it)) + '" aria-label="Other name colour"></label></span>' : '') + '</div>';
     },
     // The name colour on the tab being edited: that colour's own, else the product's, else white.
     nameColorOf: function (it) {
@@ -1692,7 +1703,7 @@ var TR = {
                 return '<span class="lgwrap"><span class="lgthumb">' + (u ? '<img alt="" src="' + TR.esc(u) + '">' : '<i>file</i>') + '</span><small>' + TR.esc(TR.logoName(k)) + '</small></span>';
             }).join('') +
             '<label class="btn" style="display:inline-flex;align-items:center">+ Upload logo<input type="file" accept="' + TR.LOGO_ACCEPT + '" data-up="__new" class="hidden"></label>' +
-            '<button type="button" class="btn quiet" id="to-logos">Codes and print files</button></div>';
+            '<button type="button" class="btn" id="to-logos">Logo codes and print files</button></div>';
     },
 
     // ---------- print files (make_logo_files.py, in the browser) ----------
