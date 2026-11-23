@@ -87,13 +87,20 @@ export function cleanNames(n) {
   // PER GARMENT COLOUR (owner, 2026-11-23): a colour may have its own name
   // colour (white on navy, black on white) and its own spot. Keys are the
   // product's colour names; anything malformed is dropped, never guessed.
-  const colorBy = {}, boxBy = {};
+  // boxBy[colour] is the box itself and boxWhereBy[colour] the spot it was
+  // dragged for. Kept FLAT on purpose: clean() cuts anything nested more
+  // than six deep, and { box: [...] } one level further down lost its
+  // numbers on every save (found on the 2026-11-23 deploy check).
+  const colorBy = {}, boxBy = {}, boxWhereBy = {};
   for (const [k, v] of Object.entries(n.colorBy || {}).slice(0, 60)) if (/^#[0-9a-f]{6}$/i.test(String(v || ''))) colorBy[String(k).slice(0, 80)] = String(v).toLowerCase();
   for (const [k, v] of Object.entries(n.boxBy || {}).slice(0, 60)) {
-    if (v && okBox(v.box)) boxBy[String(k).slice(0, 80)] = { box: v.box.map((x) => Math.round(x * 10000) / 10000), where: String(v.where || out.where).slice(0, 40) };
+    if (!okBox(v)) continue;
+    const key = String(k).slice(0, 80);
+    boxBy[key] = v.map((x) => Math.round(x * 10000) / 10000);
+    boxWhereBy[key] = String((n.boxWhereBy && n.boxWhereBy[k]) || out.where).slice(0, 40);
   }
   if (Object.keys(colorBy).length) out.colorBy = colorBy;
-  if (Object.keys(boxBy).length) out.boxBy = boxBy;
+  if (Object.keys(boxBy).length) { out.boxBy = boxBy; out.boxWhereBy = boxWhereBy; }
   // The example name the staff preview shows ("NAME" unless staff type one).
   const sample = String(n.sample || '').replace(/[^\p{L}\p{N} .'&-]/gu, '').trim().slice(0, 20);
   if (sample) out.sample = sample;

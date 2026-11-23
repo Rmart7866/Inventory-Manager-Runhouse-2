@@ -322,9 +322,9 @@ console.log('\nNames on a garment (2026-11-23)');
   check('the name colour and where staff moved it are kept', moved.color === '#111111' && JSON.stringify(moved.box) === '[0.3,0.17,0.43,0.0768]' && moved.boxWhere === 'Back');
   check('a colour that is not a hex colour is dropped (white by default)', !('color' in cleanNames({ on: true, color: 'red; background:url(x)' })));
   check('a box off the garment is dropped', !('box' in cleanNames({ on: true, box: [0.9, 0.9, 0.5, 0.5] })));
-  const per = cleanNames({ on: true, where: 'Back', color: '#ffffff', colorBy: { 'White': '#111111', 'Navy': 'gold' }, boxBy: { 'White': { box: [0.3, 0.2, 0.4, 0.08], where: 'Back' }, 'Red': { box: [2, 2, 2, 2] } } });
+  const per = cleanNames({ on: true, where: 'Back', color: '#ffffff', colorBy: { 'White': '#111111', 'Navy': 'gold' }, boxBy: { 'White': [0.3, 0.2, 0.4, 0.08], 'Red': [2, 2, 2, 2] }, boxWhereBy: { 'White': 'Back' } });
   check('a garment colour can have its own name colour', per.colorBy.White === '#111111' && !('Navy' in per.colorBy));
-  check('and its own name spot, malformed ones dropped', JSON.stringify(per.boxBy.White.box) === '[0.3,0.2,0.4,0.08]' && per.boxBy.White.where === 'Back' && !('Red' in per.boxBy));
+  check('and its own name spot, malformed ones dropped', JSON.stringify(per.boxBy.White) === '[0.3,0.2,0.4,0.08]' && per.boxWhereBy.White === 'Back' && !('Red' in per.boxBy));
   check('no per colour settings means no empty maps', !('colorBy' in cleanNames({ on: true })) && !('boxBy' in cleanNames({ on: true })));
   check('a sample name is kept, trimmed and length capped', cleanNames({ on: true, sample: '  Okafor-Reyes ' }).sample === 'Okafor-Reyes' && cleanNames({ on: true, sample: 'X'.repeat(40) }).sample.length === 20);
   check('markup in a sample name is stripped', cleanNames({ on: true, sample: '<b>Lee</b>' }).sample === 'bLeeb' && !('sample' in cleanNames({ on: true, sample: '<>' })));
@@ -395,6 +395,24 @@ console.log('\nRevert to the customer\'s request (2026-11-23)');
   check('and the history says so', j.rec.log.some((l) => /reverted every product and logo/.test(l.what)) && j.rec.log.some((l) => /reverted PC380/.test(l.what)));
   r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id: rid, base: j.rec.updated, patch: { revert: 'NOPE1' } } });
   check('a style the customer never asked for cannot be reverted', r.status === 400);
+}
+
+console.log('\nPer colour settings survive a real save (2026-11-23)');
+// Through the handler, so clean()'s depth cap is in the path. The first
+// version of names.boxBy was nested one level too deep and every save
+// silently dropped its numbers; a direct cleanNames test could not see it.
+{
+  let r = await call('/team-requests/submit', { method: 'POST', headers: { ...SHOPFRONT, 'CF-Connecting-IP': '10.77.0.3' }, body: sample() });
+  const pid = (await r.json()).id;
+  const cur = await (await call('/team-requests/one?id=' + pid, { headers: STAFF })).json();
+  const w = JSON.parse(JSON.stringify(cur.work));
+  w.items[0].boxes2 = { 'Deep Navy': [0.25, 0.3, 0.5, 0.3] };
+  w.items[0].names = { on: true, where: 'Back', colorBy: { 'Jet Black': '#111111' }, boxBy: { 'Deep Navy': [0.3, 0.2, 0.4, 0.08] }, boxWhereBy: { 'Deep Navy': 'Back' } };
+  r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id: pid, base: cur.updated, patch: { work: w } } });
+  const it = (await r.json()).rec.work.items[0];
+  check('a colour\'s own back logo spot is saved', JSON.stringify(it.boxes2['Deep Navy']) === '[0.25,0.3,0.5,0.3]');
+  check('a colour\'s own name colour is saved', it.names.colorBy['Jet Black'] === '#111111');
+  check('a colour\'s own name spot is saved, numbers and all', JSON.stringify(it.names.boxBy['Deep Navy']) === '[0.3,0.2,0.4,0.08]' && it.names.boxWhereBy['Deep Navy'] === 'Back', JSON.stringify(it.names));
 }
 
 console.log('\nStarted by staff (2026-11-23)');

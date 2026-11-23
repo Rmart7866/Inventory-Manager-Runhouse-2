@@ -927,7 +927,7 @@ var TR = {
         spot.text = String(n.sample || 'NAME').toUpperCase();
         // Where staff dragged it ("Move name"), for the spot it was dragged for.
         var own = n.boxBy && n.boxBy[colorName];
-        if (own && own.where === n.where) spot.box = own.box;
+        if (own && (n.boxWhereBy || {})[colorName] === n.where) spot.box = own;
         else if (n.box && n.boxWhere === n.where) spot.box = n.box;
         return spot;
     },
@@ -1113,6 +1113,7 @@ var TR = {
         if (it.logoBy) delete it.logoBy[c];
         if (it.names && it.names.colorBy) delete it.names.colorBy[c];
         if (it.names && it.names.boxBy) delete it.names.boxBy[c];
+        if (it.names && it.names.boxWhereBy) delete it.names.boxWhereBy[c];
     },
     // EVERY COLOUR AT ONCE (owner, 2026-11-23: "I should be able to see both
     // colors"). A small front, and back when something prints there, per
@@ -1500,11 +1501,11 @@ var TR = {
         TR.$('pe-cols').querySelectorAll('button').forEach(function (b) {
             b.onclick = function () { pe.color = b.dataset.c; TR.$('pe-cols').querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); draw(); };
         });
-        TR.$('pe-reset').onclick = function () { if (sel) { if (n.boxBy) delete n.boxBy[sel]; } else { delete n.box; delete n.boxWhere; } TR.closePlacement(); TR.touch(); TR.paneProducts(); };
+        TR.$('pe-reset').onclick = function () { if (sel) { if (n.boxBy) delete n.boxBy[sel]; if (n.boxWhereBy) delete n.boxWhereBy[sel]; } else { delete n.box; delete n.boxWhere; } TR.closePlacement(); TR.touch(); TR.paneProducts(); };
         TR.$('pe-cancel').onclick = TR.closePlacement;
         TR.$('pe-save').onclick = function () {
             var nb = pe.box.slice(0, 4).map(function (v) { return Math.round(v * 10000) / 10000; });
-            if (sel) { n.boxBy = n.boxBy || {}; n.boxBy[sel] = { box: nb, where: n.where }; }
+            if (sel) { n.boxBy = n.boxBy || {}; n.boxWhereBy = n.boxWhereBy || {}; n.boxBy[sel] = nb; n.boxWhereBy[sel] = n.where; }
             else { n.box = nb; n.boxWhere = n.where; }
             TR.closePlacement(); TR.touch(); TR.paneProducts();
         };
