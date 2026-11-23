@@ -74,11 +74,18 @@ export const NAME_WHERE = ['Left sleeve', 'Right sleeve', 'Back', 'Back neck', '
 export function cleanNames(n) {
   if (!n || typeof n !== 'object' || !n.on) return null;
   const price = Number(n.price);
-  return {
+  const out = {
     on: true,
     price: Number.isFinite(price) && price >= 0 && price <= 100 ? Math.round(price * 100) / 100 : NAME_PRICE,
     where: String(n.where || 'Left sleeve').trim().slice(0, 40) || 'Left sleeve',
   };
+  // The name's print colour, white unless staff pick another (owner,
+  // 2026-11-23), and where staff dragged it ("Move name"). The box belongs
+  // to the spot it was dragged for (boxWhere), so choosing another spot
+  // starts from that spot's default instead of a box meant for the sleeve.
+  if (/^#[0-9a-f]{6}$/i.test(String(n.color || ''))) out.color = String(n.color).toLowerCase();
+  if (okBox(n.box)) { out.box = n.box.map((v) => Math.round(v * 10000) / 10000); out.boxWhere = String(n.boxWhere || out.where).slice(0, 40); }
+  return out;
 }
 
 // ---------- small helpers --------------------------------------------------

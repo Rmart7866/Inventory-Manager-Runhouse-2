@@ -920,6 +920,13 @@ var TR = {
     // placement zones as the logos; the right sleeve mirrors the sleeve box.
     nameSpot: function (it, p, colorName) {
         var n = it.names && it.names.on ? it.names : null; if (!n) return null;
+        var spot = TR.nameSpotDefault(it, p, colorName, n);
+        spot.color = n.color || '#ffffff';
+        // Where staff dragged it ("Move name"), for the spot it was dragged for.
+        if (n.box && n.boxWhere === n.where) spot.box = n.box;
+        return spot;
+    },
+    nameSpotDefault: function (it, p, colorName, n) {
         var where = String(n.where || '').toLowerCase();
         var sl = TR.liveBox(p, 'sl'), bk = TR.liveBox(p, 'bk'), bn = TR.liveBox(p, 'bn'), fr = TR.boxFor(it, p, colorName);
         var c = p.c[TR.colorIdx(p, colorName)], hasBack = !!(c && c[6]);
@@ -933,10 +940,11 @@ var TR = {
         // under the collar.
         if (where === 'back neck' && hasBack) return { side: 'b', box: bn || [0.4, 0.1, 0.2, 0.05], where: n.where };
         if (where === 'back' && hasBack) {
-            // Under the back logo when there is one, else across the shoulders
-            // (the back box starts near the collar, so a little way into it).
+            // ABOVE the back logo when there is one (owner, 2026-11-23), else
+            // across the shoulders, a little way into the back box. Staff can
+            // drag it anywhere with Move name.
             var l2 = TR.loc2(it, p);
-            if (l2 && l2.side === 'b' && l2.box) return { side: 'b', box: [l2.box[0], Math.min(0.85, l2.box[1] + l2.box[3] + 0.02), l2.box[2], Math.max(0.06, l2.box[3] * 0.24)], where: n.where };
+            if (l2 && l2.side === 'b' && l2.box) { var nh = Math.max(0.06, l2.box[3] * 0.24); return { side: 'b', box: [l2.box[0], Math.max(0.02, l2.box[1] - nh - 0.015), l2.box[2], nh], where: n.where }; }
             if (bk) return { side: 'b', box: [bk[0], bk[1] + bk[3] * 0.15, bk[2], bk[3] * 0.26], where: n.where };
             if (bn) return { side: 'b', box: [0.3, bn[1] + bn[3] + 0.04, 0.4, 0.08], where: n.where };
             return { side: 'b', box: [0.28, 0.2, 0.44, 0.09], where: n.where };
@@ -955,7 +963,7 @@ var TR = {
         var b = spot.box, tall = b[3] > b[2] * 1.4;
         var st = 'left:' + (b[0] * 100) + '%;top:' + (b[1] * 100) + '%;width:' + (b[2] * 100) + '%;height:' + (b[3] * 100) + '%';
         // Back names print in Winner Bold, all caps (owner, 2026-11-23).
-        var html = '<span class="nmlb' + (tall ? ' tall' : '') + (spot.side === 'b' ? ' winner' : '') + '" style="' + st + ';color:' + (TR.isDark(hex) ? '#fff' : '#14181f') + '" title="Example name, ' + TR.esc(String(spot.where).toLowerCase()) + '"><i>SMITH</i></span>';
+        var html = '<span class="nmlb' + (tall ? ' tall' : '') + (spot.side === 'b' ? ' winner' : '') + '" style="' + st + ';color:' + TR.esc(spot.color || '#ffffff') + '" title="Example name, ' + TR.esc(String(spot.where).toLowerCase()) + '"><i>SMITH</i></span>';
         // A narrow spot is hard to find on a thumbnail, so an arrow tag points at it.
         if (b[2] < 0.14) {
             var right = b[0] + b[2] / 2 > 0.5, cy = (b[1] + b[3] / 2) * 100;
@@ -1090,13 +1098,23 @@ var TR = {
         return '<div class="bar"><label class="where" style="display:flex;gap:6px;align-items:center" title="Each buyer types their name when they order"><input type="checkbox" id="nm-' + i + '"' + (n ? ' checked' : '') + '> Names</label>' +
             (n ? '<select id="nmw-' + i + '" aria-label="Where the name prints">' + TR.NAME_WHERE.concat(TR.NAME_WHERE.indexOf(n.where) < 0 ? [n.where] : []).map(function (w) {
                     return '<option' + (w === n.where ? ' selected' : '') + '>' + TR.esc(w) + '</option>'; }).join('') + '</select>' +
-                '<label class="sub" style="display:flex;gap:4px;align-items:center">+$<input type="number" min="0" step="0.01" id="nmp-' + i + '" value="' + n.price + '" style="width:64px" aria-label="Extra for a name"></label>' : '') + '</div>';
+                '<label class="sub" style="display:flex;gap:4px;align-items:center">+$<input type="number" min="0" step="0.01" id="nmp-' + i + '" value="' + n.price + '" style="width:64px" aria-label="Extra for a name"></label>' +
+                '<button class="btn" type="button" id="nmm-' + i + '">Move name</button>' +
+                // Colour: white by default; white and black one click away, any other from the picker.
+                '<span class="nmcols" role="group" aria-label="Name colour">' + [['#ffffff', 'White'], ['#111111', 'Black']].map(function (c) {
+                    return '<button type="button" class="nmsw' + ((n.color || '#ffffff') === c[0] ? ' on' : '') + '" data-nmc="' + c[0] + '" title="' + c[1] + '" style="background:' + c[0] + '"></button>';
+                }).join('') + '<input type="color" id="nmc-' + i + '" value="' + TR.esc(n.color || '#ffffff') + '" title="Any colour" aria-label="Name colour"></span>' : '') + '</div>';
     },
     wireNames: function (it, i) {
         var box = TR.$('nm-' + i); if (!box) return;
         box.onchange = function () { it.names = this.checked ? { on: true, price: 15, where: 'Left sleeve' } : null; TR.touch(); TR.paneProducts(); };
         var w = TR.$('nmw-' + i); if (w) w.onchange = function () { it.names.where = this.value; TR.touch(); TR.paneProducts(); };
         var p = TR.$('nmp-' + i); if (p) p.oninput = function () { it.names.price = Math.max(0, Number(this.value) || 0); TR.touch(); };
+        var mv = TR.$('nmm-' + i); if (mv) mv.onclick = function () { TR.openNameMove(i); };
+        var setColor = function (c) { it.names.color = c; TR.touch(); TR.paneProducts(); };
+        var bar = box.closest('.bar');
+        bar.querySelectorAll('[data-nmc]').forEach(function (b) { b.onclick = function () { setColor(b.dataset.nmc); }; });
+        var cp = TR.$('nmc-' + i); if (cp) cp.onchange = function () { setColor(this.value.toLowerCase()); };
     },
 
     // A logo is called by its Logo Master Folder code (owner, 2026-11-23):
@@ -1370,6 +1388,54 @@ var TR = {
             if (pe.box[4]) b.push(pe.box[4]);
             it.boxes2 = { '*': b };
             TR.st.pe2 = null; TR.closePlacement(); TR.touch(); TR.paneProducts();
+        };
+    },
+
+    // MOVE THE NAME (owner, 2026-11-23). The same drag box as the logos, on
+    // the photo the name prints on, with the logos drawn for reference. Saved
+    // as names.box for the spot it was dragged on (boxWhere); Default spot
+    // clears it.
+    openNameMove: function (i) {
+        var it = TR.st.rec.work.items[i], p = TR.st.P[it.style], n = it.names; if (!n || !n.on) return;
+        var colors = it.colors.length ? it.colors : [p.c[0][0]];
+        var first = TR.nameSpot(it, p, colors[0]);
+        var pe = { color: colors[0], side: first.side, box: TR.box5(first.box || [0.3, 0.3, 0.4, 0.08]) };
+        var el = TR.$('pe'); el.classList.remove('hidden');
+        var readout = function () {
+            var r = TR.$('pe-read'), q = pe.box;
+            if (r) r.textContent = 'Left ' + Math.round(q[0] * 100) + '%, top ' + Math.round(q[1] * 100) + '%, ' + Math.round(q[2] * 100) + '% wide, ' + Math.round(q[3] * 100) + '% tall';
+        };
+        var draw = function () {
+            var c = p.c[TR.colorIdx(p, pe.color)] || p.c[0], stage = TR.$('pe-stage');
+            var html = pe.side === 'b' ? TR.backHtml(it, p, pe.color) : TR.frontOf(it, p, pe.color);
+            if (!html) html = '<span class="mk"><img class="g" alt="" src="' + TR.esc(pe.side === 'b' ? (c[6] || c[2]) : c[2]) + '"></span>';
+            // The saved name comes out of the reference picture; the editable one replaces it.
+            html = html.replace(/<span class="nmlb[^"]*"[^>]*><i>SMITH<\/i><\/span>/, '').replace(/<span class="nmcall"[^>]*>[^<]*<\/span>/, '');
+            var b = pe.box, tall = b[3] > b[2] * 1.4;
+            var st = 'left:' + (b[0] * 100) + '%;top:' + (b[1] * 100) + '%;width:' + (b[2] * 100) + '%;height:' + (b[3] * 100) + '%';
+            stage.innerHTML = html.replace(/<\/span>$/, '<div class="lb nmbox' + (tall ? ' tall' : '') + (pe.side === 'b' ? ' winner' : '') + '" id="pe-lb" style="' + st + '"><i style="color:' + TR.esc(n.color || '#ffffff') + '">SMITH</i><div class="h" id="pe-lb-h"></div></div></span>');
+            readout();
+            TR.wireBoxEditor({ stage: stage, id: 'pe-lb', get: function () { return pe.box; }, set: function (x) { pe.box = x; }, moved: readout, redraw: draw });
+        };
+        el.innerHTML = '<div class="box"><div class="stage" id="pe-stage"></div><div class="side">' +
+            '<h3 id="pe-h">Move the name</h3><p>' + TR.esc(p.n) + ', ' + TR.esc(String(n.where).toLowerCase()) + '. Drag to move, drag the blue corner to resize. Applies to every colour of this product.</p>' +
+            '<label class="f">Preview colour</label><div class="chips" id="pe-cols">' + colors.map(function (c0) {
+                var c = p.c[TR.colorIdx(p, c0)];
+                return '<button type="button" class="chip' + (c0 === pe.color ? ' on' : '') + '" data-c="' + TR.esc(c0) + '"><i style="background:' + (c ? c[5] : '#888') + '"></i>' + TR.esc(c0) + '</button>';
+            }).join('') + '</div>' +
+            '<div class="readout" id="pe-read"></div>' +
+            '<div class="row2"><button class="btn" type="button" id="pe-reset">Default spot</button></div>' +
+            '<div class="row2"><button class="btn" type="button" id="pe-cancel">Cancel</button><button class="btn pri" type="button" id="pe-save">Use this placement</button></div></div></div>';
+        draw();
+        TR.$('pe-cols').querySelectorAll('button').forEach(function (b) {
+            b.onclick = function () { pe.color = b.dataset.c; TR.$('pe-cols').querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); draw(); };
+        });
+        TR.$('pe-reset').onclick = function () { delete n.box; delete n.boxWhere; TR.closePlacement(); TR.touch(); TR.paneProducts(); };
+        TR.$('pe-cancel').onclick = TR.closePlacement;
+        TR.$('pe-save').onclick = function () {
+            n.box = pe.box.slice(0, 4).map(function (v) { return Math.round(v * 10000) / 10000; });
+            n.boxWhere = n.where;
+            TR.closePlacement(); TR.touch(); TR.paneProducts();
         };
     },
 
@@ -2764,7 +2830,7 @@ var TR = {
                     if (it.price) bits.push('$' + Number(it.price).toFixed(2));
                     if ((it.sizes || []).length) bits.push('Sizes ' + it.sizes.join(', '));
                     bits.push('Logo: ' + (it.placement || 'as shown') + (it.second_logo ? ', plus ' + it.second_logo.toLowerCase() : ''));
-                    if (it.names && it.names.on) bits.push('Optional name on the ' + String(it.names.where).toLowerCase() + (/^back/i.test(it.names.where) ? ' in Winner Bold, all caps' : '') + ', +$' + Number(it.names.price || 0).toFixed(2));
+                    if (it.names && it.names.on) bits.push('Optional name on the ' + String(it.names.where).toLowerCase() + (/^back/i.test(it.names.where) ? ' in Winner Bold, all caps' : '') + ', ' + ({ '#ffffff': 'white', '#111111': 'black' }[it.names.color || '#ffffff'] || it.names.color) + ', +$' + Number(it.names.price || 0).toFixed(2));
                     doc.splitTextToSize(bits.join('   /   '), W - 2 * M).forEach(function (l) { text(l, M, y); y += 13; });
                     y += 6;
                 };

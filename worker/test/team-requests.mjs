@@ -318,6 +318,10 @@ console.log('\nNames on a garment (2026-11-23)');
   check('the back reads naturally', namesPlan({ on: true, where: 'Back' }).label === 'Name (Name will appear on back in all caps)');
   check('cleanNames drops an off switch', cleanNames({ on: false, price: 15 }) === null && cleanNames(null) === null);
   check('cleanNames bounds a silly price to the default', cleanNames({ on: true, price: 5000 }).price === 15 && cleanNames({ on: true, price: -3 }).price === 15);
+  const moved = cleanNames({ on: true, where: 'Back', color: '#111111', box: [0.3, 0.17, 0.43, 0.0768], boxWhere: 'Back' });
+  check('the name colour and where staff moved it are kept', moved.color === '#111111' && JSON.stringify(moved.box) === '[0.3,0.17,0.43,0.0768]' && moved.boxWhere === 'Back');
+  check('a colour that is not a hex colour is dropped (white by default)', !('color' in cleanNames({ on: true, color: 'red; background:url(x)' })));
+  check('a box off the garment is dropped', !('box' in cleanNames({ on: true, box: [0.9, 0.9, 0.5, 0.5] })));
   check('the customer\'s "offer names" carries into the work copy', workFrom({ team: 'T', items: [{ style: 'PC78H', names: { on: true, where: 'Back' } }] }).items[0].names.where === 'Back');
 }
 

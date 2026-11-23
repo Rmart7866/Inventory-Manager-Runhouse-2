@@ -73,7 +73,7 @@ export function proofView(rec) {
       placement: it.placement, boxes: it.boxes, boxes2: it.boxes2, logo: it.logo, logo2: it.logo2, logoBy: it.logoBy,
       second_logo: it.second_logo,
       // Offered names: what each buyer pays extra and where it prints.
-      names: it.names && it.names.on ? { price: it.names.price, where: it.names.where } : null,
+      names: it.names && it.names.on ? { price: it.names.price, where: it.names.where, color: it.names.color || '#ffffff' } : null,
     })),
     approval: rec.approval ? { state: rec.approval.stale ? 'stale' : rec.approval.state, at: rec.approval.at, message: rec.approval.message || '' } : null,
   };

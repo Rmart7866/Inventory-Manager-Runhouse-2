@@ -129,7 +129,7 @@ h2 { font-size: 24px; margin: 38px 0 4px; }
           var bits = ['$' + Number(it.price || 0).toFixed(2)];
           if ((it.sizes || []).length) bits.push('Sizes ' + it.sizes.join(', '));
           if (it.placement) bits.push('Logo: ' + it.placement + (it.second_logo ? ', plus ' + it.second_logo.toLowerCase() : ''));
-          if (it.names) bits.push('Name on the ' + String(it.names.where || 'left sleeve').toLowerCase() + (/^back/i.test(it.names.where || '') ? ' in Winner Bold, all caps' : '') + ', optional, +$' + Number(it.names.price || 0).toFixed(2) + ' (each buyer types theirs at checkout)');
+          if (it.names) bits.push('Name on the ' + String(it.names.where || 'left sleeve').toLowerCase() + (/^back/i.test(it.names.where || '') ? ' in Winner Bold, all caps' : '') + ', ' + ({ '#ffffff': 'white', '#111111': 'black' }[it.names.color || '#ffffff'] || it.names.color) + ', optional, +$' + Number(it.names.price || 0).toFixed(2) + ' (each buyer types theirs at checkout)');
           return '<h2>' + esc(p.n) + '</h2><p class="meta">' + bits.map(esc).join(' &nbsp;/&nbsp; ') + '</p><div class="grid">' +
             it.colors.map(function (n) { return mk(it, p, n); }).join('') + '</div>';
         }).join('') +
