@@ -193,14 +193,15 @@ var TeamReqUtils = {
     // The second logo the customer added (back, back neck or sleeve), from
     // the catalog's own locations: side 'f' prints on the front photo, 'b' on
     // the back photo.
-    loc2: function (item, p, tpl) {
+    loc2: function (item, p, tpl, color) {
         var name = item && item.second_logo, l = name && p && p.loc && p.loc[name];
         if (!l) return null;
-        // Most specific first: this store moved it ("Move" on the second
-        // logo row, item.boxes2), then a box staff changed for the style on
-        // the Placements tab, then the catalog's.
+        // Most specific first: this colour's own spot, then where this store
+        // moved it for every colour ("Move" on the second logo row,
+        // item.boxes2), then a box staff changed for the style on the
+        // Placements tab, then the catalog's.
         var z = { 'Back': 'bk', 'Back neck': 'bn', 'Sleeve': 'sl' }[name];
-        var own = item.boxes2 && item.boxes2['*'];
+        var own = item.boxes2 && ((color && item.boxes2[color]) || item.boxes2['*']);
         var box = own || (z && tpl && tpl[z] ? tpl[z] : l[1]);
         return { name: name, side: l[0], box: box };
     },

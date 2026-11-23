@@ -729,7 +729,8 @@ var TR = {
     // screen) so the preview, mockups, PDF and build agree.
     tplOf: function (p) { return (TR.st.TPL || {})[p && p.s] || null; },
     boxFor: function (it, p, color) { return TR.U.boxFor(it, p, color, TR.tplOf(p)); },
-    loc2: function (it, p) { return TR.U.loc2(it, p, TR.tplOf(p)); },
+    // The colour is optional: given, that colour's own spot wins (boxes2[colour]).
+    loc2: function (it, p, color) { return TR.U.loc2(it, p, TR.tplOf(p), color); },
     styleBox: function (it, p) { return TR.U.templateBox(TR.tplOf(p), p, it.placement) || TR.U.defaultBox(p, it.placement); },
 
     // ---------- supplier stock and photos (SanMar) ----------
@@ -896,7 +897,7 @@ var TR = {
     // The back, for a back or back neck second logo. Null when the colour has
     // no back photo, or the catalog marks it as one that takes no back logo.
     backHtml: function (it, p, colorName) {
-        var l = TR.loc2(it, p), c = p.c[TR.colorIdx(p, colorName)];
+        var l = TR.loc2(it, p, colorName), c = p.c[TR.colorIdx(p, colorName)];
         var spot = TR.nameSpot(it, p, colorName), nameBack = spot && spot.side === 'b';
         var logoBack = l && l.side === 'b';
         if ((!logoBack && !nameBack) || !c || !c[6]) return null;
@@ -907,7 +908,7 @@ var TR = {
 
     // The front preview of one colour, with everything that prints on it.
     frontOf: function (it, p, colorName, id, boxOverride) {
-        var l = TR.loc2(it, p);
+        var l = TR.loc2(it, p, colorName);
         var extra = l && l.side === 'f' ? { box: l.box, src: TR.logoUrl(TR.logoOf(it, p, colorName, 'x')) } : null;
         var html = TR.mkHtml(p, colorName, boxOverride || TR.boxFor(it, p, colorName), TR.logoUrl(TR.logoOf(it, p, colorName, 'f')), id, extra);
         var spot = TR.nameSpot(it, p, colorName);
@@ -921,11 +922,13 @@ var TR = {
     nameSpot: function (it, p, colorName) {
         var n = it.names && it.names.on ? it.names : null; if (!n) return null;
         var spot = TR.nameSpotDefault(it, p, colorName, n);
-        spot.color = n.color || '#ffffff';
+        spot.color = (n.colorBy && n.colorBy[colorName]) || n.color || '#ffffff';
         // NAME unless staff typed a sample (owner, 2026-11-23: not SMITH on everything).
         spot.text = String(n.sample || 'NAME').toUpperCase();
         // Where staff dragged it ("Move name"), for the spot it was dragged for.
-        if (n.box && n.boxWhere === n.where) spot.box = n.box;
+        var own = n.boxBy && n.boxBy[colorName];
+        if (own && own.where === n.where) spot.box = own.box;
+        else if (n.box && n.boxWhere === n.where) spot.box = n.box;
         return spot;
     },
     nameSpotDefault: function (it, p, colorName, n) {
@@ -945,7 +948,7 @@ var TR = {
             // ABOVE the back logo when there is one (owner, 2026-11-23), else
             // across the shoulders, a little way into the back box. Staff can
             // drag it anywhere with Move name.
-            var l2 = TR.loc2(it, p);
+            var l2 = TR.loc2(it, p, colorName);
             if (l2 && l2.side === 'b' && l2.box) { var nh = Math.max(0.06, l2.box[3] * 0.24); return { side: 'b', box: [l2.box[0], Math.max(0.02, l2.box[1] - nh - 0.015), l2.box[2], nh], where: n.where }; }
             if (bk) return { side: 'b', box: [bk[0], bk[1] + bk[3] * 0.15, bk[2], bk[3] * 0.26], where: n.where };
             if (bn) return { side: 'b', box: [0.3, bn[1] + bn[3] + 0.04, 0.4, 0.08], where: n.where };
@@ -1041,7 +1044,7 @@ var TR = {
         var cat = TR.st.CAT[it.style];
         if (it.sizes == null) it.sizes = TR.U.sizesFor(p, cat);
         if (!it.cost && TR.st.costs[it.style]) it.cost = TR.st.costs[it.style];
-        var first = it.colors[0] || (p.c[0] && p.c[0][0]);
+        var first = TR.selColor(it) || it.colors[0] || (p.c[0] && p.c[0][0]);
         var problems = [];
         if (!it.colors.length) problems.push('Pick at least one colour.');
         var unknown = TR.unknownColors(it, p);
@@ -1050,7 +1053,7 @@ var TR = {
         var slots = Object.keys(TR.st.rec.work.logos || {});
         return '<div class="item" data-i="' + i + '">' +
             '<div class="thumbs" id="thumb-' + i + '">' + TR.frontOf(it, p, first) + (TR.backHtml(it, p, first) || '') + '</div>' +
-            '<div><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' +
+            '<div><div class="name">' + TR.esc(p.n) + ' <span class="sub">' + TR.esc(p.s) + ' · ' + TR.esc(cat) + (p.z ? ' · ' + TR.esc(p.z) : '') + '</span></div>' + TR.colorTabsHtml(it, i) +
             '<div class="grid">' +
                 '<div class="wide"><label class="f">Colours</label><div class="chips">' + it.colors.map(function (n) {
                     var known = TR.hasColor(p, n), c = known ? p.c[TR.colorIdx(p, n)] : null, st = TR.stockState(it, p, n);
@@ -1066,13 +1069,13 @@ var TR = {
             // changes it. The logo picker appears only when there is a choice.
             '<div class="bar"><span class="where">Logo: <b>' + TR.esc(it.placement || 'default placement') + '</b>' + TR.tiltNote(it) + '</span>' +
             '<button class="btn" type="button" data-place="' + i + '">Move logo</button>' +
-            (slots.length > 1 ? TR.logoSelect('lg-' + i, it.logo, 'Front logo') : '') +
+            (slots.length > 1 ? TR.logoSelect('lg-' + i, (TR.selColor(it) && ((it.logoBy || {})[TR.selColor(it)] || {}).f) || it.logo, 'Front logo') : '') +
             '<span style="flex:1"></span><button class="btn danger quiet" type="button" data-rm="' + i + '">Remove</button></div>' +
             TR.origLineHtml(it, i) +
             (p.loc && Object.keys(p.loc).length ? '<div class="bar"><span class="where">Second logo</span><select id="l2-' + i + '" aria-label="Second logo location"><option value="">None</option>' +
                 Object.keys(p.loc).map(function (k) { return '<option' + (k === it.second_logo ? ' selected' : '') + '>' + TR.esc(k) + '</option>'; }).join('') + '</select>' +
                 (it.second_logo ? '<button class="btn" type="button" data-place2="' + i + '">Move</button>' : '') +
-                (it.second_logo && slots.length > 1 ? TR.logoSelect('lx-' + i, it.logo2, 'Second logo') : '') +
+                (it.second_logo && slots.length > 1 ? TR.logoSelect('lx-' + i, (TR.selColor(it) && ((it.logoBy || {})[TR.selColor(it)] || {}).x) || it.logo2, 'Second logo') : '') +
                 '<span class="sub">+$3 per item, not repriced automatically</span></div>' : '') +
             TR.namesHtml(it, i) +
             (it.logoBy && Object.keys(it.logoBy).length ? '<p class="sub" style="margin:6px 0 0">The customer picked which logo goes on each colour. Choosing a logo above replaces their picks.</p>' : '') +
@@ -1091,6 +1094,36 @@ var TR = {
             '<button type="button" class="btn" data-orig="' + TR.esc(it.style) + '" style="padding:2px 8px">Customer\'s version</button></div>';
     },
 
+    // ---------- per colour settings (owner, 2026-11-23) ----------
+    // Each product card has colour tabs. "All colours" edits the product;
+    // a colour tab edits that colour only: front logo spot and logo, second
+    // logo spot and logo, name colour and spot. Kept by style so removing a
+    // product does not move another card's tab.
+    selColor: function (it) {
+        var c = (TR.st.cardColor || {})[it.style];
+        return c && it.colors.indexOf(c) >= 0 ? c : null;
+    },
+    colorOwn: function (it, c) {
+        var n = it.names || {}, by = (it.logoBy || {})[c] || {};
+        return !!((it.boxes && it.boxes[c]) || (it.boxes2 && it.boxes2[c]) || by.f || by.x || (n.colorBy && n.colorBy[c]) || (n.boxBy && n.boxBy[c]));
+    },
+    clearColor: function (it, c) {
+        if (it.boxes) delete it.boxes[c];
+        if (it.boxes2) delete it.boxes2[c];
+        if (it.logoBy) delete it.logoBy[c];
+        if (it.names && it.names.colorBy) delete it.names.colorBy[c];
+        if (it.names && it.names.boxBy) delete it.names.boxBy[c];
+    },
+    colorTabsHtml: function (it, i) {
+        if (it.colors.length < 2) return '';
+        var sel = TR.selColor(it);
+        return '<div class="coltabs" role="tablist" aria-label="Edit which colour">' +
+            '<button type="button" class="ctab' + (sel ? '' : ' on') + '" data-ctab="">All colours</button>' +
+            it.colors.map(function (c) { return '<button type="button" class="ctab' + (sel === c ? ' on' : '') + '" data-ctab="' + TR.esc(c) + '">' + TR.esc(c) + (TR.colorOwn(it, c) ? ' <i class="own" title="Has its own settings"></i>' : '') + '</button>'; }).join('') +
+            (sel && TR.colorOwn(it, sel) ? '<button type="button" class="btn" id="csame-' + i + '" style="padding:2px 8px;margin-left:6px">Same as all colours</button>' : '') +
+            (sel ? '<span class="sub" style="margin-left:6px">Changes below apply to ' + TR.esc(sel) + ' only</span>' : '') + '</div>';
+    },
+
     // NAMES (2026-11-23): an optional name on the garment, typed by each buyer
     // at checkout. Build gives the product the same option and page template
     // as the live Canton parkas. Off by default; the customer may have asked.
@@ -1105,8 +1138,13 @@ var TR = {
                 '<button class="btn" type="button" id="nmm-' + i + '">Move name</button>' +
                 // Colour: white by default; white and black one click away, any other from the picker.
                 '<span class="nmcols" role="group" aria-label="Name colour">' + [['#ffffff', 'White'], ['#111111', 'Black']].map(function (c) {
-                    return '<button type="button" class="nmsw' + ((n.color || '#ffffff') === c[0] ? ' on' : '') + '" data-nmc="' + c[0] + '" title="' + c[1] + '" style="background:' + c[0] + '"></button>';
-                }).join('') + '<input type="color" id="nmc-' + i + '" value="' + TR.esc(n.color || '#ffffff') + '" title="Any colour" aria-label="Name colour"></span>' : '') + '</div>';
+                    return '<button type="button" class="nmsw' + (TR.nameColorOf(it) === c[0] ? ' on' : '') + '" data-nmc="' + c[0] + '" title="' + c[1] + '" style="background:' + c[0] + '"></button>';
+                }).join('') + '<input type="color" id="nmc-' + i + '" value="' + TR.esc(TR.nameColorOf(it)) + '" title="Any colour" aria-label="Name colour"></span>' : '') + '</div>';
+    },
+    // The name colour on the tab being edited: that colour's own, else the product's, else white.
+    nameColorOf: function (it) {
+        var n = it.names || {}, sel = TR.selColor(it);
+        return (sel && n.colorBy && n.colorBy[sel]) || n.color || '#ffffff';
     },
     wireNames: function (it, i) {
         var box = TR.$('nm-' + i); if (!box) return;
@@ -1116,7 +1154,11 @@ var TR = {
         var mv = TR.$('nmm-' + i); if (mv) mv.onclick = function () { TR.openNameMove(i); };
         var sm = TR.$('nms-' + i);
         if (sm) sm.onchange = function () { it.names.sample = this.value.trim(); if (!it.names.sample) delete it.names.sample; TR.touch(); TR.paneProducts(); };
-        var setColor = function (c) { it.names.color = c; TR.touch(); TR.paneProducts(); };
+        var setColor = function (c) {
+            var sel = TR.selColor(it);
+            if (sel) { it.names.colorBy = it.names.colorBy || {}; it.names.colorBy[sel] = c; } else it.names.color = c;
+            TR.touch(); TR.paneProducts();
+        };
         var bar = box.closest('.bar');
         bar.querySelectorAll('[data-nmc]').forEach(function (b) { b.onclick = function () { setColor(b.dataset.nmc); }; });
         var cp = TR.$('nmc-' + i); if (cp) cp.onchange = function () { setColor(this.value.toLowerCase()); };
@@ -1193,10 +1235,18 @@ var TR = {
         // A staff choice applies to every colour, so it replaces the
         // customer's per colour picks for that logo position.
         var clearBy = function (which) { Object.keys(it.logoBy || {}).forEach(function (c) { it.logoBy[c][which] = ''; }); };
+        // On a colour tab the choice is that colour's own (logoBy); on All
+        // colours it is the product's, and replaces the per colour picks.
+        var setBy = function (which, v) { var c = TR.selColor(it); it.logoBy = it.logoBy || {}; it.logoBy[c] = it.logoBy[c] || {}; it.logoBy[c][which] = v === 'auto' ? '' : v; };
         var lg = TR.$('lg-' + i);
-        if (lg) lg.addEventListener('change', function () { it.logo = this.value; clearBy('f'); TR.touch(); TR.paneProducts(); });
+        if (lg) lg.addEventListener('change', function () { if (TR.selColor(it)) setBy('f', this.value); else { it.logo = this.value; clearBy('f'); } TR.touch(); TR.paneProducts(); });
         var lx = TR.$('lx-' + i);
-        if (lx) lx.addEventListener('change', function () { it.logo2 = this.value; clearBy('x'); TR.touch(); TR.paneProducts(); });
+        if (lx) lx.addEventListener('change', function () { if (TR.selColor(it)) setBy('x', this.value); else { it.logo2 = this.value; clearBy('x'); } TR.touch(); TR.paneProducts(); });
+        // colour tabs
+        card.querySelectorAll('[data-ctab]').forEach(function (b) {
+            b.onclick = function () { TR.st.cardColor = TR.st.cardColor || {}; TR.st.cardColor[it.style] = b.dataset.ctab || null; TR.paneProducts(); };
+        });
+        var cs = TR.$('csame-' + i); if (cs) cs.onclick = function () { TR.clearColor(it, TR.selColor(it)); TR.touch(); TR.paneProducts(); };
         var l2 = TR.$('l2-' + i);
         if (l2) l2.addEventListener('change', function () { it.second_logo = this.value; TR.touch(); TR.paneProducts(); });
         card.querySelector('[data-place]').onclick = function () { TR.openPlacement(i); };
@@ -1295,7 +1345,8 @@ var TR = {
     openPlacement: function (i) {
         var it = TR.st.rec.work.items[i], p = TR.st.P[it.style];
         var colors = it.colors.length ? it.colors : [p.c[0][0]];
-        var pe = { i: i, color: colors[0], box: TR.box5(TR.boxFor(it, p, colors[0]) || [0.3, 0.25, 0.4, 0.3]), scope: it.boxes && it.boxes[colors[0]] ? 'one' : 'all' };
+        var sel = TR.selColor(it), c0 = sel || colors[0];
+        var pe = { i: i, color: c0, box: TR.box5(TR.boxFor(it, p, c0) || [0.3, 0.25, 0.4, 0.3]), scope: sel || (it.boxes && it.boxes[c0]) ? 'one' : 'all' };
         TR.st.pe = pe;
         var el = TR.$('pe');
         el.classList.remove('hidden');
@@ -1354,8 +1405,9 @@ var TR = {
     openPlacement2: function (i) {
         var it = TR.st.rec.work.items[i], p = TR.st.P[it.style];
         var colors = it.colors.length ? it.colors : [p.c[0][0]];
-        var l2 = TR.loc2(it, p); if (!l2) return;
-        var pe = { i: i, color: colors[0], box: TR.box5(l2.box || [0.3, 0.1, 0.4, 0.32]), side: l2.side };
+        var sel = TR.selColor(it), c0 = sel || colors[0];
+        var l2 = TR.loc2(it, p, c0); if (!l2) return;
+        var pe = { i: i, color: c0, box: TR.box5(l2.box || [0.3, 0.1, 0.4, 0.32]), side: l2.side };
         TR.st.pe2 = pe;
         var el = TR.$('pe');
         el.classList.remove('hidden');
@@ -1371,7 +1423,7 @@ var TR = {
             TR.wireBoxEditor({ stage: stage, id: 'pe-lb', get: function () { return pe.box; }, set: function (b) { pe.box = b; }, moved: function () {}, redraw: draw, tilt: TR.$('pe-tilt') });
         };
         el.innerHTML = '<div class="box"><div class="stage" id="pe-stage"></div><div class="side">' +
-            '<h3 id="pe-h">Move the ' + TR.esc(String(it.second_logo).toLowerCase()) + ' logo</h3><p>' + TR.esc(p.n) + '. Drag to move, drag the blue corner to resize. Applies to every colour of this product.</p>' +
+            '<h3 id="pe-h">Move the ' + TR.esc(String(it.second_logo).toLowerCase()) + ' logo</h3><p>' + TR.esc(p.n) + '. Drag to move, drag the blue corner to resize. Applies to ' + (sel ? TR.esc(sel) + ' only' : 'every colour of this product') + '.</p>' +
             '<label class="f">Preview colour</label><div class="chips" id="pe-cols">' + colors.map(function (n) {
                 var c = p.c[TR.colorIdx(p, n)];
                 return '<button type="button" class="chip' + (n === pe.color ? ' on' : '') + '" data-c="' + TR.esc(n) + '"><i style="background:' + (c ? c[5] : '#888') + '"></i>' + TR.esc(n) + '</button>';
@@ -1386,12 +1438,13 @@ var TR = {
         });
         TR.$('pe-tilt').oninput = function () { pe.box[4] = Number(this.value) || 0; draw(); };
         // Back to the style's own spot for this product: clear and close.
-        TR.$('pe-reset').onclick = function () { it.boxes2 = {}; TR.st.pe2 = null; TR.closePlacement(); TR.touch(); TR.paneProducts(); };
+        TR.$('pe-reset').onclick = function () { it.boxes2 = it.boxes2 || {}; if (sel) delete it.boxes2[sel]; else delete it.boxes2['*']; TR.st.pe2 = null; TR.closePlacement(); TR.touch(); TR.paneProducts(); };
         TR.$('pe-cancel').onclick = function () { TR.st.pe2 = null; TR.closePlacement(); };
         TR.$('pe-save').onclick = function () {
             var b = pe.box.slice(0, 4).map(function (v) { return Math.round(v * 10000) / 10000; });
             if (pe.box[4]) b.push(pe.box[4]);
-            it.boxes2 = { '*': b };
+            it.boxes2 = it.boxes2 || {};
+            it.boxes2[sel || '*'] = b;
             TR.st.pe2 = null; TR.closePlacement(); TR.touch(); TR.paneProducts();
         };
     },
@@ -1403,8 +1456,9 @@ var TR = {
     openNameMove: function (i) {
         var it = TR.st.rec.work.items[i], p = TR.st.P[it.style], n = it.names; if (!n || !n.on) return;
         var colors = it.colors.length ? it.colors : [p.c[0][0]];
-        var first = TR.nameSpot(it, p, colors[0]);
-        var pe = { color: colors[0], side: first.side, box: TR.box5(first.box || [0.3, 0.3, 0.4, 0.08]) };
+        var sel = TR.selColor(it), c0 = sel || colors[0];
+        var first = TR.nameSpot(it, p, c0);
+        var pe = { color: c0, side: first.side, box: TR.box5(first.box || [0.3, 0.3, 0.4, 0.08]) };
         var el = TR.$('pe'); el.classList.remove('hidden');
         var readout = function () {
             var r = TR.$('pe-read'), q = pe.box;
@@ -1418,12 +1472,12 @@ var TR = {
             html = html.replace(/<span class="nmlb[^"]*"[^>]*><i>[^<]*<\/i><\/span>/, '').replace(/<span class="nmcall"[^>]*>[^<]*<\/span>/, '');
             var b = pe.box, tall = b[3] > b[2] * 1.4;
             var st = 'left:' + (b[0] * 100) + '%;top:' + (b[1] * 100) + '%;width:' + (b[2] * 100) + '%;height:' + (b[3] * 100) + '%';
-            stage.innerHTML = html.replace(/<\/span>$/, '<div class="lb nmbox' + (tall ? ' tall' : '') + (pe.side === 'b' ? ' winner' : '') + '" id="pe-lb" style="' + st + '"><i style="color:' + TR.esc(n.color || '#ffffff') + '">' + TR.esc(String(n.sample || 'NAME').toUpperCase()) + '</i><div class="h" id="pe-lb-h"></div></div></span>');
+            stage.innerHTML = html.replace(/<\/span>$/, '<div class="lb nmbox' + (tall ? ' tall' : '') + (pe.side === 'b' ? ' winner' : '') + '" id="pe-lb" style="' + st + '"><i style="color:' + TR.esc((n.colorBy && n.colorBy[pe.color]) || n.color || '#ffffff') + '">' + TR.esc(String(n.sample || 'NAME').toUpperCase()) + '</i><div class="h" id="pe-lb-h"></div></div></span>');
             readout();
             TR.wireBoxEditor({ stage: stage, id: 'pe-lb', get: function () { return pe.box; }, set: function (x) { pe.box = x; }, moved: readout, redraw: draw });
         };
         el.innerHTML = '<div class="box"><div class="stage" id="pe-stage"></div><div class="side">' +
-            '<h3 id="pe-h">Move the name</h3><p>' + TR.esc(p.n) + ', ' + TR.esc(String(n.where).toLowerCase()) + '. Drag to move, drag the blue corner to resize. Applies to every colour of this product.</p>' +
+            '<h3 id="pe-h">Move the name</h3><p>' + TR.esc(p.n) + ', ' + TR.esc(String(n.where).toLowerCase()) + '. Drag to move, drag the blue corner to resize. Applies to ' + (sel ? TR.esc(sel) + ' only' : 'every colour of this product') + '.</p>' +
             '<label class="f">Preview colour</label><div class="chips" id="pe-cols">' + colors.map(function (c0) {
                 var c = p.c[TR.colorIdx(p, c0)];
                 return '<button type="button" class="chip' + (c0 === pe.color ? ' on' : '') + '" data-c="' + TR.esc(c0) + '"><i style="background:' + (c ? c[5] : '#888') + '"></i>' + TR.esc(c0) + '</button>';
@@ -1435,11 +1489,12 @@ var TR = {
         TR.$('pe-cols').querySelectorAll('button').forEach(function (b) {
             b.onclick = function () { pe.color = b.dataset.c; TR.$('pe-cols').querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); draw(); };
         });
-        TR.$('pe-reset').onclick = function () { delete n.box; delete n.boxWhere; TR.closePlacement(); TR.touch(); TR.paneProducts(); };
+        TR.$('pe-reset').onclick = function () { if (sel) { if (n.boxBy) delete n.boxBy[sel]; } else { delete n.box; delete n.boxWhere; } TR.closePlacement(); TR.touch(); TR.paneProducts(); };
         TR.$('pe-cancel').onclick = TR.closePlacement;
         TR.$('pe-save').onclick = function () {
-            n.box = pe.box.slice(0, 4).map(function (v) { return Math.round(v * 10000) / 10000; });
-            n.boxWhere = n.where;
+            var nb = pe.box.slice(0, 4).map(function (v) { return Math.round(v * 10000) / 10000; });
+            if (sel) { n.boxBy = n.boxBy || {}; n.boxBy[sel] = { box: nb, where: n.where }; }
+            else { n.box = nb; n.boxWhere = n.where; }
             TR.closePlacement(); TR.touch(); TR.paneProducts();
         };
     },
@@ -1924,7 +1979,7 @@ var TR = {
     // true, the back with a back or back neck logo.
     mockupCanvas: function (it, colorName, S, back) {
         var p = TR.st.P[it.style], c = p.c[TR.colorIdx(p, colorName)];
-        var PAD = Math.round(S / 20), l2 = TR.loc2(it, p), L = TR.st.L || {};
+        var PAD = Math.round(S / 20), l2 = TR.loc2(it, p, colorName), L = TR.st.L || {};
         return TR.hiRes(p, colorName, back).then(function (h) { return h || TR.loadImg(back ? c[6] : c[2]); }).then(function (g) {
             var nw = g.naturalWidth || g.width, nh = g.naturalHeight || g.height;
             var cv = document.createElement('canvas'); cv.width = S; cv.height = S;
@@ -1946,7 +2001,7 @@ var TR = {
     // Does this colour get a back mockup? Only with a back side second logo
     // and a back photo.
     hasBack: function (it, p, colorName) {
-        var l2 = TR.loc2(it, p), c = p.c[TR.colorIdx(p, colorName)];
+        var l2 = TR.loc2(it, p, colorName), c = p.c[TR.colorIdx(p, colorName)];
         return !!(l2 && l2.side === 'b' && c && c[6]);
     },
 
