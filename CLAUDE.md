@@ -1960,6 +1960,25 @@ to the contact form email only if that save fails. Staff work them in
   because these hold customer names and emails.
 - **The customer's original is never edited.** Staff edit `rec.work`; `rec.req`
   is the record of what was asked for.
+- **Staff can start a request themselves (2026-11-23)**: "Start a store" in
+  the header, or "Add products" on a Team stores row. `POST
+  /team-requests/create` (`teamreq-create.js`) makes the same record with
+  `source: 'staff'`, then it is an ordinary request. A NEW store whose name
+  is already a collection handle is refused (409, pointing at it), the page
+  also offers stores sharing the name's distinctive words, and an EXISTING
+  store is read first (no TAG rule, refused) with its carried styles
+  recorded. Staff set the proof contact on `work.contact` (`contactOf`).
+- **Names on a garment (2026-11-23)**: `item.names = { on, price, where }`.
+  Build gives the product EXACTLY the live Canton parkas' shape, which the
+  `personalized` template keys on: option "Personalization", values "No
+  Name" / "Add Name (+$15)" (the template tests `indexOf('Add ') === 0`),
+  `templateSuffix: 'personalized'`, label in `custom.personalization_label`.
+  Each buyer types their own name at checkout. Variants double.
+- **Build needs an approval (2026-11-23)**: the proof approval (not stale),
+  or `work.approvedOther = { how, by, at }` recorded on the Build tab and
+  logged. `approvedForBuild` in teamreq.js; the Worker refuses a non-dry
+  Build without it (409). Every request shows a checklist under "Next:";
+  products, logo, logo codes, stock and approval must be done to build.
 - **Build is create-only, draft-only, and fails CLOSED.** If the handle check
   errors, nothing is built (Stage 4 fails open; a team store is dozens of
   products). The collection is a smart one, TAG equals the team tag, unpublished.

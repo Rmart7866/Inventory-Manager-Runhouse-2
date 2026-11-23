@@ -15,7 +15,7 @@
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 
-import { readRec, writeRec, log, LOGO_PREFIX, PLACE_KEY } from './teamreq.js';
+import { readRec, writeRec, log, LOGO_PREFIX, PLACE_KEY, contactOf } from './teamreq.js';
 
 const RATE_PER_HOUR = 30;
 
@@ -66,12 +66,14 @@ export function proofView(rec) {
     team: w.team || '',
     release: w.release || q.date || '',
     close: w.close || '',
-    contactName: String((q.contact && q.contact.name) || '').split(/\s+/)[0] || '',
+    contactName: String(contactOf(rec).name || '').split(/\s+/)[0] || '',
     logos,
     items: (w.items || []).map((it) => ({
       style: it.style, colors: it.colors, sizes: it.sizes, price: it.price,
       placement: it.placement, boxes: it.boxes, logo: it.logo, logo2: it.logo2, logoBy: it.logoBy,
       second_logo: it.second_logo,
+      // Offered names: what each buyer pays extra and where it prints.
+      names: it.names && it.names.on ? { price: it.names.price, where: it.names.where } : null,
     })),
     approval: rec.approval ? { state: rec.approval.stale ? 'stale' : rec.approval.state, at: rec.approval.at, message: rec.approval.message || '' } : null,
   };

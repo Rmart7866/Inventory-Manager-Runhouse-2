@@ -292,5 +292,126 @@ check('blank and junk are refused', bannerUrl('') === '' && bannerUrl(null) === 
 check('the request carries the banner into the work copy', workFrom({ team: 'T', banner_file: '//cdn.shopify.com/b.jpg' }).banner === '//cdn.shopify.com/b.jpg');
 check('no banner is an empty string, not undefined', workFrom({ team: 'T' }).banner === '');
 
+console.log('\nNames on a garment (2026-11-23)');
+// The built product must have EXACTLY the shape of the live Canton parkas,
+// because the "personalized" template finds the option by the name
+// "Personalization" and shows the box when the value starts with "Add ".
+{
+  const { namesPlan } = await import('../src/teamreq-build.js');
+  const { cleanNames } = await import('../src/teamreq.js');
+  const spec = { style: 'PC78H', name: 'Hoodie', category: 'Hoodies', sizes: ['S', 'M'], price: 45, colors: [{ name: 'Navy', label: 'Navy (D001 (FC))' }], names: { on: true, price: 15, where: 'Left sleeve' } };
+  const plan = planProduct('Canton Lacrosse', 'canton-lacrosse', spec);
+  const input = productSetInputFor(plan, { searchable: false });
+  check('names double the variants', plan.variants === 4 && input.variants.length === 4);
+  check('the option is named Personalization, values as on the parkas', JSON.stringify(input.productOptions[2]) === JSON.stringify({ name: 'Personalization', values: [{ name: 'No Name' }, { name: 'Add Name (+$15)' }] }));
+  const priced = input.variants.map((v) => v.optionValues[2].name + '=' + v.price).join(',');
+  check('No Name at the item price, Add Name at price + 15', priced === 'No Name=45.00,Add Name (+$15)=60.00,No Name=45.00,Add Name (+$15)=60.00', priced);
+  check('every Add Name value starts with "Add ", which the template tests for', input.variants.filter((v) => v.optionValues[2].name.indexOf('Add ') === 0).length === 2);
+  check('it uses the personalized template', input.templateSuffix === 'personalized');
+  const lab = input.metafields.find((m) => m.namespace === 'custom' && m.key === 'personalization_label');
+  check('the label says where, in the parkas\' wording', lab && lab.type === 'single_line_text_field' && lab.value === 'Name (Name will appear on left sleeve in all caps)');
+  check('hidden from search still rides along', input.metafields.some((m) => m.namespace === 'seo' && m.key === 'hidden'));
+  const plain = productSetInputFor(planProduct('Canton Lacrosse', 'canton-lacrosse', { ...spec, names: null }), { searchable: true });
+  check('without names nothing changes: two options, no template, no metafields', plain.productOptions.length === 2 && !plain.templateSuffix && !plain.metafields && plain.variants.length === 2);
+  check('a price with cents is written with cents', namesPlan({ on: true, price: 12.5 }).add === 'Add Name (+$12.50)');
+  check('a free name says no price', namesPlan({ on: true, price: 0 }).add === 'Add Name');
+  check('the back reads naturally', namesPlan({ on: true, where: 'Back' }).label === 'Name (Name will appear on back in all caps)');
+  check('cleanNames drops an off switch', cleanNames({ on: false, price: 15 }) === null && cleanNames(null) === null);
+  check('cleanNames bounds a silly price to the default', cleanNames({ on: true, price: 5000 }).price === 15 && cleanNames({ on: true, price: -3 }).price === 15);
+  check('the customer\'s "offer names" carries into the work copy', workFrom({ team: 'T', items: [{ style: 'PC78H', names: { on: true, where: 'Back' } }] }).items[0].names.where === 'Back');
+}
+
+console.log('\nBuild needs an approval (2026-11-23)');
+// Drafts are made only for a store the customer approved: through the proof
+// link, or staff recording how they approved. A plan can always be checked.
+{
+  const { approvedForBuild } = await import('../src/teamreq.js');
+  check('no answer is not approved', !approvedForBuild({ work: {} }).ok);
+  check('a proof approval is', approvedForBuild({ approval: { state: 'approved' }, work: {} }).ok);
+  check('a STALE proof approval is not', !approvedForBuild({ approval: { state: 'approved', stale: true }, work: {} }).ok);
+  check('asking for changes is not', !approvedForBuild({ approval: { state: 'changes' }, work: {} }).ok);
+  check('an approval recorded another way is, and says how', approvedForBuild({ work: { approvedOther: { how: 'Phone call', by: 'Ryan' } } }).via === 'staff');
+  check('a blank "how" is not an approval', !approvedForBuild({ work: { approvedOther: { how: '  ' } } }).ok);
+
+  // Through the real handler, with Shopify answering "nothing exists yet".
+  let writes = 0;
+  globalThis.fetch = async (u, init = {}) => {
+    if (String(u).includes('/oauth/access_token')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { headers: { 'Content-Type': 'application/json' } });
+    const b = JSON.parse(init.body || '{}');
+    if (/mutation/.test(b.query || '')) { writes++; return new Response(JSON.stringify({ data: { productSet: { product: { id: 'gid://shopify/Product/9', handle: 'h', title: 't' }, userErrors: [] }, collectionCreate: { collection: { id: 'gid://shopify/Collection/9', handle: 'c', title: 'C' }, userErrors: [] } } }), { headers: { 'Content-Type': 'application/json' } }); }
+    return new Response(JSON.stringify({ data: { products: { nodes: [] }, collectionByHandle: null } }), { headers: { 'Content-Type': 'application/json' } });
+  };
+  let r = await call('/team-requests/submit', { method: 'POST', headers: { ...SHOPFRONT, 'CF-Connecting-IP': '10.77.0.1' }, body: sample() });
+  const sub = await r.json(); const aid = sub.id; if (!aid) console.log('          submit answered', r.status, JSON.stringify(sub));
+  const spec = [{ style: 'PC380', name: 'Tee', category: 'Short Sleeve T-Shirts', colors: [{ name: 'Navy' }] }];
+  r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: aid, dryRun: true, products: spec } });
+  let j = await r.json();
+  check('the plan can be checked before approval, and says it is not approved', r.status === 200 && j.plan && j.plan.approved.ok === false);
+  r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: aid, dryRun: false, products: spec } });
+  check('creating drafts without an approval is refused', r.status === 409 && writes === 0, 'status ' + r.status + ' writes ' + writes);
+  const cur = await (await call('/team-requests/one?id=' + aid, { headers: STAFF })).json();
+  r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id: aid, base: cur.updated, patch: { work: { ...cur.work, approvedOther: { how: 'Coach approved on the phone 11/23', by: 'Ryan' } } } } });
+  j = await r.json();
+  check('staff can record an approval another way', r.status === 200 && j.rec.work.approvedOther.how === 'Coach approved on the phone 11/23' && !!j.rec.work.approvedOther.at);
+  check('and the history says who and how', j.rec.log.some((l) => /approved another way \(Ryan\): Coach approved on the phone/.test(l.what)));
+  r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: aid, dryRun: false, products: spec } });
+  j = await r.json();
+  check('then the drafts are created', r.status === 200 && j.ok && writes > 0, 'status ' + r.status + ' ' + JSON.stringify(j).slice(0, 160));
+  globalThis.fetch = realFetch;
+}
+
+console.log('\nStarted by staff (2026-11-23)');
+// A store staff set up themselves goes through the same record, editor and
+// Build as a customer's. What must hold: the write secret is required, a NEW
+// store whose name is already a collection is refused (that is the store
+// they meant to add to), an EXISTING store is read first and one with no tag
+// rule is refused, and nothing is written to Shopify.
+{
+  const { staffRecord } = await import('../src/teamreq-create.js');
+  const COLS = {
+    'walpole-xc': { id: 'gid://shopify/Collection/1', handle: 'walpole-xc', title: 'Walpole XC', ruleSet: { rules: [{ column: 'TAG', relation: 'EQUALS', condition: 'walpole-xc' }] },
+      products: { nodes: [{ title: 'Walpole XC - Core Cotton Tee (PC54)' }, { title: 'Walpole XC - Hoodie (PC78H)' }] } },
+    'hand-picked': { id: 'gid://shopify/Collection/2', handle: 'hand-picked', title: 'Hand Picked', ruleSet: null, products: { nodes: [] } },
+  };
+  let writes = 0;
+  globalThis.fetch = async (u, init = {}) => {
+    const url = String(u);
+    if (url.includes('/oauth/access_token')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { headers: { 'Content-Type': 'application/json' } });
+    const b = JSON.parse(init.body || '{}');
+    if (/mutation/.test(b.query || '')) writes++;
+    const h = b.variables && b.variables.h;
+    return new Response(JSON.stringify({ data: { collectionByHandle: COLS[h] || null } }), { headers: { 'Content-Type': 'application/json' } });
+  };
+  let r = await call('/team-requests/create', { method: 'POST', headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' }, body: { mode: 'new', team: 'Canton Lacrosse', by: 'Ryan' } });
+  check('starting a store needs the write secret', r.status === 401 || r.status === 403, 'status ' + r.status);
+  r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'new', team: 'Canton Lacrosse' } });
+  check('it needs the staff name, so the request shows who started it', r.status === 400);
+  r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'new', team: 'Canton Lacrosse', by: 'Ryan', contactEmail: 'not an email' } });
+  check('a bad contact email is refused', r.status === 400);
+  r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'new', team: 'Walpole XC', by: 'Ryan' } });
+  let j = await r.json();
+  check('a NEW store whose name is already a store is refused, pointing at it', r.status === 409 && j.handle === 'walpole-xc', JSON.stringify(j));
+  r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'new', team: 'Canton Lacrosse', by: 'Ryan', contactName: 'Coach K', contactEmail: 'k@example.com' } });
+  j = await r.json();
+  check('a new store is started', r.status === 200 && j.ok && /^[0-9a-z]{9}-/.test(j.id), JSON.stringify(j).slice(0, 200));
+  check('as a staff record, In progress, handled by the starter', j.rec.source === 'staff' && j.rec.status === 'progress' && j.rec.work.assignee === 'Ryan');
+  check('with the team slug as its tag and no products yet', j.rec.work.tag === 'canton-lacrosse' && j.rec.work.items.length === 0);
+  check('and the contact is kept for the proof email', j.rec.req.contact.email === 'k@example.com');
+  const list = await (await call('/team-requests', { headers: STAFF })).json();
+  check('the list marks it as started by staff', list.requests.some((x) => x.id === j.id && x.st === 1));
+  r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'update', handle: 'hand-picked', by: 'Ryan' } });
+  check('an existing store with no tag rule is refused', r.status === 400);
+  r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'update', handle: 'gone', by: 'Ryan' } });
+  check('a store that is not on Shopify is refused', r.status === 404);
+  r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'update', handle: 'walpole-xc', by: 'Ryan' } });
+  j = await r.json();
+  check('adding to an existing store takes its tag and naming', r.status === 200 && j.rec.req.mode === 'update' && j.rec.work.tag === 'walpole-xc' && j.rec.work.team === 'Walpole XC');
+  check('and records the styles it already carries', JSON.stringify(j.rec.req.store.existing_styles.sort()) === '["PC54","PC78H"]');
+  check('nothing was written to Shopify', writes === 0);
+  globalThis.fetch = realFetch;
+  const pure = staffRecord({ team: '  Foxboro Hockey ', by: ' Dana ' }, null, '2026-11-23T00:00:00.000Z', '000000000-abc');
+  check('the pure record trims the names', pure.work.team === 'Foxboro Hockey' && pure.req.staff.by === 'Dana' && pure.log.length === 1);
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

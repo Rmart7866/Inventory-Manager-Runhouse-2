@@ -23,7 +23,7 @@
 // House style: no em dashes. Use commas, periods, or the word "to".
 
 import { createShopifyClient } from './shopify.js';
-import { readRec, writeRec, log } from './teamreq.js';
+import { readRec, writeRec, log, approvedForBuild } from './teamreq.js';
 import { apparelCategoryFor } from './products.js';
 
 const PRODUCT_SET = `
@@ -98,7 +98,27 @@ export function planProduct(team, tag, spec) {
   const colors = (spec.colors || []).map((c) => ({ value: String(c.label || c.name).slice(0, 250), image: c.image || null, back: c.back || null, name: String(c.name) }));
   const productType = typeFor(spec.category);
   const price = Number(spec.price) > 0 ? Number(spec.price).toFixed(2) : null;
-  return { style: spec.style, title, handle, productType, sizes, colors, price, tag, variants: sizes.length * colors.length };
+  const names = namesPlan(spec.names);
+  return { style: spec.style, title, handle, productType, sizes, colors, price, tag, names, variants: sizes.length * colors.length * (names ? 2 : 1) };
+}
+
+// NAMES, the same shape as the live Canton parkas so the "personalized"
+// template drives it with no change: option "Personalization" with values
+// "No Name" and "Add Name (+$15)", the Add Name variant priced that much
+// more, and the box label in custom.personalization_label, which the
+// template prints over the name box and also uses as the order line's
+// property name, so it says where the name goes.
+export function namesPlan(n) {
+  if (!n || !n.on) return null;
+  const extra = Number(n.price) >= 0 && Number.isFinite(Number(n.price)) ? Number(n.price) : 15;
+  const where = String(n.where || 'Left sleeve').trim() || 'Left sleeve';
+  const money = Number.isInteger(extra) ? String(extra) : extra.toFixed(2);
+  return {
+    extra,
+    no: 'No Name',
+    add: extra > 0 ? 'Add Name (+$' + money + ')' : 'Add Name',
+    label: 'Name (Name will appear on ' + where.toLowerCase() + ' in all caps)',
+  };
 }
 
 export function productSetInputFor(plan, opts = {}) {
@@ -113,19 +133,30 @@ export function productSetInputFor(plan, opts = {}) {
     addFile(c.back, plan.title + ' in ' + c.name + ', back');
   }
   const variants = [];
+  const N = plan.names;
+  // Without names, one variant per colour and size, as before. With names,
+  // each of those twice: No Name at the item price, Add Name at price + extra.
+  const pers = N ? [{ value: N.no, extra: 0 }, { value: N.add, extra: N.extra }] : [null];
   for (const c of plan.colors) {
     for (const s of plan.sizes) {
-      const v = {
-        optionValues: [{ optionName: 'Color', name: c.value }, { optionName: 'Size', name: s }],
-        inventoryPolicy: 'CONTINUE',   // made to order, as every team store item is
-        inventoryItem: { tracked: true },
-      };
-      if (plan.price) v.price = plan.price;
-      if (c.image) v.file = fileFor[c.image];
-      variants.push(v);
+      for (const p of pers) {
+        const v = {
+          optionValues: [{ optionName: 'Color', name: c.value }, { optionName: 'Size', name: s }].concat(p ? [{ optionName: 'Personalization', name: p.value }] : []),
+          inventoryPolicy: 'CONTINUE',   // made to order, as every team store item is
+          inventoryItem: { tracked: true },
+        };
+        if (plan.price) v.price = p && p.extra ? (Number(plan.price) + p.extra).toFixed(2) : plan.price;
+        if (c.image) v.file = fileFor[c.image];
+        variants.push(v);
+      }
     }
   }
   const cat = apparelCategoryFor(plan.productType);
+  const metafields = [];
+  // Site search follows the "Keep in site search" box on the Build tab,
+  // which is ticked by default; unticked, the product is hidden.
+  if (!opts.searchable) metafields.push({ namespace: 'seo', key: 'hidden', type: 'number_integer', value: '1' });
+  if (N) metafields.push({ namespace: 'custom', key: 'personalization_label', type: 'single_line_text_field', value: N.label });
   return {
     title: plan.title,
     handle: plan.handle,
@@ -137,12 +168,13 @@ export function productSetInputFor(plan, opts = {}) {
     productOptions: [
       { name: 'Color', values: plan.colors.map((c) => ({ name: c.value })) },
       { name: 'Size', values: plan.sizes.map((n) => ({ name: n })) },
-    ],
+    ].concat(N ? [{ name: 'Personalization', values: [{ name: N.no }, { name: N.add }] }] : []),
     variants,
     files,
-    // Site search follows the "Keep in site search" box on the Build tab,
-    // which is ticked by default; unticked, the product is hidden.
-    ...(opts.searchable ? {} : { metafields: [{ namespace: 'seo', key: 'hidden', type: 'number_integer', value: '1' }] }),
+    // The template that shows the name box. Without it the option is just a
+    // price difference and nobody is asked for the name.
+    ...(N ? { templateSuffix: 'personalized' } : {}),
+    ...(metafields.length ? { metafields } : {}),
   };
 }
 
@@ -156,7 +188,7 @@ async function existingProductHandles(client, handles) {
   return found;
 }
 
-async function collectionByHandle(client, handle) {
+export async function collectionByHandle(client, handle) {
   const body = await client.graphql(`query($h:String!){ collectionByHandle(handle:$h){ id handle title
     ruleSet{ rules{ column relation condition } }
     products(first:250){ nodes{ title } } } }`, { h: handle });
@@ -236,9 +268,16 @@ export async function handleBuild(request, env) {
   const plan = {
     collection: { ...collection, exists: !!colExisting || !!update },
     update: !!update, alreadyIn, searchable,
-    products: plans.map((p) => ({ style: p.style, title: p.title, handle: p.handle, productType: p.productType, sizes: p.sizes, colors: p.colors.map((c) => c.value), images: p.colors.reduce((n, c) => n + (c.image ? 1 : 0) + (c.back ? 1 : 0), 0), price: p.price, variants: p.variants, exists: existing.has(p.handle) })),
+    products: plans.map((p) => ({ style: p.style, title: p.title, handle: p.handle, productType: p.productType, sizes: p.sizes, colors: p.colors.map((c) => c.value), images: p.colors.reduce((n, c) => n + (c.image ? 1 : 0) + (c.back ? 1 : 0), 0), price: p.price, names: p.names ? { add: p.names.add, label: p.names.label } : null, variants: p.variants, exists: existing.has(p.handle) })),
   };
+  // A plan may be checked any time; drafts are made only for a store the
+  // customer approved (the proof link, or staff recording how they approved),
+  // the same rule the page shows. Enforced here so the page is not the only
+  // thing standing between an unapproved store and Shopify.
+  const appr = approvedForBuild(rec);
+  plan.approved = appr;
   if (b.dryRun !== false) return { body: { dryRun: true, plan } };
+  if (!appr.ok) return { status: 409, body: { error: 'The customer has not approved this store yet. Send the proof, or tick "Customer approved another way" on the Build tab and say how.' } };
 
   const results = [];
   for (const p of plans) {

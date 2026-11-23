@@ -58,6 +58,7 @@ var TR = {
         TR.$('home-h').addEventListener('click', function () { TR.home(); });
         TR.$('home-tab').addEventListener('click', function () { TR.home(); });
         TR.$('stores-open').addEventListener('click', TR.showStores);
+        TR.$('new-store').addEventListener('click', function () { TR.showCreate(null); });
         TR.$('me').value = TR.myName();
         TR.$('me').addEventListener('change', function () { try { localStorage.setItem('rhStaffName', this.value.trim()); } catch (e) { /* private mode */ } TR.renderList(); });
         // The list refreshes itself: every minute, and when you come back to
@@ -176,6 +177,7 @@ var TR = {
         if (cd != null && cd >= 0 && cd <= 7 && ['done', 'archived'].indexOf(r.s) < 0) tags.push('<span class="tag closing">Closes ' + (cd === 0 ? 'today' : cd === 1 ? 'tomorrow' : 'in ' + cd + ' days') + '</span>');
         if (dups[r.id]) tags.push('<span class="tag dup">Possible duplicate</span>');
         if (r.m === 'update') tags.push('<span class="tag">Add to store</span>');
+        if (r.st) tags.push('<span class="tag">Started by staff</span>');
         if (r.b) tags.push('<span class="tag">Build it for me</span>');
         return tags.length ? '<div class="tags">' + tags.join('') + '</div>' : '';
     },
@@ -343,10 +345,18 @@ var TR = {
         m.className = 'msg ' + (kind || 'ok'); m.textContent = text; m.classList.remove('hidden');
     },
 
+    // Who the proof goes to: what staff set on the working copy, field by
+    // field, else what the customer sent. Same rule as contactOf in teamreq.js.
+    contactOf: function (r) {
+        var a = (r && r.work && r.work.contact) || {}, b = (r && r.req && r.req.contact) || {};
+        return { name: a.name || b.name || '', email: a.email || b.email || '', phone: a.phone || b.phone || '' };
+    },
+
     renderDetail: function () {
         var r = TR.st.rec; if (!r) return;
         TR.loadSupplier(((r.work && r.work.items) || []).map(function (it) { return it.style; }));
-        var q = r.req || {}, w = r.work || {}, c = q.contact || {};
+        var q = r.req || {}, w = r.work || {}, c = TR.contactOf(r);
+        var staff = r.source === 'staff';
         // Only what changes how staff handle the request is a flag. The rest
         // is one quiet line of facts.
         var flags = [];
@@ -361,7 +371,13 @@ var TR = {
         TR.$('detail').innerHTML =
             '<div class="dhead"><div>' +
                 '<div class="team"><input type="text" id="d-team" value="' + TR.esc(w.team) + '" aria-label="Team name"></div>' +
-                '<div class="who">' + TR.esc(c.name || '') + ' · <a href="mailto:' + TR.esc(c.email) + '">' + TR.esc(c.email) + '</a>' + (c.phone ? ' · ' + TR.esc(c.phone) : '') + ' · sent ' + TR.ago(r.created) + '</div>' +
+                (staff
+                    // Started on this page: the contact is ours to fill in, and the proof email needs it.
+                    ? '<div class="who">Started by staff' + (q.staff && q.staff.by ? ' (' + TR.esc(q.staff.by) + ')' : '') + ' · ' + TR.ago(r.created) + '</div>' +
+                      '<div class="rel"><label for="d-cname">Contact</label><input type="text" id="d-cname" value="' + TR.esc(c.name) + '" placeholder="Name" style="width:140px">' +
+                      '<input type="email" id="d-cemail" value="' + TR.esc(c.email) + '" placeholder="Email, for the proof" style="width:210px">' +
+                      '<input type="text" id="d-cphone" value="' + TR.esc(c.phone) + '" placeholder="Phone" style="width:120px"></div>'
+                    : '<div class="who">' + TR.esc(c.name || '') + ' · <a href="mailto:' + TR.esc(c.email) + '">' + TR.esc(c.email) + '</a>' + (c.phone ? ' · ' + TR.esc(c.phone) : '') + ' · sent ' + TR.ago(r.created) + '</div>') +
                 '<div class="rel"><label for="d-rel">Release</label><input type="date" id="d-rel" value="' + TR.esc(w.release || '') + '">' +
                     '<label for="d-close">Orders close</label><input type="date" id="d-close" value="' + TR.esc(w.close || '') + '">' +
                     '<label for="d-who">Handled by</label><input type="text" id="d-who" list="who-list" value="' + TR.esc(w.assignee || '') + '" placeholder="Name" style="width:130px">' +
@@ -369,7 +385,7 @@ var TR = {
                 (q.date ? '<div class="sub" style="margin-top:6px">Customer asked for ' + TR.esc(TR.fmtDate(q.date)) + (w.release ? '' : ', shown on the calendar until you set a release date') + '.</div>' : '') +
                 (facts.length ? '<div class="sub" style="margin-top:6px">' + facts.join(' · ') + '</div>' : '') +
                 (flags.length ? '<div class="flags">' + flags.join('') + '</div>' : '') +
-                TR.nextHtml(r) +
+                TR.nextHtml(r) + TR.checklistHtml(r) +
             '</div><div class="acts">' +
                 '<select id="d-status" aria-label="Status">' + Object.keys(TR.STATUS).map(function (k) { return '<option value="' + k + '"' + (k === r.status ? ' selected' : '') + '>' + TR.STATUS[k] + '</option>'; }).join('') + '</select>' +
                 '<button class="btn" type="button" id="d-mail">Email the proof</button>' +
@@ -389,9 +405,13 @@ var TR = {
         TR.$('d-rel').addEventListener('change', function () { w.release = this.value; TR.touch(); });
         TR.$('d-close').addEventListener('change', function () { w.close = this.value; TR.touch(); });
         TR.$('d-who').addEventListener('input', function () { w.assignee = this.value; TR.touch(); });
+        if (staff) [['d-cname', 'name'], ['d-cemail', 'email'], ['d-cphone', 'phone']].forEach(function (p) {
+            TR.$(p[0]).addEventListener('input', function () { w.contact = Object.assign({}, TR.contactOf(r), w.contact || {}); w.contact[p[1]] = this.value; TR.touch(); });
+        });
         TR.$('d-mail').addEventListener('click', function () { TR.emailProof(this); });
         TR.$('detail').querySelectorAll('[data-open]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); TR.open(a.dataset.open); }; });
         var nx = TR.$('next-go'); if (nx) nx.onclick = function () { TR.st.tab = nx.dataset.tab; TR.renderDetail(); };
+        TR.$('detail').querySelectorAll('.ckl[data-ck]').forEach(function (b) { if (b.dataset.ck) b.onclick = function () { TR.st.tab = b.dataset.ck; TR.renderDetail(); }; });
         TR.$('d-status').addEventListener('change', function () { TR.save({ status: this.value }); });
         TR.$('save').addEventListener('click', function () { TR.save(); });
         TR.$('d-pdf').addEventListener('click', function () { TR.proofPdf(this); });
@@ -415,11 +435,87 @@ var TR = {
         if (TR.st.D && bad) return { text: 'Finish the products: every one needs colours, sizes and a price', tab: 'products' };
         if (TR.st.D && !w.noCodes && TR.codeProblems().length) return { text: 'Add the logo codes', tab: 'logos' };
         if (TR.st.D && !w.lowStockOk && !(r.build && r.build.at) && TR.stockProblems().length) return { text: 'Some colours are low at the supplier: swap them, or build anyway', tab: 'products' };
-        var approved = r.approval && r.approval.state === 'approved' && !r.approval.stale;
+        if (TR.st.D && !Object.keys(w.logos || {}).length) return { text: 'Upload the team\'s logo', tab: 'logos' };
+        var approved = TR.approvedForBuild(r).ok;
         if (r.build && r.build.at) return { text: 'Go live once the customer has approved', tab: 'build' };
         if (approved) return { text: 'Create the drafts', tab: 'build' };
         if (r.status === 'waiting') return { text: 'Waiting on the customer to approve the proof. When they say yes, create the drafts', tab: 'build' };
         return { text: 'Send the proof with Email the proof (top right)', tab: null };
+    },
+
+    // ---------- the checklist (2026-11-23) ----------
+    // Every request, the same ten lines, each worked out from the request
+    // itself so nobody ticks anything by hand except "approved another way".
+    // The ones marked req must be done before drafts can be created; the
+    // Worker enforces the approval line again on its side.
+    approvedForBuild: function (r) {
+        if (r && r.approval && r.approval.state === 'approved' && !r.approval.stale) return { ok: true, via: 'proof' };
+        var o = r && r.work && r.work.approvedOther;
+        if (o && String(o.how || '').trim()) return { ok: true, via: 'staff', how: o.how, by: o.by || '' };
+        return { ok: false };
+    },
+    checklist: function (r) {
+        var w = r.work || {}, items = w.items || [], D = !!TR.st.D, out = [];
+        var add = function (k, label, state, note, tab, req) { out.push({ k: k, label: label, state: state, note: note || '', tab: tab || null, req: !!req }); };
+        var badItems = D ? items.filter(function (it) {
+            var p = TR.st.P[it.style]; if (!p) return true;
+            return !it.colors.length || TR.unknownColors(it, p).length || !(it.sizes || TR.U.sizesFor(p, TR.st.CAT[p.s])).length || !(it.price > 0);
+        }) : [];
+        add('products', 'Products', !items.length ? 'todo' : badItems.length ? 'todo' : 'ok',
+            !items.length ? 'None yet' : badItems.length ? badItems.length + ' need colours, sizes or a price' : items.length + (items.length === 1 ? ' product' : ' products') + ', all priced', 'products', true);
+        var nLogos = Object.keys(w.logos || {}).length;
+        add('logo', 'Logo', nLogos ? 'ok' : 'todo', nLogos ? nLogos + (nLogos === 1 ? ' file' : ' files') : 'None uploaded', 'logos', true);
+        var codes = D && !w.noCodes ? TR.codeProblems().length : 0;
+        add('codes', 'Logo codes', w.noCodes ? 'ok' : codes ? 'todo' : 'ok', w.noCodes ? 'Building without codes' : codes ? codes + ' missing' : 'Every logo has its code', 'logos', true);
+        var stock = D ? TR.stockProblems().length : 0;
+        add('stock', 'Supplier stock', TR.stockChecking() ? 'wait' : stock && !w.lowStockOk ? 'todo' : 'ok',
+            TR.stockChecking() ? 'Checking' : stock ? stock + ' short' + (w.lowStockOk ? ', building anyway' : '') : 'Nothing short', 'products', true);
+        var named = items.filter(function (it) { return it.names && it.names.on; }).length;
+        add('names', 'Names', 'info', named ? 'Offered on ' + named + (named === 1 ? ' product' : ' products') : 'Not offered', 'products', false);
+        var c = TR.contactOf(r), ap = TR.approvedForBuild(r);
+        add('contact', 'Contact email', c.email ? 'ok' : ap.via === 'staff' ? 'info' : 'todo', c.email || (ap.via === 'staff' ? 'Not needed, approved another way' : 'Needed to email the proof'), null, false);
+        var sent = !!r.approval || r.status === 'waiting' || (r.log || []).some(function (l) { return /proof/i.test(l.what); });
+        add('proof', 'Proof sent', sent ? 'ok' : ap.via === 'staff' ? 'info' : 'todo', sent ? 'Sent' : ap.via === 'staff' ? 'Skipped, approved another way' : 'Not yet: Email the proof, top right', null, false);
+        var stale = r.approval && r.approval.state === 'approved' && r.approval.stale;
+        add('approved', 'Customer approved', ap.ok ? 'ok' : 'todo',
+            ap.via === 'proof' ? 'On the proof' : ap.via === 'staff' ? 'Another way: ' + ap.how + (ap.by ? ' (' + ap.by + ')' : '')
+                : stale ? 'They approved, then the products changed: send a new proof' : r.approval && r.approval.state === 'changes' ? 'They asked for changes' : 'Not yet', 'build', true);
+        add('built', 'Drafts built', r.build && r.build.at ? 'ok' : 'todo', r.build && r.build.at ? (r.build.products || []).length + ' drafts, ' + TR.ago(r.build.at) : 'Not yet', 'build', false);
+        add('live', 'Live', r.live && r.live.at ? 'ok' : 'todo', r.live && r.live.at ? 'Published ' + TR.ago(r.live.at) : 'Not yet', 'build', false);
+        return out;
+    },
+    // The required lines still open, as the reasons Build is blocked.
+    buildBlockers: function (r) {
+        return TR.checklist(r).filter(function (x) { return x.req && x.state !== 'ok'; });
+    },
+    checklistHtml: function (r) {
+        var MARK = { ok: ['Done', 'var(--ok, #3fd28b)'], todo: ['To do', 'var(--warn, #ffb547)'], wait: ['...', 'var(--muted)'], info: ['', 'var(--muted)'] };
+        return '<div class="checklist" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 16px;margin:10px 0 4px;font-size:12.5px">' +
+            TR.checklist(r).map(function (x) {
+                var m = MARK[x.state] || MARK.info;
+                return '<button type="button" class="ckl" data-ck="' + (x.tab || '') + '" style="all:unset;cursor:' + (x.tab ? 'pointer' : 'default') + ';display:flex;gap:8px;align-items:baseline;padding:2px 0">' +
+                    '<span style="flex:none;width:9px;height:9px;background:' + (x.state === 'info' ? 'transparent;border:1px solid var(--line-2)' : m[1]) + ';display:inline-block;transform:translateY(1px)"></span>' +
+                    '<span><b style="color:var(--text, inherit)">' + TR.esc(x.label) + '</b>' + (x.req && x.state !== 'ok' ? ' <span style="color:' + m[1] + '">' + m[0] + '</span>' : '') +
+                    '<span class="sub" style="display:block">' + TR.esc(x.note) + '</span></span></button>';
+            }).join('') + '</div>';
+    },
+
+    // Build tab: is the store approved, and if not, the recorded alternative.
+    approvalBoxHtml: function (r) {
+        var ap = TR.approvedForBuild(r), o = (r.work && r.work.approvedOther) || null;
+        if (ap.via === 'proof') return '<div class="msg ok"><b>Approved by the customer</b> on the proof' + (r.approval.at ? ', ' + TR.ago(r.approval.at) : '') + '.</div>';
+        var on = !!o;
+        return '<div class="msg' + (ap.ok ? ' ok' : ' warn') + '">' +
+            (ap.ok ? '<b>Approved another way</b>: ' + TR.esc(o.how) + (o.by ? ' (' + TR.esc(o.by) + (o.at ? ', ' + TR.ago(o.at) : '') + ')' : '') + '.'
+                : '<b>Not approved yet.</b> Drafts are created only for a store the customer has approved. Send the proof with Email the proof, or record how they approved.') +
+            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:8px 0 0"><input type="checkbox" id="b-apo"' + (on ? ' checked' : '') + '> Customer approved another way (phone, in person, an email reply), or this store is ours and needs no proof</label>' +
+            (on ? '<input type="text" id="b-apo-how" value="' + TR.esc(o.how || '') + '" placeholder="How, e.g. Coach K approved on the phone 11/23" style="width:100%;max-width:520px;margin-top:6px">' +
+                '<div class="sub" style="margin-top:4px">Recorded with your name in the history. Save to apply.</div>' : '') + '</div>';
+    },
+    wireApprovalBox: function (r) {
+        var w = r.work, cb = TR.$('b-apo'), how = TR.$('b-apo-how');
+        if (cb) cb.onchange = function () { w.approvedOther = this.checked ? { how: '', by: TR.myName().trim() } : null; TR.touch(); TR.paneBuild(); };
+        if (how) how.oninput = function () { w.approvedOther = { how: this.value, by: TR.myName().trim() }; TR.touch(); };
     },
 
     nextHtml: function (r) {
@@ -495,9 +591,9 @@ var TR = {
     // customer answers by replying. An email link cannot attach a file, so
     // the message is written for the PDF that just downloaded to be attached.
     emailProof: function (btn) {
-        var r = TR.st.rec, c = (r.req && r.req.contact) || {};
+        var r = TR.st.rec, c = TR.contactOf(r);
         if (TR.st.dirty) { TR.flash('Save your changes first, so the proof shows them.', 'warn'); return; }
-        if (!c.email) { TR.flash('This request has no customer email.', 'bad'); return; }
+        if (!c.email) { TR.flash(r.source === 'staff' ? 'Add the customer\'s email under Contact at the top, Save, then email the proof.' : 'This request has no customer email.', 'bad'); return; }
         var w = r.work, first = String(c.name || '').split(/\s+/)[0];
         var body = (first ? 'Hi ' + first + ',' : 'Hi,') + '\n\n' +
             'Attached is the proof for the ' + w.team + ' team store. It shows every product in each colour, with the sizes, prices and where your logo will go.' +
@@ -784,7 +880,17 @@ var TR = {
         var w = TR.st.rec.work, pane = TR.$('pane');
         if (!TR.st.D) { pane.innerHTML = '<p class="empty">Loading the product catalog...</p>'; return; }
         var bfm = TR.st.rec.req && TR.st.rec.req.build_for_me;
-        pane.innerHTML = (!w.items.length || bfm ? '<div class="msg">' + (bfm ? '<b>Build it for me:</b> the customer left the products to us. ' : '') +
+        // Adding to a live store: what it carries already, so nobody adds a
+        // style twice. Build skips a carried style anyway; this says so first.
+        var st = TR.st.rec.req && TR.st.rec.req.mode === 'update' && TR.st.rec.req.store;
+        var have = st && Array.isArray(st.existing_styles) ? st.existing_styles.map(function (s) { return String(s).toUpperCase(); }) : [];
+        var dupes = (w.items || []).filter(function (it) { return have.indexOf(String(it.style).toUpperCase()) >= 0; }).map(function (it) { return it.style; });
+        var haveHtml = st ? '<div class="msg">Adding to <b>' + TR.esc(st.name) + '</b>. ' +
+            (have.length ? 'It already carries ' + have.length + (have.length === 1 ? ' style' : ' styles') + ': ' + have.map(function (s) { var p = TR.st.P[s]; return TR.esc(s + (p ? ' (' + p.n + ')' : '')); }).join(', ') + '.' : 'It carries no styles this page can read yet.') +
+            (dupes.length ? ' <b style="color:var(--bad)">Already in the store, so Build will skip: ' + TR.esc(dupes.join(', ')) + '.</b>' : '') + '</div>' : '';
+        // The starter set is a whole new store's worth of products, so it is
+        // not offered when adding to a store that already exists.
+        pane.innerHTML = haveHtml + ((!w.items.length && !st) || bfm ? '<div class="msg">' + (bfm ? '<b>Build it for me:</b> the customer left the products to us. ' : '') +
                 'Fill from the starter set for their group (' + TR.esc((TR.st.rec.req && TR.st.rec.req.group) || 'School sports team') + '): six proven styles in their main colour plus a neutral, priced with their fundraising. ' +
                 '<button class="btn" type="button" id="fill-starter">Fill from starter set</button></div>' : '') +
             (w.items || []).map(function (it, i) { return TR.itemHtml(it, i); }).join('') +
@@ -840,8 +946,29 @@ var TR = {
                 Object.keys(p.loc).map(function (k) { return '<option' + (k === it.second_logo ? ' selected' : '') + '>' + TR.esc(k) + '</option>'; }).join('') + '</select>' +
                 (it.second_logo && slots.length > 1 ? TR.logoSelect('lx-' + i, it.logo2, 'Second logo') : '') +
                 '<span class="sub">+$3 per item, not repriced automatically</span></div>' : '') +
+            TR.namesHtml(it, i) +
             (it.logoBy && Object.keys(it.logoBy).length ? '<p class="sub" style="margin:6px 0 0">The customer picked which logo goes on each colour. Choosing a logo above replaces their picks.</p>' : '') +
             '</div></div>';
+    },
+
+    // NAMES (2026-11-23): an optional name on the garment, typed by each buyer
+    // at checkout. Build gives the product the same option and page template
+    // as the live Canton parkas. Off by default; the customer may have asked.
+    NAME_WHERE: ['Left sleeve', 'Right sleeve', 'Back', 'Back neck', 'Front', 'Left leg'],
+    namesHtml: function (it, i) {
+        var n = it.names && it.names.on ? it.names : null;
+        return '<div class="bar"><label class="where" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="nm-' + i + '"' + (n ? ' checked' : '') + '> Offer names</label>' +
+            (n ? '<select id="nmw-' + i + '" aria-label="Where the name prints">' + TR.NAME_WHERE.concat(TR.NAME_WHERE.indexOf(n.where) < 0 ? [n.where] : []).map(function (w) {
+                    return '<option' + (w === n.where ? ' selected' : '') + '>' + TR.esc(w) + '</option>'; }).join('') + '</select>' +
+                '<label class="sub" style="display:flex;gap:4px;align-items:center">+$<input type="number" min="0" step="0.01" id="nmp-' + i + '" value="' + n.price + '" style="width:70px"></label>' +
+                '<span class="sub">Each buyer types their name at checkout. Adds a No Name / Add Name choice, so ' + (it.sizes || []).length * (it.colors || []).length * 2 + ' variants.</span>'
+              : '<span class="sub">A name on the garment, typed by each buyer at checkout</span>') + '</div>';
+    },
+    wireNames: function (it, i) {
+        var box = TR.$('nm-' + i); if (!box) return;
+        box.onchange = function () { it.names = this.checked ? { on: true, price: 15, where: 'Left sleeve' } : null; TR.touch(); TR.paneProducts(); };
+        var w = TR.$('nmw-' + i); if (w) w.onchange = function () { it.names.where = this.value; TR.touch(); };
+        var p = TR.$('nmp-' + i); if (p) p.oninput = function () { it.names.price = Math.max(0, Number(this.value) || 0); TR.touch(); };
     },
 
     logoSelect: function (id, value, label) {
@@ -897,6 +1024,7 @@ var TR = {
                 };
             });
         };
+        TR.wireNames(it, i);
         TR.$('sz-' + i).addEventListener('change', function () {
             it.sizes = this.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean); TR.touch(); TR.paneProducts();
         });
@@ -1286,6 +1414,7 @@ var TR = {
         var cat = TR.st.CAT[p.s], pl = TR.U.plCode(it.placement, cat), logos = TR.st.rec.work.logos || {};
         return {
             style: p.s, name: p.n, category: cat, sizes: it.sizes || TR.U.sizesFor(p, cat), price: it.price,
+            names: it.names && it.names.on ? { on: true, price: it.names.price, where: it.names.where } : null,
             colors: it.colors.map(function (n) {
                 var k = TR.logoOf(it, p, n, 'f'), L = k && logos[k];
                 return { name: n, label: L && L.code ? TR.U.codeLabel(n, L.code, pl) : TR.U.colorLabel(n, it.placement, L && L.label) };
@@ -1324,6 +1453,8 @@ var TR = {
         });
         if (!w.items.length) problems.push('There are no products on this request.');
         if (!String(w.team || '').trim()) problems.push('The request needs a team name.');
+        // Mockups and the decorator need the art, so no logo, no build.
+        if (!Object.keys(w.logos || {}).length) problems.push('Upload the team\'s logo on the Logos tab.');
         // Codes are required unless staff tick "Build without logo codes" for
         // this store, in which case colour names fall back to "w/ Full Chest Logo".
         if (!w.noCodes) TR.codeProblems().forEach(function (l) { problems.push(l + ' needs its Logo Master Folder code (Logos tab), which goes in every colour name. Or tick Build without logo codes below.'); });
@@ -1352,6 +1483,7 @@ var TR = {
             (stock.length && w.lowStockOk ? '<div class="msg warn"><b>Building with low stock:</b><br>' + stock.map(TR.esc).join('<br>') + '</div>' : '') +
             (problems.length ? '<div class="msg bad"><b>Fix these first:</b><br>' + problems.map(TR.esc).join('<br>') + '</div>' : '') +
             (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(w.logos[k].label || k); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
+            TR.approvalBoxHtml(r) +
             '<p class="sub">Creates every product as a <b>draft</b>' + (upd ? '' : ' plus an unpublished collection') + ', with a mockup per colour. Nothing is seen by customers until you press Go live below.</p>' +
             '<div style="display:flex;gap:8px;margin:12px 0"><button class="btn" type="button" id="b-plan"' + (problems.length ? ' disabled' : '') + '>Check the plan</button><button class="btn pri" type="button" id="b-go" disabled>Create drafts</button></div>' +
             '<div id="b-out"></div>' + TR.liveHtml();
@@ -1360,6 +1492,7 @@ var TR = {
         // Redraw so the code requirement appears or disappears at once.
         TR.$('b-nocodes').addEventListener('change', function () { w.noCodes = this.checked; TR.touch(); TR.paneBuild(); });
         var ls = TR.$('b-lowstock'); if (ls) ls.addEventListener('change', function () { w.lowStockOk = this.checked; TR.touch(); TR.paneBuild(); });
+        TR.wireApprovalBox(r);
         TR.$('b-plan').onclick = TR.dryRun;
         TR.$('b-go').onclick = TR.build;
         if (TR.st.plan) TR.showPlan(TR.st.plan);
@@ -1444,15 +1577,17 @@ var TR = {
         TR.$('b-out').innerHTML =
             '<table class="plan"><thead><tr><th>Product</th><th>Sizes</th><th>Colours</th><th>Price</th><th>Variants</th><th></th></tr></thead><tbody>' +
             plan.products.map(function (p) {
-                return '<tr><td><b>' + TR.esc(p.title) + '</b><br><span class="sub">' + TR.esc(p.handle) + (p.productType ? ' · ' + TR.esc(p.productType) : ' · no category') + '</span></td><td>' + TR.esc(p.sizes.join(', ')) + '</td><td>' + p.colors.map(TR.esc).join('<br>') + '</td><td>$' + TR.esc(p.price || '') + '</td><td>' + p.variants + '</td><td>' +
+                return '<tr><td><b>' + TR.esc(p.title) + '</b><br><span class="sub">' + TR.esc(p.handle) + (p.productType ? ' · ' + TR.esc(p.productType) : ' · no category') + '</span></td><td>' + TR.esc(p.sizes.join(', ')) + '</td><td>' + p.colors.map(TR.esc).join('<br>') + '</td><td>$' + TR.esc(p.price || '') + '' + (p.names ? '<br><span class="sub">' + TR.esc(p.names.add) + '<br>' + TR.esc(p.names.label) + '</span>' : '') + '</td><td>' + p.variants + '</td><td>' +
                     (p.exists ? '<span style="color:var(--warn)">Already exists, will be skipped</span>' : 'New draft') + '</td></tr>';
             }).join('') + '</tbody></table>' +
             (plan.update ? '<p>Into the existing store <b>' + TR.esc(plan.collection.title) + '</b> through its tag <b>' + TR.esc(plan.collection.tag) + '</b>.' + (plan.alreadyIn && plan.alreadyIn.length ? ' Already in the store, so skipped: ' + plan.alreadyIn.map(TR.esc).join(', ') + '.' : '') + '</p>'
                 : '<p>Collection <b>' + TR.esc(plan.collection.title) + '</b> (' + TR.esc(plan.collection.handle) + '), rule TAG = <b>' + TR.esc(plan.collection.tag) + '</b>: ' + (plan.collection.exists ? '<span style="color:var(--warn)">already exists, left alone</span>' : 'will be created, unpublished') + '.</p>') +
             '<p class="sub">' + (plan.searchable ? 'Kept in site search.' : 'Hidden from site search.') + '</p>' +
             '<p><b>' + fresh.length + '</b> new draft products, <b>' + variants + '</b> variants.</p>';
-        TR.$('b-go').disabled = !fresh.length;
-        TR.$('b-go').textContent = fresh.length ? 'Create ' + fresh.length + ' draft' + (fresh.length === 1 ? '' : 's') : 'Nothing new to create';
+        // The Worker refuses an unapproved build too; this just says so first.
+        var ok = TR.approvedForBuild(TR.st.rec).ok && !TR.st.dirty;
+        TR.$('b-go').disabled = !fresh.length || !ok;
+        TR.$('b-go').textContent = !fresh.length ? 'Nothing new to create' : !TR.approvedForBuild(TR.st.rec).ok ? 'Waiting on approval' : TR.st.dirty ? 'Save first' : 'Create ' + fresh.length + ' draft' + (fresh.length === 1 ? '' : 's');
     },
 
     // Mockup: the garment photo on white with the logo where staff put it,
@@ -1744,6 +1879,130 @@ var TR = {
     // it. The Worker merges the site's Team Stores page, the builder catalog
     // and stores built here, then looks each up in Shopify (worker/src/
     // teamreq-stores.js). Sales are the last Store sales run, not a new one.
+    // ---------- start a store yourself (2026-11-23) ----------
+    // A store staff set up themselves (a coach who phoned, more items for an
+    // existing store) starts here and becomes an ordinary request: the same
+    // Products, Logos and Build tabs, the same proof and the same create-only,
+    // draft-only Build. The Worker refuses a NEW store whose name is already
+    // a store, and reads an EXISTING one first, so this cannot make a second
+    // store for a team or add to one Build cannot reach.
+    showCreate: function (store) {
+        if (TR.st.dirty && !window.confirm('You have unsaved changes on this request. Leave them?')) return;
+        TR.st.dirty = false; TR.st.rec = null; TR.st.view = 'create';
+        history.replaceState(null, '', location.pathname);
+        TR.st.cr = { mode: store ? 'update' : 'new', store: store || null, q: '', team: '', cname: '', cemail: '', cphone: '', notes: '', busy: false, err: null, clash: null };
+        TR.st.sto = TR.st.sto || { q: '', f: 'all', sort: 'name', data: null, loading: false };
+        TR.renderList();
+        TR.renderCreate();
+        if (!TR.st.sto.data) TR.loadStores(false);
+        window.scrollTo(0, 0);
+    },
+
+    renderCreate: function () {
+        var C = TR.st.cr, el = TR.$('detail');
+        if (!C || TR.st.view !== 'create') return;
+        var me = TR.myName().trim(), esc = TR.esc;
+        var S = TR.st.sto || {}, stores = (S.data && S.data.stores) || [];
+        var canAdd = function (s) { return !s.missing && s.tags && s.tags.length; };
+        var pick = '';
+        if (C.mode === 'update') {
+            if (C.store) {
+                pick = '<div class="msg"><b>' + esc(C.store.n) + '</b> · ' + esc(C.store.h) + (C.store.tags && C.store.tags.length ? ' · tag ' + esc(C.store.tags.join(', ')) : '') +
+                    ' · ' + (C.store.products || 0) + (C.store.products === 1 ? ' product' : ' products') +
+                    ' <button type="button" class="btn" id="cr-change" style="margin-left:8px">Pick another store</button></div>';
+            } else {
+                var q = C.q.trim().toLowerCase();
+                C.hits = q ? stores.filter(function (s) { return !s.missing && (s.n + ' ' + s.h + ' ' + (s.tags || []).join(' ')).toLowerCase().indexOf(q) >= 0; }).slice(0, 12) : [];
+                pick = '<label class="f" for="cr-q">Which store?</label>' +
+                    '<input type="search" id="cr-q" placeholder="Search store name or handle" value="' + esc(C.q) + '" autocomplete="off" style="max-width:420px;width:100%">' +
+                    (!S.data ? '<p class="sub">Loading the store list...</p>' : q && !C.hits.length ? '<p class="sub">No store matches.</p>' : '') +
+                    '<div class="crhits" style="max-width:520px;margin-top:6px">' + C.hits.map(function (s, i) {
+                        var ok = canAdd(s);
+                        return '<button type="button" class="row" data-pick="' + i + '"' + (ok ? '' : ' disabled') + ' style="display:block;width:100%;text-align:left">' +
+                            '<div class="t"><span>' + esc(s.n) + '</span></div><div class="m">' + esc(s.h) + ' · ' + (s.products || 0) + ' products' +
+                            (ok ? '' : ' · hand picked, no tag rule, so products cannot be added from here') + '</div></button>';
+                    }).join('') + '</div>';
+            }
+        }
+        var field = function (id, label, val, ph, type) {
+            return '<div><label class="f" for="' + id + '">' + label + '</label><input type="' + (type || 'text') + '" id="' + id + '" value="' + esc(val) + '" placeholder="' + esc(ph || '') + '" autocomplete="off" style="width:100%"></div>';
+        };
+        // The Worker only refuses an EXACT name clash. A store called "Canton
+        // Track & Field" is still the same team as "Canton Track", so stores
+        // sharing the name's distinctive words are offered as you type.
+        var similar = '';
+        if (C.mode === 'new' && C.team.trim().length >= 3 && stores.length) {
+            // Filler only. Sport words stay: "track" is what tells Canton Track
+            // apart from Canton Tennis.
+            var STOP = { the: 1, and: 1, team: 1, store: 1, club: 1, high: 1, school: 1, girls: 1, boys: 1, womens: 1, mens: 1 };
+            var words = function (s) { return String(s).toLowerCase().replace(/&/g, ' ').split(/[^a-z0-9]+/).filter(function (x) { return x.length >= 3 && !STOP[x]; }); };
+            var mine = words(C.team);
+            if (mine.length) {
+                C.similar = stores.filter(function (s) { return !s.missing; }).map(function (s) {
+                    var theirs = words(s.n), hit = mine.filter(function (x) { return theirs.indexOf(x) >= 0; }).length;
+                    return { s: s, score: hit / mine.length };
+                }).filter(function (o) { return o.score >= 0.5; }).sort(function (a, b) { return b.score - a.score; }).slice(0, 6).map(function (o) { return o.s; });
+                if (C.similar.length) similar = '<div class="msg warn" style="max-width:720px"><b>Is it one of these?</b> Adding to an existing store keeps one store per team. ' +
+                    C.similar.map(function (s, i) { return '<button type="button" class="btn" data-sim="' + i + '" style="margin:4px 6px 0 0"' + (canAdd(s) ? '' : ' disabled title="Hand picked, no tag rule"') + '>' + esc(s.n) + ' <span class="sub">' + (s.products || 0) + '</span></button>'; }).join('') + '</div>';
+            }
+        }
+        var ready = me && (C.mode === 'new' ? C.team.trim() : C.store) && !C.busy;
+        el.innerHTML = '<div class="calhead"><h2 style="min-width:0">Start a store</h2></div>' +
+            '<p class="sub" style="max-width:720px">For a store you are setting up yourself: a coach who called or emailed, a store rebuilt from an old order, or more items for a store that is already live. ' +
+            'It becomes an ordinary request: add products, logos and prices, send the proof, then Build. Nothing is created in Shopify until Build, and Build only ever makes drafts.</p>' +
+            '<div class="chips" role="group" aria-label="What kind" style="margin:14px 0">' +
+                '<button type="button" class="chip' + (C.mode === 'new' ? ' on' : '') + '" data-cm="new">New store</button>' +
+                '<button type="button" class="chip' + (C.mode === 'update' ? ' on' : '') + '" data-cm="update">Add to an existing store</button></div>' +
+            (C.mode === 'new' ? '<div style="max-width:420px">' + field('cr-team', 'Team or store name', C.team, 'e.g. Canton Lacrosse') +
+                '<p class="sub" style="margin-top:4px">This names the store, its collection and every product ("Canton Lacrosse - Hoodie (PC78H)").</p></div>' + similar : pick) +
+            '<h3 style="margin:18px 0 6px;font-size:14px">Customer contact <span class="sub">(optional now, needed to email the proof)</span></h3>' +
+            '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-width:720px">' +
+                field('cr-cname', 'Name', C.cname, 'Coach name') + field('cr-cemail', 'Email', C.cemail, 'coach@school.org', 'email') + field('cr-cphone', 'Phone', C.cphone, '') + '</div>' +
+            '<div style="max-width:720px;margin-top:10px"><label class="f" for="cr-notes">Notes for whoever picks this up</label><textarea id="cr-notes" rows="3" style="width:100%">' + esc(C.notes) + '</textarea></div>' +
+            (me ? '<p class="sub" style="margin-top:10px">Started by <b>' + esc(me) + '</b>, and handled by you until someone else claims it.</p>'
+                : '<p class="msg warn" style="margin-top:10px">Type your name in <b>You are</b> (left) first, so the request shows who started it.</p>') +
+            (C.err ? '<p class="msg bad">' + esc(C.err) + (C.clash ? ' <button type="button" class="btn" id="cr-clash">Add to that store instead</button>' : '') + '</p>' : '') +
+            '<div style="margin-top:14px"><button type="button" class="btn pri" id="cr-go"' + (ready ? '' : ' disabled') + '>' + (C.busy ? 'Starting...' : 'Start the request') + '</button></div>';
+        TR.wireCreate();
+    },
+
+    wireCreate: function () {
+        var C = TR.st.cr, el = TR.$('detail');
+        var bind = function (id, key, rerender) {
+            var n = TR.$(id); if (!n) return;
+            n.oninput = function () {
+                C[key] = this.value;
+                if (rerender) { var pos = this.selectionStart; TR.renderCreate(); var m = TR.$(id); if (m) { m.focus(); try { m.setSelectionRange(pos, pos); } catch (e) {} } }
+                else { var go = TR.$('cr-go'); if (go) go.disabled = !(TR.myName().trim() && (C.mode === 'new' ? C.team.trim() : C.store) && !C.busy); }
+            };
+        };
+        bind('cr-team', 'team', true); bind('cr-cname', 'cname'); bind('cr-cemail', 'cemail'); bind('cr-cphone', 'cphone'); bind('cr-notes', 'notes'); bind('cr-q', 'q', true);
+        el.querySelectorAll('[data-cm]').forEach(function (b) { b.onclick = function () { C.mode = b.dataset.cm; C.err = null; C.clash = null; TR.renderCreate(); }; });
+        el.querySelectorAll('[data-pick]').forEach(function (b) { b.onclick = function () { C.store = C.hits[Number(b.dataset.pick)]; C.err = null; TR.renderCreate(); }; });
+        var ch = TR.$('cr-change'); if (ch) ch.onclick = function () { C.store = null; TR.renderCreate(); };
+        el.querySelectorAll('[data-sim]').forEach(function (b) { b.onclick = function () { C.mode = 'update'; C.store = C.similar[Number(b.dataset.sim)]; C.err = null; TR.renderCreate(); }; });
+        var cl = TR.$('cr-clash'); if (cl) cl.onclick = function () {
+            var stores = (TR.st.sto && TR.st.sto.data && TR.st.sto.data.stores) || [];
+            C.mode = 'update'; C.store = stores.find(function (s) { return s.h === C.clash; }) || null; C.q = C.store ? '' : C.clash; C.err = null; C.clash = null;
+            TR.renderCreate();
+        };
+        TR.$('cr-go').onclick = TR.create;
+    },
+
+    create: function () {
+        var C = TR.st.cr; if (!C || C.busy) return;
+        C.busy = true; C.err = null; C.clash = null; TR.renderCreate();
+        TR.api('/team-requests/create', { body: {
+            mode: C.mode, team: C.team.trim(), handle: C.store ? C.store.h : '', by: TR.myName().trim(),
+            contactName: C.cname, contactEmail: C.cemail.trim(), contactPhone: C.cphone, notes: C.notes,
+        } }).then(function (j) {
+            C.busy = false;
+            if (j.__status !== 200) { C.err = j.error || ('HTTP ' + j.__status); C.clash = j.handle || null; TR.renderCreate(); return; }
+            TR.st.cr = null; TR.st.tab = 'products';
+            TR.loadList().then(function () { TR.open(j.id); });
+        });
+    },
+
     showStores: function () {
         if (TR.st.dirty && !window.confirm('You have unsaved changes on this request. Leave them?')) return;
         TR.st.dirty = false; TR.st.rec = null; TR.st.view = 'stores';
@@ -1757,13 +2016,16 @@ var TR = {
     loadStores: function (fresh) {
         var S = TR.st.sto; if (S.loading) return;
         S.loading = true; S.err = null;
-        if (!S.data) TR.$('detail').innerHTML = '<p class="empty">Gathering every team store from the site and from Shopify. This takes a few seconds...</p>';
-        else TR.renderStores();
+        if (TR.st.view === 'stores') {
+            if (!S.data) TR.$('detail').innerHTML = '<p class="empty">Gathering every team store from the site and from Shopify. This takes a few seconds...</p>';
+            else TR.renderStores();
+        }
         TR.api('/team-requests/stores' + (fresh ? '?fresh=1' : '')).then(function (j) {
             S.loading = false;
-            if (j.__status !== 200) { S.err = j.error || ('HTTP ' + j.__status); if (!S.data) { TR.$('detail').innerHTML = '<p class="msg bad">' + TR.esc(S.err) + '</p>'; return; } }
+            if (j.__status !== 200) { S.err = j.error || ('HTTP ' + j.__status); if (!S.data) { if (TR.st.view === 'stores') TR.$('detail').innerHTML = '<p class="msg bad">' + TR.esc(S.err) + '</p>'; return; } }
             else { S.data = j; S.err = j.error || null; }
             if (TR.st.view === 'stores') TR.renderStores();
+            if (TR.st.view === 'create') TR.renderCreate();
         });
     },
 
@@ -1814,7 +2076,9 @@ var TR = {
                 var sales = s.sales && s.sales.orders ? TR.money(s.sales.revenue) + '<div class="te">' + s.sales.orders + (s.sales.orders === 1 ? ' order' : ' orders') + (s.sales.last ? ', last ' + TR.esc(TR.fmtDate(s.sales.last)) : '') + '</div>' : '<span class="sub">' + (d.salesSince ? 'None' : '') + '</span>';
                 var links = (s.missing ? '' : '<a target="_blank" rel="noopener" href="' + TR.esc(TR.STORE_URL + s.h) + '">Store</a>') +
                     (s.id ? ' · <a target="_blank" rel="noopener" href="' + TR.esc(TR.ADMIN + '/collections/' + TR.gidNum(s.id)) + '">Shopify</a>' : '') +
-                    (s.req ? ' · <a href="#' + TR.esc(s.req.id) + '" data-open="' + TR.esc(s.req.id) + '">Request</a>' : '');
+                    (s.req ? ' · <a href="#' + TR.esc(s.req.id) + '" data-open="' + TR.esc(s.req.id) + '">Request</a>' : '') +
+                    // Only a store with a TAG rule can take new products from Build.
+                    (!s.missing && s.tags && s.tags.length ? ' <button type="button" class="btn" data-addto="' + TR.esc(s.h) + '" style="margin-left:6px;padding:2px 8px">Add products</button>' : '');
                 return '<tr><td><div class="tn">' + TR.esc(s.n) + '</div><div class="te">' + TR.esc(s.h) + (s.tags && s.tags.length ? ' · tag ' + TR.esc(s.tags.join(', ')) : '') + '</div></td>' +
                     '<td>' + site + '</td><td class="opt">' + (s.missing ? '<span class="sub">-</span>' : s.products) + '</td><td class="opt">' + sales + '</td>' +
                     '<td class="opt dim">' + (s.updated ? TR.esc(TR.ago(s.updated)) : '') + '</td><td class="stolinks">' + links + '</td></tr>';
@@ -1835,6 +2099,9 @@ var TR = {
         TR.$('sto-sort').onchange = function () { S.sort = this.value; TR.renderStores(); };
         TR.$('sto-refresh').onclick = function () { TR.loadStores(true); };
         el.querySelectorAll('[data-open]').forEach(function (a) { a.onclick = function (e) { e.preventDefault(); TR.open(a.dataset.open); }; });
+        el.querySelectorAll('[data-addto]').forEach(function (b) {
+            b.onclick = function () { TR.showCreate((S.data.stores || []).find(function (s) { return s.h === b.dataset.addto; })); };
+        });
     },
 
     // ---------- placements: where a logo prints on each style ----------
@@ -2231,7 +2498,8 @@ var TR = {
             doc.setTextColor(ink[0], ink[1], ink[2]); doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
             var y = 176;
             var row = function (k, v) { doc.setTextColor(dim[0], dim[1], dim[2]); text(k, M, y); doc.setTextColor(ink[0], ink[1], ink[2]); text(v, M + 110, y); y += 18; };
-            row('Prepared for', ((q.contact && q.contact.name) || '') + ((q.contact && q.contact.email) ? '  (' + q.contact.email + ')' : ''));
+            var pc = TR.contactOf(TR.st.rec);
+            row('Prepared for', (pc.name || '') + (pc.email ? '  (' + pc.email + ')' : ''));
             row('Store opens', release ? TR.fmtDate(release) : 'To be confirmed');
             row('Products', items.length + (items.length === 1 ? ' product' : ' products') + ', ' + jobs.length + (jobs.length === 1 ? ' colour' : ' colours'));
             row('Date of proof', new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }));
@@ -2269,6 +2537,7 @@ var TR = {
                     if (it.price) bits.push('$' + Number(it.price).toFixed(2));
                     if ((it.sizes || []).length) bits.push('Sizes ' + it.sizes.join(', '));
                     bits.push('Logo: ' + (it.placement || 'as shown') + (it.second_logo ? ', plus ' + it.second_logo.toLowerCase() : ''));
+                    if (it.names && it.names.on) bits.push('Optional name on the ' + String(it.names.where).toLowerCase() + ', +$' + Number(it.names.price || 0).toFixed(2));
                     doc.splitTextToSize(bits.join('   /   '), W - 2 * M).forEach(function (l) { text(l, M, y); y += 13; });
                     y += 6;
                 };

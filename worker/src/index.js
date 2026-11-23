@@ -45,6 +45,7 @@ import { handleTrackingIngest, handleTrackingLog, handleTrackingApply, handleTra
 import { handleLateOrders, handleLateChase, handleLateChaseGet, handleOrderPrep } from './late-orders.js';
 import { handleResetOptions, handleResetCollections, handleResetScan, handleResetApply, handleResetHistory, handleResetUndo } from './inventory-reset.js';
 import { handleBuild } from './teamreq-build.js';
+import { handleCreate } from './teamreq-create.js';
 import { handleProofLink, handlePublicProof } from './teamreq-proof.js';
 import { handleSalesRun, handleSalesStatus, handleSalesFund, BUILDER_CATALOG } from './teamreq-sales.js';
 import { putFeed, getFeed, putImages, putLink, getLinks } from './feeds.js';
@@ -621,6 +622,9 @@ export default {
       '/team-requests/sales/status': { handler: teamReqRoute(handleSalesStatus), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       '/team-requests/sales/fund': { handler: teamReqRoute(handleSalesFund), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/update': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'update')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // A request started by staff, new store or more items for an existing
+      // one. Our KV plus two Shopify READS; Build stays the only write.
+      '/team-requests/create': { handler: teamReqRoute(handleCreate), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/delete': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'delete')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       '/team-requests/logo': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       // A real Shopify write: create-only, draft-only, collection unpublished.

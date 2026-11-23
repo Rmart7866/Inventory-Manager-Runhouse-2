@@ -44,7 +44,7 @@ details.more[open] summary { margin-bottom: 8px; }
 .btn.danger { color: var(--bad); }
 .btn.danger.arm, .btn.arm, .chip.arm { background: var(--bad); color: #1a0509; border-color: var(--bad); }
 .btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--ring); }
-input[type=text], input[type=number], input[type=search], input[type=password], select, textarea {
+input[type=text], input[type=number], input[type=search], input[type=password], input[type=email], select, textarea {
   background: var(--bg); border: 1px solid var(--line-2); padding: 7px 9px; min-height: 34px; }
 label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 
@@ -378,6 +378,7 @@ body.full #detail { max-width: none; }
     <button type="button" id="sales-open" data-v="sales">Store sales</button>
     <button type="button" id="place-open" data-v="place">Placements</button>
   </nav>
+  <button type="button" id="new-store" class="btn pri" style="margin-left:14px">Start a store</button>
   <span class="sp"></span>
   <a href="index.html" class="toplink">Home</a>
   <a href="inventory.html" class="toplink">Inventory tool</a>
@@ -415,6 +416,6 @@ body.full #detail { max-width: none; }
 
 <script src="catalog-client.js?v=27"></script>
 <script src="team-request-utils.js?v=5"></script>
-<script src="team-requests.js?v=21"></script>
+<script src="team-requests.js?v=22"></script>
 </body>
 </html>

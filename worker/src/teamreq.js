@@ -61,6 +61,26 @@ async function rememberCosts(env, rec) {
   if (n) await env.CATALOG.put(COSTS_KEY, JSON.stringify(cur));
 }
 
+// ---------- names on a garment (2026-11-23) --------------------------------
+// The live store already sells this on the Canton parkas: a "Personalization"
+// option, No Name or Add Name (+$15), on the "personalized" product template,
+// which shows a name box when Add Name is picked and puts the typed name on
+// the order line. The label is the product's custom.personalization_label.
+// A request item carries { on, price, where }; Build turns it into exactly
+// that shape. Each buyer types their own name at checkout; nobody collects
+// a list of names up front.
+export const NAME_PRICE = 15;
+export const NAME_WHERE = ['Left sleeve', 'Right sleeve', 'Back', 'Back neck', 'Front', 'Left leg'];
+export function cleanNames(n) {
+  if (!n || typeof n !== 'object' || !n.on) return null;
+  const price = Number(n.price);
+  return {
+    on: true,
+    price: Number.isFinite(price) && price >= 0 && price <= 100 ? Math.round(price * 100) / 100 : NAME_PRICE,
+    where: String(n.where || 'Left sleeve').trim().slice(0, 40) || 'Left sleeve',
+  };
+}
+
 // ---------- small helpers --------------------------------------------------
 
 // Bound anything a customer sends: strings, array lengths, depth. The payload
@@ -138,8 +158,26 @@ export function workFrom(req) {
       logo: logoKey(it.logo_choice && it.logo_choice.front) || 'auto',
       logo2: logoKey(it.logo_choice && it.logo_choice.second) || 'auto',
       logoBy: byColor(it.logo_choice && it.logo_choice.by_color),
+      // The customer ticked "Offer names" on the builder.
+      names: cleanNames(it.names),
     })),
   };
+}
+
+// May this request be built? The customer approved the proof and nothing they
+// saw has changed since, or staff recorded that they approved another way.
+export function approvedForBuild(rec) {
+  if (rec && rec.approval && rec.approval.state === 'approved' && !rec.approval.stale) return { ok: true, via: 'proof' };
+  const o = rec && rec.work && rec.work.approvedOther;
+  if (o && String(o.how || '').trim()) return { ok: true, via: 'staff', how: o.how, by: o.by || '' };
+  return { ok: false };
+}
+
+// Who the proof goes to: the contact staff set on the working copy, field by
+// field, else the one the customer sent.
+export function contactOf(rec) {
+  const a = (rec && rec.work && rec.work.contact) || {}, b = (rec && rec.req && rec.req.contact) || {};
+  return { name: a.name || b.name || '', email: a.email || b.email || '', phone: a.phone || b.phone || '' };
 }
 
 export function metaOf(rec) {
@@ -154,7 +192,7 @@ export function metaOf(rec) {
     n: (w.items || []).length,
     m: r.mode === 'update' ? 'update' : 'new',
     b: !!r.build_for_me,
-    e: String((r.contact && r.contact.email) || '').slice(0, 80),
+    e: String(contactOf(rec).email || '').slice(0, 80),
     x: rec.build && rec.build.at ? 1 : 0,
     // The release date staff set, for the calendar. Falls back to the
     // customer's own opening date (d) on the page, not here, so it is clear
@@ -169,6 +207,9 @@ export function metaOf(rec) {
     // The customer's answer on the proof link: approved, changes, or blank.
     // "stale" when staff changed the products after the customer answered.
     ap: rec.approval ? (rec.approval.stale ? 'stale' : rec.approval.state) : '',
+    // Started on the staff page rather than sent from the builder
+    // (teamreq-create.js), so the list can say so.
+    st: rec.source === 'staff' ? 1 : 0,
   };
 }
 
@@ -321,7 +362,7 @@ export async function listRequests(env) {
 // What the customer actually approves. Cost is left out on purpose: it is
 // ours, it is never shown to them, and changing it changes nothing they saw.
 function itemSig(it) {
-  return [it.style, it.colors, it.sizes, it.price, it.placement, it.boxes, it.logo, it.logo2, it.logoBy, it.second_logo];
+  return [it.style, it.colors, it.sizes, it.price, it.placement, it.boxes, it.logo, it.logo2, it.logoBy, it.second_logo, it.names || null];
 }
 
 export function applyPatch(rec, patch) {
@@ -352,6 +393,27 @@ export function applyPatch(rec, patch) {
     // the store was built knowing a colour was short at the supplier.
     if (typeof w.lowStockOk === 'boolean') cur.lowStockOk = w.lowStockOk;
     if (w.logos && typeof w.logos === 'object') cur.logos = w.logos;
+    // "The customer approved another way" (phone, in person, an email reply)
+    // or, for a store staff set up for ourselves, "no customer proof needed".
+    // Build requires an approval; this is the recorded alternative to the
+    // proof link, with who said so and how, never a silent bypass.
+    if ('approvedOther' in w) {
+      const a = w.approvedOther;
+      if (a && typeof a === 'object' && String(a.how || '').trim()) {
+        const prev = cur.approvedOther || {};
+        const how = String(a.how).trim().slice(0, 200), by = String(a.by || '').trim().slice(0, 60);
+        if (prev.how === how && prev.by === by) cur.approvedOther = prev;
+        else { cur.approvedOther = { how, by, at: new Date().toISOString() }; changed.push('approved another way' + (by ? ' (' + by + ')' : '') + ': ' + how); }
+      } else if (cur.approvedOther) { delete cur.approvedOther; changed.push('cleared the other-way approval'); }
+    }
+    // The contact the proof goes to, when staff set or correct it. A store
+    // started on the staff page may begin with none. The customer's own
+    // contact stays in req; this sits beside it and wins where both exist.
+    if (w.contact && typeof w.contact === 'object') {
+      const email = String(w.contact.email || '').trim().slice(0, 160);
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('That contact email does not look right');
+      cur.contact = { name: String(w.contact.name || '').trim().slice(0, 120), email, phone: String(w.contact.phone || '').trim().slice(0, 40) };
+    }
     if (Array.isArray(w.items)) {
       const before = JSON.stringify((cur.items || []).map(itemSig));
       cur.items = w.items.map((it) => ({
@@ -366,6 +428,7 @@ export function applyPatch(rec, patch) {
         logo2: String(it.logo2 || 'auto'),
         logoBy: it.logoBy && typeof it.logoBy === 'object' ? it.logoBy : {},
         cost: Number(it.cost) > 0 ? Math.round(Number(it.cost) * 100) / 100 : 0,
+        names: cleanNames(it.names),
       }));
       // An answer the customer gave is about the store they SAW. If the
       // products, colours, sizes, prices or placement change after it, the
