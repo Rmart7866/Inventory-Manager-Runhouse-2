@@ -1884,7 +1884,7 @@ var TR = {
             (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(TR.logoName(k)); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
             TR.approvalBoxHtml(r) +
             '<p class="sub">Creates every product as a <b>draft</b>' + (upd ? '' : ' plus an unpublished collection') + ', with a mockup per colour. Nothing is seen by customers until you press Go live below.</p>' +
-            '<div style="display:flex;gap:8px;margin:12px 0"><button class="btn" type="button" id="b-plan"' + (problems.length ? ' disabled' : '') + '>Check the plan</button><button class="btn pri" type="button" id="b-go" disabled>Create drafts</button></div>' +
+            '<div style="display:flex;gap:8px;margin:12px 0"><button class="btn" type="button" id="b-plan"' + (problems.length ? ' disabled' : '') + '>Preview (optional)</button><button class="btn pri" type="button" id="b-go"' + (problems.length ? ' disabled' : '') + '>Create drafts</button></div>' +
             '<div id="b-out"></div>' + TR.liveHtml();
         var bt = TR.$('b-tag'); if (bt) bt.addEventListener('input', function () { w.tag = this.value; TR.touch(); });
         TR.$('b-search').addEventListener('change', function () { w.searchable = this.checked; TR.touch(); });
@@ -1892,7 +1892,7 @@ var TR = {
         TR.$('b-nocodes').addEventListener('change', function () { w.noCodes = this.checked; TR.touch(); TR.paneBuild(); });
         var ls = TR.$('b-lowstock'); if (ls) ls.addEventListener('change', function () { w.lowStockOk = this.checked; TR.touch(); TR.paneBuild(); });
         TR.wireApprovalBox(r);
-        TR.$('b-plan').onclick = TR.dryRun;
+        TR.$('b-plan').onclick = function () { TR.dryRun(); };
         TR.$('b-go').onclick = TR.build;
         if (TR.st.plan) TR.showPlan(TR.st.plan);
         TR.wireLive();
@@ -1958,13 +1958,15 @@ var TR = {
 
     gidNum: function (gid) { return String(gid || '').split('/').pop(); },
 
-    dryRun: function () {
+    // then: run after a good plan arrives (Create drafts pressed with no plan).
+    dryRun: function (then) {
         var go = function () {
             var specs = TR.st.rec.work.items.map(TR.specFor).filter(Boolean);
             TR.$('b-out').innerHTML = '<p class="sub">Checking which handles are free...</p>';
             TR.api('/team-requests/build', { body: { id: TR.st.rec.id, dryRun: true, searchable: !!TR.st.rec.work.searchable, products: specs } }).then(function (j) {
                 if (j.__status !== 200) { TR.$('b-out').innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; return; }
                 TR.st.plan = j.plan; TR.showPlan(j.plan);
+                if (typeof then === 'function') then();
             });
         };
         if (TR.st.dirty) TR.save().then(function (ok) { if (ok) { TR.st.tab = 'build'; TR.renderDetail(); go(); } }); else go();
@@ -1983,10 +1985,10 @@ var TR = {
                 : '<p>Collection <b>' + TR.esc(plan.collection.title) + '</b> (' + TR.esc(plan.collection.handle) + '), rule TAG = <b>' + TR.esc(plan.collection.tag) + '</b>: ' + (plan.collection.exists ? '<span style="color:var(--warn)">already exists, left alone</span>' : 'will be created, unpublished') + '.</p>') +
             '<p class="sub">' + (plan.searchable ? 'Kept in site search.' : 'Hidden from site search.') + '</p>' +
             '<p><b>' + fresh.length + '</b> new draft products, <b>' + variants + '</b> variants.</p>';
-        // A proof is optional (2026-11-23); only unsaved edits hold Build back.
-        var ok = !TR.st.dirty;
-        TR.$('b-go').disabled = !fresh.length || !ok;
-        TR.$('b-go').textContent = !fresh.length ? 'Nothing new to create' : TR.st.dirty ? 'Save first' : 'Create ' + fresh.length + ' draft' + (fresh.length === 1 ? '' : 's');
+        // A proof is optional and unsaved edits are saved by the button itself
+        // (it re-plans first), so only "nothing new" holds it back.
+        TR.$('b-go').disabled = !fresh.length;
+        TR.$('b-go').textContent = !fresh.length ? 'Nothing new to create' : 'Create ' + fresh.length + ' draft' + (fresh.length === 1 ? '' : 's');
     },
 
     // Mockup: the garment photo on white with the logo where staff put it,
@@ -2052,7 +2054,17 @@ var TR = {
     },
 
     build: function () {
-        var r = TR.st.rec, plan = TR.st.plan; if (!plan || TR.st.busy) return;
+        if (TR.st.busy) return;
+        // Owner, 2026-11-23: no need to press Check the plan first. With no
+        // plan, or unsaved edits, Create drafts saves, works out the plan
+        // (which handles are free) and then builds straight on from it.
+        if (!TR.st.plan || TR.st.dirty) {
+            TR.dryRun(function () {
+                if (TR.st.plan && TR.st.plan.products.some(function (p) { return !p.exists; })) TR.build();
+            });
+            return;
+        }
+        var r = TR.st.rec, plan = TR.st.plan;
         var out = TR.$('b-out'), go = TR.$('b-go');
         var skip = {}; plan.products.forEach(function (p) { if (p.exists) skip[p.style] = 1; });
         var items = r.work.items.filter(function (it) { return TR.st.P[it.style] && !skip[it.style]; });
