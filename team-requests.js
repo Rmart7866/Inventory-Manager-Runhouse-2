@@ -313,7 +313,7 @@ var TR = {
         TR.api('/team-requests/one?id=' + encodeURIComponent(id)).then(function (rec) {
             if (rec.__status !== 200) { TR.$('detail').innerHTML = '<p class="msg bad">' + TR.esc(rec.error || 'Could not load') + '</p>'; return; }
             delete rec.__status;
-            TR.st.rec = rec; TR.st.dirty = false; TR.st.plan = null; TR.st.tab = TR.st.tab || 'products'; TR.st.view = 'detail'; TR.st.showClose = false;
+            TR.st.rec = rec; TR.st.dirty = false; TR.st.plan = null; TR.st.tab = TR.st.tab || 'products'; TR.st.view = 'detail';
             history.replaceState(null, '', '#' + id);
             TR.renderList();
             TR.$('detail').innerHTML = '<p class="empty">Loading logos...</p>';
@@ -379,10 +379,9 @@ var TR = {
                       '<input type="text" id="d-cphone" value="' + TR.esc(c.phone) + '" placeholder="Phone" style="width:120px"></div>'
                     : '<div class="who">' + TR.esc(c.name || '') + ' · <a href="mailto:' + TR.esc(c.email) + '">' + TR.esc(c.email) + '</a>' + (c.phone ? ' · ' + TR.esc(c.phone) : '') + ' · sent ' + TR.ago(r.created) + '</div>') +
                 '<div class="rel"><label for="d-rel">Release</label><input type="date" id="d-rel" value="' + TR.esc(w.release || '') + '">' +
-                    // Most stores never close, so no close date unless staff add one.
-                    (w.close || TR.st.showClose
-                        ? '<label for="d-close">Orders close</label><input type="date" id="d-close" value="' + TR.esc(w.close || '') + '">'
-                        : '<button type="button" id="d-close-add" class="btn" style="padding:2px 8px">+ Close date</button>') +
+                    // No "Orders close" date: owner, 2026-11-23, most stores never
+                    // close and nothing acted on it. A request that already has one
+                    // keeps it (the calendar still shows it); there is no field to set one.
                     '<label for="d-who">Handled by</label><input type="text" id="d-who" list="who-list" value="' + TR.esc(w.assignee || '') + '" placeholder="Name" style="width:130px">' +
                     '<datalist id="who-list">' + TR.names().map(function (n) { return '<option value="' + TR.esc(n) + '">'; }).join('') + '</datalist></div>' +
                 (q.date ? '<div class="sub" style="margin-top:6px">Customer asked for ' + TR.esc(TR.fmtDate(q.date)) + (w.release ? '' : ', shown on the calendar until you set a release date') + '.</div>' : '') +
@@ -406,8 +405,6 @@ var TR = {
 
         TR.$('d-team').addEventListener('input', function () { w.team = this.value; TR.touch(); });
         TR.$('d-rel').addEventListener('change', function () { w.release = this.value; TR.touch(); });
-        var dc = TR.$('d-close'); if (dc) dc.addEventListener('change', function () { w.close = this.value; TR.touch(); });
-        var dca = TR.$('d-close-add'); if (dca) dca.onclick = function () { TR.st.showClose = true; TR.renderDetail(); var n = TR.$('d-close'); if (n) n.focus(); };
         TR.$('d-who').addEventListener('input', function () { w.assignee = this.value; TR.touch(); });
         if (staff) [['d-cname', 'name'], ['d-cemail', 'email'], ['d-cphone', 'phone']].forEach(function (p) {
             TR.$(p[0]).addEventListener('input', function () { w.contact = Object.assign({}, TR.contactOf(r), w.contact || {}); w.contact[p[1]] = this.value; TR.touch(); });
