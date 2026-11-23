@@ -1067,7 +1067,7 @@ var TR = {
                     var known = TR.hasColor(p, n), c = known ? p.c[TR.colorIdx(p, n)] : null, st = TR.stockState(it, p, n);
                     return '<button type="button" class="chip on' + (known ? '' : ' unk') + (st.cls ? ' ' + st.cls : '') + '" data-col="' + TR.esc(n) + '" title="' + TR.esc((known ? '' : 'Not a colour of this product. ') + st.title + 'Click to remove') + '"><i style="background:' + (c ? c[5] : 'transparent') + '"></i>' + TR.esc(n) + ' ×</button>';
                 }).join('') + '<button type="button" class="chip" data-more="1">+ colour</button></div><div class="stockline" id="stock-' + i + '">' + TR.stockHtml(it, p) + '</div><div class="allcols hidden" id="allcols-' + i + '"></div></div>' +
-            '</div></div>' +
+            '</div>' +
             '<div class="sec"><h4>Sizes and price</h4><div class="grid">' +
                 '<div><label class="f" for="sz-' + i + '">Sizes</label><input type="text" id="sz-' + i + '" value="' + TR.esc(it.sizes.join(', ')) + '" style="width:100%"></div>' +
                 '<div><label class="f" for="pr-' + i + '">Price</label><input type="number" min="0" step="0.01" id="pr-' + i + '" value="' + (it.price || '') + '" style="width:100%"></div>' +
