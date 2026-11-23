@@ -1983,6 +1983,11 @@ to the contact form email only if that save fails. Staff work them in
   rest, uploaded with `tools/shopify-files.mjs`; logo boxes copied from PC450
   (checked by drawing them on PC55); $25 like the other Port & Co tees.
   Python on this Mac cannot verify SSL, so fetch with curl, not urllib.
+  Later the same day DT6102 ($45), DT665 ($45) and ST450LS ($30), prices from
+  a store sheet: `trh-builder-catalog-0d9c4b534f.json`, 165 styles, is now the
+  staff file. Logo spots come from the closest style, CHECKED BY DRAWING THEM
+  on the new photos (ST870's spots missed District's framing; DT6100's fit).
+  The staff "Add a product" search ignores punctuation and symbols.
 - **Build needs an approval (2026-11-23)**: the proof approval (not stale),
   or `work.approvedOther = { how, by, at }` recorded on the Build tab and
   logged. `approvedForBuild` in teamreq.js; the Worker refuses a non-dry

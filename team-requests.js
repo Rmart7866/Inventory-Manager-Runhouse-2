@@ -1324,10 +1324,15 @@ var TR = {
         q.addEventListener('input', function () {
             var s = this.value.trim().toLowerCase();
             if (s.length < 2) { res.classList.add('hidden'); return; }
+            // Letters and digits only on both sides, so "pack n go" finds
+            // "Pack-N-Go®" and "posicharge" finds "PosiCharge®". Every word
+            // typed must appear; order does not matter.
+            var flat = function (t) { return String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); };
+            var words = flat(s).split(' ').filter(Boolean);
             var hits = [];
             Object.keys(TR.st.P).forEach(function (k) {
-                var p = TR.st.P[k];
-                if ((p.n + ' ' + p.s + ' ' + TR.st.CAT[k]).toLowerCase().indexOf(s) >= 0) hits.push(p);
+                var p = TR.st.P[k], hay = flat(p.n + ' ' + p.s + ' ' + TR.st.CAT[k]), tight = hay.replace(/ /g, '');
+                if (words.every(function (w) { return hay.indexOf(w) >= 0 || tight.indexOf(w) >= 0; }) || tight.indexOf(words.join('')) >= 0) hits.push(p);
             });
             hits.sort(function (a, b) { return (b.u || 0) - (a.u || 0); });
             res.innerHTML = hits.slice(0, 14).map(function (p) {
