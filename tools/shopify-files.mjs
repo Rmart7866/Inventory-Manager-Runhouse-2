@@ -35,7 +35,7 @@ export async function gql(query, variables) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function uploadFile(file, mimeType) {
+export async function uploadFile(file, mimeType, alt) {
   const filename = path.basename(file), buf = fs.readFileSync(file);
   const isImage = /^image\//.test(mimeType);
   const st = await gql(`mutation($i:[StagedUploadInput!]!){ stagedUploadsCreate(input:$i){ stagedTargets{ url resourceUrl parameters{ name value } } userErrors{ message } } }`,
@@ -48,7 +48,10 @@ export async function uploadFile(file, mimeType) {
   const up = await fetch(target.url, { method: 'POST', body: fd });
   if (!up.ok) throw new Error('upload HTTP ' + up.status);
   const fc = await gql(`mutation($f:[FileCreateInput!]!){ fileCreate(files:$f){ files{ id fileStatus } userErrors{ field message } } }`,
-    { f: [{ originalSource: target.resourceUrl, contentType: isImage ? 'IMAGE' : 'FILE', filename }] });
+    { f: [{ originalSource: target.resourceUrl, contentType: isImage ? 'IMAGE' : 'FILE', filename,
+      // Images carry alt text (owner, 2026-11-23): the caller's, else the
+      // file name made readable ("sbb-dt665-deep-royal.jpg" -> "dt665 deep royal").
+      ...(isImage ? { alt: alt || filename.replace(/\.[a-z0-9]+$/i, '').replace(/^sbb-/, '').replace(/[-_]+/g, ' ').trim() } : {}) }] });
   const c = fc.data && fc.data.fileCreate;
   if (!c || c.userErrors.length || !c.files.length) throw new Error('fileCreate: ' + JSON.stringify(fc.errors || (c && c.userErrors)));
   const id = c.files[0].id;

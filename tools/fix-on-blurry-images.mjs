@@ -92,7 +92,7 @@ do {
   const d = await gql(`query($c:String){ products(first:250, after:$c, query:"vendor:'On Running' OR vendor:'ON Running'"){
     pageInfo{hasNextPage endCursor}
     nodes{ id handle title
-      media(first:20){ nodes{ ... on MediaImage { id image{ url width height } } } } } } }`, { c: after });
+      media(first:20){ nodes{ ... on MediaImage { id alt image{ url width height } } } } } } }`, { c: after });
   all = all.concat(d.products.nodes);
   after = d.products.pageInfo.hasNextPage ? d.products.pageInfo.endCursor : null;
 } while (after);
@@ -106,7 +106,7 @@ for (const p of all) {
     const file = m.image.url.split('/').pop().split('?')[0];
     const base = index.get(file);
     if (!base) { skipped.push(p.handle + '  ' + m.image.width + 'px  ' + file); continue; }
-    jobs.push({ productId: p.id, handle: p.handle, oldMediaId: m.id,
+    jobs.push({ productId: p.id, handle: p.handle, title: p.title, alt: m.alt, oldMediaId: m.id,
       was: m.image.width + 'x' + m.image.height, src: base + WANT, file });
   }
 }
@@ -136,7 +136,7 @@ let done = 0, failed = 0;
 for (const j of jobs) {
   try {
     const c = await gql(CREATE, { productId: j.productId,
-      media: [{ originalSource: j.src, mediaContentType: 'IMAGE', alt: j.handle }] });
+      media: [{ originalSource: j.src, mediaContentType: 'IMAGE', alt: j.alt || j.title }] });
     const errs = c.productCreateMedia.mediaUserErrors || [];
     if (errs.length) { failed++; console.log('  create FAILED ' + j.handle + ' ' + JSON.stringify(errs).slice(0, 180)); continue; }
     const newId = c.productCreateMedia.media[0].id;

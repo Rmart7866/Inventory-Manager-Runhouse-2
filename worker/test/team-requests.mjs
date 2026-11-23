@@ -483,5 +483,22 @@ console.log('\nStarted by staff (2026-11-23)');
   check('the pure record trims the names', pure.work.team === 'Foxboro Hockey' && pure.req.staff.by === 'Dana' && pure.log.length === 1);
 }
 
+console.log('\nEvery image carries alt text (2026-11-23)');
+{
+  const { buildProductSetInput } = await import('../src/products.js');
+  const inp = buildProductSetInput({ title: 'Hoka Clifton 10 Black', handle: 'h', productType: "Men's Shoes", variants: [], files: [{ originalSource: 'https://x/a.png' }, { originalSource: 'https://x/b.png', alt: 'Back view' }, { originalSource: 'https://x/c.png', alt: '   ' }] }, 'gid://shopify/Location/1', {});
+  check('an image sent with no alt gets the product title', inp.files[0].alt === 'Hoka Clifton 10 Black');
+  check('an alt that was sent is kept', inp.files[1].alt === 'Back view');
+  check('a blank alt is not kept', inp.files[2].alt === 'Hoka Clifton 10 Black');
+  const plan = planProduct('Zz Team', 'zz-team', { style: 'PC78H', name: 'Hoodie', category: 'Hoodies', sizes: ['S'], price: 45, colors: [{ name: 'Maroon', image: 'https://cdn.shopify.com/m.png', back: 'https://cdn.shopify.com/mb.png' }] });
+  const alts = productSetInputFor(plan, { searchable: true }).files.map((f) => f.alt);
+  check('team store mockups each say product and colour, front and back', alts.length === 2 && alts.every((a) => a && /Maroon/.test(a)) && /back/.test(alts[1]), JSON.stringify(alts));
+  const { addProductMedia } = await import('../src/product-edit.js');
+  let sent = null;
+  const client = { graphql: async (q, v) => { if (/product\(id/.test(q)) return { data: { product: { title: 'Brooks Ghost 17' } } }; sent = v; return { data: { productCreateMedia: { mediaUserErrors: [] } } }; } };
+  await addProductMedia(client, { id: 'gid://shopify/Product/1', originalSource: 'https://x/d.png' });
+  check('adding a photo with no alt to an existing product uses its title', !!sent && sent.media[0].alt === 'Brooks Ghost 17');
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

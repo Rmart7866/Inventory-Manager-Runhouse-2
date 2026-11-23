@@ -243,7 +243,10 @@ export function buildProductSetInput(spec, needhamLocationId, locationIds) {
     input.files = spec.files.map((f) => ({
       originalSource: f.originalSource,
       contentType: f.contentType || 'IMAGE',
-      alt: f.alt || '',
+      // Every image carries alt text (owner, 2026-11-23): what the page
+      // sent, else the product title. A blank alt is what the 3,467 image
+      // backfill of 2026-10-30 had to repair.
+      alt: String(f.alt || '').trim() || String(spec.title || ''),
     }));
   }
   return input;

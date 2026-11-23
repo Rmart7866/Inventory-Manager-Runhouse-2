@@ -102,7 +102,13 @@ mutation($id: ID!, $media: [CreateMediaInput!]!) {
 // photos, so it is safe: a wrong add can be deleted in admin, nothing is lost.
 export async function addProductMedia(client, { id, originalSource, alt }) {
   if (!id || !originalSource) return { ok: false, errors: ['missing id or originalSource'] };
-  const media = [{ originalSource: String(originalSource), mediaContentType: 'IMAGE', alt: alt ? String(alt) : '' }];
+  // Never a blank alt (owner, 2026-11-23): with none sent, the product title.
+  let text = String(alt || '').trim();
+  if (!text) {
+    const t = await client.graphql(`query($id: ID!) { product(id: $id) { title } }`, { id });
+    text = (t.data && t.data.product && t.data.product.title) || '';
+  }
+  const media = [{ originalSource: String(originalSource), mediaContentType: 'IMAGE', alt: text }];
   const r = await client.graphql(CREATE_MEDIA, { id, media });
   const ue = (r.data && r.data.productCreateMedia && r.data.productCreateMedia.mediaUserErrors) || [];
   return { ok: ue.length === 0, errors: ue.map((e) => e.message) };
