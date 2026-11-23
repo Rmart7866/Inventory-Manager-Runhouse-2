@@ -179,7 +179,12 @@ label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4
 .ctab .own { width: 7px; height: 7px; background: #ffb547; display: inline-block; }
 /* Every colour of a product at once, under the tabs. */
 .cstrip { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
-.cst { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 4px; border: 1px solid var(--line-2); }
+.cst { display: flex; flex-direction: column; gap: 4px; padding: 4px; border: 1px solid var(--line-2); }
+.cst .cpick { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.cst.ismain { border-color: #3fd28b; }
+.cst .cmain { display: flex; gap: 4px; align-items: center; font-size: 11px; color: var(--muted); }
+.cst .mbtn { border: 1px solid var(--line-2); background: none; padding: 1px 6px; font-size: 11px; cursor: pointer; }
+.cst .mbtn.on { background: #3fd28b; border-color: #3fd28b; color: #06101f; font-weight: 700; }
 .cst.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .cst .cpics { display: flex; gap: 3px; }
 .cst .cpics .mk { width: 78px; }
@@ -467,6 +472,6 @@ body.full #detail { max-width: none; }
 
 <script src="catalog-client.js?v=27"></script>
 <script src="team-request-utils.js?v=9"></script>
-<script src="team-requests.js?v=33"></script>
+<script src="team-requests.js?v=34"></script>
 </body>
 </html>

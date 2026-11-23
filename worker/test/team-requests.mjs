@@ -397,6 +397,19 @@ console.log('\nRevert to the customer\'s request (2026-11-23)');
   check('a style the customer never asked for cannot be reverted', r.status === 400);
 }
 
+console.log('\nThe main photo (2026-11-23)');
+{
+  const spec = { style: 'PC78H', name: 'Hoodie', category: 'Hoodies', sizes: ['S'], price: 45,
+    colors: [{ name: 'Maroon', image: 'https://cdn.shopify.com/m-front.png', back: 'https://cdn.shopify.com/m-back.png' }, { name: 'Grey', image: 'https://cdn.shopify.com/g-front.png', back: 'https://cdn.shopify.com/g-back.png' }] };
+  const order = (s) => productSetInputFor(planProduct('T', 't', s), { searchable: true }).files.map((f) => f.originalSource.split('/').pop()).join(',');
+  check('no pick: the first colour\'s front leads, as before', order(spec) === 'm-front.png,m-back.png,g-front.png,g-back.png');
+  check('a picked colour\'s front leads, nothing lost or doubled', order({ ...spec, main: { color: 'Grey' } }) === 'g-front.png,m-front.png,m-back.png,g-back.png');
+  check('a picked back leads', order({ ...spec, main: { color: 'Grey', back: true } }) === 'g-back.png,m-front.png,m-back.png,g-front.png');
+  check('a pick for a colour no longer on the product is ignored', order({ ...spec, main: { color: 'Purple' } }) === 'm-front.png,m-back.png,g-front.png,g-back.png');
+  const opts = productSetInputFor(planProduct('T', 't', { ...spec, main: { color: 'Grey' } }), { searchable: true }).productOptions[0].values.map((v) => v.name).join(',');
+  check('the colour order customers pick from does not change', opts === 'Maroon,Grey');
+}
+
 console.log('\nPer colour settings survive a real save (2026-11-23)');
 // Through the handler, so clean()'s depth cap is in the path. The first
 // version of names.boxBy was nested one level too deep and every save

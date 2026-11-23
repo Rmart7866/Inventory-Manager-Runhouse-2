@@ -503,6 +503,8 @@ export function applyPatch(rec, patch) {
         logoBy: it.logoBy && typeof it.logoBy === 'object' ? it.logoBy : {},
         cost: Number(it.cost) > 0 ? Math.round(Number(it.cost) * 100) / 100 : 0,
         names: cleanNames(it.names),
+        // The picture Build puts first, the product's main photo.
+        main: it.main && typeof it.main === 'object' && it.main.color ? { color: String(it.main.color).slice(0, 80), back: !!it.main.back } : null,
       }));
       // An answer the customer gave is about the store they SAW. If the
       // products, colours, sizes, prices or placement change after it, the

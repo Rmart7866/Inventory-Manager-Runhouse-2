@@ -1119,12 +1119,28 @@ var TR = {
     // colors"). A small front, and back when something prints there, per
     // colour, each with everything that colour carries; click to edit it.
     colorStripHtml: function (it, p) {
-        if (it.colors.length < 2) return '';
-        var sel = TR.selColor(it);
-        return '<div class="cstrip">' + it.colors.filter(function (n) { return TR.hasColor(p, n); }).map(function (n) {
-            return '<button type="button" class="cst' + (sel === n ? ' on' : '') + '" data-ctab="' + TR.esc(n) + '" title="Edit ' + TR.esc(n) + '">' +
-                '<span class="cpics">' + TR.frontOf(it, p, n) + (TR.backHtml(it, p, n) || '') + '</span><span class="cname">' + TR.esc(n) + (TR.colorOwn(it, n) ? ' <i class="own"></i>' : '') + '</span></button>';
+        var cols = it.colors.filter(function (n) { return TR.hasColor(p, n); });
+        if (!cols.length) return '';
+        var sel = TR.selColor(it), many = cols.length > 1, main = TR.mainOf(it, p);
+        return '<div class="cstrip">' + cols.map(function (n) {
+            var back = TR.hasBack(it, p, n);
+            var btn = function (isBack, label) {
+                var on = main.color === n && !!main.back === isBack;
+                return '<button type="button" class="mbtn' + (on ? ' on' : '') + '" data-main="' + TR.esc(n) + '" data-mback="' + (isBack ? 1 : 0) + '"' + (on ? ' aria-pressed="true"' : '') + '>' + label + '</button>';
+            };
+            return '<div class="cst' + (sel === n ? ' on' : '') + (main.color === n ? ' ismain' : '') + '">' +
+                (many ? '<button type="button" class="cpick" data-ctab="' + TR.esc(n) + '" title="Edit ' + TR.esc(n) + '">' : '<div class="cpick">') +
+                '<span class="cpics">' + TR.frontOf(it, p, n) + (TR.backHtml(it, p, n) || '') + '</span><span class="cname">' + TR.esc(n) + (TR.colorOwn(it, n) ? ' <i class="own"></i>' : '') + '</span>' +
+                (many ? '</button>' : '</div>') +
+                '<div class="cmain"><span>Main photo</span>' + btn(false, 'Front') + (back ? btn(true, 'Back') : '') + '</div></div>';
         }).join('') + '</div>';
+    },
+    // The picture Build puts first: staff's pick while it still exists, else
+    // the first colour's front, which is what Shopify would show anyway.
+    mainOf: function (it, p) {
+        var m = it.main;
+        if (m && it.colors.indexOf(m.color) >= 0 && (!m.back || TR.hasBack(it, p, m.color))) return { color: m.color, back: !!m.back };
+        return { color: it.colors[0], back: false };
     },
     colorTabsHtml: function (it, i) {
         if (it.colors.length < 2) return '';
@@ -1259,6 +1275,9 @@ var TR = {
             b.onclick = function () { TR.st.cardColor = TR.st.cardColor || {}; TR.st.cardColor[it.style] = b.dataset.ctab || null; TR.paneProducts(); };
         });
         var cs = TR.$('csame-' + i); if (cs) cs.onclick = function () { TR.clearColor(it, TR.selColor(it)); TR.touch(); TR.paneProducts(); };
+        card.querySelectorAll('[data-main]').forEach(function (b) {
+            b.onclick = function () { it.main = { color: b.dataset.main, back: b.dataset.mback === '1' }; TR.touch(); TR.paneProducts(); };
+        });
         var l2 = TR.$('l2-' + i);
         if (l2) l2.addEventListener('change', function () { it.second_logo = this.value; TR.touch(); TR.paneProducts(); });
         card.querySelector('[data-place]').onclick = function () { TR.openPlacement(i); };
@@ -1785,6 +1804,7 @@ var TR = {
         return {
             style: p.s, name: p.n, category: cat, sizes: it.sizes || TR.U.sizesFor(p, cat), price: it.price,
             names: it.names && it.names.on ? { on: true, price: it.names.price, where: it.names.where } : null,
+            main: it.colors.length ? TR.mainOf(it, p) : null,
             colors: it.colors.map(function (n) {
                 var k = TR.logoOf(it, p, n, 'f'), L = k && logos[k];
                 return { name: n, label: L && L.code ? TR.U.codeLabel(n, L.code, pl) : TR.U.colorLabel(n, it.placement, L && L.label) };

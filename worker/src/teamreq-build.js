@@ -99,7 +99,8 @@ export function planProduct(team, tag, spec) {
   const productType = typeFor(spec.category);
   const price = Number(spec.price) > 0 ? Number(spec.price).toFixed(2) : null;
   const names = namesPlan(spec.names);
-  return { style: spec.style, title, handle, productType, sizes, colors, price, tag, names, variants: sizes.length * colors.length * (names ? 2 : 1) };
+  const main = spec.main && spec.main.color ? { color: String(spec.main.color), back: !!spec.main.back } : null;
+  return { style: spec.style, title, handle, productType, sizes, colors, price, tag, names, main, variants: sizes.length * colors.length * (names ? 2 : 1) };
 }
 
 // NAMES, the same shape as the live Canton parkas so the "personalized"
@@ -127,6 +128,15 @@ export function productSetInputFor(plan, opts = {}) {
   const addFile = (url, alt) => {
     if (url && !fileFor[url]) { fileFor[url] = { originalSource: url, alt, contentType: 'IMAGE' }; files.push(fileFor[url]); }
   };
+  // THE MAIN PHOTO (owner, 2026-11-23): the store shows a product's FIRST
+  // picture as its main photo, so the one staff picked ("Make main" on the
+  // staff page) goes first; the rest keep their order. Without a pick, or if
+  // the picked colour or its back is not there, it is the first colour's front.
+  const pick = plan.main && plan.colors.find((c) => c.name === plan.main.color);
+  if (pick) {
+    if (plan.main.back && pick.back) addFile(pick.back, plan.title + ' in ' + pick.name + ', back');
+    else addFile(pick.image, plan.title + ' in ' + pick.name);
+  }
   // Each colour's mockup, front then back, in that order.
   for (const c of plan.colors) {
     addFile(c.image, plan.title + ' in ' + c.name);
