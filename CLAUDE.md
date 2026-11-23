@@ -1974,6 +1974,15 @@ to the contact form email only if that save fails. Staff work them in
   Name" / "Add Name (+$15)" (the template tests `indexOf('Add ') === 0`),
   `templateSuffix: 'personalized'`, label in `custom.personalization_label`.
   Each buyer types their own name at checkout. Variants double.
+- **PC55 added to the builder catalog (2026-11-23), STAFF SIDE ONLY.** New
+  file `trh-builder-catalog-3668f17189.json` (162 styles), read by
+  `team-request-utils.js` (staff page and proof). The customer builder's
+  snippet still loads `...be7a99fd83.json` (161). 32 of PC55's 50 colours: the
+  other 18 (Navy, White, Red, Charcoal, Athletic Heather...) have no flat
+  photo at SanMar. Photos trimmed to the garment and scaled to 420px like the
+  rest, uploaded with `tools/shopify-files.mjs`; logo boxes copied from PC450
+  (checked by drawing them on PC55); $25 like the other Port & Co tees.
+  Python on this Mac cannot verify SSL, so fetch with curl, not urllib.
 - **Build needs an approval (2026-11-23)**: the proof approval (not stale),
   or `work.approvedOther = { how, by, at }` recorded on the Build tab and
   logged. `approvedForBuild` in teamreq.js; the Worker refuses a non-dry

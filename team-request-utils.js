@@ -10,7 +10,7 @@
 var TeamReqUtils = {
     // The builder's catalog, the same file the storefront page loads. If the
     // builder's CURL constant moves to a new hashed filename, move this too.
-    CATALOG_URL: 'https://cdn.shopify.com/s/files/1/0631/6877/4399/files/trh-builder-catalog-be7a99fd83.json',
+    CATALOG_URL: 'https://cdn.shopify.com/s/files/1/0631/6877/4399/files/trh-builder-catalog-3668f17189.json',
     CDN: { '~': 'https://cdn.shopify.com/s/files/1/0631/6877/4399/files/', '^': 'https://cdnm.sanmar.com/swatch/gifs/', '`': 'https://www.charlesriverapparel.com/prodimg/swatch/' },
 
     LADDER: ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL'],
@@ -157,7 +157,11 @@ var TeamReqUtils = {
 
     supplierColor: function (sup, name) {
         if (!sup || !sup.alias || !sup.colors) return null;
-        var c = sup.alias[this.colorKey(name)];
+        // SanMar abbreviates heather as "Hthr" in some names and files ("Dark
+        // Hthr Grey") where our catalog spells it out, so that spelling is
+        // tried second. It only ever adds a match, never changes one.
+        var k = this.colorKey(name);
+        var c = sup.alias[k] || sup.alias[k.replace(/heather/g, 'hthr')];
         return c && sup.colors[c] ? sup.colors[c] : null;
     },
 
