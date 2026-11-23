@@ -368,6 +368,7 @@ var TR = {
         if (String(it.placement || '') !== String(o.placement || '')) d.push('logo spot');
         if (String(it.second_logo || '') !== String(o.second_logo || '')) d.push('second logo');
         if (it.boxes && Object.keys(it.boxes).length) d.push('logo moved');
+        if (it.boxes2 && Object.keys(it.boxes2).length) d.push('second logo moved');
         var on = !!(it.names && it.names.on), was = !!(o.names && o.names.on);
         if (on !== was || (on && (it.names.where !== (o.names.where || 'Left sleeve')))) d.push('names');
         if (p && it.sizes && !same(it.sizes, TR.U.sizesFor(p, TR.st.CAT[p.s]))) d.push('sizes');
@@ -1060,6 +1061,7 @@ var TR = {
             TR.origLineHtml(it, i) +
             (p.loc && Object.keys(p.loc).length ? '<div class="bar"><span class="where">Second logo</span><select id="l2-' + i + '" aria-label="Second logo location"><option value="">None</option>' +
                 Object.keys(p.loc).map(function (k) { return '<option' + (k === it.second_logo ? ' selected' : '') + '>' + TR.esc(k) + '</option>'; }).join('') + '</select>' +
+                (it.second_logo ? '<button class="btn" type="button" data-place2="' + i + '">Move</button>' : '') +
                 (it.second_logo && slots.length > 1 ? TR.logoSelect('lx-' + i, it.logo2, 'Second logo') : '') +
                 '<span class="sub">+$3 per item, not repriced automatically</span></div>' : '') +
             TR.namesHtml(it, i) +
@@ -1097,10 +1099,19 @@ var TR = {
         var p = TR.$('nmp-' + i); if (p) p.oninput = function () { it.names.price = Math.max(0, Number(this.value) || 0); TR.touch(); };
     },
 
+    // A logo is called by its Logo Master Folder code (owner, 2026-11-23):
+    // "D055", not "Main logo" or "logo2". Until it has one, "Logo 1",
+    // "Logo 2"... in upload order, so it is still clear which is which.
+    logoName: function (k) {
+        var logos = (TR.st.rec && TR.st.rec.work && TR.st.rec.work.logos) || {}, L = logos[k];
+        if (L && L.code) return String(L.code).toUpperCase();
+        var i = Object.keys(logos).indexOf(k);
+        return 'Logo ' + (i >= 0 ? i + 1 : '?');
+    },
     logoSelect: function (id, value, label) {
         var logos = TR.st.rec.work.logos || {};
         return '<select id="' + id + '" aria-label="' + label + '"><option value="auto"' + (!value || value === 'auto' ? ' selected' : '') + '>' + label + ': auto, best on each colour</option>' +
-            Object.keys(logos).map(function (k) { return '<option value="' + k + '"' + (k === value ? ' selected' : '') + '>' + label + ': ' + TR.esc(logos[k].label || k) + '</option>'; }).join('') + '</select>';
+            Object.keys(logos).map(function (k) { return '<option value="' + k + '"' + (k === value ? ' selected' : '') + '>' + label + ': ' + TR.esc(TR.logoName(k)) + '</option>'; }).join('') + '</select>';
     },
 
     // The price check. The builder adds the team's fundraising percentage on
@@ -1166,6 +1177,7 @@ var TR = {
         var l2 = TR.$('l2-' + i);
         if (l2) l2.addEventListener('change', function () { it.second_logo = this.value; TR.touch(); TR.paneProducts(); });
         card.querySelector('[data-place]').onclick = function () { TR.openPlacement(i); };
+        var mp2 = card.querySelector('[data-place2]'); if (mp2) mp2.onclick = function () { TR.openPlacement2(i); };
     },
 
     // ---------- starter sets (the back office runbook, step 2) ----------
@@ -1312,6 +1324,55 @@ var TR = {
         });
     },
 
+    // MOVE THE SECOND LOGO (owner, 2026-11-23: "I can't move the back logo").
+    // The same drag box as Move logo, on the photo the second logo prints on:
+    // the back photo for back and back neck, the front for a sleeve. Saved as
+    // item.boxes2 for every colour of this product; Style default clears it.
+    openPlacement2: function (i) {
+        var it = TR.st.rec.work.items[i], p = TR.st.P[it.style];
+        var colors = it.colors.length ? it.colors : [p.c[0][0]];
+        var l2 = TR.loc2(it, p); if (!l2) return;
+        var pe = { i: i, color: colors[0], box: TR.box5(l2.box || [0.3, 0.1, 0.4, 0.32]), side: l2.side };
+        TR.st.pe2 = pe;
+        var el = TR.$('pe');
+        el.classList.remove('hidden');
+        var photo = function () {
+            var c = p.c[TR.colorIdx(p, pe.color)] || p.c[0];
+            return pe.side === 'b' ? (c[6] || c[2]) : c[2];
+        };
+        var draw = function () {
+            var stage = TR.$('pe-stage');
+            var src = TR.logoUrl(TR.logoOf(it, p, pe.color, 'x'));
+            stage.innerHTML = '<span class="mk"><img class="g" crossorigin="anonymous" alt="" src="' + TR.esc(photo()) + '">' + TR.lbHtml(pe.box, src, 'pe-lb') + '</span>';
+            TR.$('pe-read').textContent = 'Left ' + Math.round(pe.box[0] * 100) + '%, top ' + Math.round(pe.box[1] * 100) + '%, ' + Math.round(pe.box[2] * 100) + '% wide' + (pe.box[4] ? ', tilted ' + pe.box[4] + ' degrees' : '');
+            TR.wireBoxEditor({ stage: stage, id: 'pe-lb', get: function () { return pe.box; }, set: function (b) { pe.box = b; }, moved: function () {}, redraw: draw, tilt: TR.$('pe-tilt') });
+        };
+        el.innerHTML = '<div class="box"><div class="stage" id="pe-stage"></div><div class="side">' +
+            '<h3 id="pe-h">Move the ' + TR.esc(String(it.second_logo).toLowerCase()) + ' logo</h3><p>' + TR.esc(p.n) + '. Drag to move, drag the blue corner to resize. Applies to every colour of this product.</p>' +
+            '<label class="f">Preview colour</label><div class="chips" id="pe-cols">' + colors.map(function (n) {
+                var c = p.c[TR.colorIdx(p, n)];
+                return '<button type="button" class="chip' + (n === pe.color ? ' on' : '') + '" data-c="' + TR.esc(n) + '"><i style="background:' + (c ? c[5] : '#888') + '"></i>' + TR.esc(n) + '</button>';
+            }).join('') + '</div>' +
+            '<label class="f" style="margin-top:12px" for="pe-tilt">Tilt</label><input type="range" id="pe-tilt" min="-45" max="45" step="1" value="' + pe.box[4] + '" style="width:100%">' +
+            '<div class="readout" id="pe-read"></div>' +
+            '<div class="row2"><button class="btn" type="button" id="pe-reset">Style default</button></div>' +
+            '<div class="row2"><button class="btn" type="button" id="pe-cancel">Cancel</button><button class="btn pri" type="button" id="pe-save">Use this placement</button></div></div></div>';
+        draw();
+        TR.$('pe-cols').querySelectorAll('button').forEach(function (b) {
+            b.onclick = function () { pe.color = b.dataset.c; TR.$('pe-cols').querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); }); draw(); };
+        });
+        TR.$('pe-tilt').oninput = function () { pe.box[4] = Number(this.value) || 0; draw(); };
+        // Back to the style's own spot for this product: clear and close.
+        TR.$('pe-reset').onclick = function () { it.boxes2 = {}; TR.st.pe2 = null; TR.closePlacement(); TR.touch(); TR.paneProducts(); };
+        TR.$('pe-cancel').onclick = function () { TR.st.pe2 = null; TR.closePlacement(); };
+        TR.$('pe-save').onclick = function () {
+            var b = pe.box.slice(0, 4).map(function (v) { return Math.round(v * 10000) / 10000; });
+            if (pe.box[4]) b.push(pe.box[4]);
+            it.boxes2 = { '*': b };
+            TR.st.pe2 = null; TR.closePlacement(); TR.touch(); TR.paneProducts();
+        };
+    },
+
     // Every box carries a tilt in degrees as its fifth number, 0 if level.
     box5: function (b) { var o = (b || []).slice(0, 5); o[4] = Number(o[4]) || 0; return o; },
 
@@ -1403,7 +1464,7 @@ var TR = {
         pane.innerHTML = bnHtml + (slots.length ? '<div class="logos">' + slots.map(function (k) {
             var L = w.logos[k];
             return '<div class="logo" data-k="' + k + '"><div class="checker" id="lg-pv-' + k + '"><span>Loading</span></div>' +
-                '<b>' + TR.esc(L.label || k) + '</b><div class="sub">' + TR.esc(L.name || (L.url ? L.url.split('/').pop().split('?')[0] : '')) + ' · ' + (L.from === 'staff' ? 'replaced by staff' : 'from the customer') + '</div>' +
+                '<b>' + TR.esc(TR.logoName(k)) + '</b>' + (L.code ? '' : ' <span class="sub">add its code below</span>') + '<div class="sub">' + TR.esc(L.name || (L.url ? L.url.split('/').pop().split('?')[0] : '')) + ' · ' + (L.from === 'staff' ? 'replaced by staff' : 'from the customer') + '</div>' +
                 '<div id="lg-warn-' + k + '"></div>' +
                 (TR.st.L && TR.st.L[k] && TR.st.L[k].cleaned ? '<p class="sub" style="margin:4px 0">White background removed automatically for the mockups.</p>' : '') +
                 '<label class="f" for="cd-' + k + '" style="margin-top:8px">Logo Master Folder code</label><input type="text" id="cd-' + k + '" data-code="' + k + '" value="' + TR.esc(L.code || '') + '" placeholder="e.g. D055" style="width:120px;text-transform:uppercase">' +
@@ -1466,7 +1527,7 @@ var TR = {
         if (!slots.length) return TR.logoDropHtml();
         return '<div class="logostrip" data-drop="1">' + slots.map(function (k) {
                 var u = TR.logoUrl(k);
-                return '<span class="lgthumb" title="' + TR.esc((w.logos[k].label || k) + (w.logos[k].code ? ' · ' + w.logos[k].code : '')) + '">' + (u ? '<img alt="" src="' + TR.esc(u) + '">' : '<i>' + TR.esc((w.logos[k].label || k).slice(0, 8)) + '</i>') + '</span>';
+                return '<span class="lgwrap"><span class="lgthumb">' + (u ? '<img alt="" src="' + TR.esc(u) + '">' : '<i>file</i>') + '</span><small>' + TR.esc(TR.logoName(k)) + '</small></span>';
             }).join('') +
             '<label class="btn" style="display:inline-flex;align-items:center">+ Upload logo<input type="file" accept="' + TR.LOGO_ACCEPT + '" data-up="__new" class="hidden"></label>' +
             '<button type="button" class="btn quiet" id="to-logos">Codes and print files</button></div>';
@@ -1495,7 +1556,7 @@ var TR = {
         var keys = Object.keys(need);
         if (!keys.length) { msg.textContent = 'No product uses a logo yet.'; return; }
         var noCode = keys.filter(function (k) { return !logos[k].code; }), noImg = keys.filter(function (k) { return !TR.st.L[k]; });
-        if (noCode.length) { msg.textContent = 'Give ' + noCode.map(function (k) { return logos[k].label || k; }).join(', ') + ' a code first.'; return; }
+        if (noCode.length) { msg.textContent = 'Give ' + noCode.map(function (k) { return TR.logoName(k); }).join(', ') + ' a code first.'; return; }
         btn.disabled = true; msg.textContent = 'Making files...';
         var load = window.JSZip ? Promise.resolve() : new Promise(function (res, rej) { var sc = document.createElement('script'); sc.src = TR.JSZIP; sc.onload = res; sc.onerror = function () { rej(new Error('Could not load the zip library')); }; document.head.appendChild(sc); });
         load.then(function () {
@@ -1600,7 +1661,7 @@ var TR = {
                 if (TR.loc2(it, p)) { var x = TR.logoOf(it, p, n, 'x'); if (x) need[x] = 1; }
             });
         });
-        return Object.keys(need).filter(function (k) { return logos[k] && !logos[k].code; }).map(function (k) { return logos[k].label || k; });
+        return Object.keys(need).filter(function (k) { return logos[k] && !logos[k].code; }).map(function (k) { return TR.logoName(k); });
     },
 
     paneBuild: function () {
@@ -1648,7 +1709,7 @@ var TR = {
             (stock.length || w.lowStockOk ? '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="b-lowstock"' + (w.lowStockOk ? ' checked' : '') + '> Build with low-stock colours</label>' : '') +
             (stock.length && w.lowStockOk ? '<div class="msg warn"><b>Building with low stock:</b><br>' + stock.map(TR.esc).join('<br>') + '</div>' : '') +
             (problems.length ? '<div class="msg bad"><b>Fix these first:</b><br>' + problems.map(TR.esc).join('<br>') + '</div>' : '') +
-            (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(w.logos[k].label || k); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
+            (undrawable.length ? '<div class="msg warn">Logo ' + undrawable.map(function (k) { return TR.esc(TR.logoName(k)); }).join(', ') + ' is a PDF or AI file, so mockups made with it show the garment without the logo. Replace it with a PNG on the Logos tab for full mockups.</div>' : '') +
             TR.approvalBoxHtml(r) +
             '<p class="sub">Creates every product as a <b>draft</b>' + (upd ? '' : ' plus an unpublished collection') + ', with a mockup per colour. Nothing is seen by customers until you press Go live below.</p>' +
             '<div style="display:flex;gap:8px;margin:12px 0"><button class="btn" type="button" id="b-plan"' + (problems.length ? ' disabled' : '') + '>Check the plan</button><button class="btn pri" type="button" id="b-go" disabled>Create drafts</button></div>' +

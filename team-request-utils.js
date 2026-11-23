@@ -196,9 +196,12 @@ var TeamReqUtils = {
     loc2: function (item, p, tpl) {
         var name = item && item.second_logo, l = name && p && p.loc && p.loc[name];
         if (!l) return null;
-        // A box staff changed on the Placements tab beats the catalog's.
+        // Most specific first: this store moved it ("Move" on the second
+        // logo row, item.boxes2), then a box staff changed for the style on
+        // the Placements tab, then the catalog's.
         var z = { 'Back': 'bk', 'Back neck': 'bn', 'Sleeve': 'sl' }[name];
-        var box = z && tpl && tpl[z] ? tpl[z] : l[1];
+        var own = item.boxes2 && item.boxes2['*'];
+        var box = own || (z && tpl && tpl[z] ? tpl[z] : l[1]);
         return { name: name, side: l[0], box: box };
     },
 

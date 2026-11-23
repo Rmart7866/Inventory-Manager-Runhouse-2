@@ -362,7 +362,7 @@ export async function listRequests(env) {
 // What the customer actually approves. Cost is left out on purpose: it is
 // ours, it is never shown to them, and changing it changes nothing they saw.
 function itemSig(it) {
-  return [it.style, it.colors, it.sizes, it.price, it.placement, it.boxes, it.logo, it.logo2, it.logoBy, it.second_logo, it.names || null];
+  return [it.style, it.colors, it.sizes, it.price, it.placement, it.boxes, it.logo, it.logo2, it.logoBy, it.second_logo, it.names || null, it.boxes2 && Object.keys(it.boxes2).length ? it.boxes2 : null];
 }
 
 // REVERT TO THE CUSTOMER'S REQUEST (owner, 2026-11-23). The customer's
@@ -469,6 +469,8 @@ export function applyPatch(rec, patch) {
         price: Number(it.price) || 0,
         sizes: Array.isArray(it.sizes) ? it.sizes.map(String).filter(Boolean) : null,
         boxes: it.boxes && typeof it.boxes === 'object' ? it.boxes : {},
+        // Where this store moved its SECOND logo (back, back neck, sleeve).
+        boxes2: it.boxes2 && typeof it.boxes2 === 'object' ? it.boxes2 : {},
         logo: String(it.logo || 'auto'),
         logo2: String(it.logo2 || 'auto'),
         logoBy: it.logoBy && typeof it.logoBy === 'object' ? it.logoBy : {},

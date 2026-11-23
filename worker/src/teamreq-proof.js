@@ -70,7 +70,7 @@ export function proofView(rec) {
     logos,
     items: (w.items || []).map((it) => ({
       style: it.style, colors: it.colors, sizes: it.sizes, price: it.price,
-      placement: it.placement, boxes: it.boxes, logo: it.logo, logo2: it.logo2, logoBy: it.logoBy,
+      placement: it.placement, boxes: it.boxes, boxes2: it.boxes2, logo: it.logo, logo2: it.logo2, logoBy: it.logoBy,
       second_logo: it.second_logo,
       // Offered names: what each buyer pays extra and where it prints.
       names: it.names && it.names.on ? { price: it.names.price, where: it.names.where } : null,
