@@ -84,6 +84,9 @@ export function cleanNames(n) {
   // to the spot it was dragged for (boxWhere), so choosing another spot
   // starts from that spot's default instead of a box meant for the sleeve.
   if (/^#[0-9a-f]{6}$/i.test(String(n.color || ''))) out.color = String(n.color).toLowerCase();
+  // The example name the staff preview shows ("NAME" unless staff type one).
+  const sample = String(n.sample || '').replace(/[^\p{L}\p{N} .'&-]/gu, '').trim().slice(0, 20);
+  if (sample) out.sample = sample;
   if (okBox(n.box)) { out.box = n.box.map((v) => Math.round(v * 10000) / 10000); out.boxWhere = String(n.boxWhere || out.where).slice(0, 40); }
   return out;
 }

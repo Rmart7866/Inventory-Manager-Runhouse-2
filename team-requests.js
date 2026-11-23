@@ -922,6 +922,8 @@ var TR = {
         var n = it.names && it.names.on ? it.names : null; if (!n) return null;
         var spot = TR.nameSpotDefault(it, p, colorName, n);
         spot.color = n.color || '#ffffff';
+        // NAME unless staff typed a sample (owner, 2026-11-23: not SMITH on everything).
+        spot.text = String(n.sample || 'NAME').toUpperCase();
         // Where staff dragged it ("Move name"), for the spot it was dragged for.
         if (n.box && n.boxWhere === n.where) spot.box = n.box;
         return spot;
@@ -963,7 +965,7 @@ var TR = {
         var b = spot.box, tall = b[3] > b[2] * 1.4;
         var st = 'left:' + (b[0] * 100) + '%;top:' + (b[1] * 100) + '%;width:' + (b[2] * 100) + '%;height:' + (b[3] * 100) + '%';
         // Back names print in Winner Bold, all caps (owner, 2026-11-23).
-        var html = '<span class="nmlb' + (tall ? ' tall' : '') + (spot.side === 'b' ? ' winner' : '') + '" style="' + st + ';color:' + TR.esc(spot.color || '#ffffff') + '" title="Example name, ' + TR.esc(String(spot.where).toLowerCase()) + '"><i>SMITH</i></span>';
+        var html = '<span class="nmlb' + (tall ? ' tall' : '') + (spot.side === 'b' ? ' winner' : '') + '" style="' + st + ';color:' + TR.esc(spot.color || '#ffffff') + '" title="Example name, ' + TR.esc(String(spot.where).toLowerCase()) + '"><i>' + TR.esc(spot.text || 'NAME') + '</i></span>';
         // A narrow spot is hard to find on a thumbnail, so an arrow tag points at it.
         if (b[2] < 0.14) {
             var right = b[0] + b[2] / 2 > 0.5, cy = (b[1] + b[3] / 2) * 100;
@@ -1099,6 +1101,7 @@ var TR = {
             (n ? '<select id="nmw-' + i + '" aria-label="Where the name prints">' + TR.NAME_WHERE.concat(TR.NAME_WHERE.indexOf(n.where) < 0 ? [n.where] : []).map(function (w) {
                     return '<option' + (w === n.where ? ' selected' : '') + '>' + TR.esc(w) + '</option>'; }).join('') + '</select>' +
                 '<label class="sub" style="display:flex;gap:4px;align-items:center">+$<input type="number" min="0" step="0.01" id="nmp-' + i + '" value="' + n.price + '" style="width:64px" aria-label="Extra for a name"></label>' +
+                '<input type="text" id="nms-' + i + '" value="' + TR.esc(n.sample || '') + '" placeholder="Sample: NAME" maxlength="20" style="width:120px;text-transform:uppercase" aria-label="Sample name for the preview">' +
                 '<button class="btn" type="button" id="nmm-' + i + '">Move name</button>' +
                 // Colour: white by default; white and black one click away, any other from the picker.
                 '<span class="nmcols" role="group" aria-label="Name colour">' + [['#ffffff', 'White'], ['#111111', 'Black']].map(function (c) {
@@ -1111,6 +1114,8 @@ var TR = {
         var w = TR.$('nmw-' + i); if (w) w.onchange = function () { it.names.where = this.value; TR.touch(); TR.paneProducts(); };
         var p = TR.$('nmp-' + i); if (p) p.oninput = function () { it.names.price = Math.max(0, Number(this.value) || 0); TR.touch(); };
         var mv = TR.$('nmm-' + i); if (mv) mv.onclick = function () { TR.openNameMove(i); };
+        var sm = TR.$('nms-' + i);
+        if (sm) sm.onchange = function () { it.names.sample = this.value.trim(); if (!it.names.sample) delete it.names.sample; TR.touch(); TR.paneProducts(); };
         var setColor = function (c) { it.names.color = c; TR.touch(); TR.paneProducts(); };
         var bar = box.closest('.bar');
         bar.querySelectorAll('[data-nmc]').forEach(function (b) { b.onclick = function () { setColor(b.dataset.nmc); }; });
@@ -1410,10 +1415,10 @@ var TR = {
             var html = pe.side === 'b' ? TR.backHtml(it, p, pe.color) : TR.frontOf(it, p, pe.color);
             if (!html) html = '<span class="mk"><img class="g" alt="" src="' + TR.esc(pe.side === 'b' ? (c[6] || c[2]) : c[2]) + '"></span>';
             // The saved name comes out of the reference picture; the editable one replaces it.
-            html = html.replace(/<span class="nmlb[^"]*"[^>]*><i>SMITH<\/i><\/span>/, '').replace(/<span class="nmcall"[^>]*>[^<]*<\/span>/, '');
+            html = html.replace(/<span class="nmlb[^"]*"[^>]*><i>[^<]*<\/i><\/span>/, '').replace(/<span class="nmcall"[^>]*>[^<]*<\/span>/, '');
             var b = pe.box, tall = b[3] > b[2] * 1.4;
             var st = 'left:' + (b[0] * 100) + '%;top:' + (b[1] * 100) + '%;width:' + (b[2] * 100) + '%;height:' + (b[3] * 100) + '%';
-            stage.innerHTML = html.replace(/<\/span>$/, '<div class="lb nmbox' + (tall ? ' tall' : '') + (pe.side === 'b' ? ' winner' : '') + '" id="pe-lb" style="' + st + '"><i style="color:' + TR.esc(n.color || '#ffffff') + '">SMITH</i><div class="h" id="pe-lb-h"></div></div></span>');
+            stage.innerHTML = html.replace(/<\/span>$/, '<div class="lb nmbox' + (tall ? ' tall' : '') + (pe.side === 'b' ? ' winner' : '') + '" id="pe-lb" style="' + st + '"><i style="color:' + TR.esc(n.color || '#ffffff') + '">' + TR.esc(String(n.sample || 'NAME').toUpperCase()) + '</i><div class="h" id="pe-lb-h"></div></div></span>');
             readout();
             TR.wireBoxEditor({ stage: stage, id: 'pe-lb', get: function () { return pe.box; }, set: function (x) { pe.box = x; }, moved: readout, redraw: draw });
         };
