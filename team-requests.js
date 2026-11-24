@@ -1671,11 +1671,33 @@ var TR = {
             TR.api('/team-requests/logo', { method: 'POST', form: fd }).then(function (j) {
                 if (j.__status !== 200) { TR.flash(j.error || ('Upload failed, HTTP ' + j.__status), 'bad'); return; }
                 TR.st.rec = j.rec; TR.st.dirty = false;
-                TR.prepLogos().then(function () { TR.renderDetail(); TR.flash('Logo uploaded.', 'ok'); });
+                // The Logo Master Folder code, read off the file name (owner,
+                // 2026-11-24): "canton volleyball (C081).png" or "B128 LC adult.png".
+                // It is what Build puts in every colour name, so a logo picked
+                // from Drive arrives ready to build.
+                var code = TR.codeFromName(f.name), L = TR.st.rec.work.logos && TR.st.rec.work.logos[slot];
+                TR.prepLogos().then(function () {
+                    if (code && L && L.code !== code) {
+                        L.code = code; TR.st.dirty = true;
+                        TR.save().then(function (ok) { if (ok) TR.flash('Logo uploaded. Its code ' + code + ' was read from the file name.', 'ok'); });
+                    } else { TR.renderDetail(); TR.flash('Logo uploaded.' + (code ? '' : ' Add its Logo Master Folder code on the Logos tab.'), 'ok'); }
+                });
             });
         };
         // Unsaved edits are saved first, so the upload cannot lose them.
         if (TR.st.dirty) TR.save().then(function (ok) { if (ok) go(); }); else go();
+    },
+    // A logo code is one letter and three digits (A042, B030, C081, D055):
+    // in brackets anywhere in the name, else as the first word. Two letters are
+    // a garment style (PC55), never a logo code, so they are not taken.
+    CODE_IN_BRACKETS: new RegExp('[(]\\s*([A-Za-z][0-9]{3})\\s*[)]', 'g'),
+    CODE_FIRST: new RegExp('^([A-Za-z][0-9]{3})(?![0-9A-Za-z])'),
+    codeFromName: function (name) {
+        var n = String(name || ''), m, last = null;
+        TR.CODE_IN_BRACKETS.lastIndex = 0;
+        while ((m = TR.CODE_IN_BRACKETS.exec(n))) last = m[1];
+        if (!last) { m = TR.CODE_FIRST.exec(n.trim()); if (m) last = m[1]; }
+        return last ? last.toUpperCase() : '';
     },
     // A file input marked data-up="<slot>" or a drop zone marked data-drop.
     wireUploads: function (root) {
