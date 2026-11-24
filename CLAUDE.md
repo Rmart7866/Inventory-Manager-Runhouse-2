@@ -2002,6 +2002,11 @@ to the contact form email only if that save fails. Staff work them in
   spots checked on them); SanMar has no PC55 flat in those colours. Safety
   Green and Safety Orange stay out: PC54 has no such colour and its Neon
   shades would show the wrong one. `trh-builder-catalog-ed71939f2e.json`.
+  **EVERY COLOUR, OWNER RULE (2026-11-24):** a style goes in with every
+  colour SanMar sells. A colour with no flat borrows the same garment's flat
+  in another cut (PC55/PC54/PC55Y), under the style's own name and stock,
+  shape checked; never a different shade. PC55 has all 50, PC55Y 26 of 27
+  (Pale Pink: no photo anywhere). `trh-builder-catalog-e283e915af.json`.
   2026-11-24: the ASICS Rival II Singlet, men's TF3085 and women's TF2934,
   $35, Black / Navy / Royal / White, from the store's own base listing
   photos: `trh-builder-catalog-38bdc7eb3d.json`, 167 styles. Front logos only
