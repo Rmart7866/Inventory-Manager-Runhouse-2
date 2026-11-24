@@ -2115,7 +2115,7 @@ var TR = {
             TR.approvalBoxHtml(r) +
             '<p class="sub">Creates every product as a <b>draft</b>' + (upd ? '' : ' plus an unpublished collection') + ', with a mockup per colour. Nothing is seen by customers until you press Go live below.</p>' +
             '<div style="display:flex;gap:8px;margin:12px 0"><button class="btn" type="button" id="b-plan"' + (problems.length ? ' disabled' : '') + '>Preview (optional)</button><button class="btn pri" type="button" id="b-go"' + (problems.length ? ' disabled' : '') + '>Create drafts</button></div>' +
-            '<div id="b-out"></div>' + TR.liveHtml();
+            '<div id="b-out"></div>' + TR.updHtml() + TR.liveHtml();
         var bt = TR.$('b-tag'); if (bt) bt.addEventListener('input', function () { w.tag = this.value; TR.touch(); });
         TR.$('b-search').addEventListener('change', function () { w.searchable = this.checked; TR.touch(); });
         // Redraw so the code requirement appears or disappears at once.
@@ -2125,6 +2125,7 @@ var TR = {
         TR.$('b-plan').onclick = function () { TR.dryRun(); };
         TR.$('b-go').onclick = TR.build;
         if (TR.st.plan) TR.showPlan(TR.st.plan);
+        TR.wireUpd();
         TR.wireLive();
     },
 
@@ -2387,6 +2388,111 @@ var TR = {
             say('Stopped: ' + e.message + '. Nothing after this step ran.');
             status.className = 'msg bad';
             TR.$('b-plan').disabled = false;
+        });
+    },
+
+    // ---------- change products this page built (2026-11-24) ----------
+    // Owner: "make it so we can change existing products like colours". Only
+    // products this page built, matched by the Worker; Check changes shows
+    // exactly what each one gains and loses, and Update writes it, keeping
+    // the product's URL, title, live status, tags and existing variants.
+    builtItems: function () {
+        var r = TR.st.rec, built = (r.build && r.build.products) || [];
+        var styles = {}; built.forEach(function (b) { styles[String(b.style).toUpperCase()] = 1; });
+        return (r.work.items || []).filter(function (it) { return TR.st.P[it.style] && styles[String(it.style).toUpperCase()]; });
+    },
+    updHtml: function () {
+        var r = TR.st.rec, built = (r.build && r.build.products) || [];
+        if (!built.length) return '';
+        return '<h3 style="margin:26px 0 6px;font-size:16px">Change built products</h3>' +
+            '<p class="sub" style="max-width:720px">Edit colours, sizes, price or names on the Products tab, then check what that changes on the ' + built.length + ' product' + (built.length === 1 ? '' : 's') + ' already in Shopify. A colour or size taken off is deleted from the product; a live product stays live.</p>' +
+            '<div style="display:flex;gap:8px;margin:10px 0"><button class="btn" type="button" id="u-check">Check changes</button><button class="btn pri" type="button" id="u-go" disabled>Update in Shopify</button></div><div id="u-out"></div>';
+    },
+    wireUpd: function () {
+        var c = TR.$('u-check'), g = TR.$('u-go'); if (!c) return;
+        c.onclick = function () { TR.updCheck(); };
+        g.onclick = function () { TR.updGo(); };
+    },
+    updRows: function (results) {
+        var line = function (d) {
+            var bits = [];
+            if (d.colorsAdded.length) bits.push('<b style="color:var(--ok, #3fd28b)">+ ' + d.colorsAdded.map(TR.esc).join(', ') + '</b>');
+            if (d.colorsRemoved.length) bits.push('<b style="color:var(--bad, #ff6b6b)">removes ' + d.colorsRemoved.map(TR.esc).join(', ') + '</b>');
+            if (d.sizesAdded.length) bits.push('sizes + ' + d.sizesAdded.map(TR.esc).join(', '));
+            if (d.sizesRemoved.length) bits.push('<span style="color:var(--bad, #ff6b6b)">sizes removed ' + d.sizesRemoved.map(TR.esc).join(', ') + '</span>');
+            if (d.repriced) bits.push(d.repriced + ' price' + (d.repriced === 1 ? '' : 's') + ' changed');
+            if (d.namesOn !== d.namesWere) bits.push(d.namesOn ? 'names added' : 'names removed');
+            return bits.length ? bits.join(' · ') : '<span class="sub">no change</span>';
+        };
+        return '<table class="plan"><tbody>' + results.map(function (x) {
+            return '<tr><td><b>' + TR.esc(x.title || x.style) + '</b>' + (x.status ? '<br><span class="sub">' + TR.esc(x.status === 'ACTIVE' ? 'Live' : x.status === 'DRAFT' ? 'Draft' : x.status) + '</span>' : '') + '</td><td>' +
+                (x.skipped ? '<span class="sub">' + TR.esc(x.reason) + '</span>' : x.errors ? '<span style="color:var(--bad)">' + TR.esc(x.errors.join('; ')) + '</span>' : line(x.diff) + (x.ok ? ' <span style="color:var(--ok, #3fd28b)">Updated</span>' : '')) +
+                (x.id ? ' <a target="_blank" rel="noopener" href="' + TR.ADMIN + '/products/' + TR.gidNum(x.id) + '">Open</a>' : '') + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    },
+    updCheck: function () {
+        var out = TR.$('u-out'), go = TR.$('u-go'), items = TR.builtItems();
+        if (!items.length) { out.innerHTML = '<p class="sub">None of the products on the Products tab were built by this page yet.</p>'; return; }
+        var run = function () {
+            TR.$('u-out').innerHTML = '<p class="sub">Comparing with Shopify...</p>';
+            TR.api('/team-requests/update-products', { body: { id: TR.st.rec.id, dryRun: true, searchable: !!TR.st.rec.work.searchable, products: items.map(TR.specFor) } }).then(function (j) {
+                var o = TR.$('u-out'), g = TR.$('u-go'); if (!o) return;
+                if (j.__status !== 200) { o.innerHTML = '<p class="msg bad">' + TR.esc(j.error || ('HTTP ' + j.__status)) + '</p>'; return; }
+                TR.st.upd = j.results;
+                var changes = j.results.filter(function (x) { var d = x.diff; return d && (d.variantsAdded || d.variantsRemoved || d.repriced || d.namesOn !== d.namesWere); });
+                o.innerHTML = TR.updRows(j.results);
+                g.disabled = !changes.length;
+                g.textContent = changes.length ? 'Update ' + changes.length + ' product' + (changes.length === 1 ? '' : 's') + ' in Shopify' : 'Nothing to update';
+            });
+        };
+        if (TR.st.dirty) TR.save().then(function (ok) { if (ok) { TR.st.tab = 'build'; TR.renderDetail(); run(); } }); else run();
+    },
+    updGo: function () {
+        var r = TR.st.rec, res = TR.st.upd || [];
+        var want = {}; res.forEach(function (x) { var d = x.diff; if (d && (d.variantsAdded || d.variantsRemoved || d.repriced || d.namesOn !== d.namesWere)) want[String(x.style).toUpperCase()] = 1; });
+        var items = TR.builtItems().filter(function (it) { return want[String(it.style).toUpperCase()]; });
+        if (!items.length || TR.st.busy) return;
+        var removing = res.filter(function (x) { return x.diff && (x.diff.colorsRemoved.length || x.diff.sizesRemoved.length) && x.status === 'ACTIVE'; });
+        if (removing.length && !window.confirm('This deletes colours or sizes from ' + removing.length + ' LIVE product' + (removing.length === 1 ? '' : 's') + ' in Shopify. Shoppers will no longer see them. Go ahead?')) return;
+        var out = TR.$('u-out'), go = TR.$('u-go');
+        TR.st.busy = true; go.disabled = true; TR.$('u-check').disabled = true;
+        var status = document.createElement('p'); status.className = 'msg warn'; out.prepend(status);
+        var say = function (t) { status.textContent = t; };
+        // Fresh mockups for every colour, so a new colour has its photo and the
+        // gallery matches what the product now offers. The same path as Build.
+        var jobs = [];
+        items.forEach(function (it) {
+            var p = TR.st.P[it.style];
+            it.colors.forEach(function (n) { jobs.push({ it: it, color: n }); if (TR.hasBack(it, p, n)) jobs.push({ it: it, color: n, back: true }); });
+        });
+        var blobs = [], done = 0, chain = Promise.resolve();
+        jobs.forEach(function (j) { chain = chain.then(function () { return TR.mockup(j.it, j.color, j.back); }).then(function (b) { blobs.push(b); done++; say('Drawing mockups ' + done + ' of ' + jobs.length + '...'); }); });
+        chain.then(function () {
+            say('Uploading ' + blobs.length + ' images to Shopify...');
+            var files = jobs.map(function (j, k) { return { filename: j.it.style + '-' + String(j.color).replace(/[^a-z0-9]+/gi, '-') + (j.back ? '-back' : '') + '-u' + k + '.png', mimeType: 'image/png', fileSize: blobs[k].size }; });
+            return CatalogClient.stagedUploads(files).then(function (sj) {
+                if (sj.__status !== 200 || !sj.targets || sj.targets.length !== files.length) throw new Error(sj.error || sj.reason || ('Could not get upload targets, HTTP ' + sj.__status));
+                var urls = [], c2 = Promise.resolve(), up = 0;
+                sj.targets.forEach(function (t, k) { c2 = c2.then(function () { return CatalogClient.uploadToTarget(t, new File([blobs[k]], files[k].filename, { type: 'image/png' })); }).then(function (u) { urls[k] = u; up++; say('Uploading images ' + up + ' of ' + files.length + '...'); }); });
+                return c2.then(function () { return urls; });
+            });
+        }).then(function (urls) {
+            say('Updating the products in Shopify...');
+            var img = {}; jobs.forEach(function (j, k) { img[j.it.style + '|' + j.color + (j.back ? '|b' : '')] = urls[k]; });
+            var specs = items.map(function (it) { var s = TR.specFor(it); s.colors.forEach(function (c) { c.image = img[it.style + '|' + c.name] || null; c.back = img[it.style + '|' + c.name + '|b'] || null; }); return s; });
+            return TR.api('/team-requests/update-products', { body: { id: r.id, dryRun: false, searchable: !!r.work.searchable, products: specs } });
+        }).then(function (j) {
+            TR.st.busy = false;
+            if (j.__status !== 200) throw new Error(j.error || ('HTTP ' + j.__status));
+            if (j.rec) TR.st.rec = j.rec;
+            var ok = j.results.filter(function (x) { return x.ok; }).length;
+            TR.renderDetail();
+            TR.$('u-out').innerHTML = '<div class="msg ' + (ok === j.results.length ? 'ok' : 'warn') + '">Updated ' + ok + ' of ' + j.results.length + ' in Shopify.</div>' + TR.updRows(j.results);
+        }).catch(function (e) {
+            TR.st.busy = false;
+            say('Stopped: ' + e.message + '. Nothing after this step ran.');
+            status.className = 'msg bad';
+            var c = TR.$('u-check'); if (c) c.disabled = false;
         });
     },
 

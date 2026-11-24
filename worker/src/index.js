@@ -37,6 +37,7 @@ import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from '.
 import { handleIntake, handleStaff, handlePublicPlacements, intakeCors } from './teamreq.js';
 import { handleSupplier, handlePhoto, handleStockPublic, refreshAvailability } from './sanmar.js';
 import { handleDrive } from './teamreq-drive.js';
+import { handleUpdateProducts } from './teamreq-update.js';
 import { handleStores } from './teamreq-stores.js';
 import { handleOrderLookup } from './orders-lookup.js';
 import { writeSizeCoverage, handleSizes } from './size-coverage.js';
@@ -632,6 +633,8 @@ export default {
       '/team-requests/logo': { handler: teamReqRoute((r, e) => handleStaff(r, e, 'logo')), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       // A real Shopify write: create-only, draft-only, collection unpublished.
       '/team-requests/build': { handler: teamReqRoute(handleBuild), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
+      // Change products this page built (colours, sizes, price, names, photos). Dry run by default.
+      '/team-requests/update-products': { handler: teamReqRoute(handleUpdateProducts), forWrite: true, needsWriteSecret: true, methods: ['POST'] },
       // Publishes ONE store: only this request's own drafts, draft to active,
       // after staff confirm the customer approved. See teamreq-live.js.
       '/team-requests/golive': { handler: teamReqRoute(handleGoLive), forWrite: true, needsWriteSecret: true, methods: ['POST'] },

@@ -2020,6 +2020,15 @@ to the contact form email only if that save fails. Staff work them in
   with "Leave out the Facebook and Google feeds" as the opt-out. A product
   added to a store after it went live used to be on NO channel (PC78H,
   Blessed Sacrement Basketball). The collection waits for Go live.
+- **Products this page BUILT can be changed afterwards (owner, 2026-11-24).**
+  Build tab, "Change built products": Check changes (dry run, per product:
+  colours and sizes added or removed, prices, names) then Update in Shopify
+  (`POST /team-requests/update-products`, `teamreq-update.js`). Only products
+  in `rec.build.products`, matched by handle or a unique style; never one made
+  by hand or another tool. Keeps URL, title, status (live stays live), tags,
+  channels and every surviving variant's ID; a colour or size taken off is
+  DELETED (owner's choice over hiding); photos are fresh mockups. Live
+  removals ask to confirm. Build itself stays create-only.
 - **Build is create-only, draft-only, and fails CLOSED.** If the handle check
   errors, nothing is built (Stage 4 fails open; a team store is dozens of
   products). The collection is a smart one, TAG equals the team tag, unpublished.

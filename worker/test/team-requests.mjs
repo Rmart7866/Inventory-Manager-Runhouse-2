@@ -553,5 +553,55 @@ console.log('\nFrom Drive (2026-11-24)');
   globalThis.fetch = realFetch;
 }
 
+console.log('\nUpdate products this page built (2026-11-24)');
+{
+  const { diffProduct, updateInputFor } = await import('../src/teamreq-update.js');
+  // The product as Shopify has it: live, Maroon in S and M, $45.
+  const cur = { id: 'gid://shopify/Product/77', title: 'Zz Team - Hoodie (PC78H)', handle: 'zz-team-hoodie-pc78h', status: 'ACTIVE', tags: ['zz-team', 'staff-added'],
+    variants: { nodes: [
+      { id: 'gid://shopify/ProductVariant/1', price: '45.00', selectedOptions: [{ name: 'Color', value: 'Maroon' }, { name: 'Size', value: 'Small' }] },
+      { id: 'gid://shopify/ProductVariant/2', price: '45.00', selectedOptions: [{ name: 'Color', value: 'Maroon' }, { name: 'Size', value: 'Medium' }] },
+    ] } };
+  // Now: Maroon and Navy, Small only, $50.
+  const spec = { style: 'PC78H', name: 'Hoodie', category: 'Hoodies', sizes: ['S'], price: 50, colors: [{ name: 'Maroon' }, { name: 'Navy' }] };
+  const plan = planProduct('Zz Team', 'zz-team', spec);
+  const input = updateInputFor(plan, cur, { searchable: true });
+  check('an update keeps the product, its URL, title, LIVE status and tags', input.id === cur.id && input.handle === cur.handle && input.title === cur.title && input.status === 'ACTIVE' && input.tags.includes('staff-added'));
+  check('a variant that still exists keeps its ID', input.variants.find((v) => v.optionValues[0].name === 'Maroon').id === 'gid://shopify/ProductVariant/1');
+  check('a new colour gets new variants, no ID', !input.variants.find((v) => v.optionValues[0].name === 'Navy').id);
+  check('with no new mockups the photos are left alone', !('files' in input));
+  const d = diffProduct(cur, input);
+  check('the change is reported: Navy added, Medium removed, 1 repriced', d.colorsAdded.join() === 'Navy' && d.sizesRemoved.join() === 'Medium' && d.variantsAdded === 1 && d.variantsRemoved === 1 && d.repriced === 1, JSON.stringify(d));
+
+  // Through the real route: build first (Shopify mocked), then update.
+  let sets = [];
+  globalThis.fetch = async (u, init = {}) => {
+    if (String(u).includes('/oauth/access_token')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { headers: { 'Content-Type': 'application/json' } });
+    const b = JSON.parse(init.body || '{}'), q = b.query || '';
+    if (/productSet/.test(q)) { sets.push(b.variables.input); return new Response(JSON.stringify({ data: { productSet: { product: { id: 'gid://shopify/Product/77', handle: 'zz-team-hoodie-pc78h', title: 'Zz Team - Hoodie (PC78H)', status: 'DRAFT' }, userErrors: [] } } })); }
+    if (/collectionCreate/.test(q)) return new Response(JSON.stringify({ data: { collectionCreate: { collection: { id: 'gid://shopify/Collection/9', handle: 'zz-team', title: 'Zz Team' }, userErrors: [] } } }));
+    if (/product\(id/.test(q)) return new Response(JSON.stringify({ data: { product: cur } }));
+    return new Response(JSON.stringify({ data: { products: { nodes: [] }, collectionByHandle: null, publications: { nodes: [] } } }));
+  };
+  let r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'new', team: 'Zz Team', by: 'Ryan' } });
+  const zid = (await r.json()).id;
+  r = await call('/team-requests/update-products', { method: 'POST', headers: STAFF, body: { id: zid, products: [spec] } });
+  check('nothing built yet: update says so', r.status === 400);
+  r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: zid, dryRun: false, products: [{ ...spec, sizes: ['S', 'M'], price: 45, colors: [{ name: 'Maroon' }] }] } });
+  check('built first', r.status === 200 && (await r.json()).results[0].ok);
+  sets = [];
+  r = await call('/team-requests/update-products', { method: 'POST', headers: STAFF, body: { id: zid, products: [spec] } });
+  let j = await r.json();
+  check('the check reports the change and writes NOTHING', r.status === 200 && j.dryRun && j.results[0].diff.colorsAdded.join() === 'Navy' && sets.length === 0, JSON.stringify(j).slice(0, 200));
+  r = await call('/team-requests/update-products', { method: 'POST', headers: STAFF, body: { id: zid, dryRun: false, products: [spec] } });
+  j = await r.json();
+  check('the update is written to that product, live status kept', r.status === 200 && j.results[0].ok && sets.length === 1 && sets[0].id === 'gid://shopify/Product/77' && sets[0].status === 'ACTIVE', JSON.stringify(j).slice(0, 200));
+  check('and the history says what changed', j.rec.log.some((l) => /Updated 1 built product.*PC78H \+Navy/.test(l.what)));
+  r = await call('/team-requests/update-products', { method: 'POST', headers: STAFF, body: { id: zid, products: [{ ...spec, style: 'PC54', name: 'Tee' }] } });
+  j = await r.json();
+  check('a product this page did not build is never touched', j.results[0].skipped && /Not built by this page/.test(j.results[0].reason));
+  globalThis.fetch = realFetch;
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);
