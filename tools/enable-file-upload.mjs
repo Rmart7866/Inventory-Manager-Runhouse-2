@@ -87,8 +87,14 @@ async function rest(p, init = {}, attempt = 0) {
   return r.json();
 }
 
-const live = (await rest('themes.json')).themes.find((t) => t.role === 'main');
-if (!live) { console.error('No theme has role main.'); process.exit(1); }
+// --theme <id> targets that theme instead (2026-11-24: the redesign draft,
+// so the upload box survives when it is published). Default: the live one.
+const THEME_AT = process.argv.indexOf('--theme');
+const THEME_ID = THEME_AT >= 0 ? Number(process.argv[THEME_AT + 1]) : null;
+const themes = (await rest('themes.json')).themes;
+const live = THEME_ID ? themes.find((t) => t.id === THEME_ID) : themes.find((t) => t.role === 'main');
+if (!live) { console.error(THEME_ID ? 'No theme ' + THEME_ID + '.' : 'No theme has role main.'); process.exit(1); }
+console.log('theme: ' + live.id + ' "' + live.name + '" role ' + live.role);
 console.log('live theme: ' + live.id + '  ' + JSON.stringify(live.name));
 
 if (RESTORE) {
@@ -146,7 +152,7 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const backup = path.join(ROOT, 'product-form-backup-' + stamp + '.liquid');
 fs.writeFileSync(backup, original);
 console.log('\nBackup written: ' + backup);
-console.log('  restore with: node tools/enable-file-upload.mjs --restore ' + backup);
+console.log('  restore with: node tools/enable-file-upload.mjs ' + (THEME_ID ? '--theme ' + THEME_ID + ' ' : '') + '--restore ' + backup);
 
 await rest(`themes/${live.id}/assets.json`, { method: 'PUT', body: JSON.stringify({ asset: { key: KEY, value: updated } }) });
 console.log('wrote ' + KEY + ' to theme ' + live.id);
