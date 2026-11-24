@@ -96,8 +96,11 @@ export function spellSize(s) {
 // spelled sizes, "Jet Black (D055 (FC))"), so a store built here and one
 // built there look the same, and each one's duplicate check sees the other's.
 export function planProduct(team, tag, spec) {
-  const title = (team + ' - ' + spec.name + ' (' + spec.style + ')').slice(0, 250);
-  const handle = slug(team + ' ' + spec.name + ' ' + spec.style);
+  // A second product of a style the store already carries, with other logos,
+  // is told apart by its logo codes: "... (PC78H) - B132".
+  const ed = spec.edition ? String(spec.edition) : '';
+  const title = (team + ' - ' + spec.name + ' (' + spec.style + ')' + (ed ? ' - ' + ed : '')).slice(0, 250);
+  const handle = slug(team + ' ' + spec.name + ' ' + spec.style + (ed ? ' ' + ed : ''));
   const sizes = (spec.sizes && spec.sizes.length ? spec.sizes : ['One Size']).map(spellSize);
   const colors = (spec.colors || []).map((c) => ({ value: String(c.label || c.name).slice(0, 250), image: c.image || null, back: c.back || null, name: String(c.name) }));
   const productType = typeFor(spec.category);
@@ -205,20 +208,27 @@ async function existingProductHandles(client, handles) {
 export async function collectionByHandle(client, handle) {
   const body = await client.graphql(`query($h:String!){ collectionByHandle(handle:$h){ id handle title
     ruleSet{ rules{ column relation condition } }
-    products(first:250){ nodes{ title } } } }`, { h: handle });
+    products(first:250){ nodes{ title handle } } } }`, { h: handle });
   return body.data.collectionByHandle;
 }
 
 // "Add to my existing store": the store already exists, so its tag is what
-// puts new products in it, its naming is what they copy, and a style it
-// already carries is skipped. Pure, so the test can drive it.
+// puts new products in it and its naming is what they copy. The styles it
+// carries are read so a second product of one gets a name of its own. Pure.
 export function existingStoreInfo(col) {
   const rule = ((col && col.ruleSet && col.ruleSet.rules) || []).find((r) => r.column === 'TAG' && r.relation === 'EQUALS');
   const titles = ((col && col.products && col.products.nodes) || []).map((n) => n.title);
   const withPrefix = titles.find((t) => t.indexOf(' - ') > 0);
-  const styles = new Set();
-  for (const t of titles) { const m = t.match(/\(([A-Za-z0-9]+)\)\s*$/); if (m) styles.add(m[1].toUpperCase()); }
-  return { tag: rule ? rule.condition : null, prefix: withPrefix ? withPrefix.split(' - ')[0] : (col && col.title) || '', styles };
+  const styles = new Set(), byStyle = {};
+  for (const n of ((col && col.products && col.products.nodes) || [])) {
+    // "(PC78H)" at the end, or "(PC78H) - B132" for a second logo edition.
+    const m = String(n.title).match(/\(([A-Za-z0-9]+)\)(\s*-\s*[A-Z0-9/ ]+)?\s*$/);
+    if (!m) continue;
+    const s = m[1].toUpperCase();
+    styles.add(s);
+    (byStyle[s] = byStyle[s] || []).push(n.handle);
+  }
+  return { tag: rule ? rule.condition : null, prefix: withPrefix ? withPrefix.split(' - ')[0] : (col && col.title) || '', styles, byStyle };
 }
 
 export async function handleBuild(request, env) {
@@ -245,13 +255,27 @@ export async function handleBuild(request, env) {
     const info = existingStoreInfo(col);
     if (!info.tag) return { status: 400, body: { error: 'The store ' + col.title + ' has no TAG rule, so new products could not be put in it. Add them by hand.' } };
     tag = info.tag; team = info.prefix || team; carried = info.styles;
-    update = { handle: col.handle, title: col.title, id: col.id };
+    update = { handle: col.handle, title: col.title, id: col.id, byStyle: info.byStyle };
   }
   if (!team || !tag) return { status: 400, body: { error: 'The request needs a team name and a collection tag first' } };
 
-  const all = b.products.map((p) => planProduct(team, tag, p));
-  const plans = all.filter((p) => !carried.has(String(p.style).toUpperCase()));
-  const alreadyIn = all.filter((p) => carried.has(String(p.style).toUpperCase())).map((p) => p.style);
+  // A style the store already carries is BUILT too (owner, 2026-11-24: do not
+  // restrict it). It becomes its own product, named by its logo codes
+  // ("... (PC78H) - B132"), else by a number, so it never lands on the
+  // existing product's handle; create-only still never overwrites anything.
+  const all = [], alreadyIn = [], usedHandles = new Set();
+  for (const spec of b.products) {
+    const st = String(spec.style).toUpperCase();
+    let plan = planProduct(team, tag, spec);
+    if (carried.has(st) || usedHandles.has(plan.handle)) {
+      const codes = [...new Set((spec.logoCodes || []).map((c) => String(c).toUpperCase()).filter(Boolean))].sort();
+      plan = planProduct(team, tag, { ...spec, edition: codes.length ? codes.join('/') : '2' });
+      for (let n = 3; usedHandles.has(plan.handle) && n < 20; n++) plan = planProduct(team, tag, { ...spec, edition: codes.length ? codes.join('/') + ' ' + n : String(n) });
+    }
+    usedHandles.add(plan.handle);
+    all.push(plan);
+  }
+  const plans = all;
   if (!plans.length) return { status: 400, body: { error: 'The store already carries every style on this request: ' + alreadyIn.join(', ') } };
   const bad = plans.filter((p) => !p.colors.length);
   if (bad.length) return { status: 400, body: { error: 'Every product needs at least one colour: ' + bad.map((p) => p.style).join(', ') } };

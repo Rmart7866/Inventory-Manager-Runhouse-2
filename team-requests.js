@@ -1008,14 +1008,15 @@ var TR = {
         var w = TR.st.rec.work, pane = TR.$('pane');
         if (!TR.st.D) { pane.innerHTML = '<p class="empty">Loading the product catalog...</p>'; return; }
         var bfm = TR.st.rec.req && TR.st.rec.req.build_for_me;
-        // Adding to a live store: what it carries already, so nobody adds a
-        // style twice. Build skips a carried style anyway; this says so first.
+        // Adding to a live store: what it carries already, for reference. A
+        // style it carries is still built (owner, 2026-11-24), as its own
+        // product named by its logo codes, never over the existing one.
         var st = TR.st.rec.req && TR.st.rec.req.mode === 'update' && TR.st.rec.req.store;
         var have = st && Array.isArray(st.existing_styles) ? st.existing_styles.map(function (s) { return String(s).toUpperCase(); }) : [];
         var dupes = (w.items || []).filter(function (it) { return have.indexOf(String(it.style).toUpperCase()) >= 0; }).map(function (it) { return it.style; });
         var haveHtml = st ? '<div class="msg">Adding to <b>' + TR.esc(st.name) + '</b>. ' +
             (have.length ? 'It already carries ' + have.length + (have.length === 1 ? ' style' : ' styles') + ': ' + have.map(function (s) { var p = TR.st.P[s]; return TR.esc(s + (p ? ' (' + p.n + ')' : '')); }).join(', ') + '.' : 'It carries no styles this page can read yet.') +
-            (dupes.length ? ' <b style="color:var(--bad)">Already in the store, so Build will skip: ' + TR.esc(dupes.join(', ')) + '.</b>' : '') + '</div>' : '';
+            (dupes.length ? ' Also in the store already: ' + TR.esc(dupes.join(', ')) + '. Build makes these as separate products, named by their logo codes.' : '') + '</div>' : '';
         // The starter set is a whole new store's worth of products, so it is
         // not offered when adding to a store that already exists.
         // The way back to what the customer sent, shown only once staff have
@@ -2034,6 +2035,13 @@ var TR = {
         var cat = TR.st.CAT[p.s], pl = TR.U.plCode(it.placement, cat), logos = TR.st.rec.work.logos || {};
         return {
             style: p.s, name: p.n, category: cat, sizes: it.sizes || TR.U.sizesFor(p, cat), price: it.price,
+            logoCodes: (function () {
+                var out = {}, l2 = TR.loc2(it, p);
+                it.colors.forEach(function (n) {
+                    [TR.logoOf(it, p, n, 'f'), l2 ? TR.logoOf(it, p, n, 'x') : null].forEach(function (k) { var L = k && logos[k]; if (L && L.code) out[String(L.code).toUpperCase()] = 1; });
+                });
+                return Object.keys(out);
+            })(),
             names: it.names && it.names.on ? { on: true, price: it.names.price, where: it.names.where } : null,
             main: it.colors.length ? TR.mainOf(it, p) : null,
             colors: it.colors.map(function (n) {

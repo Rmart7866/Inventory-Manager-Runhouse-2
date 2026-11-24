@@ -451,7 +451,7 @@ console.log('\nStarted by staff (2026-11-23)');
     const b = JSON.parse(init.body || '{}');
     if (/mutation/.test(b.query || '')) writes++;
     const h = b.variables && b.variables.h;
-    return new Response(JSON.stringify({ data: { collectionByHandle: COLS[h] || null } }), { headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ data: { collectionByHandle: COLS[h] || null, products: { nodes: [] } } }), { headers: { 'Content-Type': 'application/json' } });
   };
   let r = await call('/team-requests/create', { method: 'POST', headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' }, body: { mode: 'new', team: 'Canton Lacrosse', by: 'Ryan' } });
   check('starting a store needs the write secret', r.status === 401 || r.status === 403, 'status ' + r.status);
@@ -478,6 +478,18 @@ console.log('\nStarted by staff (2026-11-23)');
   j = await r.json();
   check('adding to an existing store takes its tag and naming', r.status === 200 && j.rec.req.mode === 'update' && j.rec.work.tag === 'walpole-xc' && j.rec.work.team === 'Walpole XC');
   check('and records the styles it already carries', JSON.stringify(j.rec.req.store.existing_styles.sort()) === '["PC54","PC78H"]');
+  // Owner, 2026-11-24: a style the store already carries is NOT skipped; it
+  // is built as its own product, named by its logo codes, else a number.
+  r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: j.id, dryRun: true, products: [
+    { style: 'PC78H', name: 'Hoodie', category: 'Hoodies', sizes: ['M'], price: 45, logoCodes: ['B132'], colors: [{ name: 'Maroon' }] },
+    { style: 'PC54', name: 'Core Cotton Tee', category: 'Short Sleeve T-Shirts', sizes: ['M'], price: 25, colors: [{ name: 'Navy' }] },
+    { style: 'DT6100', name: 'Hoodie', category: 'Hoodies', sizes: ['M'], price: 45, colors: [{ name: 'Navy' }] },
+  ] } });
+  const bj = await r.json();
+  const titles = ((bj.plan && bj.plan.products) || []).map((x) => x.title);
+  check('a carried style with new logos is built, named by its codes', titles.includes('Walpole XC - Hoodie (PC78H) - B132'), JSON.stringify(titles));
+  check('a carried style with no codes is built too, numbered', titles.includes('Walpole XC - Core Cotton Tee (PC54) - 2'));
+  check('a new style keeps its plain name, and nothing is skipped', titles.includes('Walpole XC - Hoodie (DT6100)') && titles.length === 3 && !(bj.plan.alreadyIn || []).length);
   check('nothing was written to Shopify', writes === 0);
   globalThis.fetch = realFetch;
   const pure = staffRecord({ team: '  Foxboro Hockey ', by: ' Dana ' }, null, '2026-11-23T00:00:00.000Z', '000000000-abc');
