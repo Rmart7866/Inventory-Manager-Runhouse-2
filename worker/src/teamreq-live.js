@@ -14,12 +14,12 @@
 //     that the customer approved, and confirm twice. Without it, refused.
 //   - DRY RUN FIRST, the same as the build.
 //
-// CHANNELS, measured 2026-11-05 over 30 live team store products: all of
-// them on every channel EXCEPT Facebook & Instagram and Google & YouTube,
-// the ad and shopping feeds, which only 6 carried. So the feeds are left out
-// unless staff tick "Also publish to the Facebook and Google feeds". That is
-// its own choice, NOT the site search box: a store can be searchable on the
-// site and still have no business in an ad feed.
+// CHANNELS: EVERY sales channel by default (owner, 2026-11-24, "make sure
+// that products that are created are set to all sales channels"). Measured
+// 2026-11-05, most live team gear was on every channel except Facebook &
+// Instagram and Google & YouTube, so staff can still tick "Leave out the
+// Facebook and Google feeds" for a store that has no business in an ad feed.
+// That is its own choice, NOT the site search box.
 //
 // House style: no em dashes. Use commas, periods, or the word "to".
 
@@ -29,8 +29,9 @@ import { readRec, writeRec, log } from './teamreq.js';
 const FEEDS = /facebook|instagram|google|youtube/i;
 
 // Pure, so the test can pin it.
+// feeds false leaves the Facebook and Google feeds out; anything else is all.
 export function pickChannels(pubs, feeds) {
-  return pubs.filter((p) => feeds || !FEEDS.test(p.name));
+  return pubs.filter((p) => feeds !== false || !FEEDS.test(p.name));
 }
 
 // What would change. Pure: nodes are the current products as Shopify reports them.
@@ -68,7 +69,7 @@ export async function handleGoLive(request, env) {
     return { status: 502, body: { error: 'Could not read the store from Shopify, so nothing was changed. ' + String(e && e.message || e) } };
   }
   const plan = livePlan(nodes, ids);
-  const channels = pickChannels(pubs, b.feeds === true);
+  const channels = pickChannels(pubs, b.feeds !== false);
   const summary = {
     activate: plan.activate.map((n) => ({ id: n.id, title: n.title, handle: n.handle })),
     already: plan.already.map((n) => n.title), archived: plan.archived.map((n) => n.title), missing: plan.missing.length,

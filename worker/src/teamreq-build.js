@@ -12,8 +12,12 @@
 // other's store only if the tag and handles agree.
 //
 // SAFETY, the same floor as Stage 4 and stricter in one place:
-//   - DRAFT ONLY. status is always DRAFT and nothing is published to any
-//     channel, the collection included. A human publishes.
+//   - DRAFT ONLY. status is always DRAFT. Each new product is put on EVERY
+//     sales channel as it is built (owner, 2026-11-24), which a draft makes
+//     harmless: shoppers see nothing until it is Active. Before this a product
+//     added to a store that had already gone live was on no channel at all,
+//     so making it Active still left it unbuyable (PC78H, Blessed Sacrement
+//     Basketball). The COLLECTION stays unpublished until staff press Go live.
 //   - CREATE ONLY. productSet is create-or-update, so every handle is checked
 //     first and an existing one is skipped. Stage 4 fails OPEN if that check
 //     errors; this fails CLOSED and builds nothing, because a team store is
@@ -289,6 +293,14 @@ export async function handleBuild(request, env) {
   plan.approved = appr;
   if (b.dryRun !== false) return { body: { dryRun: true, plan } };
 
+  // Every sales channel, read once. Best effort: if it fails the products are
+  // still built and say so, and Go live publishes them anyway.
+  let pubInput = null, pubError = null;
+  try {
+    const pb = await client.graphql('{ publications(first: 50){ nodes{ id } } }');
+    pubInput = ((pb.data && pb.data.publications && pb.data.publications.nodes) || []).map((n) => ({ publicationId: n.id }));
+  } catch (e) { pubError = String(e && e.message || e); }
+
   const results = [];
   for (const p of plans) {
     if (existing.has(p.handle)) { results.push({ style: p.style, handle: p.handle, skipped: true, reason: 'A product with this handle already exists, so it was left alone.' }); continue; }
@@ -296,9 +308,17 @@ export async function handleBuild(request, env) {
       const body = await client.graphql(PRODUCT_SET, { input: productSetInputFor(p, { searchable }) });
       const r = (body.data && body.data.productSet) || {};
       const errs = r.userErrors || [];
+      let channels = null;
+      if (!errs.length && r.product && pubInput && pubInput.length) {
+        try {
+          const pp = await client.graphql('mutation($id:ID!,$i:[PublicationInput!]!){ publishablePublish(id:$id, input:$i){ userErrors{ message } } }', { id: r.product.id, i: pubInput });
+          const pe = (pp.data && pp.data.publishablePublish && pp.data.publishablePublish.userErrors) || [];
+          channels = pe.length ? 'not on every channel: ' + pe.map((e) => e.message).join('; ') : pubInput.length;
+        } catch (e) { channels = 'not on every channel: ' + String(e && e.message || e); }
+      } else if (!errs.length && r.product) channels = 'not on any channel yet: ' + (pubError || 'no channels read');
       results.push(errs.length || !r.product
         ? { style: p.style, handle: p.handle, ok: false, errors: errs.map((e) => e.message) }
-        : { style: p.style, handle: r.product.handle, id: r.product.id, title: r.product.title, ok: true });
+        : { style: p.style, handle: r.product.handle, id: r.product.id, title: r.product.title, ok: true, channels });
     } catch (e) {
       results.push({ style: p.style, handle: p.handle, ok: false, errors: [String(e && e.message || e)] });
     }

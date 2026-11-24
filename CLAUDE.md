@@ -1994,6 +1994,12 @@ to the contact form email only if that save fails. Staff work them in
   the plan), and staff can note how a customer approved. The checklist
   requires products, logo, logo codes and stock only. What keeps a build
   safe is draft-only, create-only and an unpublished collection.
+- **Every created product is on every sales channel (owner, 2026-11-24).**
+  Stage 4 always did this; team store Build now does too, as each draft is
+  made (a draft stays invisible until Active), and Go live uses every channel
+  with "Leave out the Facebook and Google feeds" as the opt-out. A product
+  added to a store after it went live used to be on NO channel (PC78H,
+  Blessed Sacrement Basketball). The collection waits for Go live.
 - **Build is create-only, draft-only, and fails CLOSED.** If the handle check
   errors, nothing is built (Stage 4 fails open; a team store is dozens of
   products). The collection is a smart one, TAG equals the team tag, unpublished.

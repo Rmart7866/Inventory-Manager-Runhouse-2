@@ -21,11 +21,12 @@ const check = (name, cond, detail) => {
 const pubs = ['Online Store', 'Facebook & Instagram', 'Google & YouTube', 'Point of Sale', 'Shop', 'Headless'].map((name, i) => ({ id: 'p' + i, name }));
 
 console.log('\nChannels');
+// Owner, 2026-11-24: every channel by default, the feeds an opt-out.
+check('by default team gear goes on EVERY channel, the feeds included', pickChannels(pubs, true).length === pubs.length && pickChannels(pubs, undefined).length === pubs.length);
 const team = pickChannels(pubs, false).map((p) => p.name);
-check('team gear goes to the Online Store', team.includes('Online Store'));
+check('leaving the feeds out keeps the Online Store', team.includes('Online Store'));
 check('and point of sale and the rest', team.includes('Point of Sale') && team.includes('Shop'));
-check('but NOT the Facebook and Google feeds', !team.some((n) => /Facebook|Google/.test(n)), team.join(', '));
-check('ticking the feeds box adds Facebook and Google', pickChannels(pubs, true).length === pubs.length);
+check('but drops Facebook and Google', !team.some((n) => /Facebook|Google/.test(n)), team.join(', '));
 
 console.log('\nWhat changes');
 const ids = ['a', 'b', 'c', 'd'];

@@ -1913,21 +1913,21 @@ var TR = {
             (done ? '<div class="msg ok">Went live ' + TR.ago(r.live.at) + ': ' + (r.live.products || []).length + ' products' + (r.live.collection && r.live.collection.handle ? ', <a target="_blank" rel="noopener" href="' + TR.STORE_URL + TR.esc(r.live.collection.handle) + '">open the store</a>' : '') + '.</div>' : '') +
             '<p class="sub" style="max-width:760px">Publishes this request\'s ' + built.length + ' draft product' + (built.length === 1 ? '' : 's') + (r.req && r.req.mode === 'update' ? ' into the existing store' : ' and its collection, and puts the store on the Team Stores page') + '. Nothing else on the site is touched: products built by hand or by the back office automation, and anything archived, are left alone.</p>' +
             '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="gl-ok"> The customer approved this store.</label>' +
-            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="gl-feeds"> Also publish to the Facebook and Google feeds</label>' +
+            '<label class="sub" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="checkbox" id="gl-nofeeds"> Leave out the Facebook and Google feeds (every other sales channel still gets it)</label>' +
             '<div style="display:flex;gap:8px;margin:8px 0"><button class="btn" type="button" id="gl-check" disabled>Check what goes live</button><button class="btn pri" type="button" id="gl-go" disabled>Go live</button></div><div id="gl-out"></div></div>';
     },
 
     wireLive: function () {
         var ok = TR.$('gl-ok'); if (!ok) return;
         var chk = TR.$('gl-check'), go = TR.$('gl-go'), out = TR.$('gl-out'), plan = null, armed = false;
-        var feeds = TR.$('gl-feeds');
+        var feeds = TR.$('gl-nofeeds');
         ok.onchange = function () { chk.disabled = !ok.checked; go.disabled = true; plan = null; out.innerHTML = ''; };
         // Changing the channels means the plan shown is no longer the plan.
         feeds.onchange = function () { go.disabled = true; plan = null; out.innerHTML = ''; };
         chk.onclick = function () {
             if (TR.st.dirty) { TR.flash('Save your changes first.', 'warn'); return; }
             out.innerHTML = '<p class="sub">Reading the store from Shopify...</p>';
-            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: true, feeds: feeds.checked } }).then(function (j) {
+            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: true, feeds: !feeds.checked } }).then(function (j) {
                 if (j.__status !== 200) { out.innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; return; }
                 plan = j.plan;
                 var nothing = !plan.activate.length && !plan.collection;
@@ -1947,7 +1947,7 @@ var TR = {
             if (!plan || !ok.checked) return;
             if (!armed) { armed = true; go.textContent = 'Click again to publish to customers'; go.classList.add('arm'); setTimeout(function () { armed = false; go.textContent = 'Go live'; go.classList.remove('arm'); }, 5000); return; }
             go.disabled = true; chk.disabled = true; go.textContent = 'Publishing...';
-            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: false, approved: true, feeds: feeds.checked } }).then(function (j) {
+            TR.api('/team-requests/golive', { body: { id: TR.st.rec.id, dryRun: false, approved: true, feeds: !feeds.checked } }).then(function (j) {
                 if (j.__status !== 200) { out.innerHTML = '<p class="msg bad">' + TR.esc(j.error || j.reason || ('HTTP ' + j.__status)) + '</p>'; go.textContent = 'Go live'; return; }
                 TR.st.rec = j.rec; TR.loadList(); TR.renderDetail();
                 var bad = j.results.filter(function (x) { return !x.ok; }).concat(j.collection && !j.collection.ok ? [j.collection] : []);

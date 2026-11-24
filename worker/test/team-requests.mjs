@@ -349,7 +349,7 @@ console.log('\nApproval is recorded but optional (2026-11-23)');
     if (String(u).includes('/oauth/access_token')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { headers: { 'Content-Type': 'application/json' } });
     const b = JSON.parse(init.body || '{}');
     if (/mutation/.test(b.query || '')) { writes++; return new Response(JSON.stringify({ data: { productSet: { product: { id: 'gid://shopify/Product/9', handle: 'h', title: 't' }, userErrors: [] }, collectionCreate: { collection: { id: 'gid://shopify/Collection/9', handle: 'c', title: 'C' }, userErrors: [] } } }), { headers: { 'Content-Type': 'application/json' } }); }
-    return new Response(JSON.stringify({ data: { products: { nodes: [] }, collectionByHandle: null } }), { headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ data: { products: { nodes: [] }, collectionByHandle: null, publications: { nodes: [{ id: 'gid://shopify/Publication/1' }, { id: 'gid://shopify/Publication/2' }] } } }), { headers: { 'Content-Type': 'application/json' } });
   };
   let r = await call('/team-requests/submit', { method: 'POST', headers: { ...SHOPFRONT, 'CF-Connecting-IP': '10.77.0.1' }, body: sample() });
   const sub = await r.json(); const aid = sub.id; if (!aid) console.log('          submit answered', r.status, JSON.stringify(sub));
@@ -360,6 +360,7 @@ console.log('\nApproval is recorded but optional (2026-11-23)');
   r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: aid, dryRun: false, products: spec } });
   j = await r.json();
   check('drafts are created WITHOUT a proof or an approval', r.status === 200 && j.ok && writes > 0, 'status ' + r.status + ' ' + JSON.stringify(j).slice(0, 160));
+  check('each new draft is put on EVERY sales channel as it is built (2026-11-24)', j.results.filter((x) => x.ok).length > 0 && j.results.filter((x) => x.ok).every((x) => x.channels === 2), JSON.stringify(j.results).slice(0, 200));
   writes = 0;
   const cur = await (await call('/team-requests/one?id=' + aid, { headers: STAFF })).json();
   r = await call('/team-requests/update', { method: 'POST', headers: STAFF, body: { id: aid, base: cur.updated, patch: { work: { ...cur.work, approvedOther: { how: 'Coach approved on the phone 11/23', by: 'Ryan' } } } } });
