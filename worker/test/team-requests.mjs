@@ -501,5 +501,45 @@ console.log('\nEvery image carries alt text (2026-11-23)');
   check('adding a photo with no alt to an existing product uses its title', !!sent && sent.media[0].alt === 'Brooks Ghost 17');
 }
 
+console.log('\nFrom Drive (2026-11-24)');
+{
+  let r = await call('/team-requests/drive?action=list', { headers: STAFF });
+  check('without the script set up it says so', r.status === 503);
+  r = await call('/team-requests/drive?action=list', { headers: { Authorization: 'Bearer tok' } });
+  check('it needs the write secret', r.status === 401 || r.status === 403, 'status ' + r.status);
+  ENV.DRIVE_SCRIPT_URL = 'https://script.google.com/macros/s/X/exec'; ENV.DRIVE_KEY = 'drive-key-test';
+  const seen = [];
+  globalThis.fetch = async (u) => {
+    seen.push(String(u));
+    const q = new URL(String(u)).searchParams;
+    if (q.get('key') !== 'drive-key-test') return new Response(JSON.stringify({ error: 'not allowed' }));
+    if (q.get('action') === 'search') return new Response(JSON.stringify({ files: [{ id: 'f'.repeat(20), name: 'canton volleyball (C081).png', where: 'Canton Volleyball' }] }));
+    if (q.get('action') === 'file') return new Response(JSON.stringify({ name: 'canton volleyball (C081).png', mime: 'image/png', data: 'iVBORw0K' }));
+    return new Response(JSON.stringify({ folder: 'root', path: [], folders: [{ id: 'd'.repeat(20), name: 'Canton Volleyball' }], files: [] }));
+  };
+  r = await call('/team-requests/drive?action=list', { headers: STAFF });
+  let j = await r.json();
+  check('it lists the folder through the script', r.status === 200 && j.folders[0].name === 'Canton Volleyball');
+  check('the key goes to the script and never back to the page', seen[0].includes('key=drive-key-test') && !JSON.stringify(j).includes('drive-key-test'));
+  r = await call('/team-requests/drive?action=search&q=c081', { headers: STAFF });
+  j = await r.json();
+  check('search passes the words', r.status === 200 && j.files[0].name.includes('C081') && seen.at(-1).includes('q=c081'));
+  r = await call('/team-requests/drive?action=search&q=c', { headers: STAFF });
+  check('one letter is not a search', r.status === 400);
+  r = await call('/team-requests/drive?action=file&id=' + encodeURIComponent('../etc'), { headers: STAFF });
+  check('a made up id is refused before the script is asked', r.status === 400);
+  r = await call('/team-requests/drive?action=delete&id=' + 'f'.repeat(20), { headers: STAFF });
+  check('only list, search, thumb and file exist', r.status === 400);
+  r = await call('/team-requests/drive?action=file&id=' + 'f'.repeat(20), { headers: STAFF });
+  j = await r.json();
+  check('a file comes back as data', r.status === 200 && j.data === 'iVBORw0K');
+  ENV.DRIVE_KEY = 'wrong';
+  r = await call('/team-requests/drive?action=list', { headers: STAFF });
+  j = await r.json();
+  check('a wrong key says which secret to fix', r.status === 502 && /DRIVE_KEY/.test(j.error));
+  delete ENV.DRIVE_SCRIPT_URL; delete ENV.DRIVE_KEY;
+  globalThis.fetch = realFetch;
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);

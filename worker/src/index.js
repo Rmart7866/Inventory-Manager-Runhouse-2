@@ -36,6 +36,7 @@ import { fetchProductDetail, updateProduct, updatePrices, addProductMedia } from
 import { requireAuth, requireAdmin, requireWriteSecret, WriteGateError } from './auth.js';
 import { handleIntake, handleStaff, handlePublicPlacements, intakeCors } from './teamreq.js';
 import { handleSupplier, handlePhoto, handleStockPublic, refreshAvailability } from './sanmar.js';
+import { handleDrive } from './teamreq-drive.js';
 import { handleStores } from './teamreq-stores.js';
 import { handleOrderLookup } from './orders-lookup.js';
 import { writeSizeCoverage, handleSizes } from './size-coverage.js';
@@ -581,6 +582,8 @@ export default {
       // SanMar stock and photo links per style, read only. Behind the write
       // secret like every other request route; the login is a Worker secret.
       '/team-requests/supplier': { handler: teamReqRoute(handleSupplier), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
+      // The private team logo folder, through the Apps Script in that Google account.
+      '/team-requests/drive': { handler: teamReqRoute(handleDrive), forWrite: false, needsWriteSecret: true, methods: ['GET'] },
       // Every team store with the facts that explain whether customers can
       // find it. Read only; cached, ?fresh=1 rebuilds. See teamreq-stores.js.
       '/team-requests/stores': { handler: teamReqRoute(handleStores), forWrite: false, needsWriteSecret: true, methods: ['GET'] },

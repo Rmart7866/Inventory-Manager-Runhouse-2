@@ -234,6 +234,25 @@ table.plan th { color: var(--muted); font-weight: 600; font-size: 12.5px; }
 pre.orig { white-space: pre-wrap; background: var(--surface); border: 1px solid var(--line); padding: 12px; max-height: 480px; overflow: auto; font-size: 12.5px; }
 .log li { color: var(--muted); margin-bottom: 4px; }
 
+/* From Drive: the team logo folder, browsed and searched (2026-11-24). */
+#drv { position: fixed; inset: 0; background: rgba(5,8,13,.78); z-index: 30; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
+#drv .box { background: #111828; border: 1px solid var(--line-2); width: min(880px, 100%); max-height: calc(100vh - 80px); display: flex; flex-direction: column; padding: 18px; }
+#drv .drv-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+#drv .drv-head h3 { margin: 0; font-size: 17px; }
+#drv input[type=search] { width: 100%; font-size: 15px; padding: 10px 12px; }
+#drv .drv-path { margin: 10px 0 8px; font-size: 13px; color: var(--muted); min-height: 18px; }
+#drv .drv-crumb { all: unset; cursor: pointer; color: var(--accent); text-decoration: underline; }
+#drv .drv-list { overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; align-content: start; }
+#drv .drv-list > p { grid-column: 1 / -1; }
+#drv .drv-fold { all: unset; box-sizing: border-box; cursor: pointer; padding: 10px; border: 1px solid var(--line-2); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#drv .drv-file { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--line-2); }
+#drv .drv-fold:hover, #drv .drv-file:hover, #drv .drv-fold:focus-visible, #drv .drv-file:focus-visible { border-color: var(--accent); outline: none; }
+#drv .drv-file.off { opacity: .45; cursor: not-allowed; }
+#drv .drv-th { height: 110px; background: #fff repeating-conic-gradient(#eef1f5 0% 25%, #fff 0% 50%) 50% / 16px 16px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#drv .drv-th img { max-width: 92%; max-height: 92%; object-fit: contain; }
+#drv .drv-th i { font: 700 12px sans-serif; color: #556; font-style: normal; }
+#drv .drv-nm { font-size: 12.5px; line-height: 1.3; word-break: break-word; }
+#drv .drv-wh { font-size: 11.5px; color: var(--muted); }
 /* placement editor */
 #pe { position: fixed; inset: 0; background: rgba(5,8,13,.78); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
 #pe .box { background: #111828; border: 1px solid var(--line-2); display: grid; grid-template-columns: auto 280px; gap: 20px; padding: 20px; max-width: 100%; max-height: 100%; overflow: auto; }
@@ -482,6 +501,6 @@ body.full #detail { max-width: none; }
 
 <script src="catalog-client.js?v=27"></script>
 <script src="team-request-utils.js?v=9"></script>
-<script src="team-requests.js?v=40"></script>
+<script src="team-requests.js?v=41"></script>
 </body>
 </html>

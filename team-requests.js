@@ -1639,10 +1639,11 @@ var TR = {
                 '<div id="lg-warn-' + k + '"></div>' +
                 (TR.st.L && TR.st.L[k] && TR.st.L[k].cleaned ? '<p class="sub" style="margin:4px 0">White background removed automatically for the mockups.</p>' : '') +
                 '<label class="f" for="cd-' + k + '" style="margin-top:8px">Logo Master Folder code</label><input type="text" id="cd-' + k + '" data-code="' + k + '" value="' + TR.esc(L.code || '') + '" placeholder="e.g. D055" style="width:120px;text-transform:uppercase">' +
-                '<div class="bar" style="display:flex;gap:8px;margin-top:8px"><label class="btn" style="display:inline-flex;align-items:center">Replace<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="' + k + '" class="hidden"></label>' +
+                '<div class="bar" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><label class="btn" style="display:inline-flex;align-items:center">Replace<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="' + k + '" class="hidden"></label>' +
+                '<button type="button" class="btn" data-drive="' + k + '">Replace from Drive</button>' +
                 (L.url ? '<a class="btn" style="text-decoration:none;display:inline-flex;align-items:center" target="_blank" rel="noopener" href="' + TR.esc(L.url) + '">Open file</a>' : '') + '</div></div>';
         }).join('') + '</div>' : TR.logoDropHtml() + (TR.st.rec.req && TR.st.rec.req.logos ? '<p class="sub">The customer said: ' + TR.esc(TR.st.rec.req.logos) + '</p>' : '')) +
-            '<div class="bar" style="margin-top:14px;display:flex;gap:8px;align-items:center"' + (slots.length ? '' : ' hidden') + '><label class="btn" style="display:inline-flex;align-items:center">Add another logo<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="__new" class="hidden"></label><span class="sub">A replaced logo keeps the original in the history, and every preview and mockup switches to the new file.</span></div>' +
+            '<div class="bar" style="margin-top:14px;display:flex;gap:8px;align-items:center"' + (slots.length ? '' : ' hidden') + '><label class="btn" style="display:inline-flex;align-items:center">Add another logo<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.ai,.eps" data-up="__new" class="hidden"></label><button type="button" class="btn" data-drive="__new">Add from Drive</button><span class="sub">A replaced logo keeps the original in the history, and every preview and mockup switches to the new file.</span></div>' +
             (slots.length ? '<h3 style="margin:22px 0 6px;font-size:15px">Print files</h3><p class="sub" style="max-width:720px">300 dpi PNGs for every place each logo prints, named like <b>D055 (FC).png</b>, ready for the Logo Master Folder.</p>' +
                 '<div class="bar" style="display:flex;gap:8px;align-items:center"><button class="btn pri" type="button" id="pf-go">Download print files</button><span class="sub" id="pf-msg"></span></div>' : '');
         slots.forEach(function (k) { TR.checkLogo(k); });
@@ -1678,6 +1679,7 @@ var TR = {
     },
     // A file input marked data-up="<slot>" or a drop zone marked data-drop.
     wireUploads: function (root) {
+        root.querySelectorAll('[data-drive]').forEach(function (b) { b.onclick = function (e) { e.preventDefault(); TR.driveOpen(b.dataset.drive); }; });
         root.querySelectorAll('input[data-up]').forEach(function (inp) {
             inp.onchange = function () { TR.uploadLogo(inp.files[0], inp.dataset.up); };
         });
@@ -1687,10 +1689,122 @@ var TR = {
             z.ondrop = function (e) { e.preventDefault(); z.classList.remove('over'); var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) TR.uploadLogo(f, '__new'); };
         });
     },
+    // ---------- From Drive (2026-11-24) ----------
+    // The team logo folder in Google Drive, through the Worker and the Apps
+    // Script that can see it (tools/team-drive-picker.gs). Read only: picking a
+    // logo fetches the file and uploads it here exactly like a file from the
+    // computer, so everything after (previews, mockups, print files) is the same.
+    DRV_OK: new RegExp('[.](png|jpe?g|svg|webp|pdf|ai|eps)$', 'i'),
+    DRV_MIME: { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/svg+xml': '.svg', 'image/webp': '.webp', 'application/pdf': '.pdf', 'application/postscript': '.eps', 'application/illustrator': '.ai' },
+    driveOpen: function (slot) {
+        var old = TR.$('drv'); if (old) old.remove();
+        var d = document.createElement('div'); d.id = 'drv';
+        d.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="drv-h">' +
+            '<div class="drv-head"><h3 id="drv-h">' + (slot && slot !== '__new' ? 'Replace ' + TR.esc(TR.logoName(slot)) + ' from Drive' : 'Add a logo from Drive') + '</h3>' +
+            '<button type="button" class="btn quiet" id="drv-x" aria-label="Close">Close</button></div>' +
+            '<input type="search" id="drv-q" placeholder="Search a team or a logo code, e.g. canton or C081" aria-label="Search the team logos" autocomplete="off">' +
+            '<div id="drv-path" class="drv-path"></div><div id="drv-list" class="drv-list"><p class="sub">Opening the team logos folder...</p></div>' +
+            '<p class="sub" style="margin:10px 0 0">Click a logo to add it to this store. Nothing in Drive is changed.</p></div>';
+        document.body.appendChild(d);
+        var st = { slot: slot || '__new', folder: null, seq: 0 };
+        TR.drv = st;
+        var close = function () { d.remove(); TR.drv = null; document.removeEventListener('keydown', esc); };
+        var esc = function (e) { if (e.key === 'Escape') close(); };
+        document.addEventListener('keydown', esc);
+        TR.$('drv-x').onclick = close;
+        d.onclick = function (e) { if (e.target === d) close(); };
+        var q = TR.$('drv-q'), timer = null;
+        q.oninput = function () {
+            clearTimeout(timer);
+            var v = q.value.trim();
+            timer = setTimeout(function () { if (v.length >= 2) TR.driveSearch(v); else if (!v) TR.driveList(st.folder); }, 400);
+        };
+        q.focus();
+        TR.driveList(null);
+    },
+    driveGet: function (params) {
+        var qs = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); }).join('&');
+        return TR.api('/team-requests/drive?' + qs);
+    },
+    driveList: function (folder) {
+        var st = TR.drv; if (!st) return;
+        var mine = ++st.seq; st.folder = folder;
+        TR.$('drv-list').innerHTML = '<p class="sub">Loading...</p>';
+        TR.driveGet(folder ? { action: 'list', folder: folder } : { action: 'list' }).then(function (j) {
+            if (!TR.drv || mine !== st.seq) return;
+            if (j.__status !== 200) { TR.$('drv-list').innerHTML = '<p class="bad">' + TR.esc(j.error || ('HTTP ' + j.__status)) + '</p>'; return; }
+            TR.$('drv-path').innerHTML = (j.path || []).map(function (p, i, a) {
+                return i === a.length - 1 ? '<b>' + TR.esc(p.name) + '</b>' : '<button type="button" class="drv-crumb" data-dfold="' + TR.esc(p.id) + '">' + TR.esc(p.name) + '</button> /';
+            }).join(' ');
+            TR.driveRender(j.folders || [], j.files || [], 'This folder is empty.');
+        });
+    },
+    driveSearch: function (q) {
+        var st = TR.drv; if (!st) return;
+        var mine = ++st.seq;
+        TR.$('drv-path').innerHTML = 'Searching every team folder for <b>' + TR.esc(q) + '</b>';
+        TR.$('drv-list').innerHTML = '<p class="sub">Searching...</p>';
+        TR.driveGet({ action: 'search', q: q }).then(function (j) {
+            if (!TR.drv || mine !== st.seq) return;
+            if (j.__status !== 200) { TR.$('drv-list').innerHTML = '<p class="bad">' + TR.esc(j.error || ('HTTP ' + j.__status)) + '</p>'; return; }
+            TR.driveRender([], j.files || [], 'No logo has "' + q + '" in its name. Try the team name, or open a folder below by clearing the search.');
+        });
+    },
+    driveRender: function (folders, files, empty) {
+        var box = TR.$('drv-list');
+        if (!folders.length && !files.length) { box.innerHTML = '<p class="sub">' + TR.esc(empty) + '</p>'; return; }
+        box.innerHTML = folders.map(function (f) {
+            return '<button type="button" class="drv-fold" data-dfold="' + TR.esc(f.id) + '"><span aria-hidden="true">&#128193;</span> ' + TR.esc(f.name) + '</button>';
+        }).join('') + files.map(function (f) {
+            var ok = TR.DRV_OK.test(f.name) || TR.DRV_MIME[f.mime];
+            return '<button type="button" class="drv-file' + (ok ? '' : ' off') + '" data-dfile="' + TR.esc(f.id) + '"' + (ok ? '' : ' disabled title="Not a logo file this page can use"') + '>' +
+                '<span class="drv-th" id="drv-th-' + TR.esc(f.id) + '"><i>' + TR.esc((f.name.split('.').pop() || '').slice(0, 4).toUpperCase()) + '</i></span>' +
+                '<span class="drv-nm">' + TR.esc(f.name) + '</span>' + (f.where ? '<span class="drv-wh">' + TR.esc(f.where) + '</span>' : '') + '</button>';
+        }).join('');
+        box.querySelectorAll('[data-dfold]').forEach(function (b) { b.onclick = function () { TR.$('drv-q').value = ''; TR.driveList(b.dataset.dfold); }; });
+        TR.$('drv-path').querySelectorAll('[data-dfold]').forEach(function (b) { b.onclick = function () { TR.$('drv-q').value = ''; TR.driveList(b.dataset.dfold); }; });
+        var byId = {}; files.forEach(function (f) { byId[f.id] = f; });
+        box.querySelectorAll('[data-dfile]').forEach(function (b) { b.onclick = function () { TR.drivePick(byId[b.dataset.dfile]); }; });
+        // Thumbnails three at a time, images only, remembered for the session.
+        TR.drvThumbs = TR.drvThumbs || {};
+        var IMG = new RegExp('[.](png|jpe?g|webp|svg)$', 'i');
+        var queue = files.filter(function (f) { return String(f.mime || '').indexOf('image') === 0 || IMG.test(f.name); }).map(function (f) { return f.id; });
+        var seq = TR.drv && TR.drv.seq;
+        var next = function () {
+            var id = queue.shift(); if (!id || !TR.drv || TR.drv.seq !== seq) return;
+            var put = function (src) { var el = TR.$('drv-th-' + id); if (el && src) el.innerHTML = '<img alt="" src="' + src + '">'; };
+            if (TR.drvThumbs[id]) { put(TR.drvThumbs[id]); next(); return; }
+            TR.driveGet({ action: 'thumb', id: id }).then(function (j) {
+                if (j.__status === 200 && j.data) { TR.drvThumbs[id] = 'data:' + (j.mime || 'image/png') + ';base64,' + j.data; put(TR.drvThumbs[id]); }
+                next();
+            });
+        };
+        next(); next(); next();
+    },
+    drivePick: function (f) {
+        var st = TR.drv; if (!st || !f) return;
+        TR.$('drv-list').innerHTML = '<p class="sub">Fetching <b>' + TR.esc(f.name) + '</b> from Drive. A big file can take a few seconds...</p>';
+        TR.$('drv-path').innerHTML = '';
+        TR.driveGet({ action: 'file', id: f.id }).then(function (j) {
+            if (!TR.drv) return;
+            if (j.__status !== 200 || !j.data) { TR.$('drv-list').innerHTML = '<p class="bad">' + TR.esc(j.error || ('HTTP ' + j.__status)) + '</p>'; return; }
+            var bin = atob(j.data), bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            // Some Drive names have no extension ("Agawam (A042)"); the type says what it is.
+            var name = j.name || f.name;
+            if (!TR.DRV_OK.test(name) && TR.DRV_MIME[j.mime]) name += TR.DRV_MIME[j.mime];
+            var file = new File([bytes], name, { type: j.mime || 'application/octet-stream' });
+            var slot = st.slot;
+            TR.$('drv').remove(); TR.drv = null;
+            TR.uploadLogo(file, slot);
+        });
+    },
+
     // The big box shown wherever a request has no logo yet.
     logoDropHtml: function () {
         return '<label class="logodrop" data-drop="1"><input type="file" accept="' + TR.LOGO_ACCEPT + '" data-up="__new" class="hidden">' +
-            '<b>Upload the team\'s logo</b><span>Click, or drop the file here. PNG works best for mockups; AI, EPS and PDF are kept for print.</span></label>';
+            '<b>Upload the team\'s logo</b><span>Click, or drop the file here. PNG works best for mockups; AI, EPS and PDF are kept for print.</span></label>' +
+            '<div style="margin:-6px 0 14px"><button type="button" class="btn" data-drive="__new">Or pick it from Drive</button></div>';
     },
     // Products tab: the logos at a glance, and the way to add one.
     logoStripHtml: function () {
@@ -1701,6 +1815,7 @@ var TR = {
                 return '<span class="lgwrap"><span class="lgthumb">' + (u ? '<img alt="" src="' + TR.esc(u) + '">' : '<i>file</i>') + '</span><small>' + TR.esc(TR.logoName(k)) + '</small></span>';
             }).join('') +
             '<label class="btn" style="display:inline-flex;align-items:center">+ Upload logo<input type="file" accept="' + TR.LOGO_ACCEPT + '" data-up="__new" class="hidden"></label>' +
+            '<button type="button" class="btn" data-drive="__new">From Drive</button>' +
             '<button type="button" class="btn" id="to-logos">Logo codes and print files</button></div>';
     },
 
