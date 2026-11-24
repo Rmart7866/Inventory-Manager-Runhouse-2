@@ -745,6 +745,9 @@ var TR = {
         // supplier comes from the brand: Charles River is Charles River's,
         // every other brand in the catalog is distributed by SanMar.
         if (/charles river/i.test(p.b || '')) return 'cra';
+        // ASICS (the Rival II singlets, 2026-11-24) is bought from ASICS, not a
+        // distributor this page can ask, so it has no stock check at all.
+        if (/asics/i.test(p.b || '')) return null;
         if (p.b) return 'sanmar';
         return null;
     },
@@ -782,7 +785,7 @@ var TR = {
 
     stockHtml: function (it, p) {
         var nm = TR.supName(p);
-        if (!TR.supOf(p)) return '<span class="sub">Stock not checked for this style.</span>';
+        if (!TR.supOf(p)) return '<span class="sub">' + (/asics/i.test(p.b || '') ? 'Ordered from ASICS, so its stock is not checked here. ASICS availability is on the B2B site.' : 'Stock not checked for this style.') + '</span>';
         var sup = TR.st.SUP[p.s];
         if (!sup) return '<span class="sub">Checking ' + nm + ' stock...</span>';
         if (sup.error) return '<span class="sub">' + nm + ' stock not checked (' + TR.esc(sup.error) + ').</span>';

@@ -1988,6 +1988,12 @@ to the contact form email only if that save fails. Staff work them in
   staff file. Logo spots come from the closest style, CHECKED BY DRAWING THEM
   on the new photos (ST870's spots missed District's framing; DT6100's fit).
   The staff "Add a product" search ignores punctuation and symbols.
+  2026-11-24: the ASICS Rival II Singlet, men's TF3085 and women's TF2934,
+  $35, Black / Navy / Royal / White, from the store's own base listing
+  photos: `trh-builder-catalog-38bdc7eb3d.json`, 167 styles. Front logos only
+  (no back photos). The borrowed Sport-Tek tank spots sat over ASICS's own
+  mark, so the singlets carry spots of their own. No stock check (ASICS is
+  not a distributor the page can ask).
 - **A proof is OPTIONAL (owner, 2026-11-23, same day it was required)**:
   Build no longer waits on the proof or the customer's approval. Both are
   still recorded and shown (`approvedForBuild` in teamreq.js reports it on
