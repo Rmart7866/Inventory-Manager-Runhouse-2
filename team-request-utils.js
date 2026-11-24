@@ -10,7 +10,7 @@
 var TeamReqUtils = {
     // The builder's catalog, the same file the storefront page loads. If the
     // builder's CURL constant moves to a new hashed filename, move this too.
-    CATALOG_URL: 'https://cdn.shopify.com/s/files/1/0631/6877/4399/files/trh-builder-catalog-e283e915af.json',
+    CATALOG_URL: 'https://cdn.shopify.com/s/files/1/0631/6877/4399/files/trh-builder-catalog-d49aeb065c.json',
     CDN: { '~': 'https://cdn.shopify.com/s/files/1/0631/6877/4399/files/', '^': 'https://cdnm.sanmar.com/swatch/gifs/', '`': 'https://www.charlesriverapparel.com/prodimg/swatch/' },
 
     LADDER: ['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL'],
