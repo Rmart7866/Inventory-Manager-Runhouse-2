@@ -1853,9 +1853,10 @@ var TR = {
         var box = TR.$('drv-list');
         if (groups) files = [].concat.apply([], groups.map(function (g) { return g.files; }));
         if (!folders.length && !files.length) { box.innerHTML = '<p class="sub">' + TR.esc(empty) + '</p>'; return; }
-        var foldHtml = folders.map(function (f) {
-            return '<button type="button" class="drv-fold" data-dfold="' + TR.esc(f.id) + '"><span aria-hidden="true">&#128193;</span> ' + TR.esc(f.name) + (f.where ? '<span class="drv-wh"> in ' + TR.esc(f.where) + '</span>' : '') + '</button>';
-        }).join('');
+        // Folders in their own wider list, so a long name is read in full.
+        var foldHtml = folders.length ? '<div class="drv-folds">' + folders.map(function (f) {
+            return '<button type="button" class="drv-fold" data-dfold="' + TR.esc(f.id) + '"><span class="drv-ic" aria-hidden="true">&#128193;</span><span class="drv-fn">' + TR.esc(f.name) + (f.where ? '<span class="drv-wh">in ' + TR.esc(f.where) + '</span>' : '') + '</span></button>';
+        }).join('') + '</div>' : '';
         if (groups) {
             box.innerHTML = (foldHtml ? '<h4 class="drv-h">Folders</h4>' + foldHtml : '') + groups.map(function (g) {
                 var fid = g.files[0] && g.files[0].folderId;
