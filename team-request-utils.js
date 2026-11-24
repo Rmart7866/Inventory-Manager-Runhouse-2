@@ -162,7 +162,54 @@ var TeamReqUtils = {
         // tried second. It only ever adds a match, never changes one.
         var k = this.colorKey(name);
         var c = sup.alias[k] || sup.alias[k.replace(/heather/g, 'hthr')];
-        return c && sup.colors[c] ? sup.colors[c] : null;
+        if (c && sup.colors[c]) return sup.colors[c];
+        return this.supplierColorLoose(sup, name);
+    },
+
+    // SanMar's own spellings, for the colours an exact key misses (measured
+    // 2026-11-24 over every builder colour): abbreviations ("AthlHthr",
+    // "BrillOrng", "TrNv"), one letter off ("Terracota", "Brillant"), and a
+    // two-tone written without "Athletic" ("Black/Royal" for our "Black/
+    // Athletic Royal"). Tried only when the exact join fails, and a match
+    // counts only when exactly ONE SanMar colour fits, so it can never pick
+    // between two; no match stays "no data", never "out".
+    ABBR: { athl: 'athletic', ath: 'athletic', hthr: 'heather', hth: 'heather', ht: 'heather', heathered: 'heather', dk: 'dark', lt: 'light', tr: 'true', nvy: 'navy', nv: 'navy', ny: 'navy',
+        gry: 'grey', gy: 'grey', gray: 'grey', mrn: 'maroon', mroon: 'maroon', blk: 'black', bk: 'black', wht: 'white', wh: 'white', ryl: 'royal', ry: 'royal', org: 'orange', orng: 'orange', orang: 'orange',
+        grn: 'green', gn: 'green', brn: 'brown', pk: 'pink', med: 'medium', dp: 'deep', vtg: 'vintage', olv: 'olive', chcl: 'charcoal', gld: 'gold', slv: 'silver', prpl: 'purple', prple: 'purple',
+        frst: 'frost', blu: 'blue', brill: 'brilliant', oxfrd: 'oxford', oxfd: 'oxford', choc: 'chocolate', crl: 'coral', rsp: 'raspberry', rasp: 'raspberry' },
+    looseWords: function (s) {
+        var A = this.ABBR;
+        return String(s || '').replace(new RegExp('([a-z])([A-Z])', 'g'), '$1 $2').toLowerCase().split(new RegExp('[^a-z0-9]+')).filter(Boolean).map(function (w) { return A[w] || w; });
+    },
+    supplierColorLoose: function (sup, name) {
+        var self = this, mine = this.looseWords(name), mk = mine.join('');
+        if (!mk) return null;
+        var names = Object.keys(sup.colors);
+        var only = function (test) { var hit = names.filter(test); return hit.length === 1 ? sup.colors[hit[0]] : null; };
+        // 1. The same words once abbreviations are spelled out.
+        var r = only(function (n) { return self.looseWords(n).join('') === mk; });
+        if (r) return r;
+        // 2. One letter off, on names long enough that one letter is a typo.
+        var near = function (a, b) {
+            if (Math.abs(a.length - b.length) > 1 || a.length < 8) return false;
+            var i = 0, j = 0, d = 0;
+            while (i < a.length && j < b.length) {
+                if (a[i] === b[j]) { i++; j++; continue; }
+                if (++d > 1) return false;
+                if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+            }
+            return d + (a.length - i) + (b.length - j) <= 1;
+        };
+        r = only(function (n) { return near(self.looseWords(n).join(''), mk); });
+        if (r) return r;
+        // 3. "Athletic" left out of a two-tone, both ways round.
+        if (String(name).indexOf('/') >= 0 || mine.length > 2) {
+            var drop = function (ws) { return ws.filter(function (w) { return w !== 'athletic'; }).join(''); };
+            var md = drop(mine);
+            r = only(function (n) { return n.indexOf('/') >= 0 && drop(self.looseWords(n)) === md; });
+            if (r) return r;
+        }
+        return null;
     },
 
     // Under this many in a core size reads as low. A team store sells a

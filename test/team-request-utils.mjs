@@ -109,5 +109,18 @@ eq('one size goods are judged on their one size', U.stockOf({ alias: { navy: 'Na
 eq('youth with no adult core sizes uses its own', U.stockOf({ alias: { navy: 'Navy' }, colors: { Navy: { q: { '2T': 0, '3T': 50 } } } }, 'Navy', ['2T', '3T']).state, 'out');
 eq('heathered matches the heather key', U.colorKey('Heathered Navy'), 'heathernavy');
 
+// SanMar's own spellings (2026-11-24): tried only after the exact join, and
+// only one SanMar colour may fit. Real cases from the builder catalog.
+const mk = (names) => ({ alias: {}, colors: Object.fromEntries(names.map((n) => [n, { q: { M: 1 }, n }])) });
+const pick = (sup, name) => { const r = U.supplierColor(sup, name); return r ? r.n : null; };
+eq('abbreviations spelled out: "TrNv/White" is True Navy/ White', pick(mk(['TrNv/White', 'True Navy']), 'True Navy/ White'), 'TrNv/White');
+eq('"BrillOrng" is Brilliant Orange', pick(mk(['BrillOrng', 'Black']), 'Brilliant Orange'), 'BrillOrng');
+eq('one letter off on a long name: "Terracota" is Terracotta', pick(mk(['Terracota', 'Navy']), 'Terracotta'), 'Terracota');
+eq('but a short name is never "one letter off" (Red is not Rd)', pick(mk(['Rd', 'Navy']), 'Red'), null);
+eq('a two-tone without "Athletic": "Black/Royal" is Black/ Athletic Royal', pick(mk(['Black/Royal', 'Athletic Royal', 'Black']), 'Black/ Athletic Royal'), 'Black/Royal');
+eq('and plain "Athletic Royal" is not taken for it', pick(mk(['Athletic Royal', 'Black']), 'Black/ Athletic Royal'), null);
+eq('two SanMar colours fit: no guess', pick(mk(['TrNv/Wht', 'TrNv/White']), 'True Navy/ White'), null);
+eq('an exact match still wins', pick({ alias: { navy: 'Navy' }, colors: { Navy: { n: 'Navy' }, Nvy: { n: 'Nvy' } } }, 'Navy'), 'Navy');
+
 console.log(failures ? `\n${failures} FAILED\n` : '\nall passed\n');
 process.exit(failures ? 1 : 0);
