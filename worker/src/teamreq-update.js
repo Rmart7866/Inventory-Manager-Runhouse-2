@@ -95,41 +95,57 @@ export async function handleUpdateProducts(request, env) {
     try { const col = await collectionByHandle(client, updHandle); if (col) { const info = existingStoreInfo(col); tag = info.tag || tag; team = info.prefix || team; } } catch { /* keep the request's own */ }
   }
 
-  const results = [];
-  for (const spec of b.products) {
+  // Pass 1: each line's product (only ones this page built and still on
+  // Shopify) and how far the line is from it.
+  const results = new Array(b.products.length), cands = [], alive = new Map(), seen = new Map();
+  const exists = async (id) => {
+    if (!alive.has(id)) { try { const q = await client.graphql('query($id: ID!) { product(id: $id) { id } }', { id }); alive.set(id, !!(q.data && q.data.product)); } catch { alive.set(id, true); } }
+    return alive.get(id);
+  };
+  for (let i = 0; i < b.products.length; i++) {
+    const spec = b.products[i];
     const plan = planProduct(team, tag, spec);
     let same = built.filter((x) => String(x.style).toUpperCase() === String(spec.style).toUpperCase());
     // A store built twice (the first set deleted in between, as Blessed
     // Sacrament Basketball was) records each style twice; only the products
     // still on Shopify count.
-    if (same.length > 1) {
-      const alive = [];
-      for (const x of same) {
-        try { const q = await client.graphql('query($id: ID!) { product(id: $id) { id } }', { id: x.id }); if (q.data && q.data.product) alive.push(x); } catch { alive.push(x); }
-      }
-      same = alive;
-    }
+    if (same.length > 1) { const keep = []; for (const x of same) if (await exists(x.id)) keep.push(x); same = keep; }
     const target = same.find((x) => x.handle === plan.handle) || (same.length === 1 ? same[0] : null);
     if (!target) {
-      results.push({ style: spec.style, skipped: true, reason: same.length > 1 ? 'This page built more than one ' + spec.style + ', so it cannot tell which to change. Change it in Shopify admin.' : 'Not built by this page yet: Build creates it.' });
+      results[i] = { style: spec.style, skipped: true, reason: same.length > 1 ? 'This page built more than one ' + spec.style + ', so it cannot tell which to change. Change it in Shopify admin.' : 'Not built by this page yet: Build creates it.' };
       continue;
     }
-    let cur;
-    try { cur = (await client.graphql(READ, { id: target.id })).data.product; } catch (e) {
-      results.push({ style: spec.style, handle: target.handle, ok: false, errors: ['Could not read it from Shopify: ' + String(e && e.message || e)] }); continue;
+    let cur = seen.get(target.id);
+    if (cur === undefined) {
+      try { cur = (await client.graphql(READ, { id: target.id })).data.product; } catch (e) {
+        results[i] = { style: spec.style, handle: target.handle, ok: false, errors: ['Could not read it from Shopify: ' + String(e && e.message || e)] }; continue;
+      }
+      seen.set(target.id, cur);
     }
-    if (!cur) { results.push({ style: spec.style, handle: target.handle, skipped: true, reason: 'It is no longer on Shopify.' }); continue; }
+    if (!cur) { results[i] = { style: spec.style, handle: target.handle, skipped: true, reason: 'It is no longer on Shopify.' }; continue; }
     const input = updateInputFor(plan, cur, { searchable: !!b.searchable });
     const diff = diffProduct(cur, input);
-    const row = { style: spec.style, id: cur.id, handle: cur.handle, title: cur.title, status: cur.status, diff, photos: !!input.files };
-    if (dry) { results.push(row); continue; }
+    cands.push({ i, cur, input, cost: diff.variantsAdded + diff.variantsRemoved, row: { style: spec.style, id: cur.id, handle: cur.handle, title: cur.title, status: cur.status, diff, photos: !!input.files } });
+  }
+  // Pass 2: a product is changed by the ONE line closest to it (ties go to
+  // the first). The other lines of that style are new products for Build.
+  const best = new Map();
+  for (const c of cands) { const o = best.get(c.cur.id); if (!o || c.cost < o.cost) best.set(c.cur.id, c); }
+  const go = [];
+  for (const c of cands) {
+    if (best.get(c.cur.id) === c) { go.push(c); continue; }
+    results[c.i] = { style: c.row.style, skipped: true, reason: 'The store\'s one ' + c.row.style + ' is matched to a closer line on this request, so this line is a NEW product: Build creates it, named by its logo codes.' };
+  }
+  // Pass 3: report, or write.
+  for (const c of go) {
+    if (dry) { results[c.i] = c.row; continue; }
     try {
-      const body = await client.graphql(PRODUCT_SET, { input });
+      const body = await client.graphql(PRODUCT_SET, { input: c.input });
       const r = (body.data && body.data.productSet) || {};
       const errs = (r.userErrors || []).map((e) => e.message).concat((body.errors || []).map((e) => e.message));
-      results.push(errs.length ? { ...row, ok: false, errors: errs } : { ...row, ok: true });
+      results[c.i] = errs.length ? { ...c.row, ok: false, errors: errs } : { ...c.row, ok: true };
     } catch (e) {
-      results.push({ ...row, ok: false, errors: [String(e && e.message || e)] });
+      results[c.i] = { ...c.row, ok: false, errors: [String(e && e.message || e)] };
     }
   }
   if (!dry) {

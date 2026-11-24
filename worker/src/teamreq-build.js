@@ -267,7 +267,7 @@ export async function handleBuild(request, env) {
   for (const spec of b.products) {
     const st = String(spec.style).toUpperCase();
     let plan = planProduct(team, tag, spec);
-    if (carried.has(st) || usedHandles.has(plan.handle)) {
+    if (carried.has(st)) {
       const codes = [...new Set((spec.logoCodes || []).map((c) => String(c).toUpperCase()).filter(Boolean))].sort();
       plan = planProduct(team, tag, { ...spec, edition: codes.length ? codes.join('/') : '2' });
       for (let n = 3; usedHandles.has(plan.handle) && n < 20; n++) plan = planProduct(team, tag, { ...spec, edition: codes.length ? codes.join('/') + ' ' + n : String(n) });
@@ -301,6 +301,41 @@ export async function handleBuild(request, env) {
     if (!update) colExisting = await collectionByHandle(client, collection.handle);
   } catch (e) {
     return { status: 502, body: { error: 'Could not check which handles already exist, so nothing was built. ' + String(e && e.message || e) } };
+  }
+
+  // Lines that share an address (the same style twice, or a style already
+  // built) are told apart by LOGO CODES (owner, 2026-11-24: other logos are
+  // not a duplicate). If a product is at that address, the line printing the
+  // codes it prints keeps the address (it IS that product, left alone; a
+  // change to it is "Change built products"); with no product there, the
+  // first line keeps it. Every other line is its own product, named by its
+  // codes ("... (PC78H) - B128/B133"), else by a number.
+  try {
+    const groups = new Map();
+    plans.forEach((pl, i) => { if (!groups.has(pl.handle)) groups.set(pl.handle, []); groups.get(pl.handle).push(i); });
+    const codesOf = (i) => [...new Set(((b.products[i] && b.products[i].logoCodes) || []).map((c) => String(c).toUpperCase()).filter(Boolean))].sort();
+    const moved = [], taken = new Set(plans.map((pl) => pl.handle));
+    for (const [h, idx] of groups) {
+      if (idx.length === 1 && !existing.has(h)) continue;
+      let keep = -1;
+      if (existing.has(h)) {
+        const pb = await client.graphql('query($h:String!){ productByHandle(handle:$h){ variants(first:100){ nodes{ selectedOptions{ value } } } } }', { h });
+        const pr = pb.data && pb.data.productByHandle, printed = new Set();
+        if (pr) for (const v of pr.variants.nodes) for (const o of v.selectedOptions) for (const m of String(o.value).matchAll(/\b([A-Z][0-9]{3})\b/g)) printed.add(m[1]);
+        keep = idx.find((i) => { const c = codesOf(i); return !c.length || c.every((x) => printed.has(x)); });
+        if (keep === undefined) keep = -1;
+      } else keep = idx[0];
+      for (const i of idx) {
+        if (i === keep) continue;
+        const c = codesOf(i);
+        let n = 2, pl = planProduct(team, tag, { ...b.products[i], edition: c.length ? c.join('/') : '2' });
+        while (taken.has(pl.handle) && n < 20) pl = planProduct(team, tag, { ...b.products[i], edition: (c.length ? c.join('/') + ' ' : '') + (++n) });
+        taken.add(pl.handle); plans[i] = pl; moved.push(pl.handle);
+      }
+    }
+    if (moved.length) for (const x of await existingProductHandles(client, moved)) existing.add(x);
+  } catch (e) {
+    return { status: 502, body: { error: 'Could not read an existing product\'s logos, so nothing was built. ' + String(e && e.message || e) } };
   }
 
   const plan = {

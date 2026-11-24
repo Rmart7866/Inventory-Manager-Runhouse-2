@@ -600,6 +600,12 @@ console.log('\nUpdate products this page built (2026-11-24)');
   r = await call('/team-requests/update-products', { method: 'POST', headers: STAFF, body: { id: zid, products: [{ ...spec, style: 'PC54', name: 'Tee' }] } });
   j = await r.json();
   check('a product this page did not build is never touched', j.results[0].skipped && /Not built by this page/.test(j.results[0].reason));
+  // Two lines of the style, one the product as it is (Maroon, S and M, $45)
+  // and one a new version: only the closer line may change the product.
+  sets = [];
+  r = await call('/team-requests/update-products', { method: 'POST', headers: STAFF, body: { id: zid, products: [spec, { ...spec, sizes: ['S', 'M'], price: 45, colors: [{ name: 'Maroon' }] }] } });
+  j = await r.json();
+  check('two lines, one built product: only the closer line is matched to it', j.results[1].diff && j.results[1].diff.variantsAdded === 0 && j.results[1].diff.variantsRemoved === 0 && j.results[0].skipped && /NEW product/.test(j.results[0].reason) && sets.length === 0, JSON.stringify(j.results).slice(0, 300));
 
   // Built twice, the first set deleted in between (Blessed Sacrament
   // Basketball, 2026-11-23): the record lists each style twice, and only the
@@ -619,6 +625,28 @@ console.log('\nUpdate products this page built (2026-11-24)');
   r = await call('/team-requests/update-products', { method: 'POST', headers: STAFF, body: { id: tid, products: [spec] } });
   j = await r.json();
   check('built twice, first set deleted: the update finds the one still on Shopify', j.results[0].id === 'gid://shopify/Product/71' && !j.results[0].skipped, JSON.stringify(j.results[0]).slice(0, 200));
+  globalThis.fetch = realFetch;
+
+  // Blessed Sacrament Basketball's shape: the store's PC78H prints B131, and
+  // the request lists a NEW-logo PC78H (B128/B133) before the original. The
+  // new one is its own product; the original keeps its address and is left
+  // alone, whatever the order of the lines.
+  const BASE = 'zz-three-hoodie-pc78h';
+  globalThis.fetch = async (u, init = {}) => {
+    if (String(u).includes('/oauth/access_token')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { headers: { 'Content-Type': 'application/json' } });
+    const b = JSON.parse(init.body || '{}'), q = b.query || '';
+    if (/productByHandle/.test(q)) return new Response(JSON.stringify({ data: { productByHandle: b.variables.h === BASE ? { variants: { nodes: [{ selectedOptions: [{ value: 'Maroon (B131 (FC))' }, { value: 'Small' }] }] } } : null } }));
+    if (/products\(first/.test(q)) return new Response(JSON.stringify({ data: { products: { nodes: JSON.stringify(b.variables).includes('"' + BASE + '\\"') || JSON.stringify(b.variables).includes(BASE + '\\"') ? [{ handle: BASE }] : [] } } }));
+    return new Response(JSON.stringify({ data: { collectionByHandle: null, publications: { nodes: [] } } }));
+  };
+  r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'new', team: 'Zz Three', by: 'Ryan' } });
+  const hid = (await r.json()).id;
+  r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: hid, dryRun: true, products: [
+    { ...spec, logoCodes: ['B128', 'B133'] }, { ...spec, logoCodes: ['B131'] } ] } });
+  j = await r.json();
+  const pp = (j.plan && j.plan.products) || [];
+  check('a new-logo line listed first becomes its own product', pp[0] && pp[0].title === 'Zz Three - Hoodie (PC78H) - B128/B133' && !pp[0].exists, JSON.stringify(pp.map((x) => [x.title, x.exists])));
+  check('and the original keeps its address, left alone as existing', pp[1] && pp[1].handle === BASE && pp[1].exists, JSON.stringify(pp.map((x) => [x.handle, x.exists])));
   globalThis.fetch = realFetch;
 }
 
