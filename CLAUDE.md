@@ -279,6 +279,14 @@ node tools/auto-write.mjs <brand> <file> --apply                 # write by hand
 node tools/auto-write.mjs --restore <rollback.json> [--apply]    # undo a run
 node test/auto-write.mjs                                          # the refusals and the wiring
 
+# KEEP-ALIVES RUN THREE TIMES AN HOUR, EACH WITH A HARD LIMIT (2026-11-24).
+# The night of 2026-11-23 the HOKA keep-alive HUNG for 19 hours holding the
+# HOKA profile: every HOKA run after it skipped and the session expired under
+# it. Every <brand>-keepalive job now runs through tools/keepalive-guard.mjs
+# (--profile <dir> --limit 240 -- <runner> --keepalive): past 4 minutes it
+# closes that profile's Chrome THROUGH THE BROWSER, then ends the process.
+# Minutes per brand avoid the brand's own nightly start (puma :02/:22/:42
+# because its run is :40). Tested on a deliberately hung job, then on Brooks.
 # A JOB THE MAC SLEPT THROUGH RERUNS ON WAKE (2026-11-16). launchd does run a
 # missed calendar job on wake, but lid shut that wake is a DARK WAKE: seconds
 # long, no network. Every job fired then, failed, and counted as run, so
