@@ -600,6 +600,25 @@ console.log('\nUpdate products this page built (2026-11-24)');
   r = await call('/team-requests/update-products', { method: 'POST', headers: STAFF, body: { id: zid, products: [{ ...spec, style: 'PC54', name: 'Tee' }] } });
   j = await r.json();
   check('a product this page did not build is never touched', j.results[0].skipped && /Not built by this page/.test(j.results[0].reason));
+
+  // Built twice, the first set deleted in between (Blessed Sacrament
+  // Basketball, 2026-11-23): the record lists each style twice, and only the
+  // product still on Shopify is the one to change.
+  let nextId = 70;
+  globalThis.fetch = async (u, init = {}) => {
+    if (String(u).includes('/oauth/access_token')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { headers: { 'Content-Type': 'application/json' } });
+    const b = JSON.parse(init.body || '{}'), q = b.query || '';
+    if (/productSet/.test(q)) { const id = b.variables.input.id || 'gid://shopify/Product/' + (nextId++); return new Response(JSON.stringify({ data: { productSet: { product: { id, handle: 'zz-two-hoodie-pc78h', title: 'Zz Two - Hoodie (PC78H)', status: 'DRAFT' }, userErrors: [] } } })); }
+    if (/collectionCreate/.test(q)) return new Response(JSON.stringify({ data: { collectionCreate: { collection: { id: 'gid://shopify/Collection/8', handle: 'zz-two', title: 'Zz Two' }, userErrors: [] } } }));
+    if (/product\(id/.test(q)) return new Response(JSON.stringify({ data: { product: b.variables.id === 'gid://shopify/Product/70' ? null : { ...cur, id: b.variables.id } } }));
+    return new Response(JSON.stringify({ data: { products: { nodes: [] }, collectionByHandle: null, publications: { nodes: [] } } }));
+  };
+  r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'new', team: 'Zz Two', by: 'Ryan' } });
+  const tid = (await r.json()).id;
+  for (let k = 0; k < 2; k++) await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: tid, dryRun: false, products: [{ ...spec, sizes: ['S', 'M'], price: 45, colors: [{ name: 'Maroon' }] }] } });
+  r = await call('/team-requests/update-products', { method: 'POST', headers: STAFF, body: { id: tid, products: [spec] } });
+  j = await r.json();
+  check('built twice, first set deleted: the update finds the one still on Shopify', j.results[0].id === 'gid://shopify/Product/71' && !j.results[0].skipped, JSON.stringify(j.results[0]).slice(0, 200));
   globalThis.fetch = realFetch;
 }
 

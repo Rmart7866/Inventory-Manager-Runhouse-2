@@ -98,8 +98,18 @@ export async function handleUpdateProducts(request, env) {
   const results = [];
   for (const spec of b.products) {
     const plan = planProduct(team, tag, spec);
-    const same = built.filter((x) => String(x.style).toUpperCase() === String(spec.style).toUpperCase());
-    const target = built.find((x) => x.handle === plan.handle) || (same.length === 1 ? same[0] : null);
+    let same = built.filter((x) => String(x.style).toUpperCase() === String(spec.style).toUpperCase());
+    // A store built twice (the first set deleted in between, as Blessed
+    // Sacrament Basketball was) records each style twice; only the products
+    // still on Shopify count.
+    if (same.length > 1) {
+      const alive = [];
+      for (const x of same) {
+        try { const q = await client.graphql('query($id: ID!) { product(id: $id) { id } }', { id: x.id }); if (q.data && q.data.product) alive.push(x); } catch { alive.push(x); }
+      }
+      same = alive;
+    }
+    const target = same.find((x) => x.handle === plan.handle) || (same.length === 1 ? same[0] : null);
     if (!target) {
       results.push({ style: spec.style, skipped: true, reason: same.length > 1 ? 'This page built more than one ' + spec.style + ', so it cannot tell which to change. Change it in Shopify admin.' : 'Not built by this page yet: Build creates it.' });
       continue;
