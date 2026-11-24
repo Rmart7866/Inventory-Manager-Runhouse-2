@@ -866,8 +866,15 @@ var TR = {
     hiRes: function (p, colorName, back) {
         var rec = TR.U.supplierColor(TR.st.SUP[p.s], colorName), url = rec && (back ? rec.b : rec.f);
         var c = p.c[TR.colorIdx(p, colorName)], cat = c && (back ? c[6] : c[2]);
+        // ASICS has no supplier photo service, so its sharp copy sits beside the
+        // catalog photo as "<name>-hi.jpg" (the same trim at full resolution,
+        // 2026-11-24). The shape check below still decides whether it is used.
+        var direct = false;
+        if (!url && cat && /asics/i.test(p.b || '')) { url = String(cat).replace(new RegExp('[.]jpg([?]|$)'), '-hi.jpg$1'); direct = true; }
         if (!url || !cat) return Promise.resolve(null);
-        return Promise.all([TR.loadImg(TR.photoUrl(url)), TR.loadImg(cat)]).then(function (a) {
+        // SanMar's photos come through the Worker (no CORS on their CDN); our
+        // own Shopify files allow it, so they load straight.
+        return Promise.all([TR.loadImg(direct ? url : TR.photoUrl(url)), TR.loadImg(cat)]).then(function (a) {
             var hi = TR.trimImg(a[0]), lo = TR.trimImg(a[1]);
             var r1 = hi.width / hi.height, r2 = lo.width / lo.height;
             return Math.abs(r1 - r2) / r2 <= 0.015 ? hi : null;
