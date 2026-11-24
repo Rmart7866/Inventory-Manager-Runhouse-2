@@ -1834,19 +1834,35 @@ var TR = {
         TR.driveGet({ action: 'search', q: q }).then(function (j) {
             if (!TR.drv || mine !== st.seq) return;
             if (j.__status !== 200) { TR.$('drv-list').innerHTML = '<p class="bad">' + TR.esc(j.error || ('HTTP ' + j.__status)) + '</p>'; return; }
-            TR.driveRender([], j.files || [], 'No logo has "' + q + '" in its name. Try the team name, or open a folder below by clearing the search.');
+            var fs = j.files || [], fo = j.folders || [];
+            if (!fs.length && !fo.length) { TR.$('drv-list').innerHTML = '<p class="sub">Nothing has "' + TR.esc(q) + '" in its name. Try the team name or a logo code, or clear the search to browse.</p>'; return; }
+            // Folders that match, then the files under a heading per folder.
+            var groups = [], at = {};
+            fs.forEach(function (f) { var w = f.where || 'Team logos'; if (!at[w]) { at[w] = { where: w, files: [] }; groups.push(at[w]); } at[w].files.push(f); });
+            TR.$('drv-path').innerHTML = (fo.length ? fo.length + (fo.length === 1 ? ' folder' : ' folders') + ' and ' : '') + fs.length + (fs.length === 1 ? ' logo' : ' logos') + ' match <b>' + TR.esc(q) + '</b>';
+            TR.driveRender(fo, [], '', groups);
         });
     },
-    driveRender: function (folders, files, empty) {
+    driveTile: function (f) {
+        var ok = TR.DRV_OK.test(f.name) || TR.DRV_MIME[f.mime];
+        return '<button type="button" class="drv-file' + (ok ? '' : ' off') + '" data-dfile="' + TR.esc(f.id) + '"' + (ok ? '' : ' disabled title="Not a logo file this page can use"') + '>' +
+            '<span class="drv-th" id="drv-th-' + TR.esc(f.id) + '">' + (f.thumb ? '<img alt="" loading="lazy" referrerpolicy="no-referrer" src="' + TR.esc(f.thumb) + '" data-thfail="' + TR.esc(f.id) + '">' : '<i>' + TR.esc((f.name.split('.').pop() || '').slice(0, 4).toUpperCase()) + '</i>') + '</span>' +
+            '<span class="drv-nm">' + TR.esc(f.name) + '</span></button>';
+    },
+    driveRender: function (folders, files, empty, groups) {
         var box = TR.$('drv-list');
+        if (groups) files = [].concat.apply([], groups.map(function (g) { return g.files; }));
         if (!folders.length && !files.length) { box.innerHTML = '<p class="sub">' + TR.esc(empty) + '</p>'; return; }
-        box.innerHTML = folders.map(function (f) {
-            return '<button type="button" class="drv-fold" data-dfold="' + TR.esc(f.id) + '"><span aria-hidden="true">&#128193;</span> ' + TR.esc(f.name) + '</button>';
-        }).join('') + files.map(function (f) {
-            var ok = TR.DRV_OK.test(f.name) || TR.DRV_MIME[f.mime];
-            return '<button type="button" class="drv-file' + (ok ? '' : ' off') + '" data-dfile="' + TR.esc(f.id) + '"' + (ok ? '' : ' disabled title="Not a logo file this page can use"') + '>' +
-                '<span class="drv-th" id="drv-th-' + TR.esc(f.id) + '"><i>' + TR.esc((f.name.split('.').pop() || '').slice(0, 4).toUpperCase()) + '</i></span>' +
-                '<span class="drv-nm">' + TR.esc(f.name) + '</span>' + (f.where ? '<span class="drv-wh">' + TR.esc(f.where) + '</span>' : '') + '</button>';
+        var foldHtml = folders.map(function (f) {
+            return '<button type="button" class="drv-fold" data-dfold="' + TR.esc(f.id) + '"><span aria-hidden="true">&#128193;</span> ' + TR.esc(f.name) + (f.where ? '<span class="drv-wh"> in ' + TR.esc(f.where) + '</span>' : '') + '</button>';
+        }).join('');
+        if (groups) {
+            box.innerHTML = (foldHtml ? '<h4 class="drv-h">Folders</h4>' + foldHtml : '') + groups.map(function (g) {
+                var fid = g.files[0] && g.files[0].folderId;
+                return '<h4 class="drv-h"><span aria-hidden="true">&#128193;</span> ' + TR.esc(g.where) + '</h4>' + g.files.map(TR.driveTile).join('');
+            }).join('');
+        } else box.innerHTML = foldHtml + files.map(function (f) {
+            return TR.driveTile(f);
         }).join('');
         box.querySelectorAll('[data-dfold]').forEach(function (b) { b.onclick = function () { TR.$('drv-q').value = ''; TR.driveList(b.dataset.dfold); }; });
         TR.$('drv-path').querySelectorAll('[data-dfold]').forEach(function (b) { b.onclick = function () { TR.$('drv-q').value = ''; TR.driveList(b.dataset.dfold); }; });
@@ -1855,7 +1871,10 @@ var TR = {
         // Thumbnails three at a time, images only, remembered for the session.
         TR.drvThumbs = TR.drvThumbs || {};
         var IMG = new RegExp('[.](png|jpe?g|webp|svg)$', 'i');
-        var queue = files.filter(function (f) { return String(f.mime || '').indexOf('image') === 0 || IMG.test(f.name); }).map(function (f) { return f.id; });
+        var queue = files.filter(function (f) { return !f.thumb && (String(f.mime || '').indexOf('image') === 0 || IMG.test(f.name)); }).map(function (f) { return f.id; });
+        box.querySelectorAll('img[data-thfail]').forEach(function (im) {
+            im.onerror = function () { var id = im.dataset.thfail; im.remove(); queue.push(id); if (queue.length === 1) next(); };
+        });
         var seq = TR.drv && TR.drv.seq;
         var next = function () {
             var id = queue.shift(); if (!id || !TR.drv || TR.drv.seq !== seq) return;

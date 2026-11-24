@@ -114,10 +114,14 @@ function pathFrom(parentId) {
   for (var d = 0; id && id !== ROOT && t[id] && d < 20; d++) { names.unshift(t[id][0]); id = t[id][1]; }
   return names.join(' / ');
 }
+// "thumb" is Drive's own small preview link, sized to 240 px, so the page can
+// show every result's picture at once instead of asking for each file (each
+// of those took 2 to 6 s and came back as the whole logo, 2026-11-24).
 function info(f) {
-  return { id: f.id, name: f.name, mime: f.mimeType, size: Number(f.size || 0), updated: f.modifiedTime };
+  var t = f.thumbnailLink ? String(f.thumbnailLink).replace(/=s\d+$/, '=s240') : '';
+  return { id: f.id, name: f.name, mime: f.mimeType, size: Number(f.size || 0), updated: f.modifiedTime, thumb: t };
 }
-var FIELDS = 'nextPageToken, files(id, name, mimeType, size, modifiedTime, parents)';
+var FIELDS = 'nextPageToken, files(id, name, mimeType, size, modifiedTime, parents, thumbnailLink)';
 
 // One folder's contents, for browsing.
 function list(id) {
@@ -164,7 +168,18 @@ function search(q) {
     token = r.nextPageToken;
     pages++;
   } while (token && hits.length < MAX_RESULTS && pages < 4);
-  return { files: hits };
+  // Folders whose name has every word typed, from the remembered tree, so a
+  // search for a team shows its folders as well as its files (no extra call).
+  var t = tree(), folders = [];
+  for (var id in t) {
+    if (id === ROOT) continue;
+    var fn = String(t[id][0]).toLowerCase(), ok = true;
+    for (var k = 0; k < words.length; k++) if (fn.indexOf(words[k]) < 0) { ok = false; break; }
+    if (ok) folders.push({ id: id, name: t[id][0], where: pathFrom(t[id][1]) });
+    if (folders.length >= 30) break;
+  }
+  folders.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  return { files: hits, folders: folders };
 }
 
 function fileOk(id) {

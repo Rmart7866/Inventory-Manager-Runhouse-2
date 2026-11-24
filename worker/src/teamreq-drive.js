@@ -14,6 +14,11 @@
 // the page turns into a File and uploads through the normal logo route.
 
 const ACTIONS = new Set(['list', 'search', 'thumb', 'file']);
+// Measured 2026-11-24: a search through the script took 4 to 17 s and each
+// thumbnail 2 to 6 s, so answers are kept in the Worker's cache: a search or
+// a folder for 10 minutes (a new logo shows up within that), a file or its
+// preview for a day (a logo's file id changes when it is replaced).
+const KEEP = { search: 600, list: 600, thumb: 86400, file: 86400 };
 const ID_RE = /^[A-Za-z0-9_-]{10,80}$/;
 
 export async function handleDrive(request, env) {
@@ -36,6 +41,14 @@ export async function handleDrive(request, env) {
     if (!ID_RE.test(id)) return { status: 400, body: { error: 'Bad file id' } };
     p.set('id', id);
   }
+  // The cache key leaves the DRIVE_KEY out, so it is never stored anywhere.
+  const shown = new URLSearchParams(p); shown.delete('key');
+  const cacheKey = new Request('https://team-drive.cache/' + action + '?' + shown.toString());
+  const cache = typeof caches !== 'undefined' ? caches.default : null;
+  if (cache && url.searchParams.get('fresh') !== '1') {
+    const hit = await cache.match(cacheKey);
+    if (hit) { try { return { body: await hit.json() }; } catch { /* a broken entry is fetched again */ } }
+  }
   let res;
   try {
     // Apps Script answers with a redirect to googleusercontent.com; fetch follows it.
@@ -53,6 +66,9 @@ export async function handleDrive(request, env) {
     return j.error === 'not allowed'
       ? { status: 502, body: { error: 'The Drive script refused the Worker key: DRIVE_KEY differs from the script property.' } }
       : { status: 400, body: { error: j.error } };
+  }
+  if (cache) {
+    await cache.put(cacheKey, new Response(JSON.stringify(j), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=' + KEEP[action] } }));
   }
   return { body: j };
 }
