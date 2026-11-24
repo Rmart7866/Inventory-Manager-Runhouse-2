@@ -48,12 +48,18 @@ const KEY = 'snippets/product-form.liquid';
 
 // The four LA 2027 singlet listings. Danielle's email says the definitive list
 // is coming separately, so trimming this is a one line edit.
-const HANDLES = [
-  '2027-asics-la-marathon-charities-asics-mens-rival-ii-singlet-tf3085',
-  '2026-los-angeles-marathon-womens-performance-tank',
-  '2026-asics-los-angeles-marathon-run-clubs-asics-mens-rival-ii-singlet',
-  '2026-asics-los-angeles-marathon-run-clubs-asics-womens-rival-ii-singlet',
-];
+// --handles <a,b,c | file> uses that list instead (2026-11-24: every product
+// of the two LA 2027 sample stores).
+const HANDLES_AT = process.argv.indexOf('--handles');
+const HANDLES_ARG = HANDLES_AT >= 0 ? process.argv[HANDLES_AT + 1] : null;
+const HANDLES = HANDLES_ARG
+  ? (fs.existsSync(HANDLES_ARG) ? fs.readFileSync(HANDLES_ARG, 'utf8') : HANDLES_ARG).split(/[\s,]+/).map((h) => h.trim()).filter(Boolean)
+  : [
+    '2027-asics-la-marathon-charities-asics-mens-rival-ii-singlet-tf3085',
+    '2026-los-angeles-marathon-womens-performance-tank',
+    '2026-asics-los-angeles-marathon-run-clubs-asics-mens-rival-ii-singlet',
+    '2026-asics-los-angeles-marathon-run-clubs-asics-womens-rival-ii-singlet',
+  ];
 
 function env() {
   const txt = fs.readFileSync(path.join(ROOT, 'worker/.dev.vars'), 'utf8');
