@@ -1996,6 +1996,12 @@ to the contact form email only if that save fails. Staff work them in
   staff file. Logo spots come from the closest style, CHECKED BY DRAWING THEM
   on the new photos (ST870's spots missed District's framing; DT6100's fit).
   The staff "Add a product" search ignores punctuation and symbols.
+  2026-11-24: PC55's 16 best-stocked missing colours (Navy, Athletic
+  Heather, White, Red, Charcoal, Ash...) were added with PC54's flat photos,
+  the same Port & Company core tee cut (shapes within 4.3%, PC55's own logo
+  spots checked on them); SanMar has no PC55 flat in those colours. Safety
+  Green and Safety Orange stay out: PC54 has no such colour and its Neon
+  shades would show the wrong one. `trh-builder-catalog-ed71939f2e.json`.
   2026-11-24: the ASICS Rival II Singlet, men's TF3085 and women's TF2934,
   $35, Black / Navy / Royal / White, from the store's own base listing
   photos: `trh-builder-catalog-38bdc7eb3d.json`, 167 styles. Front logos only
