@@ -1752,23 +1752,78 @@ var TR = {
             timer = setTimeout(function () { if (v.length >= 2) TR.driveSearch(v); else if (!v) TR.driveList(st.folder); }, 400);
         };
         q.focus();
-        TR.driveList(null);
+        // Open the store's own folder when its name says which one it is.
+        st.team = String((TR.st.rec && TR.st.rec.work && TR.st.rec.work.team) || '').trim();
+        TR.driveList(null, true);
+    },
+    // Folders for this store, best first. The team or town NAME must match
+    // (Norwell, Keefe Tech); sport and team-kind words (soccer, girls, track)
+    // only choose between folders that already share the name, so "Surfside
+    // Tennis Club" never opens "Canton Tennis". Tested 2026-11-24 over every
+    // live store against the real folder names.
+    DRV_STOP: { the: 1, and: 1, team: 1, store: 1, club: 1, high: 1, school: 1, logo: 1, logos: 1, files: 1, folder: 1, apparel: 1, online: 1, program: 1, inc: 1, llc: 1 },
+    DRV_KIND: { track: 1, field: 1, cross: 1, country: 1, xc: 1, basketball: 1, soccer: 1, volleyball: 1, tennis: 1, drama: 1, cheerleading: 1, cheer: 1, lacrosse: 1, hockey: 1, baseball: 1, softball: 1, football: 1, swim: 1, swimming: 1, dive: 1, diving: 1, youth: 1, running: 1, run: 1, runners: 1, girls: 1, boys: 1, womens: 1, mens: 1, golf: 1, wrestling: 1, crew: 1, rowing: 1, ski: 1, nordic: 1, band: 1, varsity: 1, middle: 1, academy: 1 },
+    driveMatches: function (team, folders) {
+        // A plural matches its singular ("Keepers" / "Keeper").
+        var SAME = { cheerleading: 'cheer', swimming: 'swim', diving: 'dive', running: 'run', runners: 'run', crosscountry: 'xc' };
+        var stem = function (w) { if (SAME[w]) return SAME[w]; return w.length > 3 && w.charAt(w.length - 1) === 's' && !TR.DRV_KIND[w] ? w.slice(0, -1) : w; };
+        var words = function (x) { return String(x).toLowerCase().replace(/&/g, ' ').split(new RegExp('[^a-z0-9]+')).filter(function (w) { return (w.length >= 3 || w === 'xc') && !TR.DRV_STOP[w]; }).map(stem); };
+        var split = function (ws) { return { name: ws.filter(function (w) { return !TR.DRV_KIND[w]; }), kind: ws.filter(function (w) { return TR.DRV_KIND[w]; }) }; };
+        var me = split(words(team));
+        if (!me.name.length) return [];
+        return folders.map(function (f) {
+            var tw = words(f.name), th = split(tw);
+            var nameHit = me.name.filter(function (w) { return th.name.indexOf(w) >= 0; }).length;
+            var kindHit = me.kind.filter(function (w) { return th.kind.indexOf(w) >= 0; }).length;
+            var name = nameHit / me.name.length, kind = me.kind.length ? kindHit / me.kind.length : 0;
+            // A name word the store does not have ("Trail" in Waltham Trail
+            // Runners) suggests a different team: still listed, never auto-opened.
+            var extra = th.name.filter(function (w) { return me.name.indexOf(w) < 0; }).length;
+            return { f: f, name: name, extra: extra, score: name + 0.5 * kind + (tw.length ? (nameHit + kindHit) / tw.length : 0) / 100 };
+        }).filter(function (o) { return o.name > 0; }).sort(function (a, b) { return b.score - a.score; });
+    },
+    // Open the best folder straight away only when it is clearly the one:
+    // it has the whole name (or is the only folder sharing any of it) and
+    // leads the next by a margin.
+    driveAuto: function (m) {
+        if (!m.length) return null;
+        var clear = m.length === 1 || m[0].score - m[1].score >= 0.25;
+        return clear && !m[0].extra && (m[0].name === 1 || m.length === 1) ? m[0] : null;
     },
     driveGet: function (params) {
         var qs = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); }).join('&');
         return TR.api('/team-requests/drive?' + qs);
     },
-    driveList: function (folder) {
+    driveList: function (folder, match) {
         var st = TR.drv; if (!st) return;
         var mine = ++st.seq; st.folder = folder;
         TR.$('drv-list').innerHTML = '<p class="sub">Loading...</p>';
         TR.driveGet(folder ? { action: 'list', folder: folder } : { action: 'list' }).then(function (j) {
             if (!TR.drv || mine !== st.seq) return;
             if (j.__status !== 200) { TR.$('drv-list').innerHTML = '<p class="bad">' + TR.esc(j.error || ('HTTP ' + j.__status)) + '</p>'; return; }
+            var folders = j.folders || [], note = '';
+            if (!folder && match && st.team) {
+                var m = TR.driveMatches(st.team, folders);
+                // One clear best: open it. Several close ones: list them first.
+                var best = TR.driveAuto(m);
+                if (best) {
+                    st.opened = best.f.name;
+                    TR.driveList(best.f.id);
+                    return;
+                }
+                if (m.length) {
+                    var top = m.slice(0, 6).map(function (o) { return o.f; }), ids = {};
+                    top.forEach(function (f) { ids[f.id] = 1; });
+                    folders = top.concat(folders.filter(function (f) { return !ids[f.id]; }));
+                    note = '<div class="drv-note">Folders that match <b>' + TR.esc(st.team) + '</b> are first.</div>';
+                }
+            }
             TR.$('drv-path').innerHTML = (j.path || []).map(function (p, i, a) {
                 return i === a.length - 1 ? '<b>' + TR.esc(p.name) + '</b>' : '<button type="button" class="drv-crumb" data-dfold="' + TR.esc(p.id) + '">' + TR.esc(p.name) + '</button> /';
-            }).join(' ');
-            TR.driveRender(j.folders || [], j.files || [], 'This folder is empty.');
+            }).join(' ') + (st.opened && folder ? '<div class="drv-note">Opened <b>' + TR.esc(st.opened) + '</b>, the folder for <b>' + TR.esc(st.team) + '</b>. Not the right one? <button type="button" class="drv-crumb" id="drv-all">All team folders</button></div>' : note);
+            st.opened = null;
+            var all = TR.$('drv-all'); if (all) all.onclick = function () { TR.$('drv-q').value = ''; TR.driveList(null); };
+            TR.driveRender(folders, j.files || [], 'This folder is empty.');
         });
     },
     driveSearch: function (q) {
