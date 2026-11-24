@@ -24,7 +24,7 @@
 
 import { createShopifyClient } from './shopify.js';
 import { readRec, writeRec, log } from './teamreq.js';
-import { planProduct, productSetInputFor, collectionByHandle, existingStoreInfo } from './teamreq-build.js';
+import { planProduct, productSetInputFor, collectionByHandle, existingStoreInfo, lineCost } from './teamreq-build.js';
 
 const PRODUCT_SET = `mutation productSet($input: ProductSetInput!) {
   productSet(synchronous: true, input: $input) { product { id handle title status } userErrors { field message } } }`;
@@ -125,7 +125,9 @@ export async function handleUpdateProducts(request, env) {
     if (!cur) { results[i] = { style: spec.style, handle: target.handle, skipped: true, reason: 'It is no longer on Shopify.' }; continue; }
     const input = updateInputFor(plan, cur, { searchable: !!b.searchable });
     const diff = diffProduct(cur, input);
-    cands.push({ i, cur, input, cost: diff.variantsAdded + diff.variantsRemoved, row: { style: spec.style, id: cur.id, handle: cur.handle, title: cur.title, status: cur.status, diff, photos: !!input.files } });
+    const vals = { color: [], size: [] };
+    for (const v of (cur.variants && cur.variants.nodes) || []) for (const o of v.selectedOptions) { if (o.name === 'Color') vals.color.push(o.value); if (o.name === 'Size') vals.size.push(o.value); }
+    cands.push({ i, cur, input, cost: lineCost(plan, vals), row: { style: spec.style, id: cur.id, handle: cur.handle, title: cur.title, status: cur.status, diff, photos: !!input.files } });
   }
   // Pass 2: a product is changed by the ONE line closest to it (ties go to
   // the first). The other lines of that style are new products for Build.

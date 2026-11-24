@@ -95,6 +95,20 @@ export function spellSize(s) {
 // back office automation that also builds team stores (Color then Size,
 // spelled sizes, "Jet Black (D055 (FC))"), so a store built here and one
 // built there look the same, and each one's duplicate check sees the other's.
+// How far a planned line is from a product as it is: colours and sizes it
+// would add plus those it would remove. Build and Update both use this to
+// decide which line IS an existing product, so they cannot disagree. Pure.
+export function lineCost(plan, values) {
+  const cc = new Set(values.color), cs = new Set(values.size);
+  const nc = new Set(plan.colors.map((c) => c.value)), ns = new Set(plan.sizes);
+  let n = 0;
+  for (const x of nc) if (!cc.has(x)) n++;
+  for (const x of cc) if (!nc.has(x)) n++;
+  for (const x of ns) if (!cs.has(x)) n++;
+  for (const x of cs) if (!ns.has(x)) n++;
+  return n;
+}
+
 export function planProduct(team, tag, spec) {
   // A second product of a style the store already carries, with other logos,
   // is told apart by its logo codes: "... (PC78H) - B132".
@@ -304,12 +318,11 @@ export async function handleBuild(request, env) {
   }
 
   // Lines that share an address (the same style twice, or a style already
-  // built) are told apart by LOGO CODES (owner, 2026-11-24: other logos are
-  // not a duplicate). If a product is at that address, the line printing the
-  // codes it prints keeps the address (it IS that product, left alone; a
-  // change to it is "Change built products"); with no product there, the
-  // first line keeps it. Every other line is its own product, named by its
-  // codes ("... (PC78H) - B128/B133"), else by a number.
+  // built). If a product is at that address, the line CLOSEST to it by
+  // colours and sizes (lineCost, the rule "Change built products" uses too)
+  // IS that product: left alone here, changed there. With no product there,
+  // the first line keeps the address. Every other line is its own product,
+  // named by its logo codes ("... (PC78H) - B128/B133"), else by a number.
   try {
     const groups = new Map();
     plans.forEach((pl, i) => { if (!groups.has(pl.handle)) groups.set(pl.handle, []); groups.get(pl.handle).push(i); });
@@ -317,14 +330,14 @@ export async function handleBuild(request, env) {
     const moved = [], taken = new Set(plans.map((pl) => pl.handle));
     for (const [h, idx] of groups) {
       if (idx.length === 1 && !existing.has(h)) continue;
-      let keep = -1;
+      let keep = idx[0];
       if (existing.has(h)) {
-        const pb = await client.graphql('query($h:String!){ productByHandle(handle:$h){ variants(first:100){ nodes{ selectedOptions{ value } } } } }', { h });
-        const pr = pb.data && pb.data.productByHandle, printed = new Set();
-        if (pr) for (const v of pr.variants.nodes) for (const o of v.selectedOptions) for (const m of String(o.value).matchAll(/\b([A-Z][0-9]{3})\b/g)) printed.add(m[1]);
-        keep = idx.find((i) => { const c = codesOf(i); return !c.length || c.every((x) => printed.has(x)); });
-        if (keep === undefined) keep = -1;
-      } else keep = idx[0];
+        const pb = await client.graphql('query($h:String!){ productByHandle(handle:$h){ variants(first:250){ nodes{ selectedOptions{ name value } } } } }', { h });
+        const pr = pb.data && pb.data.productByHandle, vals = { color: [], size: [] };
+        if (pr) for (const v of pr.variants.nodes) for (const o of v.selectedOptions) { if (o.name === 'Color') vals.color.push(o.value); if (o.name === 'Size') vals.size.push(o.value); }
+        let bestCost = Infinity;
+        for (const i of idx) { const c = lineCost(plans[i], vals); if (c < bestCost) { bestCost = c; keep = i; } }
+      }
       for (const i of idx) {
         if (i === keep) continue;
         const c = codesOf(i);

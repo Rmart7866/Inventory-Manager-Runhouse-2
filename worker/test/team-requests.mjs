@@ -635,14 +635,15 @@ console.log('\nUpdate products this page built (2026-11-24)');
   globalThis.fetch = async (u, init = {}) => {
     if (String(u).includes('/oauth/access_token')) return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { headers: { 'Content-Type': 'application/json' } });
     const b = JSON.parse(init.body || '{}'), q = b.query || '';
-    if (/productByHandle/.test(q)) return new Response(JSON.stringify({ data: { productByHandle: b.variables.h === BASE ? { variants: { nodes: [{ selectedOptions: [{ value: 'Maroon (B131 (FC))' }, { value: 'Small' }] }] } } : null } }));
+    if (/productByHandle/.test(q)) return new Response(JSON.stringify({ data: { productByHandle: b.variables.h === BASE ? { variants: { nodes: [{ selectedOptions: [{ name: 'Color', value: 'Maroon (B131 (FC))' }, { name: 'Size', value: 'Small' }] }] } } : null } }));
     if (/products\(first/.test(q)) return new Response(JSON.stringify({ data: { products: { nodes: JSON.stringify(b.variables).includes('"' + BASE + '\\"') || JSON.stringify(b.variables).includes(BASE + '\\"') ? [{ handle: BASE }] : [] } } }));
     return new Response(JSON.stringify({ data: { collectionByHandle: null, publications: { nodes: [] } } }));
   };
   r = await call('/team-requests/create', { method: 'POST', headers: STAFF, body: { mode: 'new', team: 'Zz Three', by: 'Ryan' } });
   const hid = (await r.json()).id;
   r = await call('/team-requests/build', { method: 'POST', headers: STAFF, body: { id: hid, dryRun: true, products: [
-    { ...spec, logoCodes: ['B128', 'B133'] }, { ...spec, logoCodes: ['B131'] } ] } });
+    { ...spec, logoCodes: ['B128', 'B133'], colors: [{ name: 'Maroon', label: 'Maroon (B128 (FC))' }] },
+    { ...spec, logoCodes: ['B131'], colors: [{ name: 'Maroon', label: 'Maroon (B131 (FC))' }] } ] } });
   j = await r.json();
   const pp = (j.plan && j.plan.products) || [];
   check('a new-logo line listed first becomes its own product', pp[0] && pp[0].title === 'Zz Three - Hoodie (PC78H) - B128/B133' && !pp[0].exists, JSON.stringify(pp.map((x) => [x.title, x.exists])));
