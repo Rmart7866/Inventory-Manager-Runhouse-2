@@ -80,7 +80,12 @@ async function gql(q, v = {}, attempt = 0) {
 export function seoTitleFor(p) {
   const { model, colour } = titleParts(p.title);
   if (!model) return '';
-  const noun = nounFor(p.productType);
+  // A shoe TYPE is not always a running shoe: HOKA's Mafate Hike is a hiker,
+  // Arahi SR and Bondi SR are slip resistant work shoes, and slides and
+  // recovery shoes are typed as shoes too (2026-11-25 dry run). Their model
+  // name says so; those get no noun rather than the wrong one.
+  let noun = nounFor(p.productType);
+  if (noun === 'Running Shoes' && /\b(hike|hiking|hiker|boots?|SR|slides?|sandals?|recovery|clogs?|mules?|ora)\b/i.test(model)) noun = '';
   const n = (noun && !alreadySays(model, noun)) ? ' ' + noun : '';
   const c = colour ? ', ' + colour : '';
 

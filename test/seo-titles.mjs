@@ -109,5 +109,22 @@ eq(T('', "Men's Shoes"), '', 'an empty title gives empty, so the row is skipped'
   t ? ok('a product with no type still gets a title: ' + t) : bad('no title produced');
 }
 
+// 2026-11-25 dry run: two older title shapes that left a dangling dash.
+{
+  const a = T('Diadora Womens Mythos Blushield Vigore 2-White/Pink Fluo/Black (101.179081-C9998)', "Women's Shoes");
+  !/2-White/.test(a) && /Vigore 2[ ,]/.test(a) ? ok('a dash with no spaces before a slash colour splits: ' + a) : bad('tight dash not split', a);
+  const b = T('New Balance Mens X 1080v12 Wide- Blue/Green Apple- (M1080S12)', "Men's Shoes");
+  !/-$/.test(b) && !/Wide-/.test(b) ? ok('no dangling dash: ' + b) : bad('dangling dash kept', b);
+  const c = T('Ergo-Lite Running Belt', '');
+  /Ergo-Lite/.test(c) ? ok('a hyphenated name with no slash stays whole: ' + c) : bad('hyphenated name split', c);
+  for (const [t, why] of [["HOKA Men's Mafate Hike - THYME / YELLOW GOLD", 'a hiker'], ["HOKA Women's Arahi SR - BLACK / BLACK (Wide)", 'a work shoe'], ["HOKA Unisex Ora Recovery Slide 3 - Black", 'a slide']]) {
+    const s = T(t, "Men's Shoes");
+    !/Running Shoes/.test(s) ? ok(why + ' is not called a running shoe: ' + s) : bad(why + ' called a running shoe', s);
+  }
+  /Running Shoes/.test(T("HOKA Men's Clifton 11 - Black", "Men's Shoes")) ? ok('a running shoe still is one') : bad('Clifton lost its noun');
+  const d = T('ASICS Mens GT-2000 13 - Black/White', "Men's Shoes");
+  /GT-2000 13/.test(d) ? ok('GT-2000 keeps its hyphen: ' + d) : bad('GT-2000 broken', d);
+}
+
 console.log(failures ? '\n' + failures + ' FAILED' : '\nall good');
 process.exit(failures ? 1 : 0);

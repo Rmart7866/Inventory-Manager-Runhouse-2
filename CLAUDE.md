@@ -320,7 +320,7 @@ python3 tools/build-barcodes.py               # writes barcode-data.js, barcodes
 
 # SEO backfills, dry run by default, --apply to write, rollback + --restore
 node tools/backfill-alt-text.mjs             # lead image alt text, DONE 2026-10-30
-node tools/backfill-seo-titles.mjs           # product seo titles, started, not finished
+node tools/backfill-seo-titles.mjs           # product seo titles, DONE 2026-11-25, rerun for new products
 node tools/apply-collection-seo.mjs          # collection titles + meta from seo-drafts/
 
 # Draft products carrying stock. Dry run by default, rollback + --restore.
@@ -2611,10 +2611,16 @@ times. Google ignores a meta description roughly seven times in ten and writes
 its own from the page, and near-identical ones are exactly what it ignores.
 Owner's call: titles only.
 
-**PRODUCT SEO TITLES ARE BUILT AND NOT FINISHED.**
-`tools/backfill-seo-titles.mjs` plans 2,884 and was started then stopped on
-2026-10-30 after fewer than 250 had been written. Re-running `--apply` is safe
-and resumes, because it only touches products that still have no SEO title.
+**PRODUCT SEO TITLES ARE DONE (2026-11-25).** By then 3,677 of 4,061 active
+in-stock products had one; the last 384 were written that day (rollback
+`seo-title-rollback-202611251554.json`). About 12 always remain in a dry run:
+their SEO title would EQUAL the product title, so Shopify stores nothing,
+which is harmless. Re-running `--apply` is safe for new products, because it
+only touches products that still have no SEO title. That run added three
+rules: a dash with no spaces splits off the colour only when a capital and a
+slash follow ("Vigore 2-White/Pink"); a dangling dash before the supplier code
+is trimmed; and a shoe whose model says hike, boot, SR, slide, sandal,
+recovery, clog or mule gets no "Running Shoes" noun.
 
 Three rules in it came out of dry runs, and each replaced an instinct that was
 wrong:

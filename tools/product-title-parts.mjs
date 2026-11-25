@@ -30,10 +30,18 @@ export const TRAILING_CODE = /\s*\((?=[^)]*\d)[A-Za-z0-9][A-Za-z0-9.\- ]*\)\s*$/
 // "Ergo-Lite" and "3-Pack" have none.
 const COLOUR_SPLIT = /^(.*)\s*-\s+([^-]*)$/;
 
+// Two older title shapes, found in the 2026-11-25 dry run. A dash with NO
+// space at all, "Mythos Blushield Vigore 2-White/Pink Fluo/Black": split only
+// when what follows starts with a capital AND names two colours with a slash,
+// which no hyphenated model name ("Ergo-Lite", "GT-2000") does. And a dangling
+// dash left in front of the supplier code, "1080v12 Wide- Blue/Green Apple-
+// (M1080S12)", which is trimmed before the split.
+const TIGHT_COLOUR_SPLIT = /^(.*[A-Za-z0-9])-([A-Z][^-]*\/[^-]*)$/;
+
 export function titleParts(title) {
-  const clean = String(title || '').replace(TRAILING_CODE, '').trim();
+  const clean = String(title || '').replace(TRAILING_CODE, '').trim().replace(/\s*-+$/, '').trim();
   if (!clean) return { model: '', colour: '' };
-  const m = COLOUR_SPLIT.exec(clean);
+  const m = COLOUR_SPLIT.exec(clean) || TIGHT_COLOUR_SPLIT.exec(clean);
   return m ? { model: m[1].trim(), colour: m[2].trim() } : { model: clean, colour: '' };
 }
 
