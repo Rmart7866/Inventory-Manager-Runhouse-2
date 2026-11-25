@@ -1445,8 +1445,11 @@ ACTIVE products that should take a logo and cannot:
 The duplicate in the second list is that same "Run In" handle, listed twice.
 From the customer's side both faults look identical: a long sleeve tee with
 nowhere to put their logo. `tools/enable-file-upload.mjs` writes BOTH lists and
-is the right fix, but it is still a decision to turn an upload box on, so this
-stays reported rather than done.
+is the right fix. FIXED 2026-11-25 on owner request, on the live theme AND the
+redesign draft (169224863999), so publishing the draft keeps it: both tees are
+now in both lists, and both product pages show "Upload your logo" (a shoe does
+not). The concatenated entry and the duplicate were left in place, harmless,
+because the tool only adds.
 
 **Do not paste raw Liquid tags into this file.** GitHub Pages serves the
 frontend from this branch and its default build runs the markdown through
