@@ -35,7 +35,13 @@
   const { sleep, visible, waitFor, safeClick, typeInto, esc, banner } = P;
   const MAX_AGE = 15 * 60 * 1000;
   const ORIGIN = 'https://b2b.asics.com';
-  const PHONE = '(781) 400-1327';
+  // ASICS' own rules on the ship-to form, read off its checkout code 2026-11-27
+  // after a live run was refused "The Phone number field format is invalid":
+  // phone /^([+0-9]+)$/, 9 to 16 characters, so digits only, no brackets or
+  // dashes; postcode 4 to 10 characters and, on some accounts, numeric only, so
+  // a ZIP+4 is cut to its five digits.
+  const PHONE = '7814001327';
+  const zip5 = (z) => String(z || '').replace(/[^0-9]/g, '').slice(0, 5);
   const PO_MAX = 24;
   const ME = Math.random().toString(36).slice(2);
   const save = (job) => chrome.storage.local.set({ rhPrepJob: job });
@@ -113,7 +119,7 @@
     await sleep(800);
     const want = {
       name: [a.firstName, a.lastName].filter(Boolean).join(' '),
-      phone: PHONE, address1: a.street1 || '', address2: a.street2 || '', city: a.city || '', postcode: a.zip || '',
+      phone: PHONE, address1: a.street1 || '', address2: a.street2 || '', city: a.city || '', postcode: zip5(a.zip),
     };
     const fill = () => { for (const [id, v] of Object.entries(want)) { const e = document.getElementById(id); if (e && e.value !== v) typeInto(e, v); } };
     const wrong = () => Object.entries(want).filter(([id, v]) => { const e = document.getElementById(id); return !e || e.value !== v; }).map(([id]) => id);

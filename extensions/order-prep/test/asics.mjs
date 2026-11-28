@@ -48,6 +48,10 @@ check('it refuses a basket that is not empty', /already holds/.test(src) && /lin
 check('the only write it makes to ASICS is the basket lines PATCH', (src.match(/method: '(POST|PUT|PATCH|DELETE)'/g) || []).join() === "method: 'PATCH'" && /\/aac\/baskets\/' \+ no \+ '\/lines'/.test(src));
 check('it sends the XSRF token ASICS requires (419 without it)', /X-XSRF-TOKEN/.test(src) && /XSRF-TOKEN=/.test(src));
 check('the PO is cut to ASICS\' 24 characters', /PO_MAX = 24/.test(src));
+// ASICS' form rules (checkout code, 2026-11-27): phone /^([+0-9]+)$/ 9 to 16, postcode numeric on some accounts.
+const phone = (/const PHONE = '([^']*)'/.exec(src) || [])[1] || '';
+check('the phone passes ASICS\' rule: digits only, 9 to 16 (a live run was refused "(781) 400-1327")', /^([+0-9]+)$/.test(phone) && phone.length >= 9 && phone.length <= 16);
+check('the postcode is sent as five digits, so a ZIP+4 cannot fail a numeric rule', /postcode: zip5\(a\.zip\)/.test(src) && /replace\(\/\[\^0-9\]\/g, ''\)\.slice\(0, 5\)/.test(src));
 check('the ship-to is read back from ASICS, not trusted from the page', /await basket\(\)[\s\S]{0,120}shipTo/.test(src));
 
 // The manifest, staff.js and late.js agree that ASICS exists.
