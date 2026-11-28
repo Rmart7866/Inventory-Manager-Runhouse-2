@@ -11,6 +11,9 @@ const CARTS = {
   on: { url: 'https://backstage.on-running.com/orders/create/re-order/product-selection', match: 'https://backstage.on-running.com/*' },
   // Brooks starts at the basket, which must be empty before anything is added.
   brooks: { url: 'https://fasttrack.brooksrunning.com/basket', match: 'https://fasttrack.brooksrunning.com/*' },
+  // ASICS: the dashboard; asics.js works from ASICS' own basket data, then
+  // goes to that basket's checkout itself.
+  asics: { url: 'https://b2b.asics.com/dashboard', match: 'https://b2b.asics.com/*' },
 };
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {

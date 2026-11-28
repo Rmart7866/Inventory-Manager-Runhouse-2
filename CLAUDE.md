@@ -86,6 +86,7 @@ node extensions/order-prep/test/xlsx.mjs        # order prep: the upload sheet o
 node extensions/order-prep/test/never-submits.mjs # order prep: every click goes through the no-submit guard
 node extensions/order-prep/test/on.mjs            # order prep, ON: our line to ON's grid, and the guard
 node extensions/order-prep/test/brooks.mjs        # order prep, Brooks: SKU to FastTrack's grid, never places
+node extensions/order-prep/test/asics.mjs         # order prep, ASICS: SKU to the basket API, state picker, never submits
 node test/alt-text.mjs                        # alt text copy: codes, colours, only shoes get a noun
 node test/seo-titles.mjs                      # seo titles: 60 char budget, distinctness beats the noun
 node test/scraper-feeds-tool.mjs             # the scraper's CSV still feeds the inventory manager

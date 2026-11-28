@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Run House Order Draft",
-  "version": "1.3.0",
-  "description": "Sets up a supplier order (items, ship-to address, PO) for a dropship order from the Late orders page, on HOKA, ON and Brooks. Never submits an order.",
+  "version": "1.4.0",
+  "description": "Sets up a supplier order (items, ship-to address, PO) for a dropship order from the Late orders page, on HOKA, ON, Brooks and ASICS. Never submits an order.",
   "permissions": [
     "storage"
   ],
   "host_permissions": [
     "https://hokaus.deckersb2b.deckers.com/*",
     "https://backstage.on-running.com/*",
-    "https://fasttrack.brooksrunning.com/*"
+    "https://fasttrack.brooksrunning.com/*",
+    "https://b2b.asics.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -53,6 +54,16 @@
       "js": [
         "common.js",
         "brooks.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://b2b.asics.com/*"
+      ],
+      "js": [
+        "common.js",
+        "asics.js"
       ],
       "run_at": "document_idle"
     }

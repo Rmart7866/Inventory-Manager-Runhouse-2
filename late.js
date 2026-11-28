@@ -163,6 +163,8 @@ var LO = {
         { key: 'hoka', name: 'HOKA', is: function (k) { return k === 'hoka'; }, findable: function (l) { return /^\d{8,14}$/.test(l.upc); }, why: 'has no UPC in Shopify' },
         { key: 'on', name: 'ON', is: function (k) { return k === 'on running' || k === 'on'; }, findable: function (l) { return /^\d{13}$/.test(l.upc) || /^ON-[0-9A-Z]{11}-/i.test(l.sku || ''); }, why: 'has neither an ON barcode nor an ON SKU in Shopify' },
         // Brooks by style, colour, size and width read off our SKU (brooks.js).
+        // ASICS by style, colour and size read off our SKU (asics.js, 2026-11-27).
+        { key: 'asics', name: 'ASICS', is: function (k) { return k === 'asics'; }, findable: function (l) { return /^\d{4}[A-Z]\d{3}-\d{3}-\d{1,2}?(55)?(-([A-Z]|\dE))?$/i.test(String(l.sku || '').trim()); }, why: 'has no ASICS SKU in Shopify' },
         { key: 'brooks', name: 'Brooks', is: function (k) { return k === 'brooks' || k === 'brooks running'; }, findable: function (l) { return /^\d{6}\d*-\d{3}-\d+-[A-Z0-9]{1,2}$|^\d{6}\d[A-Z]\d{3}\.\d{3}$/i.test(String(l.sku || '').trim()); }, why: 'has no Brooks SKU in Shopify' },
     ],
     // Hands one order to the Run House Order Prep extension, which opens

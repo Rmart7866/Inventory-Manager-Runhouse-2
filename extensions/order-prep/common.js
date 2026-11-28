@@ -180,5 +180,47 @@
     return [...g.values()];
   }
 
-  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, safePress, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize, onColour, onPickBox, brooksLine, brooksGroups };
+  // ---------- ASICS: our SKU to ASICS' basket ----------
+  // Our ASICS SKU is <style>-<colour>-<size>[-<width>], the scraper's own
+  // generateSKU: 1011C167-002-10, 1011C167-002-1055 (10.5: a trailing 55 is
+  // the half, as on ON), 1012B888-401-8-D. The style IS ASICS' item number,
+  // a wide shoe has its own style, so the width suffix is only a label.
+  // ASICS writes the half with an H: sizeKey "10H". Measured on the live
+  // basket 2026-11-27. A SKU that does not decode returns null, never a guess
+  // (the singlets' TF3085-01-M never reach this: they are not dropship).
+  function asicsLine(line) {
+    const s = String((line && line.sku) || '').trim().toUpperCase();
+    const m = /^(\d{4}[A-Z]\d{3})-(\d{3})-(\d{1,2}?)(55)?(?:-(?:[A-Z]|\dE))?$/.exec(s);
+    if (!m || !m[3]) return null;
+    const whole = parseInt(m[3], 10);
+    if (!(whole > 0 && whole <= 20)) return null;
+    return { style: m[1], colour: m[2], sizeKey: whole + (m[4] ? 'H' : ''), size: whole + (m[4] ? '.5' : ''), key: m[1] + '-' + m[2] };
+  }
+  // One group per COLOURWAY: ASICS answers stock per style and colour, and
+  // one PATCH can carry every size of it.
+  function asicsGroups(lines) {
+    const g = new Map();
+    for (const l of lines) {
+      const a = asicsLine(l);
+      if (!a) throw new Error((l.title || l.sku) + ' has a SKU this cannot read (' + l.sku + ')');
+      if (!g.has(a.key)) g.set(a.key, { key: a.key, style: a.style, colour: a.colour, title: l.title, pairs: [] });
+      const p = g.get(a.key).pairs.find((x) => x.sizeKey === a.sizeKey);
+      if (p) p.qty += l.qty; else g.get(a.key).pairs.push({ sizeKey: a.sizeKey, size: a.size, qty: l.qty, title: l.title });
+    }
+    return [...g.values()];
+  }
+  // ASICS' "Sales District" is a search list. Its spelling is not known for
+  // every state, so an option matches by the two letter code as a whole word
+  // ("MA", "MA - Massachusetts") or by the full name; anything else is no match.
+  const US_STATES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming', PR: 'Puerto Rico' };
+  function stateMatches(optionText, code) {
+    const c = String(code || '').toUpperCase(), name = US_STATES[c];
+    if (!name) return false;
+    const t = String(optionText || '').replace(/\s+/g, ' ').trim();
+    if (new RegExp('(^|[^A-Za-z])' + c + '([^A-Za-z]|$)').test(t)) return true;
+    // "Virginia" must not match "West Virginia", nor "Kansas" match "Arkansas".
+    return new RegExp('(^|[^A-Za-z ])\\s*' + name + '\\s*($|[^A-Za-z])', 'i').test(t) || t.toLowerCase() === name.toLowerCase();
+  }
+
+  root.RHPrep = { FORBIDDEN, sleep, visible, waitFor, safeClick, safePress, setVal, typeInto, esc, byLabel, banner, onModel, onArticle, onSize, onColour, onPickBox, brooksLine, brooksGroups, asicsLine, asicsGroups, US_STATES, stateMatches };
 })(typeof window !== 'undefined' ? window : globalThis);

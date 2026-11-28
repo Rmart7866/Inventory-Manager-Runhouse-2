@@ -1,7 +1,20 @@
 # Run House Order Draft (folder: order-prep)
 
 Sets up a supplier order for one dropship order, from the **Late orders** page,
-and stops before anything is ordered. **HOKA**, **ON** and **Brooks**.
+and stops before anything is ordered. **HOKA**, **ON**, **Brooks** and **ASICS**.
+
+## ASICS (Draft in ASICS, 2026-11-27)
+
+1. reads your **current** ASICS basket, which must be **empty** (otherwise it does nothing);
+2. per colourway asks ASICS' own stock call what it can ship in the earliest window and adds each
+   pair it can supply, the same request the product page's Add To Cart sends (style, colour and
+   size read off our SKU; 10.5 is `1055` in our SKU and `10H` at ASICS); a size ASICS cannot supply
+   is listed, not guessed;
+3. checkout: types the PO into **Customer PO** (24 characters at most);
+4. **Change Address**: the customer's name, address, city, postal code and Sales District (the
+   store phone), then Save, and reads the ship-to back from ASICS (an international order keeps the
+   store address);
+5. **stops**: you tick the three terms boxes and submit it yourself.
 
 ## Brooks (Draft in Brooks)
 
@@ -61,3 +74,4 @@ You must already be logged in to HOKA's B2B site in the same Chrome.
     node extensions/order-prep/test/never-submits.mjs  # every click goes through the guard
     node extensions/order-prep/test/on.mjs             # ON: our line to ON's grid, and the guard
     node extensions/order-prep/test/brooks.mjs         # Brooks: our SKU to FastTrack's grid, and the guard
+    node extensions/order-prep/test/asics.mjs          # ASICS: our SKU to the basket, the state picker, and the guard
